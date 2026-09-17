@@ -134,8 +134,8 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# NINE suites — 98 + 19 + 24 + 24 + 57 + 223 + 33 + 153 + 53 = 684 counted assertions —
-# over the nine decisions the capture path makes that nothing else can check
+# TEN suites — 98 + 19 + 24 + 24 + 57 + 224 + 33 + 153 + 53 + 51 = 736 counted assertions —
+# over the ten decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -145,9 +145,34 @@ test:
 # (`backfill-bodies-selftest`), WHY a transaction this pipeline did not
 # trace was declined (`refusal-selftest`), whether a range ledger's coverage
 # is actually contiguous (`coverage-contiguity-selftest`), which encodings a
-# chain may DECLARE its identifiers in (`identifier-encoding-selftest`), and
+# chain may DECLARE its identifiers in (`identifier-encoding-selftest`),
 # WHAT WAS ACTUALLY PUBLISHED, as a set of keys rather than as a total
-# (`object-set-selftest`).
+# (`object-set-selftest`), and whether the SNAPSHOT READER and the document a
+# producer writes against name the same members (`snapshot-contract-selftest`).
+#
+# `snapshot-contract-selftest` IS THE ONE THAT READS A NIM FILE FROM JAVASCRIPT,
+# and it is a suite rather than a review because the alternative is a person
+# reading `ingest.nim` and `Data-Contract.md` §5 and agreeing with themselves. The
+# measured result of that was §5 naming NINE member paths against a reader that
+# consumes 117 over 22 containers — so 108 unnamed, 19 of them by unguarded bracket
+# access, which RAISES in Nim rather than answering null. One of the 19's siblings,
+# `provenance.l1ChainId`, was omitted by this repository's own live follower, so the
+# producer wrote a snapshot the reader crashed on.
+#
+# THE NINE are the member paths §5 stated as REQUIREMENTS — §5.2's six-row table plus
+# `provenance.chain`, `reason` and `refusalReason`, which its prose makes mandatory. The
+# reading is spelled out because §5 admits three and only one makes 108 follow: §5.2's
+# table alone is six (gap 111), and every member §5 mentions at all is twelve (adding
+# `container`, `counts.accountedFor` and `outcome`, none of them stated as a requirement).
+# `lib/reader-contract.mjs`, `snapshot-contract-selftest.mjs` and `ci.yml` state the same
+# reading. It EXTRACTS
+# the consumed set from the reader (`lib/reader-contract.mjs` walks the binding
+# stack; `std/json` gives a reader exactly two subscripts and the choice between
+# them IS the statement of whether a member is required) and compares it to
+# `snapshot-contract.json` for equality in BOTH directions. Its §6 mutates each
+# side in turn — including the control the milestone names, a member deleted from
+# the SPEC — so a green is a measurement rather than a check that has never been
+# shown to fail.
 #
 # `object-set-selftest` GUARDS A BASELINE THAT IS A COUNT, and a count is the one
 # statistic a refactor can hold still while changing what it publishes. The
@@ -293,7 +318,7 @@ test:
 # was found dead, and all of them were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All NINE are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# All TEN are OFFLINE and toolchain-free — plain node plus bash, a mock node
 # for the freeze gate, a mock node AND a mock file store for the body verifier,
 # recorded driver output for the replay rule, for the
 # fold suite an event stream reconstructed from the committed sidecars rather
@@ -312,6 +337,27 @@ chain-selftest:
     node tools/chain/coverage-contiguity-selftest.mjs
     node tools/chain/identifier-encoding-selftest.mjs
     node tools/chain/object-set-selftest.mjs
+    node tools/chain/snapshot-contract-selftest.mjs
+
+# ── §5's member census, as the spec's own tables ───────────────────────────
+#
+# `tools/chain/snapshot-contract.json` is Data-Contract.md §5 in machine-readable
+# form: every container the reader opens, every member it consumes, whether the
+# CONTRACT requires it, and which subscript the reader reaches it with. It is what
+# `snapshot-contract-selftest.mjs` checks `ingest.nim` against, and what
+# `contract_rules.nim` reads at compile time so a refusal cannot cite a rule the
+# contract does not state.
+#
+# This prints §5.2b's and §5.4's markdown tables from it. The spec still has to read
+# as prose, so its tables are RENDERED rather than typed beside the census — one
+# command, pasted in, so the two copies are a transcription with a reproducible
+# source. It is NOT a gate and cannot be: the check runs in CI, where
+# `codetracer-specs` is not checked out, so nothing holds the spec's copy to this
+# one. That residual is recorded in §5.2b itself rather than papered over.
+#
+# Writes to stdout and touches nothing.
+snapshot-contract-tables:
+    node tools/chain/render-snapshot-contract.mjs
 
 # ── reading a published tree as a SET of objects ───────────────────────────
 #

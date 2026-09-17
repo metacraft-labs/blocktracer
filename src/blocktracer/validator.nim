@@ -129,10 +129,27 @@ proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
   let mrel = dir / "manifest.json"
   let m = v.loadJson(mrel)
   if m == nil: return
+  # ── AN UNSUPPORTED VERSION IS A REFUSAL, NOT A FINDING ALONGSIDE OTHERS ─────
+  #
+  # Data-Contract.md §3.1 rule 1: an unknown version token is refused BY NAME and
+  # NOTHING IS READ. This used to record the error and then go on checking every
+  # field of the manifest against THIS build's schema — which is precisely the
+  # best-effort parse rule 1 forbids, and it produced a report in which the real
+  # finding ("this artifact is from another contract version") sat among a dozen
+  # consequences of reading it as though it were not.
+  #
+  # The snapshot half of the seam has always refused; this half did not, and "the
+  # version refusal is the same statement in both halves" is the deliverable that
+  # noticed. The message now names what it found AND what this build accepts, for
+  # the reason §3.1 gives: a refusal that names only what it rejected makes the
+  # reader go looking.
   if v.need(m, mrel, "schema"):
     let sv = m["schema"].getInt
     if not contractSupported(sv):
-      v.err(mrel, "manifest schema version " & $sv & " is unsupported")
+      v.err(mrel, "manifest schema version " & $sv &
+            " is unsupported (this build reads " & $ContractVersion &
+            "); refused by name rather than read in part — Data-Contract.md §3.1 rule 1")
+      return
   if v.need(m, mrel, "traceArtifactId"):
     if m["traceArtifactId"].getStr != tid:
       v.err(mrel, "manifest traceArtifactId does not match its directory " & tid)
@@ -634,11 +651,17 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
   let rrel = "d" / chain / "g" / gen / "root.json"
   let root = v.loadJson(rrel)
   if root == nil: return
+  # THE SAME REFUSAL, FOR THE SAME REASON — see the manifest gate above. Walking a
+  # generation whose root declares a version this build does not read means loading
+  # every map and every object in it against a schema they were not written to, and
+  # reporting the resulting noise as findings.
   if v.need(root, rrel, "contractVersion"):
     let cv = root["contractVersion"].getInt
     if not contractSupported(cv):
       v.err(rrel, "unsupported contract version " & $cv &
-            " (validator supports " & $ContractVersion & ")")
+            " (validator supports " & $ContractVersion &
+            "); refused by name rather than read in part — Data-Contract.md §3.1 rule 1")
+      return
   let tsv = root{"traceSelectionVersion"}.getStr("1")
   let maps = root{"maps"}
   if maps == nil:

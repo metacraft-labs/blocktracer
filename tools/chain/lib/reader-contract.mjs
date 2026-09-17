@@ -1,0 +1,609 @@
+// reader-contract.mjs — WHAT THE READER ACTUALLY CONSUMES, read out of the reader.
+//
+// ── WHY THIS EXISTS ───────────────────────────────────────────────────────────────────
+//
+// The producer seam is a document (`Data-Contract.md` §5) and a reader
+// (`src/blocktracer/chain/ingest.nim`). Until this file, the only way to know whether the
+// two agreed was for a person to read both and agree with themselves — and the measured
+// result of that was §5 naming NINE member paths against a reader that consumes 117 over
+// 22 containers: 108 unnamed, 19 of them by unguarded bracket access, which in Nim's
+// `std/json` RAISES `KeyError` on an absent key rather than answering null. One of the
+// real follower's own mainnet output omitted it: the producer this repository ships wrote
+// a snapshot the reader this repository ships crashed on, and every committed fixture
+// carried the member so nothing could see it.
+//
+// WHAT "NINE" COUNTS, because §5 admits three readings and only one makes 108 follow. The
+// nine are the member paths §5 stated as REQUIREMENTS on a conforming snapshot: §5.2's
+// six-row required-members table (`format`, `provenance`, `window`, `counts`, `blocks`,
+// `transactions`) plus the three its prose makes mandatory — `provenance.chain`, `reason`,
+// `refusalReason`. Counting only §5.2's table gives six and makes the gap 111; counting
+// every member §5 mentions at all gives twelve, adding `container` (mentioned as a
+// permission), `counts.accountedFor` (mentioned as version history) and `outcome` (a legacy
+// column header). The figures here, in the `Justfile`, in `ci.yml` and in
+// `snapshot-contract-selftest.mjs` are all the nine-reading: 117 − 9 = 108, and of the 23
+// members the reader takes by an unguarded bracket, 4 are among the nine and 19 are not.
+//
+// So the consumed set is EXTRACTED from the reader rather than transcribed beside it. A
+// transcription is a second copy that drifts; an extraction goes stale the moment the
+// reader changes, and the check that reads it goes red.
+//
+// ── WHAT IT EXTRACTS, AND WHY THAT IS DECIDABLE WITHOUT A NIM PARSER ──────────────────
+//
+// `std/json` gives a reader exactly two subscripts, and they are the whole vocabulary:
+//
+//   node["k"]   REQUIRED    — raises `KeyError` when `k` is absent
+//   node{"k"}   OPTIONAL    — answers a nil `JsonNode` when `k` is absent
+//
+// The difference is the whole of what "required" means to a reader, so the access form is
+// the evidence and no annotation is needed. What has to be decided is which NODE a given
+// subscript is applied to, and that is a scope-and-binding question over a language whose
+// blocks are indentation: this walks the file, maintains the binding stack, and resolves
+// `let` / `var` / `for` right-hand sides to the container they denote.
+//
+// THE RULES THAT MAKE IT SOUND, each of which was a wrong answer first:
+//
+//   * A `.getStr` / `.getInt` / `.kind` / `.len` TERMINATES a chain. `let txHash =
+//     t["txHash"].getStr` binds a string, not a node, and treating it as a node attributed
+//     the positions sidecar's seven members to `transactions[].txHash`.
+//   * A `%*{…}` / `newJObject()` right-hand side is CONSTRUCTED OUTPUT, never a view onto
+//     the input. Without this rule `native["replay"] = …` attributed a member named
+//     `replay` to THREE different input members at once: `var native = %*{…}` at
+//     `ingest.nim:1234` is built from `t["revertCode"]`, `t{"bodyRetained"}` and
+//     `t{"effectVisible"}`, so ablating the rule resolves `native` to those three
+//     containers and notes a `replay` member on each. Three is what the ablation
+//     measures; this comment said five until 2026-09-17, which was a count of nothing.
+//   * A subscript by a VARIABLE is dynamic. If the variable holds a literal set (`for col
+//     in ["pathId", "line", "column"]`) every member of the set is consumed; otherwise the
+//     container is an open map and is recorded as `*`.
+//   * An accessor proc — `proc f(key: string): JsonNode` whose body subscripts a known
+//     root by its own parameter — makes `f("lit")` an access on that root. `provOrNull` is
+//     the one in this reader, and four provenance members are reached only through it.
+//   * A sidecar's container id comes from the PATH the reader opens it at, resolved
+//     through `cfg.snapshotDir / …`, so the same walk also yields the path census §5.1 is
+//     checked against.
+//
+// ── WHAT IT DOES NOT CLAIM ────────────────────────────────────────────────────────────
+//
+// It is not a type checker and it does not evaluate. A member reached only on a branch
+// that cannot be taken would still be recorded as consumed, which is the safe direction:
+// the check it feeds fails when the SPEC is short of the reader, and over-reporting the
+// reader can only make the spec more complete. The other direction — the spec naming a
+// member nothing consumes — is where over-reporting could hide something, and that is why
+// the extraction is compared for EQUALITY rather than containment.
+//
+// ── THE NINE SHAPES IT DOES NOT MODEL, AND WHY THEY ARE FORBIDDEN RATHER THAN MODELLED ─
+//
+// The paragraph above is about DIRECTION and it is not the whole disclosure. There are
+// nine concrete access shapes this walk gets WRONG rather than conservatively, and eight
+// of them fail in the dangerous direction: a member the reader really consumes is MISSED,
+// so the equality check compares two short lists and agrees. The ninth fails the other
+// way and INVENTS a member out of text that is not code.
+//
+// None of the nine appears in the reader today — that was measured, shape by shape — so
+// §5.2b is complete as of 2026-09-17. But "complete today" and "gated" are different
+// claims, and a silent under-report is the worst failure a coverage check has, because it
+// looks exactly like success. So the nine are BANNED rather than modelled:
+// `readerShapeViolations` below refuses each of them, `snapshot-contract-selftest.mjs` §8
+// runs it over `ingest.nim`, and each of the nine has a control that plants it and
+// requires the lint to fire. Modelling them would be a Nim front end.
+//
+// A BAN IS ONLY AS WIDE AS ITS SPELLING, and this file learned that the expensive way. It
+// said "one regex apiece" and meant it: shapes 1 and 8 were `/\.getOrDefault\(\s*"/` and
+// `/\.to\(/`, both of which require dot syntax AND a parenthesis. A review planted a
+// genuinely new member at a real row site and kept the whole suite green through three
+// spellings that all compile — `t.getOrDefault "k"`, `getOrDefault(t, "k")` and
+// `to(t, T)` — so shape 1's "banned in the string-literal form, which is the form that
+// names a member" and shape 8's "banned outright" were both claims about a rule that did
+// not exist. Each of those two shapes is now the SET of its four spellings (see
+// `GET_OR_DEFAULT_BY_LITERAL` and `WHOLE_OBJECT_TO`), and §8 asserts both directions per
+// spelling rather than per shape. What is still true of the OTHER seven is that each is one
+// regex, and the honest statement of their reach is the regex itself and not this
+// paragraph: shapes 2, 3, 5 and 6 key on a string-literal subscript inside a block whose
+// declaration they match, so a member reached through an alias bound outside that block is
+// not a spelling they cover. That is a known limit of those four rules and is stated here
+// rather than implied away.
+//
+//   1. `node.getOrDefault("k")`. A member read that is neither of the two subscripts, so
+//      the walk never sees it. Banned wherever the KEY is a string literal, which is the
+//      form that names a member — in all four spellings Nim admits: `t.getOrDefault("k")`,
+//      `t.getOrDefault "k"`, `getOrDefault(t, "k")` and `getOrDefault t, "k"`. The key is
+//      argument 1 in the dot forms and argument 2 in the bare ones, and the rules say so,
+//      because `ingest.nim` passes a string literal as the DEFAULT twice
+//      (`byHeight.getOrDefault(height, "")`) and a position-blind rule would flag it. The
+//      reader's eight `Table` lookups all key by an identifier, so the rule is satisfiable
+//      as written rather than aspirational — measured at zero hits, all four spellings.
+//   2. A TWO-VARIABLE `for k, v in x` / `x.pairs()`. Neither loop variable is bound by
+//      the walk (it matches `for <one> in …`), so a subscript on either is invisible.
+//      Banned in the form where that matters: a two-variable `for` whose body subscripts
+//      a loop variable by a string literal. The bare form appears ONCE, at
+//      `ingest.nim:1539` (`for p, c in fs`, over a source bundle's `files`), and is
+//      correct there precisely because it names no member — `files` is an open map whose
+//      keys are the driver's own build paths, so there is nothing to census.
+//   3. A HELPER `proc f(n: JsonNode)` whose body subscripts its parameter. The walk models
+//      exactly one proc shape — the accessor, `proc f(key: string): JsonNode` — and a
+//      helper that takes the node instead consumes members under a name the walk has no
+//      binding for. Banned in that form; `writeJson` and `orNull` take a `JsonNode` and
+//      subscript nothing, so they are unaffected.
+//   4. A SEQ/ARRAY ELEMENT, `rows[0]["k"]`. The walk's subscript regex reads a string key
+//      or a bare identifier, so an integer index breaks the chain and the member after it
+//      is lost. Banned as an integer-literal subscript followed by a member subscript.
+//   5. A `template` body. Templates are expanded by the compiler and not by this walk, so
+//      a subscript inside one is attributed to nothing. Banned as a template whose body
+//      subscripts by a string literal; the reader declares no template at all.
+//   6. An ANONYMOUS proc or closure. Its parameters are bound by the call, not by a `let`,
+//      so the walk cannot know what they denote. Banned as an anonymous `proc (`/`=>`
+//      whose body subscripts by a string literal; the reader's two anonymous procs are
+//      `sort` comparators that subscript nothing.
+//   7. A SUBSCRIPT SPLIT ACROSS LINES. The walk reads one physical line for accesses (only
+//      a `let`/`var` right-hand side is joined), so `node[` with its key on the next line
+//      is not seen at all. Banned as a line ending in an identifier immediately followed by
+//      an opening `[` or `{`; the ten multi-line `%*{` constructors do not match, because
+//      what precedes their brace is `%*`.
+//   8. `snap.to(T)`. A whole-object unmarshal consumes every member of a type declared
+//      elsewhere, which is unbounded from here. Banned outright, and "outright" means all
+//      four spellings — `t.to(T)`, `t.to T`, `to(t, T)` and `to t, T` — not the dotted
+//      parenthesised one the sentence used to mean. There is no admissible form of this
+//      shape, so unlike shape 1 no argument position is involved: any `to` applied to a
+//      receiver is a violation.
+//   9. A TRIPLE-QUOTED STRING. This is the one that fails the other way: the walk strips
+//      `#` comments and tracks single-line string state, so a `"""…"""` block containing
+//      something shaped like `x["k"]` is read as CODE and INVENTS a member the reader does
+//      not consume — which then shows up as a census gap in the spec-only direction and
+//      gets "fixed" by adding a member to §5 that nothing reads. Banned outright.
+
+/** `node["k"]` — absent key raises. */
+export const REQUIRED = 'required';
+/** `node{"k"}` — absent key answers nil. */
+export const OPTIONAL = 'optional';
+
+const TERMINATORS = /^\s*\.\s*(get[A-Za-z]*|kind|len|isNil|pretty|elems|fields)\b/;
+const CONSTRUCTOR = /^\s*(%\*|%\s*[[{]|newJObject\b|newJArray\b|newJNull\b|newJString\b|newJInt\b|newJBool\b)/;
+
+const indentOf = (s) => /^[ \t]*/.exec(s)[0].length;
+
+/** `#` outside a string literal opens a comment. */
+function stripComment(s) {
+  let out = '', inStr = false;
+  for (let k = 0; k < s.length; k++) {
+    const c = s[k];
+    if (c === '"' && s[k - 1] !== '\\') inStr = !inStr;
+    if (c === '#' && !inStr) break;
+    out += c;
+  }
+  return out;
+}
+
+/**
+ * Walk a Nim reader and report every snapshot member it consumes and every
+ * snapshot-relative path it opens.
+ *
+ * @param {string} text            the reader's source
+ * @param {string} rootFile        the file read by name that seeds the walk ("snapshot.json")
+ * @param {string} rootContainer   the container id that file's parse denotes ("snapshot")
+ * @param {object} consts          named path defaults the reader spells as constants, so a
+ *                                 default STATED IN THE CONTRACT and a default open-coded in
+ *                                 the reader are distinguishable: a constant this map does
+ *                                 not hold leaves the path unresolved and the walk says so.
+ */
+export function extractReaderContract(text, rootFile = 'snapshot.json', rootContainer = 'snapshot',
+                                      consts = {}) {
+  const lines = text.split('\n');
+
+  /** container id -> Map(member -> {access, sites:number[]}) */
+  const consumed = new Map();
+  const note = (container, member, access, line) => {
+    if (!consumed.has(container)) consumed.set(container, new Map());
+    const m = consumed.get(container);
+    const cur = m.get(member) ?? { access: OPTIONAL, sites: [] };
+    if (access === REQUIRED) cur.access = REQUIRED;
+    if (!cur.sites.includes(line)) cur.sites.push(line);
+    m.set(member, cur);
+  };
+
+  /** every `cfg.snapshotDir / …` the reader resolves, classified */
+  const paths = [];
+  /** binding stack: {name, scopeIndent, containers:Set|null, literals:string[]|null} */
+  let scope = [];
+  const tableElem = new Map();      // table name -> Set<container>
+  const pathVars = new Map();       // name -> {expr, line}
+  const stringVars = new Map();     // name -> literal path fragments assigned to it
+  const accessors = new Map();      // proc name -> {container, access}
+  const diagnostics = [];
+  /** files the reader parses that are NOT snapshot-relative — see §5.4's boundary */
+  const outsideReads = [];
+
+  const lookup = (name) => {
+    for (let k = scope.length - 1; k >= 0; k--) if (scope[k].name === name) return scope[k];
+    return null;
+  };
+  const popTo = (indent) => {
+    while (scope.length && scope[scope.length - 1].scopeIndent > indent) scope.pop();
+  };
+
+  /** the set of containers an expression can denote */
+  function resolve(expr) {
+    const out = new Set();
+    if (CONSTRUCTOR.test(expr)) return out;          // constructed output, not input
+    const re = /\b([A-Za-z_][A-Za-z0-9_]*)((?:\s*[[{]\s*"[^"]*"\s*[\]}])*)/g;
+    let m;
+    while ((m = re.exec(expr)) !== null) {
+      const rest = expr.slice(re.lastIndex);
+      if (TERMINATORS.test(rest)) continue;          // the chain ends in a scalar
+      const b = lookup(m[1]);
+      let roots = b && b.containers ? b.containers : null;
+      if (!roots && tableElem.has(m[1]) && /^\s*\[\s*[A-Za-z_]/.test(rest)) roots = tableElem.get(m[1]);
+      if (!roots) continue;
+      const steps = [...m[2].matchAll(/[[{]\s*"([^"]*)"\s*[\]}]/g)].map((x) => x[1]);
+      for (const r of roots) out.add([r, ...steps].join('.'));
+    }
+    return out;
+  }
+
+  /**
+   * A sidecar's container id is the literal directory (or file) it is opened at.
+   * A path spelled by a VARIABLE resolves through that variable's own conventional
+   * default, which is how `sources/` is reached: the row names the file and the
+   * default is the fallback, so the container is still decidable.
+   */
+  function containerIdForPath(expr) {
+    let text = expr;
+    for (const [k, v] of Object.entries(consts)) text = text.split(k).join(JSON.stringify(v));
+    const bare = /^([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(expr.trim());
+    if (bare && stringVars.get(bare[1])?.fallback) text = stringVars.get(bare[1]).fallback;
+    const literals = [...text.matchAll(/"([^"]*)"/g)].map((x) => x[1]).filter((s) => s && s !== '.json');
+    if (literals.length === 0) return null;
+    const head = literals[0];
+    if (head === rootFile) return rootContainer;
+    if (!/\.json$/.test(head) && !text.includes('.json')) return null;  // not a JSON sidecar
+    return 'sidecar:' + head.replace(/\.json$/, '');
+  }
+
+  let skipUntil = -1;   // an accessor proc's own body: its subscripts are the accessor, not a use
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const lineNo = i + 1;
+    if (raw.trim() === '' || /^\s*#/.test(raw)) continue;
+    const ind = indentOf(raw);
+    if (skipUntil >= 0 && ind > skipUntil) continue;
+    if (skipUntil >= 0 && ind <= skipUntil) skipUntil = -1;
+    popTo(ind);
+    const single = stripComment(raw);
+
+    // ── the logical line: a binding whose right-hand side continues onto more-indented
+    // lines is ONE expression. An `if/elif/else` spread over five lines resolves to the
+    // union of its arms only when it is read whole.
+    let logical = single;
+    if (/^\s*(let|var)\s/.test(single)) {
+      for (let j = i + 1; j < lines.length; j++) {
+        if (lines[j].trim() === '' || /^\s*#/.test(lines[j])) continue;
+        if (indentOf(lines[j]) > ind) logical += ' ' + stripComment(lines[j]).trim(); else break;
+      }
+    }
+
+    // ── 1. member accesses on bound names, BEFORE this line's own binding shadows ──
+    {
+      const re = /\b([A-Za-z_][A-Za-z0-9_]*)((?:\s*[[{]\s*(?:"[^"]*"|[A-Za-z_][A-Za-z0-9_]*)\s*[\]}])+)/g;
+      let m;
+      while ((m = re.exec(single)) !== null) {
+        const b = lookup(m[1]);
+        if (!b || !b.containers) continue;
+        const steps = [...m[2].matchAll(/([[{])\s*(?:"([^"]*)"|([A-Za-z_][A-Za-z0-9_]*))\s*[\]}]/g)];
+        for (const root of b.containers) {
+          let cur = root;
+          for (const s of steps) {
+            const access = s[1] === '[' ? REQUIRED : OPTIONAL;
+            if (s[2] !== undefined) { note(cur, s[2], access, lineNo); cur += '.' + s[2]; continue; }
+            const vb = lookup(s[3]);
+            if (vb && vb.literals) { for (const lit of vb.literals) note(cur, lit, access, lineNo); }
+            else note(cur, '*', access, lineNo);
+            cur = null;
+            break;
+          }
+        }
+      }
+    }
+
+    // ── 2. accessor-proc call sites ───────────────────────────────────────────────
+    for (const [pname, info] of accessors) {
+      const re = new RegExp('\\b' + pname + '\\(\\s*"([^"]*)"\\s*\\)', 'g');
+      let m;
+      while ((m = re.exec(single)) !== null) note(info.container, m[1], info.access, lineNo);
+    }
+
+    // ── 3. snapshot-relative path reads ───────────────────────────────────────────
+    {
+      const m = /cfg\.snapshotDir\s*\/(.+)$/.exec(single);
+      if (m) {
+        const expr = m[1].trim();
+        // how is this path NAMED? by a literal, by a row member, or by a variable that
+        // resolves to one of the two.
+        let named = 'convention';
+        let member = null;
+        const rowRef = /\b([A-Za-z_][A-Za-z0-9_]*)\s*[[{]\s*"([^"]*)"\s*[\]}]/.exec(expr);
+        if (rowRef && lookup(rowRef[1])?.containers) {
+          named = 'row-member';
+          member = [...lookup(rowRef[1]).containers][0] + '.' + rowRef[2];
+        } else {
+          const bare = /^([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(expr);
+          if (bare && stringVars.has(bare[1])) {
+            const hint = stringVars.get(bare[1]);
+            named = hint.named;
+            member = hint.member;
+          } else if (/^"[^"]*"\s*$/.test(expr)) named = 'by-name';
+        }
+        paths.push({ expr, line: lineNo, named, member, container: containerIdForPath(expr) });
+      }
+    }
+
+    let m;
+    // ── 4. accessor proc declaration ──────────────────────────────────────────────
+    if ((m = /^\s*proc\s+([A-Za-z_][A-Za-z0-9_]*)\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*string\s*\)\s*:\s*JsonNode/.exec(single)) !== null) {
+      const [, pname, param] = m;
+      for (let j = i + 1; j < lines.length && (lines[j].trim() === '' || indentOf(lines[j]) > ind); j++) {
+        const mm = new RegExp('\\b([A-Za-z_][A-Za-z0-9_]*)\\s*([[{])\\s*' + param + '\\s*[\\]}]').exec(stripComment(lines[j]));
+        if (!mm) continue;
+        const b = lookup(mm[1]);
+        if (b && b.containers) {
+          for (const c of b.containers) accessors.set(pname, { container: c, access: mm[2] === '[' ? REQUIRED : OPTIONAL });
+        } else diagnostics.push(`${lineNo}: accessor ${pname} subscripts an unbound '${mm[1]}'`);
+        break;
+      }
+      skipUntil = ind;
+      continue;
+    }
+
+    // ── 5. bindings ───────────────────────────────────────────────────────────────
+    if ((m = /^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+(.+?):?\s*$/.exec(logical)) !== null) {
+      const [, name, rhs] = m;
+      const litArr = /^\[\s*"[^"]*"(?:\s*,\s*"[^"]*")*\s*\]$/.exec(rhs.trim());
+      if (litArr) {
+        scope.push({ name, scopeIndent: ind + 1, containers: null, literals: [...rhs.matchAll(/"([^"]*)"/g)].map((x) => x[1]) });
+      } else {
+        const cs = resolve(rhs);
+        scope.push({ name, scopeIndent: ind + 1, containers: cs.size ? new Set([...cs].map((c) => c + '[]')) : null, literals: null });
+      }
+      continue;
+    }
+    if ((m = /^\s*(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=]*?)?=\s*(.+)$/.exec(logical)) !== null) {
+      const name = m[1]; const rhs = m[2].trim();
+      const pm = /^cfg\.snapshotDir\s*\/(.+)$/.exec(rhs);
+      if (pm) { pathVars.set(name, pm[1].trim()); scope.push({ name, scopeIndent: ind, containers: null, literals: null }); continue; }
+      const pj = /parseJson\(\s*readFile\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s*\)/.exec(rhs);
+      if (pj) {
+        // A `parseJson(readFile(P))` whose `P` is NOT a snapshot-relative path is a read of
+        // the OUTPUT tree or of a tool's own state and is none of this contract's business.
+        // It is recorded rather than passed over: "this reader opens files the snapshot
+        // contract does not cover" is a fact §5.4's producer-internal boundary is about,
+        // and a walk that dropped it silently could not say so.
+        const pv = pathVars.get(pj[1]);
+        const cid = pv ? containerIdForPath(pv) : null;
+        if (pv && !cid) diagnostics.push(`${lineNo}: parseJson of an unresolved snapshot path '${pj[1]}'`);
+        if (!pv) outsideReads.push({ line: lineNo, via: pj[1] });
+        scope.push({ name, scopeIndent: ind, containers: cid ? new Set([cid]) : null, literals: null });
+        continue;
+      }
+      // a STRING holding a snapshot-relative path, so `cfg.snapshotDir / srcRel` can be
+      // classified by how `srcRel` itself was named.
+      const rowRef = /^([A-Za-z_][A-Za-z0-9_]*)\s*[[{]\s*"([^"]*)"\s*[\]}]\s*\.getStr/.exec(rhs);
+      if (rowRef && lookup(rowRef[1])?.containers) {
+        stringVars.set(name, { named: 'row-member', member: [...lookup(rowRef[1]).containers][0] + '.' + rowRef[2] });
+      }
+      const cs = resolve(rhs);
+      scope.push({ name, scopeIndent: ind, containers: cs.size ? cs : null, literals: null });
+      continue;
+    }
+    // plain assignment: union into the existing binding (a `var` filled on two branches).
+    // A ONE-LINE `if cond: x = …` counts, because that is how a conventional default is
+    // spelled beside a row-named path and dropping it loses the whole `sources/` sidecar.
+    m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/.exec(single)
+      ?? /^\s*(?:if|elif|else)\b[^:]*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/.exec(single);
+    if (m !== null &&
+        !/^\s*(let|var|const|proc|func|template|while|for|return|result|case|of|import)\b/.test(single)) {
+      const name = m[1]; const rhs = m[2].trim();
+      const b = lookup(name);
+      const pj = /parseJson\(\s*readFile\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s*\)/.exec(rhs);
+      if (b && pj) {
+        const cid = pathVars.has(pj[1]) ? containerIdForPath(pathVars.get(pj[1])) : null;
+        if (cid) b.containers = new Set([...(b.containers ?? []), cid]);
+      } else if (b) {
+        const cs = resolve(rhs);
+        if (cs.size) b.containers = new Set([...(b.containers ?? []), ...cs]);
+      }
+      // `if srcRel.len == 0: srcRel = DefaultSourcesDir / (txHash & ".json")` — the
+      // contract's own default beside the row member. Recorded so the path census can
+      // say the row NAMES it and the DEFAULT is the fallback, which are two different
+      // claims about one path. The constant is substituted first: a default the
+      // contract states and a default the reader open-codes must not read alike, and
+      // a constant `consts` does not hold stays unresolved and is reported.
+      let literal = rhs;
+      for (const [k, v] of Object.entries(consts)) literal = literal.split(k).join(JSON.stringify(v));
+      if (/^"/.test(literal)) {
+        stringVars.set(name, { named: 'row-member-or-default',
+                               member: stringVars.get(name)?.member ?? null,
+                               fallback: literal });
+      }
+    }
+    // table element assignment `T[k] = v`
+    if ((m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*[A-Za-z_][A-Za-z0-9_]*\s*\]\s*=\s*(.+)$/.exec(single)) !== null) {
+      const cs = resolve(m[2].trim());
+      if (cs.size) tableElem.set(m[1], new Set([...(tableElem.get(m[1]) ?? []), ...cs]));
+    }
+  }
+
+  return { consumed, paths, diagnostics, outsideReads };
+}
+
+// ── THE BANS ───────────────────────────────────────────────────────────────────────────
+//
+// The nine shapes the header enumerates, as nine rules over the reader's text. Each is
+// keyed by the SHAPE and not by a line, so nothing here can be satisfied by an exemption.
+
+/** a string-literal subscript, which is what makes a shape name a member */
+const KEYED = /[[{]\s*"[^"]*"\s*[\]}]/;
+
+// WHY SHAPES 1 AND 8 ARE FOUR REGEXES EACH AND NOT ONE. Nim spells the same call four
+// ways, and a rule written for one of them is a rule about punctuation rather than about
+// the shape. `.getOrDefault(` and `.to(` were ALL this file banned until 2026-09-17, and a
+// review planted a genuinely new member at a real row site and got the whole suite to stay
+// green (rc 0, 117 vs 117) through three forms that all compile and all work:
+//
+//     t.getOrDefault "k"          # dot, COMMAND syntax — no parenthesis
+//     getOrDefault(t, "k")        # CALL syntax — no dot, receiver is argument 1
+//     to(t, T)                    # CALL syntax
+//
+// So each shape is the set of its spellings. WHERE THE KEY SITS MOVES WITH THE SPELLING,
+// and that is load-bearing rather than pedantic: in the dot forms the string literal is
+// argument ONE, in the bare forms it is argument TWO, and `ingest.nim` really does pass a
+// string literal as `getOrDefault`'s DEFAULT — `byHeight.getOrDefault(height, "")` at two
+// sites. A rule reading "a string literal anywhere in a `getOrDefault` call" would flag
+// both, which is why the argument POSITION is part of every one of these four.
+//
+// AND THE RULE DISCRIMINATES ON THE RECEIVER RATHER THAN ON A LINE NUMBER. `getOrDefault`
+// is legitimately present eight times, on Nim `Table`s (`isPositioned`, `isTraceless`,
+// `byHeight`, `refusalReasonCounts`, `t` as a count table) — every one of them keyed by an
+// IDENTIFIER, never by a literal, because a `Table` lookup in this reader is by a value it
+// computed. That is what makes "the key is a string literal" the receiver test: a
+// `JsonNode` member read names its member, a `Table` lookup in this reader does not. All
+// eight regexes below were measured at ZERO hits over the unmodified `ingest.nim`, so the
+// widening cost the green arm nothing and no shape carries an exemption.
+//
+// SIX OF THE EIGHT SPELLINGS COMPILE, and that too was measured rather than assumed, on Nim
+// 2.2.10 on 2026-09-17, one file per spelling: both dot-paren, both dot-command and both
+// call-paren do; the two CALL-COMMAND forms (`getOrDefault t, "k"`, `to t, T`) do not —
+// Nim rejects command syntax in an expression position with `invalid indentation`. They are
+// banned anyway, because the rule costs nothing and the parser's rules are not this file's
+// invariant, but the reachable evasion set is six and the claim here says six.
+
+/**
+ * `getOrDefault` in every spelling in which its KEY is a string literal — the form that
+ * names a member. Dot forms take the key as argument 1; bare forms as argument 2.
+ */
+const GET_OR_DEFAULT_BY_LITERAL = [
+  /\.getOrDefault\s*\(\s*"/,                                  // t.getOrDefault("k")
+  /\.getOrDefault\s+"/,                                       // t.getOrDefault "k"
+  /(?<![A-Za-z0-9_.])getOrDefault\s*\(\s*[^,]*,\s*"/,         // getOrDefault(t, "k")
+  /(?<![A-Za-z0-9_.])getOrDefault\s+[^,]*,\s*"/,              // getOrDefault t, "k"
+];
+
+/** `to` in every spelling. Banned outright — there is no admissible whole-object unmarshal. */
+const WHOLE_OBJECT_TO = [
+  /\.to\s*\(/,                                                // t.to(T)
+  /\.to\s+[A-Za-z_]/,                                         // t.to T
+  /(?<![A-Za-z0-9_.])to\s*\(/,                                // to(t, T)
+  /(?<![A-Za-z0-9_.])to\s+[A-Za-z_][A-Za-z0-9_.[\]]*\s*,/,    // to t, T
+];
+
+/** the spellings each widened shape bans, named, so a suite can assert the set rather than the count */
+export const SHAPE_SPELLINGS = {
+  'getOrDefault-by-literal': ['dot-paren', 'dot-command', 'call-paren', 'call-command'],
+  'whole-object-to': ['dot-paren', 'dot-command', 'call-paren', 'call-command'],
+};
+
+/** the body of an indentation block opened at `openIndent`, as lines */
+function bodyOf(lines, from, openIndent) {
+  const out = [];
+  for (let j = from; j < lines.length; j++) {
+    if (lines[j].trim() === '') continue;
+    if (indentOf(lines[j]) <= openIndent) break;
+    out.push(stripComment(lines[j]));
+  }
+  return out;
+}
+
+/**
+ * Every occurrence, in `text`, of an access shape `extractReaderContract` does not model.
+ *
+ * @returns {{shape:string, line:number, text:string}[]} one entry per occurrence
+ */
+export function readerShapeViolations(text) {
+  const lines = text.split('\n');
+  const out = [];
+  const hit = (shape, i, s) => out.push({ shape, line: i + 1, text: s.trim().slice(0, 100) });
+
+  // 9 is checked over the RAW text, because it is the shape that defeats line-wise
+  // comment and string handling in the first place.
+  {
+    const idx = text.indexOf('"""');
+    if (idx >= 0) hit('triple-quoted-string', text.slice(0, idx).split('\n').length - 1, '"""');
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (/^\s*#/.test(raw)) continue;
+    const s = stripComment(raw);
+    const ind = indentOf(raw);
+
+    if (GET_OR_DEFAULT_BY_LITERAL.some((re) => re.test(s))) hit('getOrDefault-by-literal', i, s);
+    if (WHOLE_OBJECT_TO.some((re) => re.test(s))) hit('whole-object-to', i, s);
+    if (/\[\s*[0-9]+\s*\]\s*[[{]\s*"/.test(s)) hit('element-then-member', i, s);
+    if (/[A-Za-z0-9_)\]]\s*[[{]\s*$/.test(s) && !/%\s*\*?\s*[[{]\s*$/.test(s)) {
+      hit('subscript-split-across-lines', i, s);
+    }
+
+    // The block-bodied shapes: the declaration is the site, the body is the evidence.
+    let m;
+    if ((m = /^\s*for\s+[A-Za-z_][A-Za-z0-9_]*\s*,\s*[A-Za-z_][A-Za-z0-9_]*\s+in\s/.exec(s)) !== null) {
+      const names = [...s.matchAll(/^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s/g)][0];
+      const body = [s.replace(/^[^:]*:\s*/, ''), ...bodyOf(lines, i + 1, ind)];
+      const subscripted = body.some((b) =>
+        new RegExp(`\\b(${names[1]}|${names[2]})\\s*[[{]\\s*"`).test(b));
+      if (subscripted) hit('two-variable-for', i, s);
+    }
+    if ((m = /^\s*proc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(([^)]*)\)/.exec(s)) !== null &&
+        /:\s*JsonNode/.test(m[1]) && !/:\s*string\s*\)\s*:\s*JsonNode/.test(s)) {
+      const params = [...m[1].matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*:\s*JsonNode/g)].map((x) => x[1]);
+      const body = bodyOf(lines, i + 1, ind);
+      if (body.some((b) => params.some((p) => new RegExp(`\\b${p}\\s*[[{]\\s*"`).test(b)))) {
+        hit('json-node-parameter-helper', i, s);
+      }
+    }
+    if (/^\s*template\s/.test(s)) {
+      const body = [s, ...bodyOf(lines, i + 1, ind)];
+      if (body.some((b) => KEYED.test(b))) hit('template-body', i, s);
+    }
+    if (/\bproc\s*\(/.test(s) || /=>/.test(s)) {
+      const body = [s, ...bodyOf(lines, i + 1, ind)];
+      if (body.some((b) => KEYED.test(b))) hit('anonymous-proc', i, s);
+    }
+  }
+  return out;
+}
+
+/**
+ * Every place `text` spells one of §5.1's path DEFAULTS as a literal in a PATH position —
+ * an operand of the `/` join — rather than taking it from the census.
+ *
+ * WHY THE RULE IS "IN A PATH POSITION" AND NOT "ANYWHERE". Three of the five defaults are
+ * also the names of the row members that override them (`t{"instructions"}`,
+ * `t{"positions"}`), and `"sources"` is a key the reader WRITES into a published bundle.
+ * Banning the bare token would ban the census's own member names, which is a rule no
+ * reader could satisfy; banning it as an operand of the path join is exactly the defect —
+ * `srcRel = "sources" / (txHash & ".json")` — and nothing else.
+ *
+ * @param {string[]} defaults  the default paths, from the census
+ */
+export function pathDefaultLiterals(text, defaults) {
+  const out = [];
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*#/.test(lines[i])) continue;
+    const s = stripComment(lines[i]);
+    for (const d of defaults) {
+      const lit = JSON.stringify(d);
+      const re = new RegExp(`(${lit}\\s*/)|(/\\s*${lit})`);
+      if (re.test(s)) out.push({ default: d, line: i + 1, text: s.trim().slice(0, 100) });
+    }
+  }
+  return out;
+}
+
+/** the extraction as plain sorted data, for comparison and for printing */
+export function flatten(consumed) {
+  const out = {};
+  for (const [c, m] of [...consumed].sort((a, b) => a[0] < b[0] ? -1 : 1)) {
+    out[c] = {};
+    for (const [k, v] of [...m].sort((a, b) => a[0] < b[0] ? -1 : 1)) out[c][k] = v.access;
+  }
+  return out;
+}

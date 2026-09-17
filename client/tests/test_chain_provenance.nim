@@ -105,6 +105,27 @@ doAssert fileExists(snapshotDir / "snapshot.json"),
   "pass vacuously over a tree with one chain in it, so this is a refusal " &
   "rather than a skip"
 
+# ── A CONSTRUCTED SNAPSHOT CARRIES THE TALLY §5.2 REQUIRES, DERIVED ───────────
+#
+# `counts` is a required member of `snapshot.json` and the reader now checks it
+# against the rows beside it (`S5-COUNTS-ROWS`), because a tally whose stated
+# purpose is "so a partial ingest is detectable" is worth nothing if nobody
+# recomputes it. The constructed snapshots below therefore have to carry one.
+#
+# It is DERIVED here rather than written out at each site, for the same reason
+# the producers derive it: a hand-written tally beside hand-written rows is two
+# statements of one fact, and the one that goes stale is always the tally. This
+# is the same rule `tools/chain/lib/recount.mjs` applies on the producer side.
+proc snapshotJson(doc: JsonNode): string =
+  var d = doc
+  var counts = %*{"blocks": d{"blocks"}.len, "transactions": d{"transactions"}.len}
+  if d{"format"}.getStr == "blocktracer/chain-snapshot@2":
+    # `@2` additionally reconciles: the figure that equals `transactions` ranges
+    # over traced, untraced AND chain-absent, which the outcome lines do not.
+    counts["accountedFor"] = %d{"transactions"}.len
+  d["counts"] = counts
+  $d
+
 removeDir(workDir)
 createDir(workDir)
 discard generate(DemoConfig(outDir: workDir, seed: "chain-prov-test",
@@ -1034,7 +1055,7 @@ suite "6 — a watched snapshot says something true about both ends":
                    "reason": "The node still serves this transaction's effects but no " &
                              "longer serves its body."}
       blocks.add b
-    writeFile(dest / "snapshot.json", $(%*{
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
       "format": "blocktracer/chain-snapshot@1", "provenance": prov,
       "window": {"tip": tip, "finalized": finalized,
                  "replayableFrom": finalized + 1, "replayableTo": tip,
@@ -1120,7 +1141,7 @@ suite "6 — a watched snapshot says something true about both ends":
     let dest = dir / "refused"
     createDir(dest / "ct")
     let h = "0x" & repeat('b', 40)
-    writeFile(dest / "snapshot.json", $(%*{
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
       "format": "blocktracer/chain-snapshot@1",
       "provenance": {
         "kind": "live-capture", "chain": "watched", "label": "Real watched data",
@@ -1291,7 +1312,7 @@ suite "8 — a curated chain publishes only transactions that open":
     let dest = dir / "unpublishable"
     createDir(dest / "ct")
     let h = "0x" & repeat('b', 40)
-    writeFile(dest / "snapshot.json", $(%*{
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
       "format": "blocktracer/chain-snapshot@1",
       "provenance": {
         "kind": "live-capture", "chain": "unpublishable",
@@ -1343,7 +1364,7 @@ suite "8 — a curated chain publishes only transactions that open":
       if n == 118: b["transactions"].add %recorded
       if n in [105, 110, 118]: b["totalManaUsed"] = %"0x2710"
       blocks.add b
-    writeFile(dest / "snapshot.json", $(%*{
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
       "format": "blocktracer/chain-snapshot@1",
       "provenance": {
         "kind": "live-capture", "chain": "mixed", "label": "Real mixed data",
@@ -1597,7 +1618,7 @@ suite "8 — a curated chain publishes only transactions that open":
         b["totalManaUsed"] = %"0x2710"
         b["transactions"].add %pruned
       blocks.add b
-    writeFile(dest / "snapshot.json", $(%*{
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
       "format": "blocktracer/chain-snapshot@1",
       "provenance": {
         "kind": "live-capture", "chain": "silent", "label": "Real silent data",
@@ -2457,7 +2478,7 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
       createDir(dest / "sources")
       writeFile(dest / "sources" / (SrcTx & ".json"), sources.pretty & "\n")
       row["sourceBundles"] = %("sources/" & SrcTx & ".json")
-    writeFile(dest / "snapshot.json", $(%*{
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
       "format": "blocktracer/chain-snapshot@1",
       "provenance": {
         "kind": "live-capture", "chain": SrcChain, "label": "Real chain data",
@@ -2980,7 +3001,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
                      "corroboration": "single-distributor",
                      "files": files}]}))
       row["sourceBundles"] = %("sources/" & CovTx & ".json")
-    writeFile(dest / "snapshot.json", $(%*{
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
       "format": "blocktracer/chain-snapshot@1",
       "provenance": {
         "kind": "live-capture", "chain": CovChain, "label": "Real chain data",
@@ -3839,7 +3860,7 @@ suite "ING-3 — a refusal is not an absence":
     createDir(dest / "ct")
     var hashes = newJArray()
     for t in txs: hashes.add %t["txHash"].getStr
-    writeFile(dest / "snapshot.json", $(%*{
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
       "format": "blocktracer/chain-snapshot@1",
       "provenance": {
         "kind": "live-capture", "chain": name, "label": "Real " & name & " data",

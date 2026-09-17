@@ -508,7 +508,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 223 assertions, and the reason it is offline is the reason it
+        # ING-3, 224 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -664,6 +664,48 @@ jobs:
         # Offline and toolchain-free like the eight above it: it builds small
         # trees in a temporary directory and runs `node`.
         run: node tools/chain/object-set-selftest.mjs
+
+      - name: Do the reader and the document a producer writes against name the same members?
+        # 51 assertions. The seam's producer half is a DOCUMENT (Data-Contract.md
+        # §5) and a READER (`src/blocktracer/chain/ingest.nim`), and until this
+        # suite the only thing holding the two together was that somebody had read
+        # both and agreed with themselves. What that produced, measured: §5 named
+        # NINE member paths and the reader consumes 117 over 22 containers — 108
+        # unnamed, 19 of them by unguarded bracket access, which RAISES in Nim
+        # rather than answering null. The NINE are the paths §5 stated as
+        # REQUIREMENTS: §5.2's six-row table plus `provenance.chain`, `reason` and
+        # `refusalReason`. The reading is stated because §5 admits three and only
+        # one makes 108 follow — §5.2's table alone is six (gap 111) and every
+        # member §5 mentions at all is twelve. `provenance.l1ChainId` was one of the unnamed
+        # and was omitted by this repository's own live follower, so the producer it
+        # ships wrote a snapshot the reader it ships crashed on, invisibly, because
+        # every committed fixture carried the member. In the other direction
+        # `counts` was required by §5.2 and consumed by nobody.
+        #
+        # It EXTRACTS the consumed set from the reader rather than transcribing it:
+        # `lib/reader-contract.mjs` walks the binding stack over a language whose
+        # blocks are indentation, and `std/json` gives a reader exactly two
+        # subscripts — so the choice between `[]` and `{}` IS the statement of
+        # whether a member is required, and no annotation is involved.
+        #
+        # Its §6 is the half that makes a green mean anything: each side is mutated
+        # in turn — a member deleted from the SPEC, which is the control the
+        # milestone names by name, a member deleted from the reader, an access form
+        # flipped, a sidecar put back on a bare conventional path — and each
+        # mutation must be caught by the arm written for it.
+        #
+        # Its §8 is the disclosure half: nine access shapes the walk gets WRONG are
+        # BANNED in the reader rather than modelled, each with a planted control.
+        # A ban is only as wide as its spelling, and two of the nine were once
+        # `/\.getOrDefault\(\s*"/` and `/\.to\(/` — dot AND parenthesis — which a
+        # review got a genuinely new member past in three spellings that compile
+        # (`t.getOrDefault "k"`, `getOrDefault(t, "k")`, `to(t, T)`) while this
+        # suite printed a pass. Those two are now the SET of their four spellings
+        # and §8 asserts them per spelling, with the narrow reading shown missing
+        # six of the eight.
+        #
+        # Offline and toolchain-free like the nine above it: it reads two files.
+        run: node tools/chain/snapshot-contract-selftest.mjs
 
   contract:
     runs-on: [self-hosted, linux, x64]

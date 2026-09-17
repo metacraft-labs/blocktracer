@@ -96,6 +96,7 @@ import std/[json, os, algorithm, strutils, tables, times]
 import ../contract/[model, ids, version, identifier_encoding]
 import ./refusal_reasons
 import ./snapshot_format
+import ./contract_rules
 
 const MonthNames = ["January", "February", "March", "April", "May", "June",
                     "July", "August", "September", "October", "November",
@@ -356,6 +357,7 @@ proc assertSlugAvailable*(outDir, slug, claimantKind: string) =
   let incumbent = publishedProvenanceKind(outDir, slug)
   if incumbent.len == 0 or incumbent == claimantKind: return
   raise newException(ValueError,
+    RuleChainUnique &
     "the slug '" & slug & "' is already published in this tree by a '" & incumbent &
     "' chain, and a '" & claimantKind & "' chain is claiming it. Two chains at one " &
     "slug would overwrite each other's blocks and make real and generated data " &
@@ -540,7 +542,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   ## Read the snapshot and write the real chain's whole generation.
   let snapPath = cfg.snapshotDir / "snapshot.json"
   if not fileExists(snapPath):
-    raise newException(IOError, "chain snapshot not found: " & snapPath)
+    raise newException(IOError, RuleSnapshotPresent & "chain snapshot not found: " & snapPath)
   let snap = parseJson(readFile(snapPath))
   # ── THE VERSION GATE, AGAINST AN ENUMERATED SET RATHER THAN ONE LITERAL ────
   #
@@ -568,12 +570,138 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   let snapFormat = snap{"format"}.getStr
   if not isReadableSnapshotFormat(snapFormat):
     raise newException(ValueError,
+      RuleFormatUnknown &
       "unsupported chain snapshot format '" & snapFormat &
       "'; this build reads " & readableSnapshotFormatList() &
       ". Refused by name rather than read in part — a snapshot half-read against " &
       "the wrong schema publishes a chain that never existed. An older tree is " &
       "brought forward with tools/chain/migrate-refusal-reasons.mjs.")
   let requireRefusalReason = snapshotRequiresRefusalReason(snapFormat)
+
+  # ── §5.2's REQUIRED MEMBERS, CHECKED BY NAME BEFORE ANYTHING READS THEM ─────
+  #
+  # Every one of these was reached by an unguarded `snap["…"]` further down, so a
+  # snapshot short of one failed with `std/json`'s own `key not found: window` from
+  # a stack that names neither this module nor the rule it broke. A refusal has to
+  # name the rule it enforces; "raises where it happens to notice" is the state that
+  # replaces.
+  #
+  # The brackets below are LEFT ALONE deliberately: they are the evidence the
+  # spec-coverage check reads for "the contract requires this", and replacing them
+  # with a guarded accessor would move that evidence into an annotation nobody
+  # checks. This block makes the FAILURE legible; the subscript keeps saying what
+  # the member is.
+  #
+  # AND THE POPULATION IS GENERATED, not written out here. It used to be the literal
+  # `["provenance", "window", "counts", "blocks", "transactions"]`, which is a second
+  # copy of §5.2's required set living one file away from the census that states it —
+  # so a member the contract began requiring would be reached by an unguarded
+  # subscript further down and fail as `std/json`'s own `key not found:`, from a
+  # stack naming neither this module nor the rule. `SnapshotRequired` is that set
+  # read out of the census, which is the same treatment the row members already got.
+  #
+  # The walk BELONGS IN `contract_rules.nim` for the same reason the row walks do:
+  # spelled here it would be `snap{member}` over a loop variable, which is a
+  # subscript by a name and therefore says "this container is an open map" to the
+  # coverage check — one generated guard would have cost the whole top level its
+  # member-by-member census. `missingBracketMember` keeps the dynamic subscript on
+  # the census side, where the members are data, and leaves the literal subscripts
+  # below as the only statement about what this reader consumes.
+  block requiredMembers:
+    let missing = missingBracketMember(snap, SnapshotRequired, false)
+    if missing.len > 0:
+      raise newException(ValueError,
+        RuleMembersRequired &
+        "the snapshot at " & snapPath & " carries no `" & missing & "`. " &
+        ruleStatement("S5-MEMBERS-REQUIRED") &
+        " Every member of " & snapFormat & "'s required set is named in " &
+        "tools/chain/snapshot-contract.json, which is Data-Contract.md §5.2's " &
+        "census in machine-readable form.")
+
+  # ── THE TALLY IS A MEASUREMENT OF THE ROWS BESIDE IT ────────────────────────
+  #
+  # `counts` has been required by §5.2 since it was written and was consumed by
+  # NOBODY — the reader never opened it, so its stated purpose, "so a partial
+  # ingest is detectable", was served by no one and a stale tally was the detector
+  # reading clean on the one condition it detects. It is read here, which is the
+  # only place a consumer of the snapshot can check it against the rows it counts.
+  #
+  # TWO MEMBERS ON EVERY TOKEN AND A THIRD ON `@2`. `blocks` and `transactions` are
+  # lengths and every committed snapshot carries them; `accountedFor` names the
+  # three-population figure §5.2's table defines and only `@2` producers write it,
+  # so requiring it on `@1` would make three frozen captures non-conforming by a
+  # paragraph written after they were taken — §3.1's rule 3 applied to this
+  # contract rather than to somebody else's.
+  let counts = snap{"counts"}
+  if counts.kind != JObject:
+    raise newException(ValueError,
+      RuleCountsPresent &
+      "the snapshot at " & snapPath & " carries a `counts` that is not an object. " &
+      ruleStatement("S5-COUNTS-PRESENT"))
+  block countsCheck:
+    let statedBlocks = counts{"blocks"}.getInt(-1)
+    let statedTx = counts{"transactions"}.getInt(-1)
+    if statedBlocks != snap["blocks"].len or statedTx != snap["transactions"].len:
+      raise newException(ValueError,
+        RuleCountsRows &
+        "the snapshot at " & snapPath & " states counts.blocks=" & $statedBlocks &
+        " counts.transactions=" & $statedTx & " over " & $snap["blocks"].len &
+        " block(s) and " & $snap["transactions"].len & " transaction(s). " &
+        ruleStatement("S5-COUNTS-ROWS") &
+        " A tally that is not recomputed is a tally that survives the rows it " &
+        "described; derive it on every write rather than merging into it.")
+    if requireRefusalReason:
+      let accountedFor = counts{"accountedFor"}.getInt(-1)
+      if accountedFor != statedTx:
+        raise newException(ValueError,
+          RuleCountsReconcile &
+          "the snapshot at " & snapPath & " states counts.accountedFor=" &
+          $accountedFor & " against counts.transactions=" & $statedTx & ". " &
+          ruleStatement("S5-COUNTS-RECONCILE") &
+          " The traced and untraced tallies are NOT a partition of the rows — a " &
+          "transaction the chain never made public is in neither — so the figure " &
+          "that reconciles is the one that ranges over all three.")
+
+
+  # ── AND THE MEMBERS INSIDE THOSE CONTAINERS, GENERATED FROM §5.2b ──────────
+  #
+  # The loop above covers the five top-level members. Two dozen more are required
+  # by the contract and taken by an unguarded subscript below — `blocks[].hash`,
+  # `transactions[].outcome`, `recording.steps` — and every one of them used to
+  # fail as `std/json`'s own `key not found: hash`, from a stack naming neither
+  # this module nor the rule it broke.
+  #
+  # The check is GENERATED from the census rather than written twice: the same
+  # file that says a member is required and unsafely read is the file this pass
+  # ranges over, so a member added to §5.2b is checked here without anybody
+  # remembering to add a guard. The subscripts stay exactly as they are, because
+  # they are what the spec-coverage check reads as the statement that the member
+  # is required.
+  block windowMembers:
+    let missing = missingBracketMember(snap["window"], WindowRequired, false)
+    if missing.len > 0:
+      raise newException(ValueError,
+        RuleRowMembersRequired &
+        "the snapshot's `window` carries no `" & missing & "`. " &
+        ruleStatement("S5-ROW-MEMBERS-REQUIRED"))
+  for b in snap["blocks"]:
+    let missing = missingBracketMember(b, BlockRequired, false)
+    if missing.len > 0:
+      raise newException(ValueError,
+        RuleRowMembersRequired &
+        "a block row in " & snapPath & " carries no `" & missing & "`" &
+        (if b{"number"} != nil: " (number " & $b{"number"}.getInt & ")" else: "") &
+        ". " & ruleStatement("S5-ROW-MEMBERS-REQUIRED"))
+  for t in snap["transactions"]:
+    let traced = isTracedSnapshotOutcome(t{"outcome"}.getStr)
+    let missing = missingBracketMember(t, TransactionRequired, traced)
+    if missing.len > 0:
+      raise newException(ValueError,
+        RuleRowMembersRequired &
+        "a transaction row in " & snapPath & " carries no `" & missing & "`" &
+        (if t{"txHash"} != nil: " (" & shortHash(t{"txHash"}.getStr) & ")" else: "") &
+        ". " & ruleStatement("S5-ROW-MEMBERS-REQUIRED"))
+
 
   let gen = if cfg.generation.len > 0: cfg.generation else: "1"
   let prov = snap["provenance"]
@@ -591,6 +719,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   let chain = prov{"chain"}.getStr
   if chain.len == 0:
     raise newException(ValueError,
+      RuleChainNamed &
       "the snapshot names no chain in provenance.chain; refusing to guess a slug")
 
   # ---- how this chain writes its identifiers: ONE decision, both uses --------
@@ -641,11 +770,23 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   var postHocPositions = initTable[string, JsonNode]()
   var postHocMeasuredAt = ""
   var postHocResolver = ""
-  let sidecarPath = cfg.snapshotDir / "artifact-resolution.json"
+  # ── NAMED BY THE SNAPSHOT, WITH THE OLD PATH AS THE CONTRACT'S OWN DEFAULT ──
+  #
+  # This was `cfg.snapshotDir / "artifact-resolution.json"`, i.e. a SECOND path read by
+  # name — which §5.1's "only `snapshot.json` is read by name" said did not exist. The
+  # sentence was false and had been for as long as this sidecar has. It is the snapshot's
+  # own sidecar rather than a row's (one resolution run answers about contract classes,
+  # not about one transaction), so it is the SNAPSHOT that names it; the default below is
+  # stated in §5.1 rather than known only here, which is the difference between a default
+  # and a convention.
+  var sidecarRel = snap{"artifactResolution"}.getStr
+  if sidecarRel.len == 0: sidecarRel = DefaultArtifactResolutionPath
+  let sidecarPath = cfg.snapshotDir / sidecarRel
   if fileExists(sidecarPath):
     let side = parseJson(readFile(sidecarPath))
     if side{"format"}.getStr != "blocktracer/artifact-resolution@1":
       raise newException(ValueError,
+        RuleSidecarFormatUnknown &
         "unsupported artifact-resolution format '" & side{"format"}.getStr &
         "' at " & sidecarPath & "; this build reads blocktracer/artifact-resolution@1")
     # A SIDECAR FROM ANOTHER CHAIN IS A REFUSAL, NOT A SKIP. Applying one silently would
@@ -653,6 +794,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # the tree, and wrong in the direction that invents evidence.
     if side{"chain"}.getStr != chain:
       raise newException(ValueError,
+        RuleSidecarChain &
         sidecarPath & " resolves chain '" & side{"chain"}.getStr & "' but this snapshot is '" &
         chain & "'; refusing to attach one chain's resolution to another's transactions")
     postHocMeasuredAt = side{"measuredAt"}.getStr
@@ -777,6 +919,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     let v = "l3-" & shortHash(commit)
     if v in labelOwner and labelOwner[v] != commit:
       raise newException(ValueError,
+        RuleRecorderLabelUnique &
         "this snapshot names two recorder commits that shorten to the same " &
         "version label '" & v & "': " & labelOwner[v] & " and " & commit &
         ". The label is what `recorderBuildHash` hashes, so publishing both " &
@@ -1031,8 +1174,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # THE CAPTURE'S OWN RECORD FIRST, the sidecar only where there is none. `artifactsOf` is
     # the one place that choice is made, so the code edges and the published summary below
     # cannot come to disagree about which array they were built from.
+    # ONE SUBSCRIPT, for the reason `capturedLabel` gives below: `t{"artifacts"} != nil`
+    # and `t["artifacts"]` in one expression is a safe bracket that reads as a required
+    # member, and the member is genuinely optional — a capture taken before the runtime
+    # could resolve artifacts carries no such key at all, and telling that from "looked,
+    # found nothing" is the whole point of the three-state rule below.
+    let artifactsNode = t{"artifacts"}
     let capturedArtifacts =
-      if t{"artifacts"} != nil and t["artifacts"].kind == JArray: t["artifacts"]
+      if artifactsNode != nil and artifactsNode.kind == JArray: artifactsNode
       else: nil
     let postHocArtifacts =
       if capturedArtifacts == nil and txHash in postHoc: postHoc[txHash]
@@ -1181,7 +1330,10 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # -- the §7.0 overlay ----------------------------------------------------
     var et: ExecTrace
     if replayed:
-      let rec = t["recording"]
+      # `let rec = t["recording"]` used to sit here with a `discard rec` 445 lines
+      # below and no other use — a binding whose only effect was to make the member
+      # look required in a place nothing read it. Every real use of `recording` is
+      # spelled at its own site.
       let matched = t["effects"]["matched"].getInt
       let mismatched = t["effects"]["mismatched"].getInt
       # THIS CONTAINER'S OWN RECORDER — resolved per transaction, from the
@@ -1227,6 +1379,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       let ctBytes = readFile(cfg.snapshotDir / t["container"].getStr)
       if ctBytes.len == 0:
         raise newException(ValueError,
+          RuleContainerNonEmpty &
           "the snapshot's container for " & txHash & " is empty; refusing to " &
           "publish a manifest naming a zero-byte trace")
       cfg.writeBytes(dir / "trace.ct", ctBytes)
@@ -1286,10 +1439,17 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # claim stays where it was — `measuredSourceLevel`, read from the capture
       # — and this only answers "is there text to put behind the positions this
       # recording does have".
-      # The row names the file; the conventional path is the fallback, so a
-      # capture written before the row carried the key still resolves.
+      # The row names the file; §5.1's STATED default is the fallback, so a capture
+      # written before the row carried the key still resolves. The default comes
+      # from `DefaultSourcesDir` — i.e. out of the census — and not from a literal
+      # here: a default this reader spells itself is knowledge only this reader has,
+      # which is the difference §5.1 draws between a default and a convention. This
+      # was `"sources"` open-coded until 2026-09-17, which made §5.1's claim that the
+      # reader spells none of them false, and nothing could see it because the two
+      # resolve identically. `snapshot-contract-selftest.mjs` §8 now refuses any of
+      # the five defaults appearing as a path literal in this file.
       var srcRel = t{"sourceBundles"}.getStr
-      if srcRel.len == 0: srcRel = "sources" / (txHash & ".json")
+      if srcRel.len == 0: srcRel = DefaultSourcesDir / (txHash & ".json")
       let srcPath = cfg.snapshotDir / srcRel
       # …AND A THIRD WAY IN, which is the one a LIVE capture takes. The two arms
       # above are "the capture measured every step positioned" and "a post-hoc
@@ -1333,7 +1493,12 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # existed.
       var posSource: JsonNode = nil
       var posIsPostHoc = true
-      let capturedPosPath = cfg.snapshotDir / "positions" / (txHash & ".json")
+      # The row names the file, as it does for its container and its source bundle;
+      # §5.1's default is the fallback, so a capture written before the row carried
+      # the key still resolves and its bytes are unchanged.
+      var posRel = t{"positions"}.getStr
+      if posRel.len == 0: posRel = DefaultPositionsDir / (txHash & ".json")
+      let capturedPosPath = cfg.snapshotDir / posRel
       if fileExists(capturedPosPath):
         posSource = parseJson(readFile(capturedPosPath))
         posIsPostHoc = posSource{"measuredPostHoc"}.getBool
@@ -1367,6 +1532,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
             "source positions were computed for " & txHash
         if not fileExists(srcPath):
           raise newException(ValueError,
+            RuleBundleRequired &
             why & " and this snapshot carries no source bundle for it (looked for " &
             srcRel & "); refusing to publish positions with no text to put behind " &
             "them, which would put the debugger's source pane on a file it cannot fetch")
@@ -1374,6 +1540,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         let bundleList = srcDoc{"bundles"}
         if bundleList == nil or bundleList.kind != JArray or bundleList.len == 0:
           raise newException(ValueError,
+            RuleBundleRequired &
             why & " and its source bundle file " & srcRel & " carries no bundle; " &
             "refusing to publish positions with no text to put behind them, which " &
             "would put the debugger's source pane on a file it cannot fetch")
@@ -1381,6 +1548,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           let codeHash = b{"codeHash"}.getStr
           if codeHash.len == 0:
             raise newException(ValueError,
+              RuleBundleKeyed &
               "a source bundle for " & txHash & " in " & srcRel & " names no " &
               "codeHash; a bundle is keyed by contract class id and one " &
               "without a key cannot be reached from a manifest")
@@ -1395,6 +1563,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
             for p, c in fs: files.add (path: p, content: c.getStr)
           if files.len == 0:
             raise newException(ValueError,
+              RuleBundleNonEmpty &
               "the source bundle for code hash " & codeHash & " of " & txHash &
               " in " & srcRel & " carries no files; refusing to publish an " &
               "empty bundle a manifest would then recommend")
@@ -1405,10 +1574,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           # map — `corroborated` for two, `single-distributor` for one. A reader
           # who wants to know how much of the source below is attested by the
           # chain and how much by a package registry has it here.
+          # ONE SUBSCRIPT, for `capturedLabel`'s reason: `b{"…"} != nil and b["…"].kind`
+          # is a safe bracket that reads as a required member to every reader that does
+          # not re-derive the guard three tokens to its left, and this member is
+          # genuinely optional.
+          let distributors = b{"agreeingDistributors"}
           var agreeing = newJArray()
-          if b{"agreeingDistributors"} != nil and
-             b["agreeingDistributors"].kind == JArray:
-            agreeing = b["agreeingDistributors"]
+          if distributors != nil and distributors.kind == JArray:
+            agreeing = distributors
           let attestation = %*{
             "artifactHash": orNull(b{"artifactHash"}),
             "debugDigest": orNull(b{"debugDigest"}),
@@ -1441,7 +1614,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # container and no listing, and the pane falls back to the stated reason it
       # has always shown. Refusing the build would make an old snapshot
       # unpublishable to buy a pane a nicer degraded state.
-      let insFile = cfg.snapshotDir / "instructions" / txHash & ".json"
+      # THE DELIVERABLE THIS SIDECAR WAS SINGLED OUT FOR. It was the one path in the
+      # tree located by convention and by nothing else; it is now named by the row that
+      # owns it, exactly as the container and the source bundle already were, with
+      # §5.1's stated default behind it.
+      var insRel = t{"instructions"}.getStr
+      if insRel.len == 0: insRel = DefaultInstructionsDir / (txHash & ".json")
+      let insFile = cfg.snapshotDir / insRel
       if fileExists(insFile):
         let ins = parseJson(readFile(insFile))
         # THE TWO COUNTS MUST AGREE. `execution.steps` is what the manifest
@@ -1454,6 +1633,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         let carried = ins{"steps"}.getInt(-1)
         if carried != declared:
           raise newException(ValueError,
+            RuleInstructionsAgree &
             "the instruction listing for " & txHash & " holds " & $carried &
             " steps and the recording declares " & $declared &
             "; refusing to publish a listing the position cannot be located in")
@@ -1484,6 +1664,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         # involved would go on reporting success.
         if carried != declared:
           raise newException(ValueError,
+            RulePositionsAgree &
             "the source positions for " & txHash & " hold " & $carried &
             " steps and the recording declares " & $declared &
             "; refusing to publish positions the steps cannot be located in")
@@ -1491,6 +1672,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           let a = pos{col}
           if a == nil or a.kind != JArray or a.len != declared:
             raise newException(ValueError,
+              RulePositionsColumns &
               "the source positions for " & txHash & " carry a '" & col &
               "' column of " & (if a == nil: "nothing" else: $a.len) &
               " against " & $declared & " steps; a partial column would mark " &
@@ -1534,13 +1716,16 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # is the defect that put an empty pane next to `frames: 1` in the first
       # place. `<toplevel>` is the synthetic frame the recorder opens to hold
       # the enqueued calls and is not counted by `callsOpened`, hence the + 1.
-      let ctFile = cfg.snapshotDir / "calltrace" / txHash & ".json"
+      var callRel = t{"callTrace"}.getStr
+      if callRel.len == 0: callRel = DefaultCallTraceDir / (txHash & ".json")
+      let ctFile = cfg.snapshotDir / callRel
       if fileExists(ctFile):
         let cf = parseJson(readFile(ctFile))
         let declaredCalls = t["recording"]{"callsOpened"}.getInt
         let carriedFrames = cf{"frames"}.getInt(-1)
         if carriedFrames != declaredCalls + 1:
           raise newException(ValueError,
+            RuleCallTraceAgree &
             "the call trace for " & txHash & " holds " & $carriedFrames &
             " frame(s) and the recording declares callsOpened=" &
             $declaredCalls & "; refusing to publish a call trace the " &
@@ -1548,6 +1733,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         let arr = cf{"frame"}
         if arr == nil or arr.kind != JArray or arr.len != carriedFrames:
           raise newException(ValueError,
+            RuleCallTraceFrames &
             "the call trace for " & txHash & " declares " & $carriedFrames &
             " frame(s) and carries " &
             (if arr == nil: "no" else: $arr.len) & " of them")
@@ -1572,6 +1758,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           # an empty subtree, and the reader opens it and nothing happens.
           if f{"hiddenDescendants"}.getInt(0) <= 0:
             raise newException(ValueError,
+              RuleCallTraceFoldNonEmpty &
               "the call trace for " & txHash & " marks frame '" &
               f{"name"}.getStr & "' folded while claiming " &
               $f{"hiddenDescendants"}.getInt(0) & " descendant(s); refusing to " &
@@ -1580,6 +1767,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         let declaredSteps = cf{"foldedSteps"}.getInt(0)
         if markedFolded != declaredFolded or markedSteps != declaredSteps:
           raise newException(ValueError,
+            RuleCallTraceFoldTally &
             "the call trace for " & txHash & " declares foldedFrames=" &
             $declaredFolded & " foldedSteps=" & $declaredSteps &
             " and its frames carry " & $markedFolded & " / " & $markedSteps &
@@ -1591,6 +1779,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         let recSteps = t["recording"]["steps"].getInt
         if markedSteps > recSteps:
           raise newException(ValueError,
+            RuleCallTraceFoldBound &
             "the call trace for " & txHash & " folds " & $markedSteps &
             " step(s) out of a recording that has " & $recSteps)
         cfg.writeJson(dir / "calltrace.json", cf)
@@ -1626,7 +1815,6 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         validationOracle: "published-effects",
         prestateStrategy: "hydrated-from-node")
       cfg.writeJson(dir / "manifest.json", manifest.toJson)
-      discard rec
     else:
       # Not replayed. The snapshot wrote the sentence; it is published verbatim
       # so the page states the measured reason rather than a generic one.
@@ -1671,6 +1859,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # applies to.
       if requireRefusalReason and rr.len == 0 and isUntracedSnapshotOutcome(outcome):
         raise newException(ValueError,
+          RuleRefusalReasonRequired &
           "transaction " & shortHash(txHash) & " in block " & $height &
           " has untraced outcome '" & outcome & "' and carries no refusalReason. " &
           snapFormat & " requires one on every untraced row — that requirement is " &
@@ -1680,9 +1869,25 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           "the snapshot is a blocktracer/chain-snapshot@1 wearing a newer token — " &
           "bring it forward with tools/chain/migrate-refusal-reasons.mjs rather " &
           "than relabelling it.")
+      # ── AND THE OTHER DIRECTION, WHICH NOTHING ENFORCED ────────────────────
+      #
+      # §5.2: "Both directions are refused: a member on a chain-absent row, and a
+      # missing sentence on one." Only the first half of the first direction was
+      # ever checked here — a `private-only` row carrying `body-unavailable` was
+      # counted into the published per-reason tally as though this pipeline had
+      # declined an execution the chain never published. The closed set is a set of
+      # things WE did; giving a chain-absent row one publishes a repairable fault
+      # of ours in place of a permanent property of the chain.
+      if rr.len > 0 and isChainAbsentSnapshotOutcome(outcome):
+        raise newException(ValueError,
+          RuleRefusalReasonForbidden &
+          "transaction " & shortHash(txHash) & " in block " & $height &
+          " has chain-absent outcome '" & outcome & "' and carries refusalReason '" &
+          rr & "'. " & ruleStatement("S5-REFUSALREASON-FORBIDDEN"))
       if rr.len > 0:
         if not isRefusalReason(rr):
           raise newException(ValueError,
+            RuleRefusalReasonClosed &
             "transaction " & shortHash(txHash) & " in block " & $height &
             " carries refusalReason '" & rr & "', which is not in the closed " &
             "set (" & refusalReasonList() & "). A reason outside the set is a " &
@@ -1693,15 +1898,34 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # THE REASON IS NOT OPTIONAL. `blocktracer_client/decode.nim` refuses an
       # overlay whose `absent` execution carries no reason, and the validator
       # refuses it at publish time — both deliberately, because "absent with no
-      # explanation" is indistinguishable from a failed fetch. So a row the
-      # capture left without words gets words here, naming the outcome it
-      # actually had, and an empty reason raises rather than shipping.
-      var why = t{"reason"}.getStr
+      # explanation" is indistinguishable from a failed fetch. This side refuses
+      # it too, which it did not: the sentence that used to be here said a row
+      # the capture left without words "gets words here", and that was the defect
+      # rather than the design.
+      # THE SENTENCE IS THE PRODUCER'S AND IS NOT INVENTED HERE.
+      #
+      # This block used to substitute "This transaction was not re-executed for this
+      # snapshot (outcome: X), so no trace was recorded for it." for an absent
+      # `reason`, and then — two lines later — raise on an empty one. The raise was
+      # DEAD: the substitution had already made `why` non-empty, so the refusal
+      # §5.2 states ("an empty reason is refused rather than published") could not
+      # fire, and the reader published a generic sentence over the producer's
+      # silence while the spec said it refused. Two behaviours in adjacent lines,
+      # one of them unreachable.
+      #
+      # It refuses now, on every token, and the corpus pays nothing for it:
+      # measured over all six committed snapshots, 948 of 948 untraced and
+      # chain-absent rows carry a `reason`, so not one artifact moves.
+      let why = t{"reason"}.getStr
       if why.len == 0:
-        why = "This transaction was not re-executed for this snapshot " &
-              "(outcome: " & outcome & "), so no trace was recorded for it."
-      if why.len == 0:
-        raise newException(ValueError, "empty absent reason for " & txHash)
+        raise newException(ValueError,
+          RuleReasonRequired &
+          "transaction " & shortHash(txHash) & " in block " & $height &
+          " has outcome '" & outcome & "' and carries no `reason`. " &
+          ruleStatement("S5-REASON-REQUIRED") &
+          " A generic sentence written here would be this pipeline's words over " &
+          "the producer's silence, and 'absent with no explanation' is " &
+          "indistinguishable from a failed fetch.")
       et = ExecTrace(selector: "public", availability: taAbsent,
         reason: why, refusalReason: rr, bytes: 0, reconstructed: false,
         hasValidation: false, validation: ValidationSummary())
@@ -1837,8 +2061,18 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # The capture supplies it; this is a fallback for a snapshot that named none,
   # and it deliberately does NOT try to prettify the slug beyond saying the data
   # is real — an invented display name is a claim nobody measured.
+  #
+  # READ ONCE, WITH THE SAFE SUBSCRIPT, and that is not a style preference. This was
+  # `if prov{"label"}.getStr.len > 0: prov["label"].getStr`, which cannot raise — but it
+  # spells an unguarded `prov["label"]` in the source, and the spec-coverage check
+  # (`tools/chain/snapshot-contract-selftest.mjs`) reads the ACCESS FORM as the statement
+  # of whether a member is required, because that is what it means to `std/json`. A
+  # bracket that is safe only because of a test three tokens to its left is a bracket that
+  # says "required" to every reader, human or mechanical, that does not re-derive the
+  # guard. One binding says the true thing once.
+  let capturedLabel = prov{"label"}.getStr
   let provLabel =
-    if prov{"label"}.getStr.len > 0: prov["label"].getStr
+    if capturedLabel.len > 0: capturedLabel
     else: "Real chain data"
 
   let summaryRel = "d" / chain / "g" / gen / "summary.json"

@@ -1324,7 +1324,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // sentence is now CHECKED: each term is read out of the suite that owns it, and the
   // arithmetic is checked as arithmetic.
   //
-  // THE NINE DECLARATIONS ARE IN FOUR DIFFERENT PATTERNS, which is why each has its own
+  // THE TEN DECLARATIONS ARE IN FOUR DIFFERENT PATTERNS, which is why each has its own
   // rather than one generic sweep. A generic regex over the phrasings is the false-green
   // this file exists to refuse: it would silently match most of them and score the rest as
   // absent. If a suite rephrases its declaration this arm goes RED, which is correct — the
@@ -1345,6 +1345,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ['coverage-contiguity-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['identifier-encoding-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['object-set-selftest.mjs', /asserted !== (\d+)\) \{/],
+    ['snapshot-contract-selftest.mjs', /asserted !== (\d+)\) \{/],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1356,7 +1357,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# NINE suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  const m = /# TEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
@@ -1365,7 +1366,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's nine terms are the suites' own declarations, in recipe order — `
+    ck(`the header's ten terms are the suites' own declarations, in recipe order — `
        + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
@@ -1381,7 +1382,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // was ever compared to the eight lines the recipe executes — so the two documents could
   // agree with each other perfectly while agreeing with the recipe about nothing. Add a
   // ninth invocation to the body, touch neither the header nor the array, and all three
-  // checks above stay green while nine suites run: the ninth's declared count is verified
+  // checks above stay green while ten suites run: the tenth's declared count is verified
   // by nobody, and a ninth that declares no count at all is invisible to this file
   // entirely. That is the same false green the header check was written to refuse, one
   // level out — the description was checked against a description.
@@ -1425,7 +1426,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   //
   // `ci.yml` runs each of these suites as its own step, and every step's comment
   // states that suite's assertion count — in two phrasings, `N assertions` and `N
-  // arms`. That is a THIRD copy of the nine numbers, it was read by nobody until this
+  // arms`. That is a THIRD copy of the ten numbers, it was read by nobody until this
   // arm, and it went stale the moment two of the suites grew: the copies in the Justfile
   // header were caught by the arms above and CI's were not caught by anything. The
   // register this repository already keeps of that failure lists three occasions; this is
@@ -1453,8 +1454,8 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // Do not reintroduce a total there.
   //
   // A STEP WITH NO NUMBER, OR WITH TWO, IS A FAILURE AND NOT A SKIP. A checker that
-  // quietly passed over the steps it could not read would score eight of nine and
-  // report eight, which is the shape the `declared` array above exists to refuse.
+  // quietly passed over the steps it could not read would score nine of ten and
+  // report nine, which is the shape the `declared` array above exists to refuse.
   const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   const ciLines = ci.split('\n');
   const ciTerms = [];
@@ -1484,7 +1485,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   ck(`every suite has a ci.yml step whose comment states its count exactly once — `
      + `${ciProblems.length} problem(s)`, ciProblems.length === 0);
   if (ciProblems.length) console.error(`    ${ciProblems.join('\n    ')}`);
-  ck(`…and ci.yml's nine counts are the suites' own — [${ciTerms.join(', ')}] vs `
+  ck(`…and ci.yml's ten counts are the suites' own — [${ciTerms.join(', ')}] vs `
      + `[${terms.join(', ')}]`,
      ciTerms.length === terms.length && ciTerms.every((n, i) => n === terms[i]));
 }
@@ -1612,7 +1613,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       snapshot was simply not in the corpus every sweep here reads while all six arms
 //       stayed green. The list is now compared to `git ls-files`, and a git that cannot
 //       answer is a failure rather than a comparison against nothing.
-expectCount(223);
+expectCount(224);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

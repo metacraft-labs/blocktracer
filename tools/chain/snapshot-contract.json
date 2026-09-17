@@ -1,0 +1,550 @@
+{
+  "_comment": [
+    "THE PRODUCER SEAM'S MEMBER CENSUS AND ITS RULE TABLE. Data-Contract.md §5.",
+    "",
+    "THIS FILE IS DATA FOR THE REASON `refusal-reasons.json` AND `snapshot-format.json` ARE:",
+    "two languages need it. `src/blocktracer/chain/contract_rules.nim` reads it with",
+    "`staticRead` at compile time — so a malformed table fails the BUILD — and",
+    "`tools/chain/snapshot-contract-selftest.mjs` reads it to check the reader against it.",
+    "",
+    "── WHAT THE `containers` HALF IS FOR ─────────────────────────────────────────────────",
+    "",
+    "It is §5's member census in machine-readable form: for every container the reader",
+    "opens, every member it consumes, whether the CONTRACT requires that member, and which",
+    "SUBSCRIPT the reader reaches it with. The two are different facts and conflating them",
+    "is what this whole deliverable exists to end:",
+    "",
+    "  required   what §5 says a producer must write",
+    "  access     what `ingest.nim` does — `node[\"k\"]` raises on absence, `node{\"k\"}` does not",
+    "",
+    "A member that is OPTIONAL to the contract and reached by `[]` is a member the reader",
+    "crashes on and the spec says is fine. That is not a hypothetical: `provenance.l1ChainId`",
+    "was exactly that, §5.2 named none of the four provenance members the summary writer",
+    "reached, and the live follower's own mainnet output omitted it — so the producer this",
+    "repository ships wrote a snapshot the reader this repository ships raised `KeyError` on,",
+    "invisibly, because every committed fixture carried the member.",
+    "",
+    "A member that is REQUIRED by the contract and reached by `{}` is legitimate exactly when",
+    "some rule enforces it by name instead; `enforcedBy` names that rule, and the checker",
+    "requires one. `format` is the archetype: read with `{}` so an absent token does not",
+    "raise inside `std/json`, then refused by name against the readable set.",
+    "",
+    "── WHAT `consumedBy` MEANS ───────────────────────────────────────────────────────────",
+    "",
+    "A member §5 names that this reader does not consume must say who does. Without it the",
+    "census would quietly accumulate members nothing reads, which is the other direction of",
+    "the same defect and the direction `counts` sat in: §5.2 required it, the reader never",
+    "opened it, and the tally's whole stated purpose — 'so a partial ingest is detectable' —",
+    "was served by nobody.",
+    "",
+    "── WHY `defaultPath` IS HERE AND NOT IN THE READER ───────────────────────────────────",
+    "",
+    "§5.1's rule is that every path but `snapshot.json` is named by the row that owns it.",
+    "FIVE of them carry a default for a capture whose row is silent — the four per-row",
+    "sidecars and the one snapshot-wide one — and a row's `container` carries none, because",
+    "it is required of every traced row and a row that names none is refused. A default",
+    "open-coded in the reader is a convention; a default stated in the contract is part of",
+    "the contract. So the reader spells none of the five and takes all five from here, and",
+    "`snapshot-contract-selftest.mjs` §8 fails if any of them appears as a path literal in",
+    "the reader — which it did, for `sources`, until 2026-09-17."
+  ],
+
+  "format": "blocktracer/snapshot-contract@1",
+  "spec": "codetracer-specs/BlockTracer/Data-Contract.md §5",
+  "reader": "src/blocktracer/chain/ingest.nim",
+
+  "rules": {
+    "S5-SNAPSHOT-PRESENT": {
+      "section": "§5.1",
+      "statement": "A snapshot is a directory holding `snapshot.json`; that one file is read by name."
+    },
+    "S5-FORMAT-UNKNOWN": {
+      "section": "§5.2",
+      "statement": "A `format` token the reader does not support is refused by name, naming the tokens the build accepts, and nothing is read."
+    },
+    "S5-CHAIN-NAMED": {
+      "section": "§5.2",
+      "statement": "`provenance.chain` is required and is never guessed."
+    },
+    "S5-CHAIN-UNIQUE": {
+      "section": "§5.2",
+      "statement": "A chain slug another producer already owns is refused at ingest rather than resolved."
+    },
+    "S5-MEMBERS-REQUIRED": {
+      "section": "§5.2",
+      "statement": "Every member §5.2's table marks required is present; a snapshot short of one is refused naming the member rather than raising where it is first reached."
+    },
+    "S5-ROW-MEMBERS-REQUIRED": {
+      "section": "§5.2b",
+      "statement": "Every member §5.2b marks required and reaches by an unguarded subscript is present on the row that must carry it; a row short of one is refused naming the row and the member rather than raising inside the JSON reader."
+    },
+    "S5-COUNTS-PRESENT": {
+      "section": "§5.2",
+      "statement": "`counts` is required: a snapshot with no tally has no detector for a partial ingest."
+    },
+    "S5-COUNTS-ROWS": {
+      "section": "§5.2",
+      "statement": "`counts.blocks` and `counts.transactions` are measurements of the rows beside them and must equal their lengths."
+    },
+    "S5-COUNTS-RECONCILE": {
+      "section": "§5.2",
+      "statement": "On `@2`, `counts.accountedFor` ranges over traced, untraced and chain-absent and equals `counts.transactions`."
+    },
+    "S5-RECORDER-LABEL-UNIQUE": {
+      "section": "§5.2",
+      "statement": "Two recorder commits in one snapshot that shorten to one version label are refused; the label is what the build hash is derived from."
+    },
+    "S5-CONTAINER-NONEMPTY": {
+      "section": "§5.1",
+      "statement": "A row that names a container must name one with bytes in it."
+    },
+    "S5-REASON-REQUIRED": {
+      "section": "§5.2",
+      "statement": "A row that carries no trace carries a `reason`, and an empty reason is refused rather than published."
+    },
+    "S5-REFUSALREASON-REQUIRED": {
+      "section": "§5.2a",
+      "statement": "On `@2` every untraced row carries a `refusalReason`; a row without one is refused, naming the row."
+    },
+    "S5-REFUSALREASON-CLOSED": {
+      "section": "§5.2",
+      "statement": "`refusalReason` is drawn from a closed set; a value outside it is refused rather than carried or dropped."
+    },
+    "S5-REFUSALREASON-FORBIDDEN": {
+      "section": "§5.2",
+      "statement": "A chain-absent row carries the sentence and NOT the member; the closed set is a set of things this pipeline did."
+    },
+    "S5-BUNDLE-REQUIRED": {
+      "section": "§5.4",
+      "statement": "A recording that claims source level, or that carries positions, is refused without a source bundle beside it."
+    },
+    "S5-BUNDLE-KEYED": {
+      "section": "§5.4",
+      "statement": "A source bundle is keyed by contract-class identity; one with no `codeHash` cannot be reached from a manifest."
+    },
+    "S5-BUNDLE-NONEMPTY": {
+      "section": "§5.4",
+      "statement": "A source bundle with no files is refused rather than published and then recommended."
+    },
+    "S5-INSTRUCTIONS-AGREE": {
+      "section": "§5.4",
+      "statement": "An instruction listing whose step count differs from the recording's is refused at publish time."
+    },
+    "S5-POSITIONS-AGREE": {
+      "section": "§5.4",
+      "statement": "A position stream whose step count differs from the recording's is refused at publish time."
+    },
+    "S5-POSITIONS-COLUMNS": {
+      "section": "§5.4",
+      "statement": "Every column of a position stream is as long as the recording's step count; a partial column would mark rows it was never measured for."
+    },
+    "S5-CALLTRACE-AGREE": {
+      "section": "§5.4",
+      "statement": "A call trace's frame count must be the recording's `callsOpened` plus the synthetic top-level frame."
+    },
+    "S5-CALLTRACE-FRAMES": {
+      "section": "§5.4",
+      "statement": "A call trace must carry as many frames as it declares."
+    },
+    "S5-CALLTRACE-FOLD-NONEMPTY": {
+      "section": "§5.4",
+      "statement": "A frame marked folded claims something is behind it; folding with zero hidden descendants is refused."
+    },
+    "S5-CALLTRACE-FOLD-TALLY": {
+      "section": "§5.4",
+      "statement": "A call trace's fold summary must be the sum its own frames carry."
+    },
+    "S5-CALLTRACE-FOLD-BOUND": {
+      "section": "§5.4",
+      "statement": "A call trace may not fold more steps than the recording has."
+    },
+    "S5-SIDECAR-FORMAT-UNKNOWN": {
+      "section": "§5.4",
+      "statement": "A sidecar that carries its own version token is refused by name when that token is one the reader does not support."
+    },
+    "S5-SIDECAR-CHAIN": {
+      "section": "§5.4",
+      "statement": "A sidecar that names a chain must name this snapshot's; attaching one chain's answers to another's transactions is refused."
+    }
+  },
+
+  "containers": {
+    "snapshot": {
+      "file": "snapshot.json",
+      "named": "by-name",
+      "section": "§5.2",
+      "members": {
+        "format": {"required": true, "access": "optional", "enforcedBy": "S5-FORMAT-UNKNOWN",
+                   "holds": "the version token; §5.2a is the policy"},
+        "provenance": {"required": true, "access": "required",
+                       "holds": "who produced this, against what, when — including the chain slug"},
+        "window": {"required": true, "access": "required",
+                   "holds": "the range the producer could reach, as the node answered it"},
+        "counts": {"required": true, "access": "optional", "enforcedBy": "S5-COUNTS-PRESENT",
+                   "holds": "the producer's own tally, so a partial ingest is detectable"},
+        "blocks": {"required": true, "access": "required",
+                   "holds": "the enumerated blocks"},
+        "transactions": {"required": true, "access": "required",
+                         "holds": "one row per transaction the enumeration saw, traced or not"},
+        "captures": {"required": false, "access": "optional",
+                     "holds": "one entry per catch of a supervised watch, each naming the build that was running"},
+        "artifactResolution": {"required": false, "access": "optional",
+                               "holds": "where the artifact-resolution sidecar is, if this capture has one"}
+      }
+    },
+
+    "snapshot.provenance": {
+      "section": "§5.2",
+      "members": {
+        "chain": {"required": true, "access": "optional", "enforcedBy": "S5-CHAIN-NAMED",
+                  "holds": "the slug the published tree is keyed by"},
+        "label": {"required": false, "access": "optional",
+                  "holds": "the display name a banner shows; the reader supplies a neutral one when absent"},
+        "runtimeCommit": {"required": false, "access": "optional",
+                          "holds": "the chain's DEFAULT recorder commit, for rows that name none of their own"},
+        "endpoint": {"required": false, "access": "optional",
+                     "holds": "the node this capture was taken against, republished verbatim"},
+        "capturedAt": {"required": false, "access": "optional",
+                       "holds": "the instant the capture stopped, republished verbatim"},
+        "nodeVersion": {"required": false, "access": "optional",
+                        "holds": "the node's own version string, republished verbatim"},
+        "l1ChainId": {"required": false, "access": "optional",
+                      "holds": "the settlement chain's id where the chain has one; meaningless on a chain with no L1, and therefore never required"}
+      }
+    },
+
+    "snapshot.window": {
+      "section": "§5.2",
+      "members": {
+        "tip": {"required": true, "access": "required", "holds": "the node's tip at capture"},
+        "finalized": {"required": true, "access": "required",
+                      "holds": "the node's own finalized tip at capture, which is what the published pointer names"},
+        "blocks": {"required": true, "access": "required",
+                   "holds": "how many blocks the replay window spans, republished verbatim"}
+      }
+    },
+
+    "snapshot.counts": {
+      "section": "§5.2",
+      "members": {
+        "blocks": {"required": true, "access": "optional", "enforcedBy": "S5-COUNTS-ROWS",
+                   "holds": "the length of `blocks`, derived on every write"},
+        "transactions": {"required": true, "access": "optional", "enforcedBy": "S5-COUNTS-ROWS",
+                         "holds": "the length of `transactions`, derived on every write"},
+        "accountedFor": {"required": true, "access": "optional", "enforcedBy": "S5-COUNTS-RECONCILE",
+                         "sinceToken": "blocktracer/chain-snapshot@2",
+                         "holds": "traced + untraced + chain-absent, which equals `transactions`"}
+      }
+    },
+
+    "snapshot.blocks[]": {
+      "section": "§5.2",
+      "members": {
+        "number": {"required": true, "access": "required", "holds": "the block height"},
+        "hash": {"required": true, "access": "required", "holds": "the block's identifier, which its published object is keyed by"},
+        "parentArchiveRoot": {"required": true, "access": "required",
+                              "holds": "the predecessor link this chain names its parent by; a chain whose predecessor link has another name states it here under this member"},
+        "transactions": {"required": true, "access": "required", "holds": "the identifiers this block settled"},
+        "timestamp": {"required": false, "access": "optional",
+                      "holds": "unix seconds; a block with none contributes nothing to the published coverage span rather than an invented date"}
+      }
+    },
+
+    "snapshot.captures[]": {
+      "section": "§5.2",
+      "members": {
+        "runtimeCommit": {"required": false, "access": "optional",
+                          "holds": "the recorder build that was running for this catch"},
+        "yielded": {"required": false, "access": "optional",
+                    "holds": "the transactions this catch produced"}
+      }
+    },
+    "snapshot.captures[].yielded[]": {
+      "section": "§5.2",
+      "members": {
+        "txHash": {"required": false, "access": "optional", "holds": "the transaction this catch recorded"}
+      }
+    },
+
+    "snapshot.transactions[]": {
+      "section": "§5.2",
+      "members": {
+        "txHash": {"required": true, "access": "required", "holds": "the transaction's identifier"},
+        "blockNumber": {"required": true, "access": "required", "holds": "the height of the block that settled it"},
+        "txIndexInBlock": {"required": true, "access": "required", "holds": "its position within that block"},
+        "outcome": {"required": true, "access": "required",
+                    "holds": "which of the three populations this row is in — the partition is `snapshot-format.json`'s"},
+        "revertCode": {"required": true, "access": "required",
+                       "holds": "the chain's own: 0 succeeded, anything else reverted"},
+        "reason": {"required": true, "access": "optional", "enforcedBy": "S5-REASON-REQUIRED",
+                   "onRows": "untraced and chain-absent",
+                   "holds": "the producer's own sentence about why this row carries no trace"},
+        "refusalReason": {"required": true, "access": "optional", "enforcedBy": "S5-REFUSALREASON-REQUIRED",
+                          "sinceToken": "blocktracer/chain-snapshot@2",
+                          "onRows": "untraced only — forbidden on chain-absent",
+                          "holds": "the machine-readable member from the closed set"},
+        "container": {"required": true, "access": "required",
+                      "onRows": "traced only",
+                      "holds": "the snapshot-relative path of this row's recording"},
+        "containerBytes": {"required": true, "access": "required",
+                           "onRows": "traced only",
+                           "holds": "the container's size, republished on the overlay row"},
+        "effects": {"required": true, "access": "required",
+                    "onRows": "traced only",
+                    "holds": "what the replay reproduced of what the block published"},
+        "recording": {"required": true, "access": "required",
+                      "onRows": "traced only",
+                      "holds": "the replay's own measurements of the recording it wrote"},
+        "recordedBy": {"required": false, "access": "optional",
+                       "holds": "this row's own recorder commit, which outranks every other source"},
+        "transactionFee": {"required": false, "access": "optional",
+                           "holds": "the fee the chain charged, as the row's cost vector"},
+        "sourceBundles": {"required": false, "access": "optional",
+                          "holds": "where this row's source bundle is; §5.1's default applies when it is silent"},
+        "instructions": {"required": false, "access": "optional",
+                         "holds": "where this row's instruction listing is; §5.1's default applies when it is silent"},
+        "positions": {"required": false, "access": "optional",
+                      "holds": "where this row's per-step source positions are; §5.1's default applies when it is silent"},
+        "callTrace": {"required": false, "access": "optional",
+                      "holds": "where this row's call frames are; §5.1's default applies when it is silent"},
+        "artifacts": {"required": false, "access": "optional",
+                      "holds": "what the recording resolved per contract; ABSENT and EMPTY are different answers and the tree keeps them apart"},
+        "bodyRetained": {"required": false, "access": "optional",
+                         "holds": "whether the node still served this transaction's body at capture"},
+        "effectVisible": {"required": false, "access": "optional",
+                          "holds": "whether the chain still published this transaction's effects at capture"},
+        "instructionsExecuted": {"required": false, "access": "optional", "holds": "republished under `native.replay`"},
+        "hydrationRounds": {"required": false, "access": "optional", "holds": "republished under `native.replay`"},
+        "preStateReadAt": {"required": false, "access": "optional", "holds": "republished under `native.replay`"},
+        "roots": {"required": false, "access": "optional", "holds": "republished under `native.replay`"},
+        "rootsAnyAgree": {"required": false, "access": "optional", "holds": "republished under `native.replay`"},
+        "refusal": {"required": false, "access": "optional",
+                    "holds": "the runtime error class behind a `refused` row, kept as evidence in the published summary"}
+      }
+    },
+
+    "snapshot.transactions[].effects": {
+      "section": "§5.2",
+      "members": {
+        "matched": {"required": true, "access": "required", "holds": "how many published effects the replay reproduced"},
+        "mismatched": {"required": true, "access": "required", "holds": "how many it did not"},
+        "reproduced": {"required": false, "access": "optional", "holds": "the replay's own verdict, republished"}
+      }
+    },
+
+    "snapshot.transactions[].recording": {
+      "section": "§5.2",
+      "members": {
+        "steps": {"required": true, "access": "required",
+                  "holds": "the container's step count, which every per-step sidecar is checked against"},
+        "callsOpened": {"required": false, "access": "optional", "holds": "frames, excluding the synthetic top-level one"},
+        "sourceLevel": {"required": false, "access": "optional",
+                        "holds": "the runtime's AND over every contract this transaction executed; absence is FALSE and never true by accident"},
+        "stepsPositioned": {"required": false, "access": "optional", "holds": "how many steps resolved to a source coordinate"},
+        "stepsUnpositioned": {"required": false, "access": "optional", "holds": "how many did not"},
+        "declaredRung": {"required": false, "access": "optional", "holds": "the rung the recording declared for itself"},
+        "contractRungs": {"required": false, "access": "optional", "holds": "the per-contract detail `sourceLevel` was computed from"}
+      }
+    },
+
+    "snapshot.transactions[].artifacts[]": {
+      "section": "§5.2",
+      "members": {
+        "address": {"required": false, "access": "optional", "holds": "the contract instance that ran"},
+        "contractClassId": {"required": false, "access": "optional", "holds": "the class it ran, which a source bundle is keyed by"},
+        "resolved": {"required": false, "access": "optional", "holds": "whether an artifact was proved for it"},
+        "origin": {"required": false, "access": "optional", "holds": "where that artifact came from"},
+        "corroboration": {"required": false, "access": "optional", "holds": "how many independent distributors served the same debug symbols"}
+      }
+    },
+
+    "container": {
+      "_comment": [
+        "NO `defaultPath`, DELIBERATELY, and this entry is where the reason belongs.",
+        "`ct` was recorded here as the container's default until 2026-09-17 and the",
+        "reader never used it — it could not: `transactions[].container` is required",
+        "of every traced row and taken by an unguarded subscript, so a traced row that",
+        "names no container is REFUSED by S5-ROW-MEMBERS-REQUIRED rather than resolved",
+        "to anything. A `defaultPath` here therefore stated a fallback that no code",
+        "path can reach, and it had to be hand-exempted from the check that every",
+        "default belongs to a container the reader opens — a default that is both",
+        "unreachable and excused from the arm that would have said so.",
+        "",
+        "`ct/<txId>.ct` is still the layout every producer in this tree writes, and",
+        "§5.1's table still shows it. It is a CONVENTION a producer gets for free,",
+        "which §5.1 distinguishes from a default: the row names the file, and if the",
+        "row is silent the snapshot is non-conforming."
+      ],
+      "named": "by-row",
+      "namedBy": "snapshot.transactions[].container",
+      "section": "§5.1",
+      "members": {}
+    },
+
+    "sidecar:sources": {
+      "named": "by-row",
+      "namedBy": "snapshot.transactions[].sourceBundles",
+      "defaultPath": "sources",
+      "section": "§5.4",
+      "members": {
+        "bundles": {"required": true, "access": "optional", "enforcedBy": "S5-BUNDLE-REQUIRED",
+                    "holds": "one entry per contract class whose source text this capture carries"}
+      }
+    },
+    "sidecar:sources.bundles[]": {
+      "section": "§5.4",
+      "members": {
+        "codeHash": {"required": true, "access": "optional", "enforcedBy": "S5-BUNDLE-KEYED",
+                     "holds": "the contract class id this bundle is keyed by"},
+        "files": {"required": true, "access": "optional", "enforcedBy": "S5-BUNDLE-NONEMPTY",
+                  "keys": "open — the interned paths, preserved byte-for-byte",
+                  "holds": "path to text, with the keys the container asks for"},
+        "origin": {"required": false, "access": "optional", "holds": "who distributed the artifact this text came from"},
+        "artifactHash": {"required": false, "access": "optional", "holds": "the chain's commitment to the artifact"},
+        "debugDigest": {"required": false, "access": "optional", "holds": "a digest over the debug symbols and file map, which the chain does NOT commit to"},
+        "shape": {"required": false, "access": "optional", "holds": "the artifact's shape, republished beside the text"},
+        "corroboration": {"required": false, "access": "optional", "holds": "`corroborated` for two independent distributors, `single-distributor` for one"},
+        "agreeingDistributors": {"required": false, "access": "optional",
+                                 "holds": "who agreed on the debug symbols; an absent list publishes as the empty one"}
+      }
+    },
+
+    "sidecar:instructions": {
+      "named": "by-row",
+      "namedBy": "snapshot.transactions[].instructions",
+      "defaultPath": "instructions",
+      "section": "§5.4",
+      "members": {
+        "steps": {"required": true, "access": "optional", "enforcedBy": "S5-INSTRUCTIONS-AGREE",
+                  "holds": "the listing's own step count, which must equal the recording's"}
+      }
+    },
+
+    "sidecar:positions": {
+      "named": "by-row",
+      "namedBy": "snapshot.transactions[].positions",
+      "defaultPath": "positions",
+      "section": "§5.4",
+      "members": {
+        "steps": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-AGREE",
+                  "holds": "the stream's own step count, which must equal the recording's"},
+        "pathId": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-COLUMNS", "holds": "per-step index into `paths`"},
+        "line": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-COLUMNS", "holds": "per-step line"},
+        "column": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-COLUMNS", "holds": "per-step column"},
+        "paths": {"required": false, "access": "optional", "holds": "the interned paths the columns index"},
+        "positioned": {"required": false, "access": "optional", "holds": "how many steps this stream placed"},
+        "artifactRung": {"required": false, "access": "optional", "holds": "the artifact's rung beside the recording's, which can differ"},
+        "measuredPostHoc": {"required": false, "access": "optional",
+                            "holds": "whether these coordinates were computed after the fact; a capture's own stream outranks a reconstruction"}
+      }
+    },
+
+    "sidecar:calltrace": {
+      "named": "by-row",
+      "namedBy": "snapshot.transactions[].callTrace",
+      "defaultPath": "calltrace",
+      "section": "§5.4",
+      "members": {
+        "frames": {"required": true, "access": "optional", "enforcedBy": "S5-CALLTRACE-AGREE",
+                   "holds": "the frame count, which must be the recording's `callsOpened` plus one"},
+        "frame": {"required": true, "access": "optional", "enforcedBy": "S5-CALLTRACE-FRAMES", "holds": "the frames themselves"},
+        "foldedFrames": {"required": false, "access": "optional", "holds": "how many frames this stream folds"},
+        "foldedSteps": {"required": false, "access": "optional", "holds": "how many steps sit behind those folds"}
+      }
+    },
+    "sidecar:calltrace.frame[]": {
+      "section": "§5.4",
+      "members": {
+        "name": {"required": false, "access": "optional", "holds": "the frame's name, used in a refusal"},
+        "foldedBy": {"required": false, "access": "optional", "holds": "which fold rule closed this frame"},
+        "hiddenSteps": {"required": false, "access": "optional", "holds": "steps behind this frame's triangle"},
+        "hiddenDescendants": {"required": false, "access": "optional", "holds": "frames behind it; zero on a folded frame is refused"}
+      }
+    },
+
+    "sidecar:artifact-resolution": {
+      "named": "by-snapshot",
+      "namedBy": "snapshot.artifactResolution",
+      "defaultPath": "artifact-resolution.json",
+      "section": "§5.4",
+      "versionToken": "blocktracer/artifact-resolution@1",
+      "members": {
+        "format": {"required": true, "access": "optional", "enforcedBy": "S5-SIDECAR-FORMAT-UNKNOWN",
+                   "holds": "this sidecar's OWN version token, separate from the snapshot's"},
+        "chain": {"required": true, "access": "optional", "enforcedBy": "S5-SIDECAR-CHAIN",
+                  "holds": "the chain these answers are about; a mismatch is refused"},
+        "measuredAt": {"required": false, "access": "optional", "holds": "when the resolution was taken"},
+        "measuredBy": {"required": false, "access": "optional", "holds": "which resolver took it"},
+        "transactions": {"required": false, "access": "optional", "holds": "one entry per transaction answered about"}
+      }
+    },
+    "sidecar:artifact-resolution.measuredBy": {
+      "section": "§5.4",
+      "members": {
+        "runtimeCommit": {"required": false, "access": "optional", "holds": "the resolver build, republished per transaction"}
+      }
+    },
+    "sidecar:artifact-resolution.transactions[]": {
+      "section": "§5.4",
+      "members": {
+        "txHash": {"required": false, "access": "optional", "holds": "which transaction this entry answers about"},
+        "artifacts": {"required": false, "access": "optional",
+                      "holds": "the same shape as the row's own `artifacts`; `null` is the tool's 'this run did not finish asking'"},
+        "positions": {"required": false, "access": "optional",
+                      "holds": "the same shape as the positions sidecar; carried forward only when it positioned a step"}
+      }
+    },
+    "sidecar:artifact-resolution.transactions[].artifacts[]": {
+      "section": "§5.4",
+      "sameShapeAs": "snapshot.transactions[].artifacts[]",
+      "members": {
+        "address": {"required": false, "access": "optional", "holds": "the contract instance that ran"},
+        "contractClassId": {"required": false, "access": "optional", "holds": "the class it ran"},
+        "resolved": {"required": false, "access": "optional", "holds": "whether an artifact was proved for it"},
+        "origin": {"required": false, "access": "optional", "holds": "where that artifact came from"},
+        "corroboration": {"required": false, "access": "optional", "holds": "how many independent distributors agreed"}
+      }
+    },
+    "sidecar:artifact-resolution.transactions[].positions": {
+      "section": "§5.4",
+      "sameShapeAs": "sidecar:positions",
+      "members": {
+        "steps": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-AGREE", "holds": "the stream's own step count"},
+        "pathId": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-COLUMNS", "holds": "per-step index into `paths`"},
+        "line": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-COLUMNS", "holds": "per-step line"},
+        "column": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-COLUMNS", "holds": "per-step column"},
+        "paths": {"required": false, "access": "optional", "holds": "the interned paths the columns index"},
+        "positioned": {"required": false, "access": "optional", "holds": "how many steps this stream placed"},
+        "artifactRung": {"required": false, "access": "optional", "holds": "the artifact's rung"}
+      }
+    }
+  },
+
+  "producerInternal": {
+    "_comment": [
+      "§5.4's boundary, stated as NAMES so the claim is checkable rather than a category:",
+      "no snapshot-relative path the reader resolves may be one of these.",
+      "",
+      "TWO OF THE SIX HAVE A PRODUCER IN THIS TREE AND FOUR DO NOT, and saying so is the",
+      "point rather than an omission. `tools/chain/ingest-range.mjs` writes a",
+      "`blocktracer/coverage-ledger@1` at `<state>/coverage.json` and per-range directories",
+      "under `<state>/ranges/` — those two are real, and the byte-identity arm in",
+      "`tests/tchainsnapshot.nim` plants both beside a real capture. `cursor.json`, `lease`,",
+      "`lease.json` and `.lock` are §5.4's OTHER two categories (cursors and leases) with no",
+      "instance in this tree today, so the sweep over them is currently vacuous — it would",
+      "still catch a reader that learned to open one, which is what the list is for, but a",
+      "green over those four is not evidence about anything that exists. `writtenBy` records",
+      "which is which so the next reader does not have to grep for it."
+    ],
+    "names": ["coverage.json", "ranges", "cursor.json", "lease", "lease.json", ".lock"],
+    "writtenBy": {
+      "coverage.json": "tools/chain/ingest-range.mjs",
+      "ranges": "tools/chain/ingest-range.mjs",
+      "cursor.json": null,
+      "lease": null,
+      "lease.json": null,
+      ".lock": null
+    },
+    "ledgerFormat": "blocktracer/coverage-ledger@1"
+  }
+}
