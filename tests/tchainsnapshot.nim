@@ -36,11 +36,22 @@
 ## snapshot no test wrote, onto a real temporary directory, with the real
 ## `std/json` parser and the real registry. A mock provenance object would have
 ## been written by whoever was thinking about the reader, which is exactly the
-## population of shapes the defect was not in. The fixture is committed
-## BYTE-IDENTICAL to what the follower produced — 403 blocks, 9 transactions, 0
-## traces, 0 captures, `blocktracer/chain-snapshot@1`, no `refusalReason`
-## anywhere — because a reduction is a thing somebody chose and the value of this
-## input is that nobody chose it.
+## population of shapes the defect was not in. The fixture is committed as the
+## follower produced it — 403 blocks, 9 transactions, 0 traces, 0 captures,
+## `blocktracer/chain-snapshot@1`, no `refusalReason` anywhere — because a
+## reduction is a thing somebody chose and the value of this input is that nobody
+## chose it.
+##
+## ONE MECHANICAL ADDITION HAS BEEN MADE TO IT, and the file beside it records
+## exactly what: `HELD-AT-V1.md`. §5.3's chain facts are stated by a producer now
+## and the reader refuses a snapshot that states none, and two of them are written
+## into the chain's registry row on every ingest — including one with no traced
+## transaction, which is what this capture is. So `provenance.recorder`,
+## `provenance.prestateStrategy` and each row's `cost` and `executions` were added
+## from the module the live producers import, and nothing else was. The property
+## this fixture exists for — `provenance` carrying **no `l1ChainId`** — is asserted
+## by the first test below BEFORE anything else, so a repair of it cannot pass
+## here unnoticed.
 ##
 ## It doubles as the `@1` compatibility subject. It is a genuine pre-ING-3
 ## capture: its nine untraced rows carry no `refusalReason` at all, so it is the
@@ -221,9 +232,15 @@ suite "the format token is a gate, and it says which shape it is gating":
     proc snapWith(format: string): JsonNode =
       %*{
         "format": format,
+        # §5.3's facts, which a producer states and the reader no longer supplies.
+        # They are written out here rather than imported from anywhere, because
+        # this snapshot is playing the part of a producer and a producer that got
+        # them from the reader's own module would be the constant coming back.
         "provenance": {"kind": "live-capture", "chain": "aztec-testnet",
                        "label": "t", "endpoint": "http://x", "capturedAt": "2026-09-12",
-                       "nodeVersion": "5.2.0", "runtimeCommit": "deadbeefdeadbeef"},
+                       "nodeVersion": "5.2.0", "runtimeCommit": "deadbeefdeadbeef",
+                       "recorder": {"id": "some-recorder", "traceSchema": "some-schema/1"},
+                       "prestateStrategy": "hydrated-from-node"},
         "window": {"tip": 12, "finalized": 10, "replayableFrom": 11,
                    "replayableTo": 12, "blocks": 2},
         "counts": {},
@@ -235,7 +252,10 @@ suite "the format token is a gate, and it says which shape it is gating":
           # UNTRACED AND CARRYING NO `refusalReason`. Exactly the shape every
           # pre-ING-3 capture has, and exactly what `@2` forbids.
           {"txHash": "0xaa", "blockNumber": 11, "txIndexInBlock": 0, "revertCode": 0,
-           "transactionFee": "0x1", "bodyRetained": false, "effectVisible": true,
+           "transactionFee": "0x1",
+           "cost": [{"name": "fee", "used": "0x1", "unit": "u", "token": "T"}],
+           "executions": [{"selector": "only"}],
+           "bodyRetained": false, "effectVisible": true,
            "firstInBlock": true, "outcome": "pruned",
            "reason": "The node no longer serves this transaction's body."},
         ],
@@ -554,6 +574,35 @@ proc violate(id, dir: string) =
       "format": "blocktracer/artifact-resolution@1",
       "chain": "some-other-chain", "transactions": []}))
     wrote = false
+  of "S5-RECORDER-STATED":
+    doc["provenance"].delete("recorder")
+  of "S5-PRESTATE-STATED":
+    doc["provenance"].delete("prestateStrategy")
+  of "S5-PRESTATE-CLOSED":
+    # PRESENT AND UNLISTED, which is the shape §1.4's rule is about: a producer
+    # emitting a value outside the table is a gap in the table, not a producer
+    # using a free-text field. Deleting the member would reach the rule above.
+    doc["provenance"]["prestateStrategy"] = %"a-strategy-no-table-lists"
+  of "S5-COST-VECTOR":
+    # MALFORMED RATHER THAN ABSENT, for the same reason: `cost` is required and
+    # taken by an unguarded subscript, so deleting it is refused by the generated
+    # row-member rule. What this rule owns is an ENTRY that names no dimension.
+    firstOutcome(doc, "replayed")["cost"] = %*[{"used": "0x1", "unit": "u"}]
+  of "S5-EXECUTIONS-NAMED":
+    # Present and EMPTY: a row that holds no execution at all names none, and the
+    # reader will not supply one. Deleting the member reaches the row-member rule.
+    firstOutcome(doc, "replayed")["executions"] = newJArray()
+  of "S5-EXECUTIONS-ONE-TRACED":
+    # Two executions and NEITHER carries a reason of its own, so nothing says
+    # which of them the row's single container is a recording of.
+    firstOutcome(doc, "replayed")["executions"] =
+      %*[{"selector": "one"}, {"selector": "two"}]
+  of "S5-POSITIONS-SCHEMA":
+    let p = dir / "positions" / (PositionedTx & ".json")
+    var n = parseJson(readFile(p))
+    n.delete("schema")
+    writeFile(p, $n)
+    wrote = false
   else:
     doAssert false, "no violation is written for rule " & id
   if wrote: writeFile(sp, pretty(doc, 1))
@@ -578,6 +627,9 @@ const RuleCases = [
   "S5-CALLTRACE-AGREE", "S5-CALLTRACE-FRAMES", "S5-CALLTRACE-FOLD-NONEMPTY",
   "S5-CALLTRACE-FOLD-TALLY", "S5-CALLTRACE-FOLD-BOUND",
   "S5-SIDECAR-FORMAT-UNKNOWN", "S5-SIDECAR-CHAIN",
+  "S5-RECORDER-STATED", "S5-PRESTATE-STATED", "S5-PRESTATE-CLOSED",
+  "S5-COST-VECTOR", "S5-EXECUTIONS-NAMED", "S5-EXECUTIONS-ONE-TRACED",
+  "S5-POSITIONS-SCHEMA",
 ]
 
 suite "a refusal names the §5 rule it enforces, and the repaired snapshot ingests":
@@ -649,7 +701,7 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
     ck cite("S5-BUNDLE-REQUIRED").startsWith("[§5.4 S5-BUNDLE-REQUIRED]")
     ck cite("S5-REFUSALREASON-REQUIRED").startsWith("[§5.2a S5-REFUSALREASON-REQUIRED]")
 
-  expectCount(91)
+  expectCount(112)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT
@@ -944,3 +996,389 @@ suite "no reader path touches the producer's own bookkeeping":
     ck df.len == ds.len + 12
 
   expectCount(16)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  THE COST VECTOR IS THE PRODUCER'S, AND IT IS A VECTOR
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# `Static-Site-Architecture.md` §2.3 makes cost a VECTOR deliberately, because a
+# scalar produces silently wrong output on a real chain. The reader used to build
+# exactly one entry, with a name, a unit and a token written into its own source,
+# so a chain with two fee dimensions could not express itself and the failure was
+# not an error — it was a page that looked right and stated the wrong cost.
+#
+# TWO ARMS, AND THE SECOND IS THE ONE THAT MAKES THE FIRST MEAN ANYTHING. The
+# widening arm drives a row with TWO entries carrying different units and tokens
+# and requires both to reach the published object byte-equal to what the producer
+# wrote. The CONTROL drives a committed capture whose rows carry ONE entry, in the
+# same run, and requires exactly that one to publish unchanged — so the assertion
+# distinguishes "carries the producer's vector" from "emits whatever it likes".
+#
+# NO MOCKS, and the one constructed input is justified rather than assumed. The
+# widening arm's snapshot is constructed because no chain in this tree HAS two fee
+# dimensions — a second dimension cannot be taken from a capture that has none —
+# and it is driven through the real `ingestSnapshot` onto a real directory, with
+# the real JSON parser. The control's subject is a real committed capture.
+
+proc twoDimensionSnapshot(): JsonNode =
+  ## An untraced row whose producer states TWO cost dimensions. Untraced because a
+  ## traced row needs a real container, and the cost vector is published from the
+  ## immutable facts either way — this keeps the subject to the one member.
+  %*{
+    "format": "blocktracer/chain-snapshot@2",
+    "provenance": {"kind": "live-capture", "chain": "two-dimension-chain",
+                   "recorder": {"id": "a-recorder", "traceSchema": "a-schema/1"},
+                   "prestateStrategy": "version-addressed",
+                   "runtimeCommit": "abcdef0123456789"},
+    "window": {"tip": 12, "finalized": 10, "blocks": 2},
+    "counts": {},
+    "blocks": [
+      {"number": 11, "hash": "0xb11", "transactions": ["0xaa"],
+       "parentArchiveRoot": "0xa10"},
+    ],
+    "transactions": [
+      {"txHash": "0xaa", "blockNumber": 11, "txIndexInBlock": 0, "revertCode": 0,
+       "outcome": "pruned", "refusalReason": "body-unavailable",
+       "reason": "The node no longer serves this transaction's body.",
+       "executions": [{"selector": "sole"}],
+       # TWO DIMENSIONS, with different names, units and tokens, and one of them
+       # refundable — the shape no fixed one-entry constructor can produce.
+       "cost": [
+         {"name": "computation", "used": "21000", "limit": "30000", "price": "7",
+          "unit": "weight", "token": "ALPHA", "refundable": true},
+         {"name": "storage", "used": "512", "limit": "", "price": "3",
+          "unit": "byte", "token": "BETA", "refundable": false},
+       ]},
+    ],
+  }
+
+suite "a two-dimension cost vector survives intact, and the one-dimension case does not move":
+  asserted = 0
+
+  test "both entries publish, byte-equal to what the producer wrote":
+    let dir = tempOut("cost2-in")
+    defer: removeDir dir
+    let outDir = tempOut("cost2-out")
+    defer: removeDir outDir
+    let doc = twoDimensionSnapshot()
+    writeSnapshot(dir, doc)
+    discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                        generation: "1", scope: isFull))
+    let facts = parseJson(readFile(outDir / "d" / "two-dimension-chain" / "tx" /
+                                   shardKeyFor("hex", "0xaa") / "0xaa.json"))
+    let published = facts["cost"]
+    ck published.len == 2
+    # EVERY FIELD OF EVERY ENTRY, compared against the snapshot's own object. Not
+    # a spot check on the name: the defect this replaces supplied the unit and the
+    # token, so those are exactly the fields that have to be shown travelling.
+    let wanted = doc["transactions"][0]["cost"]
+    var mismatched: seq[string]
+    for i in 0 ..< wanted.len:
+      for field in ["name", "used", "limit", "price", "unit", "token"]:
+        if published[i]{field}.getStr != wanted[i]{field}.getStr:
+          mismatched.add $i & "." & field & ": published '" &
+                         published[i]{field}.getStr & "' vs stated '" &
+                         wanted[i]{field}.getStr & "'"
+      if published[i]{"refundable"}.getBool != wanted[i]{"refundable"}.getBool:
+        mismatched.add $i & ".refundable"
+    if mismatched.len > 0: checkpoint(mismatched.join("; "))
+    ck mismatched.len == 0
+    # …and the ORDER is the producer's too. A reader that sorted the vector would
+    # pass every field comparison above and still tell a different story about
+    # which dimension dominates.
+    ck published[0]["name"].getStr == "computation"
+    ck published[1]["name"].getStr == "storage"
+    # …and nothing the producer did not state appears. `units` or `tokens` the
+    # reader invented would be additions, not mismatches, so they are counted.
+    ck published[0].len == wanted[0].len
+
+  test "CONTROL: the committed capture's single entry publishes unchanged":
+    # THE OTHER HALF, IN THE SAME RUN. If the widening had moved the existing case
+    # — an added entry, a renamed field, a unit filled in — the arm above would
+    # still pass. This drives the real capture and requires exactly the vector its
+    # rows carry, one entry, with the producer's own name, unit and token.
+    let dir = tempOut("cost1-in")
+    defer: removeDir dir
+    let outDir = tempOut("cost1-out")
+    defer: removeDir outDir
+    copyCapture(dir)
+    discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                        generation: "1", scope: isFull))
+    let snap = parseJson(readFile(dir / "snapshot.json"))
+    var rows = 0
+    var wrong: seq[string]
+    for t in snap["transactions"]:
+      let h = t["txHash"].getStr
+      let facts = parseJson(readFile(outDir / "d" / "aztec-testnet-frames" / "tx" /
+                                     shardKeyFor("hex", h) / (h & ".json")))
+      inc rows
+      let stated = t["cost"]
+      let got = facts["cost"]
+      if got.len != stated.len: wrong.add h & ": " & $got.len & " entries"
+      elif got != stated: wrong.add h & ": entries differ"
+    if wrong.len > 0: checkpoint(wrong.join("; "))
+    ck rows == 8
+    ck wrong.len == 0
+    # AND THE SINGLE ENTRY IS REALLY SINGLE, so "unchanged" is a claim about a
+    # one-entry vector rather than about two lists that happen to be equal.
+    ck snap["transactions"][0]["cost"].len == 1
+
+  test "the reader supplies no unit and no token where the producer states none":
+    # The sharp end of "verbatim": a producer that states a figure and no unit
+    # must publish no unit. A default here is a measurement a page would print.
+    let dir = tempOut("cost-bare-in")
+    defer: removeDir dir
+    let outDir = tempOut("cost-bare-out")
+    defer: removeDir outDir
+    var doc = twoDimensionSnapshot()
+    doc["transactions"][0]["cost"] = %*[{"name": "fee", "used": "9"}]
+    writeSnapshot(dir, doc)
+    discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                        generation: "1", scope: isFull))
+    let facts = parseJson(readFile(outDir / "d" / "two-dimension-chain" / "tx" /
+                                   shardKeyFor("hex", "0xaa") / "0xaa.json"))
+    ck facts["cost"].len == 1
+    ck facts["cost"][0]["name"].getStr == "fee"
+    ck facts["cost"][0]["used"].getStr == "9"
+    ck facts["cost"][0]["unit"].getStr == ""
+    ck facts["cost"][0]["token"].getStr == ""
+    ck facts["cost"][0]["refundable"].getBool == false
+
+  expectCount(14)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  A NON-DEFAULT EXECUTION PARTITION IS NOT COLLAPSED
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# One fixed selector used to be written at four sites in the reader, so a chain
+# whose transactions hold two independently debuggable executions collapsed into a
+# single unnamed one. Nothing downstream could tell a partition of one from a
+# partition the reader had flattened, because both looked identical.
+#
+# THE SUBJECT IS A REAL CAPTURE WITH ITS ROW'S `executions` EDITED, which is the
+# smallest possible difference: the container, the recording, the effects and the
+# sidecars are all the capture's own, and the only thing that changed is the list
+# the producer states. The CONTROL is the same capture unedited, in the same run,
+# publishing exactly one — so the assertion distinguishes "carries the producer's
+# list" from "always emits more than one".
+
+suite "a non-default execution partition publishes both selectors":
+  asserted = 0
+
+  test "a row stating two executions publishes both, and only the traced one carries bytes":
+    let dir = tempOut("exec2-in")
+    defer: removeDir dir
+    let outDir = tempOut("exec2-out")
+    defer: removeDir outDir
+    copyCapture(dir)
+    var doc = parseJson(readFile(dir / "snapshot.json"))
+    let row = firstOutcome(doc, "replayed")
+    let h = row["txHash"].getStr
+    # The producer's list: one execution this capture traced (no reason of its
+    # own, so the row's container is a recording of it) and one it could not (its
+    # own sentence, which is the producer's words and not the reader's).
+    row["executions"] = %*[
+      {"selector": "public"},
+      {"selector": "private",
+       "reason": "This half executes off-chain; only its proof is published."}]
+    writeFile(dir / "snapshot.json", pretty(doc, 1))
+    discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                        generation: "1", scope: isFull))
+
+    # ── the immutable facts carry both selectors, with distinct input ids ──
+    let facts = parseJson(readFile(outDir / "d" / "aztec-testnet-frames" / "tx" /
+                                   shardKeyFor("hex", h) / (h & ".json")))
+    ck facts["executions"].len == 2
+    ck facts["executions"][0]["selector"].getStr == "public"
+    ck facts["executions"][1]["selector"].getStr == "private"
+    # DISTINCT, because the trace URL is derived from this id: two executions
+    # sharing one would address one artifact from two rows.
+    ck facts["executions"][0]["executionInputId"].getStr !=
+       facts["executions"][1]["executionInputId"].getStr
+
+    # ── and the overlay publishes one row per execution ────────────────────
+    let overlay = parseJson(readFile(outDir / "d" / "aztec-testnet-frames" / "ts" /
+                                     "1" / shardKeyFor("hex", h) / (h & ".json")))
+    ck overlay{"executions"} != nil
+    ck overlay["executions"].len == 2
+    # THE ROW SHAPE IS `executions`, NOT `trace`. A reader that published the list
+    # AND kept the single-trace member would satisfy the count above while telling
+    # a consumer two different things about the same transaction.
+    ck overlay{"trace"} == nil
+    ck overlay["executions"][0]["selector"].getStr == "public"
+    ck overlay["executions"][1]["selector"].getStr == "private"
+    # The traced one carries the verdict and the bytes; the other carries the
+    # producer's sentence and no bytes at all.
+    ck overlay["executions"][0]["availability"].getStr == "ready"
+    ck overlay["executions"][0]["bytes"].getInt > 0
+    ck overlay["executions"][1]["availability"].getStr == "absent"
+    # `bytes` is OMITTED rather than written as zero on a row with no container
+    # (`ExecTrace.toJson`), so the absence is the assertion: a `0` here would be
+    # this test asserting a key the contract deliberately does not write.
+    ck overlay["executions"][1]{"bytes"} == nil
+    ck "executes off-chain" in overlay["executions"][1]["reason"].getStr
+
+  test "CONTROL: a single-execution snapshot still publishes exactly one":
+    # THE HALF THAT MAKES THE ARM ABOVE AN ASSERTION ABOUT THE PRODUCER'S LIST.
+    # Without it, a reader that always emitted two rows would pass everything
+    # above. The same capture, unedited, must publish one selector per
+    # transaction, in the single-trace shape it has always published.
+    let dir = tempOut("exec1-in")
+    defer: removeDir dir
+    let outDir = tempOut("exec1-out")
+    defer: removeDir outDir
+    copyCapture(dir)
+    discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                        generation: "1", scope: isFull))
+    let snap = parseJson(readFile(dir / "snapshot.json"))
+    var rows = 0
+    var listShaped = 0
+    var wrongSelector: seq[string]
+    for t in snap["transactions"]:
+      let h = t["txHash"].getStr
+      inc rows
+      let overlay = parseJson(readFile(outDir / "d" / "aztec-testnet-frames" / "ts" /
+                                       "1" / shardKeyFor("hex", h) / (h & ".json")))
+      if overlay{"executions"} != nil: inc listShaped
+      let stated = t["executions"]
+      if stated.len != 1: wrongSelector.add h & ": states " & $stated.len
+      elif overlay{"trace"} == nil or
+           overlay["trace"]["selector"].getStr != stated[0]["selector"].getStr:
+        wrongSelector.add h & ": overlay selector is not the producer's"
+      let facts = parseJson(readFile(outDir / "d" / "aztec-testnet-frames" / "tx" /
+                                     shardKeyFor("hex", h) / (h & ".json")))
+      if facts["executions"].len != 1:
+        wrongSelector.add h & ": facts carry " & $facts["executions"].len
+    if wrongSelector.len > 0: checkpoint(wrongSelector.join("; "))
+    ck rows == 8
+    ck listShaped == 0
+    ck wrongSelector.len == 0
+
+  test "the selector a row's overlay carries is the producer's, not a fixed one":
+    # RENAMED RATHER THAN ADDED, which is the other direction and the one a count
+    # cannot see: a reader still writing a fixed selector would publish one row
+    # here too, and it would be the wrong row.
+    let dir = tempOut("exec-renamed-in")
+    defer: removeDir dir
+    let outDir = tempOut("exec-renamed-out")
+    defer: removeDir outDir
+    copyCapture(dir)
+    var doc = parseJson(readFile(dir / "snapshot.json"))
+    for t in doc["transactions"]:
+      t["executions"] = %*[{"selector": "settlement"}]
+    writeFile(dir / "snapshot.json", pretty(doc, 1))
+    discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                        generation: "1", scope: isFull))
+    let snap = parseJson(readFile(dir / "snapshot.json"))
+    var named = 0
+    for t in snap["transactions"]:
+      let h = t["txHash"].getStr
+      let overlay = parseJson(readFile(outDir / "d" / "aztec-testnet-frames" / "ts" /
+                                       "1" / shardKeyFor("hex", h) / (h & ".json")))
+      if overlay["trace"]["selector"].getStr == "settlement": inc named
+    ck named == 8
+
+  # ── THE UNTRACED SIDE OF THE SAME FEATURE, WHICH WAS NOT TESTED ──────────
+  #
+  # The three arms above all plant their executions on a `replayed` row, so the
+  # reader's UNTRACED overlay path — a second `ExecTrace` construction, 600
+  # lines further down — was never driven with a producer's list at all.
+  #
+  # It crashed. §5.2b marks `executions[].reason` optional and
+  # S5-EXECUTIONS-ONE-TRACED constrains only the traced case ("a traced row
+  # must leave exactly one"), so an untraced row whose every execution states
+  # its own reason is a snapshot a producer is entitled to write. The reader
+  # indexed `execSelectors[-1]` on it and raised IndexDefect, which is NOT a
+  # CatchableError: it escapes every `except CatchableError` above it and
+  # terminates the process, so the failure mode was not even a refusal.
+  #
+  # Both arms drive the real `ingestSnapshot` over the real capture with one
+  # row edited, exactly like the arms above, and both are RED without the fix —
+  # measured, not assumed.
+
+  test "an untraced row whose executions all state a reason publishes an all-absent overlay":
+    let dir = tempOut("exec-untraced-in")
+    defer: removeDir dir
+    let outDir = tempOut("exec-untraced-out")
+    defer: removeDir outDir
+    copyCapture(dir)
+    var doc = parseJson(readFile(dir / "snapshot.json"))
+    let row = firstOutcome(doc, "private-only")
+    ck row != nil
+    let h = row["txHash"].getStr
+    # TWO executions, BOTH with a reason of their own. Nothing here names the
+    # execution a container belongs to, and nothing has to: the row carries no
+    # container.
+    row["executions"] = %*[
+      {"selector": "public",
+       "reason": "This transaction has no public execution to trace."},
+      {"selector": "private",
+       "reason": "This half executes off-chain; only its proof is published."}]
+    writeFile(dir / "snapshot.json", pretty(doc, 1))
+    discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                        generation: "1", scope: isFull))
+
+    let overlay = parseJson(readFile(outDir / "d" / "aztec-testnet-frames" / "ts" /
+                                     "1" / shardKeyFor("hex", h) / (h & ".json")))
+    ck overlay{"executions"} != nil
+    ck overlay{"trace"} == nil
+    ck overlay["executions"].len == 2
+    # THE SELECTORS ARE THE PRODUCER'S, in the producer's order. A reader that
+    # synthesised one here would be naming an execution nobody declared.
+    ck overlay["executions"][0]["selector"].getStr == "public"
+    ck overlay["executions"][1]["selector"].getStr == "private"
+    # EVERY row is absent, and EVERY row carries ITS OWN producer's sentence —
+    # not the row's `reason` copied onto both, which would publish one
+    # statement as evidence about two executions.
+    ck overlay["executions"][0]["availability"].getStr == "absent"
+    ck overlay["executions"][1]["availability"].getStr == "absent"
+    ck "no public execution" in overlay["executions"][0]["reason"].getStr
+    ck "executes off-chain" in overlay["executions"][1]["reason"].getStr
+    ck overlay["executions"][0]["reason"].getStr !=
+       overlay["executions"][1]["reason"].getStr
+    # No container on either side, so no bytes and no verdict on either side.
+    ck overlay["executions"][0]{"bytes"} == nil
+    ck overlay["executions"][1]{"bytes"} == nil
+    ck overlay["executions"][0]{"validation"} == nil
+    # And the facts carry both, with distinct input ids, exactly as the traced
+    # arm requires — the partition is a property of the row, not of whether
+    # this capture managed to record it.
+    let facts = parseJson(readFile(outDir / "d" / "aztec-testnet-frames" / "tx" /
+                                   shardKeyFor("hex", h) / (h & ".json")))
+    ck facts["executions"].len == 2
+    ck facts["executions"][0]["executionInputId"].getStr !=
+       facts["executions"][1]["executionInputId"].getStr
+
+  test "the same shape with ONE reasoned execution keeps the single-trace object":
+    # THE OTHER INDEX. The two-execution shape raised `index -1 not in 0 .. 1`
+    # and this one raises `index -1 not in 0 .. 0`; they are the same defect but
+    # they are not the same arm, because a fix that special-cased a list would
+    # leave this one crashing. It is also the shape closest to the corpus — one
+    # execution, one row — so it is the one that pins that §2.3b's single-trace
+    # object still appears where the producer named exactly one execution.
+    let dir = tempOut("exec-untraced1-in")
+    defer: removeDir dir
+    let outDir = tempOut("exec-untraced1-out")
+    defer: removeDir outDir
+    copyCapture(dir)
+    var doc = parseJson(readFile(dir / "snapshot.json"))
+    let row = firstOutcome(doc, "private-only")
+    let h = row["txHash"].getStr
+    row["executions"] = %*[
+      {"selector": "private",
+       "reason": "This half executes off-chain; only its proof is published."}]
+    writeFile(dir / "snapshot.json", pretty(doc, 1))
+    discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                        generation: "1", scope: isFull))
+    let overlay = parseJson(readFile(outDir / "d" / "aztec-testnet-frames" / "ts" /
+                                     "1" / shardKeyFor("hex", h) / (h & ".json")))
+    ck overlay{"executions"} == nil
+    ck overlay{"trace"} != nil
+    ck overlay["trace"]["selector"].getStr == "private"
+    ck overlay["trace"]["availability"].getStr == "absent"
+    # THE EXECUTION'S OWN SENTENCE, not the row's. The row states "This
+    # transaction has no public execution to trace."; the execution states
+    # something else, and the execution is what this row is about.
+    ck "executes off-chain" in overlay["trace"]["reason"].getStr
+
+  expectCount(39)

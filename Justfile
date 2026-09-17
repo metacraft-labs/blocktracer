@@ -134,7 +134,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TEN suites — 98 + 19 + 24 + 24 + 57 + 224 + 33 + 153 + 53 + 51 = 736 counted assertions —
+# TEN suites — 98 + 19 + 24 + 24 + 57 + 224 + 33 + 153 + 53 + 68 = 753 counted assertions —
 # over the ten decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -154,8 +154,11 @@ test:
 # and it is a suite rather than a review because the alternative is a person
 # reading `ingest.nim` and `Data-Contract.md` §5 and agreeing with themselves. The
 # measured result of that was §5 naming NINE member paths against a reader that
-# consumes 117 over 22 containers — so 108 unnamed, 19 of them by unguarded bracket
-# access, which RAISES in Nim rather than answering null. One of the 19's siblings,
+# consumed 117 over 22 containers — so 108 unnamed, 19 of them by unguarded bracket
+# access, which RAISES in Nim rather than answering null. Those are the figures of the
+# GAP, measured on 2026-09-17 when it closed, and not of the census, which has grown
+# since; the suite PRINTS its current size, which is where a current figure belongs.
+# One of the 19's siblings,
 # `provenance.l1ChainId`, was omitted by this repository's own live follower, so the
 # producer wrote a snapshot the reader crashed on.
 #

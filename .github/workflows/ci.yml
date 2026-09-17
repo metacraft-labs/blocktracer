@@ -666,11 +666,11 @@ jobs:
         run: node tools/chain/object-set-selftest.mjs
 
       - name: Do the reader and the document a producer writes against name the same members?
-        # 51 assertions. The seam's producer half is a DOCUMENT (Data-Contract.md
+        # 68 assertions. The seam's producer half is a DOCUMENT (Data-Contract.md
         # §5) and a READER (`src/blocktracer/chain/ingest.nim`), and until this
         # suite the only thing holding the two together was that somebody had read
         # both and agreed with themselves. What that produced, measured: §5 named
-        # NINE member paths and the reader consumes 117 over 22 containers — 108
+        # NINE member paths and the reader consumed 117 over 22 containers — 108
         # unnamed, 19 of them by unguarded bracket access, which RAISES in Nim
         # rather than answering null. The NINE are the paths §5 stated as
         # REQUIREMENTS: §5.2's six-row table plus `provenance.chain`, `reason` and

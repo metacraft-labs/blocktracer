@@ -107,6 +107,9 @@ import { assertRefusalsAreClosed, refuseNotFirstInBlock,
          refuseBodyNotSoughtFromStore } from './lib/refusal.mjs';
 import { recountSnapshot } from './lib/recount.mjs';
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
+// §5.3's six facts, stated by the producer that knows them rather than by the reader.
+import { RECORDER, PRESTATE_STRATEGY, costVectorForRow, executionsForRow }
+  from './lib/producer-facts.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -199,7 +202,11 @@ async function loadSnapshot() {
   // produce one and `assertRefusalsAreClosed` runs in `saveSnapshot`.
   return {
     format: SNAPSHOT_FORMAT,
-    provenance: { kind: 'live-capture', chain, label, endpoint: url },
+    // §5.3: who recorded this and in what schema, and how the prestate was obtained.
+    // These were `const`s in the READER until they moved here, which is where they were
+    // always facts — every published trace address is derived from the first two.
+    provenance: { kind: 'live-capture', chain, label, endpoint: url,
+                  recorder: { ...RECORDER }, prestateStrategy: PRESTATE_STRATEGY },
     captures: [],
     window: null,
     counts: {},
@@ -378,6 +385,11 @@ async function main() {
         txIndexInBlock: c.txIndexInBlock,
         revertCode: c.revertCode,
         transactionFee: c.transactionFee,
+        // §5.3's cost VECTOR and execution partition. `transactionFee` stays beside the
+        // vector because it is the receipt's own field name and this snapshot records what
+        // the node said, not only what the published page needs.
+        cost: costVectorForRow(c.transactionFee),
+        executions: executionsForRow(),
         bodyRetained: true,
         effectVisible: true,
         firstInBlock: true,
@@ -536,6 +548,8 @@ async function main() {
               snap.transactions.push({
                 txHash: eff.txHash, blockNumber: n, txIndexInBlock: i,
                 revertCode: eff.revertCode, transactionFee: eff.transactionFee,
+                cost: costVectorForRow(eff.transactionFee),
+                executions: executionsForRow(),
                 bodyRetained: false, effectVisible: true, firstInBlock: i === 0,
                 observedAt: new Date().toISOString(), ...why,
               });

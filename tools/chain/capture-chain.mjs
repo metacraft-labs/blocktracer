@@ -65,6 +65,9 @@ import { resolverPresence, refusalName, refusalDetail } from './lib/replay.mjs';
 import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
          refuseBodyNotSoughtFromStore } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
+// §5.3's six facts, stated by the producer that knows them rather than by the reader.
+import { RECORDER, PRESTATE_STRATEGY, costVectorForRow, executionsForRow }
+  from './lib/producer-facts.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -180,6 +183,12 @@ for (let n = tip; n > tip - depth; n--) {
         txIndexInBlock: i,
         revertCode: eff.revertCode,
         transactionFee: eff.transactionFee,
+        // §5.3's cost VECTOR and execution partition, stated here because this is where
+        // they are known. `transactionFee` above is kept beside the vector rather than
+        // replaced by it: it is the receipt's own field name and this snapshot is the
+        // record of what the node said, not only of what the published page needs.
+        cost: costVectorForRow(eff.transactionFee),
+        executions: executionsForRow(),
         bodyRetained,
         effectVisible,
         firstInBlock: i === 0,
@@ -434,6 +443,11 @@ const snapshot = {
     label,
     endpoint: url,
     capturedAt,
+    // §5.3: who recorded this and in what schema, and how the prestate was obtained.
+    // These were `const`s in the READER until they moved here, which is where they were
+    // always facts — every published trace address is derived from the first two.
+    recorder: { ...RECORDER },
+    prestateStrategy: PRESTATE_STRATEGY,
     // `?? ''` on all four: `JSON.stringify` drops an `undefined`-valued key, so a node
     // whose `getNodeInfo` omits one wrote a snapshot missing the member while this source
     // said it wrote one. `rollupAddress` alone carried the fallback; a mainnet capture

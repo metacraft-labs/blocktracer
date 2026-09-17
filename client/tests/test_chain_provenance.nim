@@ -116,6 +116,25 @@ doAssert fileExists(snapshotDir / "snapshot.json"),
 # the producers derive it: a hand-written tally beside hand-written rows is two
 # statements of one fact, and the one that goes stale is always the tally. This
 # is the same rule `tools/chain/lib/recount.mjs` applies on the producer side.
+#
+# ── AND §5.3's SIX CHAIN FACTS, FILLED THE SAME WAY AND FOR THE SAME REASON ───
+#
+# Data-Contract.md §5.3's facts — the recorder's identity and trace schema, the
+# prestate strategy, the cost vector and the execution partition — are stated by a
+# PRODUCER now, and the reader refuses a snapshot that states none rather than
+# choosing on a producer's behalf. Every constructed snapshot below is therefore
+# short of them, and every one of them would need the same four lines.
+#
+# They are DERIVED here for exactly the reason `counts` is: eight hand-written
+# copies of one fact are eight things to keep in step, and the subject of every
+# site below is what the PUBLISHED TREE says about provenance, coverage, banners
+# and sources — not the snapshot contract, which `tests/tchainsnapshot.nim` owns
+# and drives with snapshots that state the facts explicitly. A site that wants a
+# different value, or a malformed one, states it and this fills nothing in.
+#
+# THE VALUES ARE THIS FILE'S OWN AND NOT THE PRODUCER'S. They are deliberately
+# not imported from anywhere: a test whose fixtures took them from the module
+# under test would be asserting that the module agrees with itself.
 proc snapshotJson(doc: JsonNode): string =
   var d = doc
   var counts = %*{"blocks": d{"blocks"}.len, "transactions": d{"transactions"}.len}
@@ -124,6 +143,28 @@ proc snapshotJson(doc: JsonNode): string =
     # over traced, untraced AND chain-absent, which the outcome lines do not.
     counts["accountedFor"] = %d{"transactions"}.len
   d["counts"] = counts
+  if d{"provenance"} != nil and d["provenance"].kind == JObject:
+    if d["provenance"]{"recorder"} == nil:
+      d["provenance"]["recorder"] =
+        %*{"id": "test-recorder", "traceSchema": "test-schema/1"}
+    if d["provenance"]{"prestateStrategy"} == nil:
+      d["provenance"]["prestateStrategy"] = %"hydrated-from-node"
+  if d{"transactions"} != nil and d["transactions"].kind == JArray:
+    for t in d["transactions"]:
+      if t.kind != JObject: continue
+      if t{"cost"} == nil:
+        # The row's own figure where it states one, and an EMPTY figure where it
+        # does not — which is what the reader published before the lift for a row
+        # whose receipt carried no fee. A figure invented here would be a number
+        # on a page that no fixture asked for.
+        t["cost"] = %*[{"name": "transactionFee",
+                        "used": (if t{"transactionFee"} == nil: %""
+                                 else: t["transactionFee"]),
+                        "limit": "", "price": "",
+                        "unit": "test-unit", "token": "TEST",
+                        "refundable": false}]
+      if t{"executions"} == nil:
+        t["executions"] = %*[{"selector": "public"}]
   $d
 
 removeDir(workDir)
@@ -2407,6 +2448,14 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
       realCt = readFile(snapshotDir / t["container"].getStr)
       break
 
+  const SrcLanguage = "a-fixture-language"
+    ## THE LANGUAGE THIS BUNDLE STATES, and it is deliberately not the value any
+    ## producer in this tree writes. §5.3 moved the position language out of the
+    ## reader and onto the bundle that carries the positions, so what has to be
+    ## asserted is that the manifest names THIS bundle's language — a fixture
+    ## stating `noir` would pass equally against a reader that still named `noir`
+    ## itself, which is exactly the defect the move removed.
+
   proc sourcesDoc(withBundle: bool): JsonNode =
     ## What `replay_settled_transaction.mjs --sources <path>` writes.
     var bundles = newJArray()
@@ -2423,6 +2472,7 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
         "corroboration": "single-distributor",
         "agreeingDistributors": agreeing,
         "debugDigest": "sha256:" & repeat('9', 64),
+        "language": SrcLanguage,
         "files": fs}
     %*{"txHash": SrcTx, "sourceLevel": withBundle, "bundles": bundles}
 
@@ -2559,8 +2609,11 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
   test "SUBJECT: the manifest claims source level and names exactly one bundle":
     ck subjManifest != nil
     ck subjManifest["execution"]["sourceLevel"].getBool == true
+    # THE MANIFEST NAMES THE BUNDLE'S LANGUAGE, not one the reader chose. The
+    # fixture states a language no producer in this tree writes, so this arm fails
+    # against a reader that names its own.
     ck subjManifest["execution"]["languages"].len == 1
-    ck subjManifest["execution"]["languages"][0].getStr == "noir"
+    ck subjManifest["execution"]["languages"][0].getStr == SrcLanguage
     ck subjManifest["sourceBundles"].len == 1
     ck subjManifest["sourceBundles"].hasKey(SrcCodeHash)
 
@@ -2601,7 +2654,7 @@ suite "12 — a source-level capture publishes source; a rung-3 one publishes no
     ck bundle["chain"].getStr == SrcChain
     ck bundle["match"].getStr == "full"
     ck bundle["provider"].getStr == SrcOrigin
-    ck bundle["language"].getStr == "noir"
+    ck bundle["language"].getStr == SrcLanguage
     # The attestation travels with the text: `artifactHash` commits to the
     # artifact and NOT to its debug symbols or file map, so who vouched for the
     # source has to be readable beside the source.

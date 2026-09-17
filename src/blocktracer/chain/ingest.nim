@@ -218,19 +218,31 @@ const
   # a correct rule along with a stale premise, so it is inverted instead and made general:
   # `assertSlugAvailable` refuses a collision in EITHER direction, and the demo is now the
   # producer most likely to trip it.
-  recorderId = "aztec-avm"
-  traceSchema = "ctfs/v4"
+  # SIX FACTS USED TO BE SPELLED HERE AND ARE NOW READ, and what is left says
+  # why the two that remain are not among them.
+  #
+  # The recorder's identity, the trace schema it writes, the language a source
+  # bundle's positions are in, the cost vector, the prestate strategy and the
+  # execution selector were all constants in this block or beside their use. Each
+  # was a fact about ONE chain compiled into the consumer of every chain, so a
+  # second producer would have had to OVERWRITE them rather than supply them —
+  # and two of the six fail silently rather than loudly. Cost is a VECTOR, and a
+  # single entry built here with a fixed name, unit and token cannot express a
+  # chain with two fee dimensions; what it produces instead is a page that looks
+  # right and states the wrong cost. The execution selector was one fixed value
+  # at four sites, so a chain whose transactions hold two independently
+  # debuggable executions collapsed into one unnamed one. All six now come out of
+  # the snapshot, and the reader refuses a snapshot that states none rather than
+  # choosing on a producer's behalf.
+  #
+  # THESE TWO ARE NOT CHAIN FACTS, which is why they stay. `profileName` is the
+  # recording PROFILE this build asks for — a property of how we record, not of
+  # what we record — and `tsv` is the version of our own TraceSelection overlay
+  # layer (§2.3b), which is this tree's publication format and not a chain's.
+  # Neither names a chain, a VM, a fee token or a language, and neither would be
+  # different for a second chain ingested by this same build.
   profileName = "default"
   tsv = "1"
-  # THE LANGUAGE A PROVED AZTEC ARTIFACT'S POSITIONS ARE WRITTEN IN. The same
-  # constant the demo generator publishes (`traceLanguage`), and it is spelled
-  # here rather than imported because the two producers must be able to disagree
-  # about it: this one is the language of a contract compiled by `nargo` and
-  # fetched off-chain, and that is a fact about Aztec rather than about the
-  # fixture. It is published ONLY on a manifest whose `sourceLevel` is true —
-  # naming a language over a container with no positions in it would be a claim
-  # about source that the recording does not carry.
-  bundleLanguage = "noir"
 
 proc writeJson(cfg: IngestConfig, rel: string, node: JsonNode) =
   let p = cfg.outDir / rel
@@ -259,7 +271,7 @@ proc shortHash(s: string): string =
   ## A short, stable label for a hash-like string — used in prose, never as an id.
   if s.len <= 12: s else: s[0 .. 9] & "…"
 
-proc writeSourceBundle(cfg: IngestConfig, chain, codeHash, provider: string,
+proc writeSourceBundle(cfg: IngestConfig, chain, codeHash, provider, language: string,
                        files: seq[tuple[path, content: string]],
                        attestation: JsonNode): string =
   ## Publish one content-addressed source bundle plus its `current.json` pointer
@@ -310,7 +322,19 @@ proc writeSourceBundle(cfg: IngestConfig, chain, codeHash, provider: string,
     # provenance string, not a verification claim: see `corroboration` in
     # `debug`, and the paragraph about it in this module's header.
     "provider": provider,
-    "language": bundleLanguage,
+    # THE LANGUAGE IS THE BUNDLE'S OWN AND IS NOT NAMED HERE. It used to be a
+    # constant in this module — the language of a contract compiled by one
+    # ecosystem's toolchain, asserted over every bundle of every chain — so a
+    # bundle and the language it was published under could not be checked against
+    # each other, because only one of them existed. It now travels with the
+    # bundle that carries the positions the language describes, which is the one
+    # place the two cannot disagree.
+    #
+    # AND AN UNSTATED LANGUAGE IS PUBLISHED UNSTATED. A bundle whose producer
+    # names no language publishes none and the manifest beside it claims none
+    # (see `bundleLanguages` at the call site). Naming one here on the producer's
+    # behalf is the defect this replaces, one indirection further in.
+    "language": language,
     "sources": srcs,
     "debug": attestation}
   # `writeJson` emits exactly `pretty & "\n"`, so hashing that string content-
@@ -721,6 +745,64 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     raise newException(ValueError,
       RuleChainNamed &
       "the snapshot names no chain in provenance.chain; refusing to guess a slug")
+
+  # ── WHO RECORDED THIS, AND IN WHAT SCHEMA — STATED, NOT ASSUMED ─────────────
+  #
+  # Both of these were `const`s in this module. They are inputs to
+  # `deriveTraceArtifactId`, so every published `/t/**` address commits to them:
+  # a reader that supplies them is a reader deciding, for every chain it ever
+  # ingests, which recorder produced the containers it is publishing. That is not
+  # a default that is merely wrong for a second chain — it is a wrong answer
+  # baked into an address, which is the one kind of wrong answer this tree cannot
+  # correct later without a migration.
+  #
+  # ONE GUARD, TWO MEMBERS, AND THE SUBSCRIPTS STAY SAFE. `{}` throughout, with
+  # the refusal in front, because a bracket guarded three tokens to its left
+  # still reads as "required" to every reader that does not re-derive the guard —
+  # and the census records these as required-and-safely-read with the rule that
+  # enforces them, which is the shape §5.2b exists to make legible.
+  let recNode = prov{"recorder"}
+  let recorderId = (if recNode == nil: "" else: recNode{"id"}.getStr)
+  let traceSchema = (if recNode == nil: "" else: recNode{"traceSchema"}.getStr)
+  if recorderId.len == 0 or traceSchema.len == 0:
+    raise newException(ValueError,
+      RuleRecorderStated &
+      "the snapshot for chain '" & chain & "' states " &
+      (if recNode == nil: "no `provenance.recorder` at all"
+       elif recorderId.len == 0 and traceSchema.len == 0:
+         "a `provenance.recorder` with neither an `id` nor a `traceSchema`"
+       elif recorderId.len == 0: "a `provenance.recorder` with no `id`"
+       else: "a `provenance.recorder` with no `traceSchema`") & ". " &
+      ruleStatement("S5-RECORDER-STATED") &
+      " Both are inputs to every published trace address, so one supplied here " &
+      "would attribute this chain's containers to whatever recorder this build " &
+      "happened to be compiled with.")
+
+  # ── HOW THE PRESTATE WAS OBTAINED, FROM A CLOSED SET ────────────────────────
+  #
+  # This was a literal on the manifest writer, ~900 lines below, naming one
+  # chain's answer for every chain. It is now the producer's, and it is drawn
+  # from Chain-Support-Matrix.md §1.4's closed set rather than accepted as free
+  # text: §1.4 states that a producer emitting a value outside that table is a
+  # GAP IN THE TABLE and that the remedy is a row there, never a new string in a
+  # snapshot. The set is data (`snapshot-contract.json`), read at compile time,
+  # so the refusal can name what it would have accepted.
+  let prestateStrategy = prov{"prestateStrategy"}.getStr
+  if prestateStrategy.len == 0:
+    raise newException(ValueError,
+      RulePrestateStated &
+      "the snapshot for chain '" & chain &
+      "' states no `provenance.prestateStrategy`. " &
+      ruleStatement("S5-PRESTATE-STATED") &
+      " The accepted set is " & prestateStrategyList() & ".")
+  if not isPrestateStrategy(prestateStrategy):
+    raise newException(ValueError,
+      RulePrestateClosed &
+      "the snapshot for chain '" & chain & "' states prestateStrategy '" &
+      prestateStrategy & "', which is not in the closed set (" &
+      prestateStrategyList() & "). " & ruleStatement("S5-PRESTATE-CLOSED") &
+      " Add a row to Chain-Support-Matrix.md §1.4 saying what the strategy MEANS, " &
+      "and the token to tools/chain/snapshot-contract.json beside it.")
 
   # ---- how this chain writes its identifiers: ONE decision, both uses --------
   #
@@ -1147,14 +1229,48 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
     # -- immutable facts ----------------------------------------------------
     # `revertCode` is the chain's own: 0 succeeded, anything else reverted. The
-    # fee is the chain's too. Nothing here is derived from the replay, because
+    # cost is the chain's too. Nothing here is derived from the replay, because
     # these facts are true whether or not anyone ever re-executed the thing.
     let reverted = t["revertCode"].getInt != 0
     var roles: seq[Role]
+
+    # ── COST IS A VECTOR AND IT IS CARRIED VERBATIM ────────────────────────
+    #
+    # This used to be ONE entry constructed here, with a name, a unit and a token
+    # written out — one chain's single fee dimension asserted over every chain.
+    # Static-Site-Architecture.md §2.3 makes cost a vector deliberately, because a
+    # scalar produces silently wrong output on a real chain, and a chain with two
+    # fee dimensions could not express itself through a fixed one-entry
+    # constructor. The failure was not an error: it was a page that looked right
+    # and stated the wrong cost.
+    #
+    # So every field of every entry is the producer's. The reader supplies no
+    # name, no unit and no token — not even a default, because a default unit is
+    # a unit and it would be read as a measurement. An entry that states no name
+    # or no figure is REFUSED rather than completed here: a cost dimension
+    # nothing can name is a number on a page with nothing to read it as.
     var costs: seq[Cost]
-    costs.add Cost(name: "transactionFee", used: t{"transactionFee"}.getStr,
-                   limit: "", price: "", unit: "mana", token: "FeeJuice",
-                   refundable: false)
+    let costNode = t["cost"]
+    if costNode.kind != JArray:
+      raise newException(ValueError,
+        RuleCostVector &
+        "transaction " & shortHash(txHash) & " in block " & $height &
+        " carries a `cost` that is not an array. " &
+        ruleStatement("S5-COST-VECTOR"))
+    for c in costNode:
+      if c.kind != JObject or c{"name"} == nil or c{"used"} == nil or
+         c{"name"}.getStr.len == 0:
+        raise newException(ValueError,
+          RuleCostVector &
+          "a cost entry of transaction " & shortHash(txHash) & " in block " &
+          $height & " states " &
+          (if c.kind != JObject: "something that is not an object"
+           elif c{"name"} == nil or c{"name"}.getStr.len == 0: "no `name`"
+           else: "no `used`") & ". " & ruleStatement("S5-COST-VECTOR"))
+      costs.add Cost(name: c{"name"}.getStr, used: c{"used"}.getStr,
+                     limit: c{"limit"}.getStr, price: c{"price"}.getStr,
+                     unit: c{"unit"}.getStr, token: c{"token"}.getStr,
+                     refundable: c{"refundable"}.getBool)
     # -- the code edges, from the artifact resolution ------------------------
     # ONE EDGE PER CONTRACT THE TRANSACTION EXECUTED, RESOLVED OR NOT.
     #
@@ -1244,9 +1360,67 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     let measuredSourceLevel =
       replayed and t{"recording"}{"sourceLevel"}.getBool
 
+    # ── THE EXECUTION PARTITION IS THE PRODUCER'S LIST, AT EVERY SITE ───────
+    #
+    # One fixed selector used to be written at four sites in this module: the
+    # facts' execution list, the trace-artifact input id it is derived from, the
+    # overlay row of a traced transaction and the overlay row of an untraced one.
+    # A chain whose transactions hold two independently debuggable executions —
+    # one observable, one not — collapsed into a single unnamed one, silently,
+    # because nothing downstream could tell a partition of one from a partition
+    # the reader had flattened.
+    #
+    # WHICH EXECUTION THE ROW'S CONTAINER BELONGS TO IS DECIDED BY DATA, NOT BY
+    # POSITION. A row carries one container, and an execution entry that states
+    # its OWN `reason` is one this capture did not trace — so the entry WITHOUT a
+    # reason is the one the container is for. That makes the answer a fact the
+    # producer wrote rather than a convention about array order, and it is why two
+    # reasonless entries are refused: they would publish one recording as evidence
+    # of two executions.
     var executions: seq[Execution]
-    let execInputId = demoExecutionInputId(chain, txHash, "public")
-    executions.add Execution(selector: "public", executionInputId: execInputId)
+    var execSelectors: seq[string]
+    var execReasons: seq[string]
+    let execNode = t["executions"]
+    if execNode.kind != JArray or execNode.len == 0:
+      raise newException(ValueError,
+        RuleExecutionsNamed &
+        "transaction " & shortHash(txHash) & " in block " & $height &
+        " carries " & (if execNode.kind != JArray: "an `executions` that is not an array"
+                       else: "an empty `executions`") & ". " &
+        ruleStatement("S5-EXECUTIONS-NAMED"))
+    for e in execNode:
+      let sel = (if e.kind == JObject: e{"selector"}.getStr else: "")
+      if sel.len == 0:
+        raise newException(ValueError,
+          RuleExecutionsNamed &
+          "an execution of transaction " & shortHash(txHash) & " in block " &
+          $height & " states no `selector`. " &
+          ruleStatement("S5-EXECUTIONS-NAMED"))
+      execSelectors.add sel
+      execReasons.add e{"reason"}.getStr
+      executions.add Execution(selector: sel,
+                               executionInputId: demoExecutionInputId(chain, txHash, sel))
+    var tracedAt = -1
+    for k in 0 ..< execSelectors.len:
+      if execReasons[k].len != 0: continue
+      if tracedAt >= 0:
+        raise newException(ValueError,
+          RuleExecutionsOneTraced &
+          "transaction " & shortHash(txHash) & " in block " & $height &
+          " leaves both '" & execSelectors[tracedAt] & "' and '" &
+          execSelectors[k] & "' without a `reason` of their own. " &
+          ruleStatement("S5-EXECUTIONS-ONE-TRACED"))
+      tracedAt = k
+    if replayed and tracedAt < 0:
+      raise newException(ValueError,
+        RuleExecutionsOneTraced &
+        "transaction " & shortHash(txHash) & " in block " & $height &
+        " carries a container and every one of its " & $execSelectors.len &
+        " execution(s) states its own `reason`, so nothing names the execution " &
+        "the container is a recording of. " &
+        ruleStatement("S5-EXECUTIONS-ONE-TRACED"))
+    let execInputId =
+      if tracedAt >= 0: executions[tracedAt].executionInputId else: ""
 
     var native = %*{
       "l2BlockNumber": height,
@@ -1343,7 +1517,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # binding rather than three lookups.
       let txRRef = recorderForTx(txHash)
       recorderInventory[txRRef.build] = txRRef
-      et = ExecTrace(selector: "public",
+      et = ExecTrace(selector: execSelectors[tracedAt],
         availability: (if reproduced: taReady else: taDivergent),
         reason: (if reproduced: ""
                  else: "Re-executing this transaction reproduced " & $matched &
@@ -1411,6 +1585,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # So both halves of the disagreement raise, in the same style as the
       # zero-byte-container refusal above.
       var bundles = newJObject()
+      # THE LANGUAGES THIS ROW'S BUNDLES STATE, collected as they are published.
+      # The manifest used to name one constant language for every source-level
+      # recording of every chain; it now names exactly the distinct languages the
+      # bundles it points at carry, so a manifest cannot claim a language no
+      # bundle beside it is written in — and a bundle that states none puts
+      # nothing here, which is how "the reader names none" is visible in the
+      # published object rather than only in this comment.
+      var bundleLanguages: seq[string]
       # A BUNDLE IS PUBLISHED FOR A PARTLY-POSITIONED RECORDING TOO, AND THAT IS NEW.
       #
       # It used to be `if measuredSourceLevel`, which is the capture's own all-or-nothing
@@ -1588,8 +1770,11 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
             "shape": orNull(b{"shape"}),
             "corroboration": orNull(b{"corroboration"}),
             "agreeingDistributors": agreeing}
+          let bundleLang = b{"language"}.getStr
+          if bundleLang.len > 0 and bundleLang notin bundleLanguages:
+            bundleLanguages.add bundleLang
           bundles[codeHash] = %cfg.writeSourceBundle(
-            chain, codeHash, b{"origin"}.getStr, files, attestation)
+            chain, codeHash, b{"origin"}.getStr, bundleLang, files, attestation)
 
 
       # ---- the recording's own program counters -----------------------------
@@ -1657,6 +1842,21 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # untouched by it and stays what the capture measured.
       if posSource != nil:
         let pos = posSource
+        # THE STREAM'S OWN SCHEMA TOKEN, REPUBLISHED RATHER THAN CHOSEN. This was
+        # a literal here, and it named a VM — the seventh chain constant in this
+        # module, arriving in a `schema` field where nobody was looking for one.
+        # The token is a statement about the stream's columns, so the producer
+        # that wrote the columns is what states it; a token written here would be
+        # this reader asserting one ecosystem's positions format over whatever it
+        # was handed. It is refused rather than defaulted, because every producer
+        # of a stream in this tree writes it and a default would only ever be
+        # reached by a producer that had not thought about it.
+        let posSchema = pos{"schema"}.getStr
+        if posSchema.len == 0:
+          raise newException(ValueError,
+            RulePositionsSchema &
+            "the source positions for " & txHash & " state no `schema`. " &
+            ruleStatement("S5-POSITIONS-SCHEMA"))
         let carried = pos{"steps"}.getInt(-1)
         let declared = t["recording"]["steps"].getInt
         # THE SAME REFUSAL THE LISTING MAKES, for the same defect: a position array of a
@@ -1678,7 +1878,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
               " against " & $declared & " steps; a partial column would mark " &
               "rows it was never measured for")
         cfg.writeJson(dir / "positions.json", %*{
-          "schema": "avm-source-positions/1",
+          "schema": posSchema,
           "tx": txHash,
           "steps": carried,
           "positioned": pos{"positioned"},
@@ -1807,13 +2007,15 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           # and the source pane is held on the instruction-level floor in every
           # other case.
           sourceLevel: measuredSourceLevel,
-          # The language is named only when there are positions to attach it to.
-          languages: (if measuredSourceLevel: @[bundleLanguage] else: @[])),
+          # The language is named only when there are positions to attach it to,
+          # and it is the language the BUNDLES state rather than one named here.
+          languages: (if measuredSourceLevel: bundleLanguages else: @[])),
         validation: ValidationSummary(
           status: (if reproduced: vsMatch else: vsDivergent),
           strength: matched),
         validationOracle: "published-effects",
-        prestateStrategy: "hydrated-from-node")
+        # The producer's, from §1.4's closed set, checked where it was read.
+        prestateStrategy: prestateStrategy)
       cfg.writeJson(dir / "manifest.json", manifest.toJson)
     else:
       # Not replayed. The snapshot wrote the sentence; it is published verbatim
@@ -1926,12 +2128,75 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           " A generic sentence written here would be this pipeline's words over " &
           "the producer's silence, and 'absent with no explanation' is " &
           "indistinguishable from a failed fetch.")
-      et = ExecTrace(selector: "public", availability: taAbsent,
-        reason: why, refusalReason: rr, bytes: 0, reconstructed: false,
-        hasValidation: false, validation: ValidationSummary())
+      # ── AN UNTRACED ROW MAY NAME NO CONTAINER-BEARING EXECUTION AT ALL ────
+      #
+      # `tracedAt` is -1 when EVERY execution states its own `reason`. On a
+      # traced row that is refused above, because S5-EXECUTIONS-ONE-TRACED says
+      # a row carrying a container must leave exactly one entry reasonless. On
+      # an UNTRACED row it is contract-valid and says something true: §5.2b
+      # marks `executions[].reason` optional, the rule constrains only the
+      # traced case, and a row with no container has no execution its container
+      # belongs to. A producer is entitled to write it.
+      #
+      # So THERE IS NO `et` TO BUILD, and the rule stated below the loop needs
+      # no special case to cover it: with `tracedAt` at -1 no `k` equals it, so
+      # every entry is an "other" entry and publishes as `absent` with THAT
+      # PRODUCER'S OWN sentence — Static-Site-Architecture.md §2.3a's
+      # vocabulary, not a new state, and not a selector the reader named.
+      #
+      # This line used to run unconditionally and index `execSelectors[-1]`,
+      # which raises IndexDefect. A Defect is not a CatchableError: it escapes
+      # every `except CatchableError` between here and the CLI and TERMINATES
+      # the process, so a contract-valid snapshot killed the reader instead of
+      # being refused by name — or, as here, published.
+      #
+      # WHAT THIS DELIBERATELY DOES NOT DO is spread the row's own `reason` or
+      # its `refusalReason` across the rows. Both are statements about the ROW,
+      # and the mapping from a row fact onto an execution row is the entry the
+      # producer left reasonless; where the producer named none, deciding that
+      # the row's refusal is true of each execution separately would be the
+      # reader making a claim the producer did not. Every entry already carries
+      # the producer's own sentence, so nothing is left unexplained, and the
+      # per-reason tally is unaffected because it is counted once per row where
+      # the member is validated, above.
+      if tracedAt >= 0:
+        et = ExecTrace(selector: execSelectors[tracedAt], availability: taAbsent,
+          reason: why, refusalReason: rr, bytes: 0, reconstructed: false,
+          hasValidation: false, validation: ValidationSummary())
 
-    let overlay = TraceSelection(chain: chain, tx: txHash, executions: @[],
-                                 hasSingle: true, singleTrace: et)
+    # ── THE OVERLAY CARRIES ONE ROW PER EXECUTION THE PRODUCER NAMED ────────
+    #
+    # `et` above is the row for the execution the container belongs to — the one
+    # entry without a `reason` of its own. Every OTHER entry is an execution this
+    # capture did not trace and said why, so it publishes as `absent` with the
+    # producer's own sentence, which is Static-Site-Architecture.md §2.3a's
+    # vocabulary and not a new state.
+    #
+    # An UNTRACED row may leave no entry reasonless at all, and then `tracedAt`
+    # is -1, no `k` matches it, and every row comes from the producer's own
+    # `execSelectors[k]` / `execReasons[k]` — the all-absent overlay. See the
+    # guard on `et` above for why that shape is contract-valid.
+    #
+    # THE ONE-EXECUTION SHAPE IS PRESERVED EXACTLY. §2.3b's overlay admits two
+    # shapes — `singleTrace` for a transaction with one execution and `executions`
+    # for one with several — and both have been contract-valid since the overlay
+    # existed. A row with one execution therefore publishes the object it always
+    # published, byte for byte; the list shape appears only where the producer
+    # named more than one, which is the difference between carrying a producer's
+    # list and always emitting more than one row.
+    var etRows: seq[ExecTrace]
+    for k in 0 ..< execSelectors.len:
+      if k == tracedAt: etRows.add et
+      else: etRows.add ExecTrace(selector: execSelectors[k], availability: taAbsent,
+        reason: execReasons[k], bytes: 0, reconstructed: false,
+        hasValidation: false, validation: ValidationSummary())
+    let overlay =
+      if etRows.len == 1:
+        TraceSelection(chain: chain, tx: txHash, executions: @[],
+                       hasSingle: true, singleTrace: etRows[0])
+      else:
+        TraceSelection(chain: chain, tx: txHash, executions: etRows,
+                       hasSingle: false)
     cfg.writeJson(traceSelectionPath(chain, tsv, txHash, identifierEncoding),
                   overlay.toJson)
 

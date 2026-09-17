@@ -77,8 +77,67 @@ proc parseRules(): seq[ContractRule] =
         "or no statement. A citation with no text behind it sends a reader to a " &
         "heading and leaves them there.")
     result.add ContractRule(id: id, section: section, statement: statement)
+  # ── AND THE TWO CLOSED SETS BESIDE THE RULES, CHECKED HERE ──────────────────
+  #
+  # `prestateStrategies` and `chainVocabulary` are read by the same file at the same
+  # compile, so their well-formedness belongs in the same pass. They are validated
+  # HERE rather than in a `const` of their own because a `const` nothing references
+  # can be elided, and a table that is only checked when somebody happens to use it
+  # is not checked. `ContractRules` is referenced by every citation below, so this
+  # runs on every build of the reader.
+  let strategies = doc{"prestateStrategies"}{"tokens"}
+  if strategies == nil or strategies.kind != JArray or strategies.len == 0:
+    raise newException(ValueError,
+      "tools/chain/snapshot-contract.json states no `prestateStrategies.tokens`. " &
+      "The reader refuses a strategy outside that set by name, and an empty set " &
+      "makes the refusal unsatisfiable rather than permissive.")
+  for tok in strategies:
+    if tok.kind != JString or tok.getStr.len == 0:
+      raise newException(ValueError,
+        "tools/chain/snapshot-contract.json: `prestateStrategies.tokens` holds a " &
+        "value that is not a non-empty string. A blank token would make every " &
+        "snapshot's absent strategy a member of the closed set.")
+  if doc{"prestateStrategies"}{"source"}.getStr.len == 0:
+    raise newException(ValueError,
+      "tools/chain/snapshot-contract.json: `prestateStrategies` names no `source`. " &
+      "The set is a transcription of one section of one document and a transcription " &
+      "that does not say what it transcribes cannot be reconciled with it.")
+  let vocab = doc{"chainVocabulary"}
+  if vocab == nil or vocab{"terms"} == nil or vocab{"terms"}.kind != JArray or
+     vocab{"terms"}.len == 0:
+    raise newException(ValueError,
+      "tools/chain/snapshot-contract.json states no `chainVocabulary.terms`. An " &
+      "empty vocabulary is a scan that matches nothing, which satisfies every " &
+      "\"must not contain\" check written over it.")
+  for term in vocab{"terms"}:
+    if term{"term"}.getStr.len == 0 or term{"kind"}.getStr.len == 0:
+      raise newException(ValueError,
+        "tools/chain/snapshot-contract.json: a `chainVocabulary.terms` entry states " &
+        "no `term` or no `kind`. The kind is what says which of §5.3's four " &
+        "categories the term belongs to, and a term with no category is a token " &
+        "nobody can decide about.")
+  if vocab{"scope"} == nil or vocab{"scope"}.kind != JArray or vocab{"scope"}.len == 0:
+    raise newException(ValueError,
+      "tools/chain/snapshot-contract.json: `chainVocabulary` names no `scope`. The " &
+      "set of files the ban ranges over is part of the ban; left to a caller's habit " &
+      "it is a scan whose subject can shrink without anything going red.")
 
 const ContractRules* = parseRules()
+
+proc parsePrestateStrategies(): seq[string] =
+  let doc = parseJson(snapshotContractJson)
+  for tok in doc{"prestateStrategies"}{"tokens"}: result.add tok.getStr
+
+const PrestateStrategies* = parsePrestateStrategies()
+  ## Chain-Support-Matrix.md §1.4's closed set, verbatim. The reader draws
+  ## `provenance.prestateStrategy` from this and refuses anything else by name.
+
+proc prestateStrategyList*(): string =
+  ## The set, for a refusal that names what it would have accepted.
+  PrestateStrategies.join(", ")
+
+proc isPrestateStrategy*(s: string): bool =
+  s in PrestateStrategies
 
 proc cite*(id: string): string =
   ## The citable prefix for one §5 rule. Compile-time evaluable, so a `const`
@@ -133,6 +192,13 @@ const
   RuleCallTraceFoldBound* = cite("S5-CALLTRACE-FOLD-BOUND")
   RuleSidecarFormatUnknown* = cite("S5-SIDECAR-FORMAT-UNKNOWN")
   RuleSidecarChain* = cite("S5-SIDECAR-CHAIN")
+  RuleRecorderStated* = cite("S5-RECORDER-STATED")
+  RulePrestateStated* = cite("S5-PRESTATE-STATED")
+  RulePrestateClosed* = cite("S5-PRESTATE-CLOSED")
+  RuleCostVector* = cite("S5-COST-VECTOR")
+  RuleExecutionsNamed* = cite("S5-EXECUTIONS-NAMED")
+  RuleExecutionsOneTraced* = cite("S5-EXECUTIONS-ONE-TRACED")
+  RulePositionsSchema* = cite("S5-POSITIONS-SCHEMA")
 
 # ── THE MEMBERS A READER TAKES BY BRACKET, FROM THE CENSUS ────────────────────
 #

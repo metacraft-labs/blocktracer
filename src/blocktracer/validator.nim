@@ -21,6 +21,7 @@
 import std/[json, os, strutils, sets, tables]
 import ./contract/[model, version, ids, searchidx, entrypage]
 import ./chain/refusal_reasons
+import ./chain/contract_rules
 
 type
   Validator* = object
@@ -161,6 +162,28 @@ proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
   for f in ["recorder", "profile", "container", "execution", "validation",
             "prestateStrategy"]:
     discard v.need(m, mrel, f)
+  # ── AND `prestateStrategy` IS CHECKED FOR ITS VALUE, NOT ONLY ITS PRESENCE ──
+  #
+  # The loop above requires the member. That is all this half of the seam used to
+  # do, and Chain-Support-Matrix.md §1.4 said so in as many words: the strategy
+  # comes from a CLOSED set of six, "nothing in the tree enforces that today", and
+  # an unlisted value published silently. A present-but-unlisted strategy is the
+  # shape that matters — §1.4's rule is that such a value is a GAP IN THAT TABLE
+  # and its remedy is a row there, never a new string in an artifact — so a
+  # validator that only asked whether the field existed could not tell a producer
+  # it had invented one.
+  #
+  # The set is the same data the snapshot reader draws from
+  # (`tools/chain/snapshot-contract.json`, read at compile time), so the two
+  # halves of the seam cannot come to disagree about what the six are.
+  if "prestateStrategy" in m:
+    let ps = m["prestateStrategy"].getStr
+    if not isPrestateStrategy(ps):
+      v.err(mrel, "manifest prestateStrategy '" & ps &
+            "' is not one of Chain-Support-Matrix.md §1.4's six (" &
+            prestateStrategyList() &
+            "). An unlisted strategy is a gap in that table, not a free-text " &
+            "field: add a row there saying what it means")
   # THE OVERLAY AND THE MANIFEST MUST NAME THE SAME RECORDER, and this is the
   # `overlayBytes` check one field over: the overlay advertises something about
   # the artifact and the artifact must agree.

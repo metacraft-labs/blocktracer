@@ -5,6 +5,11 @@
   "chain": "aztec",
   "label": "Real Aztec mainnet data",
   "endpoint": "https://aztec.drpc.org",
+  "recorder": {
+   "id": "aztec-avm",
+   "traceSchema": "ctfs/v4"
+  },
+  "prestateStrategy": "hydrated-from-node",
   "capturedAt": "2026-09-02T21:06:58.386Z",
   "nodeVersion": "5.2.0",
   "l1ChainId": 1,
@@ -38068,6 +38073,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000175c1a29c1f97278",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000175c1a29c1f97278",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38081,6 +38102,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000019ab3ba23c664052",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000019ab3ba23c664052",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38094,6 +38131,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000007cf4c5a69ce62876",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000007cf4c5a69ce62876",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38107,6 +38160,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000007c5d64deb0e70a40",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000007c5d64deb0e70a40",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38120,6 +38189,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000007d07930f181f6e00",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000007d07930f181f6e00",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38133,6 +38218,22 @@
    "txIndexInBlock": 0,
    "revertCode": 1,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001e347ce63aa683d6",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001e347ce63aa683d6",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38146,6 +38247,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000007f213d0914e22200",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000007f213d0914e22200",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38159,6 +38276,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000007f35c8568c147a20",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000007f35c8568c147a20",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38172,6 +38305,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000008172ad26a8f6f140",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000008172ad26a8f6f140",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38185,6 +38334,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000084a78c6950eb2e40",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000084a78c6950eb2e40",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38198,6 +38363,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000084bcfc44229235e4",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000084bcfc44229235e4",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38211,6 +38392,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000445ef0fabb195e23",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000445ef0fabb195e23",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38224,6 +38421,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000087848e508cde6a3a",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000087848e508cde6a3a",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38237,6 +38450,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000085785aec12277440",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000085785aec12277440",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38250,6 +38479,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000080e3c4e581157380",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000080e3c4e581157380",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38263,6 +38508,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000080e62a24a405dc00",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000080e62a24a405dc00",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38276,6 +38537,22 @@
    "txIndexInBlock": 0,
    "revertCode": 1,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001e402b2ad011bab4",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001e402b2ad011bab4",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38289,6 +38566,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000007b357c8a476ce080",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000007b357c8a476ce080",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38302,6 +38595,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000007cc80a8698eb314a",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000007cc80a8698eb314a",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38315,6 +38624,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000007c68eb7d66d22ad9",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000007c68eb7d66d22ad9",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38328,6 +38653,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000188c5ffadace3504",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000188c5ffadace3504",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38342,6 +38683,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002a556736936d50a0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002a556736936d50a0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38356,6 +38713,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001acb8348d2b49a1d",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001acb8348d2b49a1d",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38370,6 +38743,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000360716b39327e422",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000360716b39327e422",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38384,6 +38773,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000003635ca4756d1fd80",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000003635ca4756d1fd80",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38398,6 +38803,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002a5c07f48930faa0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002a5c07f48930faa0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38421,6 +38842,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002a9e389bbe668400",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002a9e389bbe668400",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38444,6 +38881,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001841fa4c264690d0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001841fa4c264690d0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38466,6 +38919,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000004388dbf7941303c4",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000004388dbf7941303c4",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38489,6 +38958,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000813a080058bf9d4e",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000813a080058bf9d4e",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38512,6 +38997,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000135fced7da38f038",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000135fced7da38f038",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38534,6 +39035,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001a3e6cd02b59d53c",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001a3e6cd02b59d53c",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38638,6 +39155,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002464a62eee5b85bc",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002464a62eee5b85bc",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38774,6 +39307,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002b1f203c68c512a0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002b1f203c68c512a0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38796,6 +39345,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002a071f6b170e51a0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002a071f6b170e51a0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38818,6 +39383,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002987a7e8220b9b50",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002987a7e8220b9b50",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": true,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38840,6 +39421,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001ae0187042573a3f",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001ae0187042573a3f",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38854,6 +39451,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000013241cdaed1b0884",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000013241cdaed1b0884",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38868,6 +39481,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000145e851f99929b94",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000145e851f99929b94",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38882,6 +39511,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000019c48ad76361ea90",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000019c48ad76361ea90",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38896,6 +39541,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000014a4e0f2b17dab20",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000014a4e0f2b17dab20",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38910,6 +39571,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000016ecf844502e3700",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000016ecf844502e3700",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38924,6 +39601,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001e9199ab2b1286d8",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001e9199ab2b1286d8",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38938,6 +39631,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001863339aeaacc13c",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001863339aeaacc13c",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38952,6 +39661,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002c7fdd47c49610a0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002c7fdd47c49610a0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38966,6 +39691,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002787498fadbb5e60",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002787498fadbb5e60",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38980,6 +39721,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000823951ac29eb1abc",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000823951ac29eb1abc",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -38994,6 +39751,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000851dd202b0842aa6",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000851dd202b0842aa6",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39008,6 +39781,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000018c75b141369a786",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000018c75b141369a786",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39022,6 +39811,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000036cf58226525de49",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000036cf58226525de49",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39036,6 +39841,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000012ce20f6b30413c4",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000012ce20f6b30413c4",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39050,6 +39871,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000029be3944fbdea8f0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000029be3944fbdea8f0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39064,6 +39901,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002a17e3e5651d3668",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002a17e3e5651d3668",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39078,6 +39931,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000270ab4965ed36ebf",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000270ab4965ed36ebf",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39092,6 +39961,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001e642da4a8b8ad0d",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001e642da4a8b8ad0d",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39106,6 +39991,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001601a7da13e5987e",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001601a7da13e5987e",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39120,6 +40021,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002d04837f91543e74",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002d04837f91543e74",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39134,6 +40051,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000018bb2183f36e9318",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000018bb2183f36e9318",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39148,6 +40081,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000142f9986f0a05754",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000142f9986f0a05754",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39162,6 +40111,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000119263d489211bf4",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000119263d489211bf4",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39176,6 +40141,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001b90885acbe9e734",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001b90885acbe9e734",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39190,6 +40171,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001a148ef70952e347",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001a148ef70952e347",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39204,6 +40201,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001bb2a7f7454ae4a1",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001bb2a7f7454ae4a1",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39218,6 +40231,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000016add3ed59cdcbef",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000016add3ed59cdcbef",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39232,6 +40261,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000016ae68c4d43834e3",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000016ae68c4d43834e3",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39246,6 +40291,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000016ae68c4d43834e3",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000016ae68c4d43834e3",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39260,6 +40321,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000016ae68c4d43834e3",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000016ae68c4d43834e3",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39274,6 +40351,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000016ae68c4d43834e3",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000016ae68c4d43834e3",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39288,6 +40381,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000013657a284963ad80",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000013657a284963ad80",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39302,6 +40411,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001b8050c48d073636",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001b8050c48d073636",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39316,6 +40441,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001ac7c80fb8b4c5d8",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001ac7c80fb8b4c5d8",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39330,6 +40471,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000171d3ed370eda16c",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000171d3ed370eda16c",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39344,6 +40501,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001a0466658aff4360",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001a0466658aff4360",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39358,6 +40531,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000196300833c6ac9a0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000196300833c6ac9a0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39372,6 +40561,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001643016a0b73a6c0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001643016a0b73a6c0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39386,6 +40591,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000019b3a5d15b936db2",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000019b3a5d15b936db2",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39400,6 +40621,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001781f6703b789e58",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001781f6703b789e58",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39414,6 +40651,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000035ca3259d8728465",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000035ca3259d8728465",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39428,6 +40681,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002cb4a4cf00701ba0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002cb4a4cf00701ba0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39442,6 +40711,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001cb7ee8b8204759c",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001cb7ee8b8204759c",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39456,6 +40741,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000005b55bb1edc10d0d8",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000005b55bb1edc10d0d8",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39470,6 +40771,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001d2096ae4135e134",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001d2096ae4135e134",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39484,6 +40801,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000034362ee42cbed0b8",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000034362ee42cbed0b8",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39498,6 +40831,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001543ef739f1c5cb8",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001543ef739f1c5cb8",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39512,6 +40861,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000001325f2ef03a2ee00",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000001325f2ef03a2ee00",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39526,6 +40891,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x000000000000000000000000000000000000000000000000278926177fdf9143",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x000000000000000000000000000000000000000000000000278926177fdf9143",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39540,6 +40921,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x0000000000000000000000000000000000000000000000002ab251519f3c6ee0",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x0000000000000000000000000000000000000000000000002ab251519f3c6ee0",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,
@@ -39554,6 +40951,22 @@
    "txIndexInBlock": 0,
    "revertCode": 0,
    "transactionFee": "0x00000000000000000000000000000000000000000000000019b57075b17406f2",
+   "cost": [
+    {
+     "name": "transactionFee",
+     "used": "0x00000000000000000000000000000000000000000000000019b57075b17406f2",
+     "limit": "",
+     "price": "",
+     "unit": "mana",
+     "token": "FeeJuice",
+     "refundable": false
+    }
+   ],
+   "executions": [
+    {
+     "selector": "public"
+    }
+   ],
    "bodyRetained": false,
    "effectVisible": true,
    "firstInBlock": true,

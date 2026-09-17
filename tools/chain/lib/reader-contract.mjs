@@ -5,11 +5,15 @@
 // The producer seam is a document (`Data-Contract.md` §5) and a reader
 // (`src/blocktracer/chain/ingest.nim`). Until this file, the only way to know whether the
 // two agreed was for a person to read both and agree with themselves — and the measured
-// result of that was §5 naming NINE member paths against a reader that consumes 117 over
+// result of that was §5 naming NINE member paths against a reader that consumed 117 over
 // 22 containers: 108 unnamed, 19 of them by unguarded bracket access, which in Nim's
-// `std/json` RAISES `KeyError` on an absent key rather than answering null. One of the
-// real follower's own mainnet output omitted it: the producer this repository ships wrote
-// a snapshot the reader this repository ships crashed on, and every committed fixture
+// `std/json` RAISES `KeyError` on an absent key rather than answering null. (Those four are
+// the measurement taken on 2026-09-17, when the gap was closed, and they are the size of
+// the GAP rather than the size of the census — the census has grown since and its current
+// figures are printed by `snapshot-contract-selftest.mjs` §1 and §2, which is where a
+// current figure belongs.) One of the 19's siblings, `provenance.l1ChainId`, was omitted by
+// the real follower's own mainnet output: the producer this repository ships wrote a
+// snapshot the reader this repository ships crashed on, and every committed fixture
 // carried the member so nothing could see it.
 //
 // WHAT "NINE" COUNTS, because §5 admits three readings and only one makes 108 follow. The
@@ -596,6 +600,238 @@ export function pathDefaultLiterals(text, defaults) {
     }
   }
   return out;
+}
+
+// ── THE CHAIN VOCABULARY BAN ───────────────────────────────────────────────────────────
+//
+// §5.3's six constants are read out of the snapshot now. The property that keeps them out
+// is not "those six literals are gone" — it is that NO SEVENTH arrives, and a seventh
+// arrives as a literal naming a chain, a VM, a fee token or an ecosystem language. One had
+// already arrived where nobody was looking: `"schema": "avm-source-positions/1"`, a VM name
+// in a published wire token, which no reading of the six would have found.
+//
+// THE VOCABULARY IS DATA (`snapshot-contract.json`'s `chainVocabulary`) and not a regex in
+// here, for the reason the rule ids and the path defaults are: a check may only cite what
+// the contract states, and a term list buried in a script is a rule nobody can look up.
+// The terms' `kind` is which of §5.3's four categories each belongs to.
+//
+// ── WHAT THIS MATCHES, AND WHY EACH PART IS THERE ─────────────────────────────────────
+//
+// Each part was an evasion attempted against the scan before it was believed:
+//
+//   * CASE. `/…/i`, because `"Aztec"` names the chain exactly as `"aztec"` does.
+//   * AN IDENTIFIER RATHER THAN A STRING. The match is over CODE, not over quoted text, so
+//     `const aztecFee = …` is a violation. A ban that only looked inside quotes would be
+//     satisfied by moving the name one token left.
+//   * CONCATENATION. `"azt" & "ec"` compiles, produces `"aztec"`, and defeats any
+//     per-token scan. String literals joined by `&` are SPLICED before matching — across
+//     newlines too, since Nim allows the operands on separate lines — and the finding
+//     reports the line the splice began on. `spliced: true` says which findings only a
+//     spliced body could see.
+//
+//     THE QUOTES NEED NOT TOUCH THE `&`, and requiring that they did was a hole inside
+//     this bullet's own claim: `("azt") & ("ec")` compiles, prints `aztec` and said
+//     nothing. Parentheses are admitted on either side of the operator now.
+//
+//     NOR NEED BOTH OPERANDS BE QUOTED. `"azt" & suffixEc` is the same evasion with one
+//     operand named, so every binding of a name to exactly one string literal is
+//     collected and a `&`-ADJACENT occurrence of such a name is resolved to its literal
+//     before the splice runs. The adjacency is the whole restriction: substituting
+//     elsewhere would be constant folding, and a binding whose literal names a chain is
+//     already a violation at its own declaration.
+//   * BOUNDARIES THAT INCLUDE A CAMEL HUMP, which is not `\b` and is not a plain
+//     non-alphanumeric run. `\b` is wrong because `-` and `/` are not word characters and
+//     the tokens that matter are hyphenated and slashed: `aztec-avm` and
+//     `avm-source-positions/1` must both match. A plain non-alphanumeric boundary is wrong
+//     too, and that was measured rather than reasoned: with it, `let aztecFee = 1` named
+//     the chain and the scan said nothing, which is the identifier evasion one token wide.
+//     So a match is admitted when it starts at a non-alphanumeric boundary OR at an
+//     uppercase letter following a lowercase one or a digit — `aztecFee`, `hasGas`,
+//     `feeInGas` — and is rejected when a LOWERCASE letter follows it, which is what keeps
+//     `manage` off `mana`, `gasoline` off `gas`, `suite` off `sui` and `refuel` off `fuel`.
+//     The residual of that pair is an ALL-CAPS word whose interior spells a term
+//     (`MANAGER` contains `MANA` followed by an uppercase letter): measured at zero over
+//     every file in the ban's scope, and it is why the green arm is run over the real files
+//     rather than asserted.
+//
+// ── AND WHAT IT CANNOT SEE ────────────────────────────────────────────────────────────
+//
+//   * A PROSE COMMENT, deliberately: comments are stripped first. The reader's comments
+//     record which chain a decision was measured on, and a comment cannot reach a
+//     published object. They are COUNTED and returned so a caller can report the figure
+//     rather than write one down.
+//   * A NAME SYNTHESISED rather than spelled — `chr(97) & …`, an escape (`"azt\x65c"`), a
+//     `strformat` assembly, a homoglyph. No text scan reaches those. Stated as a residual
+//     in the contract and in the suite that runs this, because "banned outright" about a
+//     regex that is not is the failure this library has already made once.
+//   * A TERM FOLLOWED BY A LOWERCASE LETTER — `"aztecnet"`, `"myaztecchain"`, `"gasoline"`.
+//     This is not an oversight, it is the OTHER HALF of the boundary rule three bullets
+//     up: the same clause that keeps `manage` off `mana` and `suite` off `sui` is the one
+//     that lets `aztecnet` through, and there is no version of the rule that has one
+//     without the other. Recorded here because a limit that is only implied by a regex is
+//     a limit nobody knows about.
+//   * A NAME ACCUMULATED RATHER THAN JOINED — `var s = "azt"` then `s.add "ec"`. The
+//     splice reads `&` because `&` is where the operands sit in one expression; an
+//     accumulation spreads them over statements and a text scan would have to interpret
+//     the program to follow it. Same class as the synthesised names above.
+
+// THE JOIN THE SPLICE RECOGNISES. The quotes need not be ADJACENT to the `&`: `("azt") &
+// ("ec")` compiles, prints `aztec`, and the first spelling of this rule — which required
+// them adjacent — said nothing about it. Parentheses are admitted on the closing side
+// before the operator and on the opening side after it, which covers any depth of them.
+//
+// It is deliberately NOT a general expression parser. `foo("a") & ("b")` would be spliced
+// to `"ab"` even though it concatenates a CALL's result with a literal, which is a false
+// positive in the direction a ban may err — more findings, never fewer — and it is
+// measured at zero over every file in the ban's scope by the green arm.
+const SPLICE_JOIN = /"[ \t\r\n)]*&[ \t\r\n(]*"/g;
+
+/** Drop every `" … & … "` join in `body`, carrying `bmap`'s offsets through. */
+function spliceJoins(body, bmap) {
+  const re = new RegExp(SPLICE_JOIN.source, 'g');
+  let out = '';
+  const map = [];
+  let last = 0, m;
+  while ((m = re.exec(body)) !== null) {
+    for (let k = last; k < m.index; k++) { out += body[k]; map.push(bmap[k]); }
+    last = m.index + m[0].length;
+  }
+  for (let k = last; k < body.length; k++) { out += body[k]; map.push(bmap[k]); }
+  return { body: out, map };
+}
+
+/**
+ * Substitute a `&`-adjacent identifier that a single-literal binding defines by its value.
+ *
+ * `"azt" & suffixEc` is the SAME evasion as `"azt" & "ec"` with one operand named, and a
+ * splice that only joined quoted operands walked past it. So every `let`/`const`/`var`
+ * bound to exactly one string literal is collected, and an occurrence of such a name
+ * touching a `&` is rewritten to the literal it stands for — after which the ordinary
+ * splice above joins it.
+ *
+ * `&`-ADJACENCY IS THE WHOLE RESTRICTION, and it is what keeps this from being a constant
+ * folder. A name is substituted only where it is an operand of a concatenation, which is
+ * the only place a substitution can manufacture a token that is not already spelled. A
+ * binding whose literal itself names a chain is a violation at its own declaration line
+ * and needs none of this.
+ */
+function resolveConcatOperands(body, bmap) {
+  const consts = new Map();
+  const decl = /(?:^|\n)[ \t]*(?:let|const|var)[ \t]+([A-Za-z_]\w*)\*?[ \t]*(?::[^=\n]*)?=[ \t]*"([^"\n]*)"/g;
+  let d;
+  while ((d = decl.exec(body)) !== null) consts.set(d[1], d[2]);
+  if (consts.size === 0) return { body, map: bmap };
+  let out = '';
+  const map = [];
+  const ident = /[A-Za-z_]\w*/g;
+  let last = 0, m;
+  while ((m = ident.exec(body)) !== null) {
+    const value = consts.get(m[0]);
+    if (value === undefined) continue;
+    const joins = /&[ \t\r\n(]*$/.test(body.slice(Math.max(0, m.index - 40), m.index))
+                  || /^[ \t\r\n)]*&/.test(body.slice(m.index + m[0].length,
+                                                     m.index + m[0].length + 40));
+    if (!joins) continue;
+    for (let k = last; k < m.index; k++) { out += body[k]; map.push(bmap[k]); }
+    const lit = `"${value}"`;
+    for (let k = 0; k < lit.length; k++) { out += lit[k]; map.push(bmap[m.index]); }
+    last = m.index + m[0].length;
+  }
+  for (let k = last; k < body.length; k++) { out += body[k]; map.push(bmap[k]); }
+  return { body: out, map };
+}
+
+/**
+ * Strip comments and splice adjacent string literals, keeping a map back to source offsets.
+ *
+ * @returns {{text:string, map:number[], spliced:string, smap:number[],
+ *            resolved:string, rmap:number[]}}
+ *          `map[i]` is the source index of output character `i`
+ */
+function codeView(text) {
+  const lines = text.split('\n');
+  let out = '';
+  const map = [];
+  let at = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const keep = /^\s*##?(\s|$)/.test(raw) ? '' : stripComment(raw);
+    for (let k = 0; k < keep.length; k++) { out += keep[k]; map.push(at + k); }
+    out += '\n'; map.push(at + raw.length);
+    at += raw.length + 1;
+  }
+  // SPLICE: `"…" & "…"` becomes one literal. Done on the whole text so the operands may
+  // sit on different lines, with the offset map carried through so a finding still names
+  // the line the concatenation started on.
+  const s = spliceJoins(out, map);
+  // …AND THE SAME JOIN WITH A NAMED OPERAND, which is a second body rather than a second
+  // rule: resolve, then splice with exactly the machinery above.
+  const r = resolveConcatOperands(out, map);
+  const rs = spliceJoins(r.body, r.map);
+  return { text: out, map, spliced: s.body, smap: s.map,
+           resolved: rs.body, rmap: rs.map };
+}
+
+/** the source line number (1-based) of a source character offset */
+function lineAt(text, offset) {
+  let n = 1;
+  for (let k = 0; k < offset && k < text.length; k++) if (text[k] === '\n') n++;
+  return n;
+}
+
+/**
+ * Every place `text` names a chain, a VM, a fee token or an ecosystem language.
+ *
+ * @param {string} text   the reader's source
+ * @param {{term:string, kind:string}[]} terms  the vocabulary, from the census
+ * @returns {{violations:{term:string,kind:string,line:number,spliced:boolean,text:string}[],
+ *            commentOccurrences:number}}
+ */
+export function chainVocabularyLiterals(text, terms) {
+  const view = codeView(text);
+  const srcLines = text.split('\n');
+  const violations = [];
+  let commentOccurrences = 0;
+  const seen = new Set();
+  /** every admitted match of one term in one body, as {index} */
+  const matches = (body, term) => {
+    const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    const out = [];
+    let m;
+    while ((m = re.exec(body)) !== null) {
+      const before = m.index === 0 ? '' : body[m.index - 1];
+      const after = body[m.index + m[0].length] ?? '';
+      const startsUpper = /[A-Z]/.test(m[0][0]);
+      const openBoundary = before === '' || !/[A-Za-z0-9]/.test(before)
+                           || (startsUpper && /[a-z0-9]/.test(before));
+      if (openBoundary && !/[a-z]/.test(after)) out.push(m.index);
+    }
+    return out;
+  };
+  for (const { term, kind } of terms) {
+    for (const [body, offsets, spliced] of
+         [[view.text, view.map, false], [view.spliced, view.smap, true],
+          [view.resolved, view.rmap, true]]) {
+      for (const idx of matches(body, term)) {
+        const line = lineAt(text, offsets[idx] ?? 0);
+        const key = `${term}@${line}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        violations.push({ term, kind, line, spliced,
+                          text: (srcLines[line - 1] ?? '').trim().slice(0, 100) });
+      }
+    }
+    // The comment half, counted rather than named: it is the figure a caller reports so a
+    // note about it cannot go stale, and it is deliberately not a violation.
+    for (let i = 0; i < srcLines.length; i++) {
+      const codeLine = /^\s*##?(\s|$)/.test(srcLines[i]) ? '' : stripComment(srcLines[i]);
+      if (matches(srcLines[i], term).length > 0 && matches(codeLine, term).length === 0) {
+        commentOccurrences++;
+      }
+    }
+  }
+  violations.sort((a, b) => a.line - b.line || (a.term < b.term ? -1 : 1));
+  return { violations, commentOccurrences };
 }
 
 /** the extraction as plain sorted data, for comparison and for printing */

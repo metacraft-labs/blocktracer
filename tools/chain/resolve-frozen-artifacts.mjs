@@ -65,6 +65,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { execFileSync } from 'node:child_process';
 import { join, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
+// §5.3's facts this producer states: a bundle's language, a stream's schema token.
+import { POSITION_LANGUAGE, POSITION_STREAM_SCHEMA } from './lib/producer-facts.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -387,6 +389,11 @@ for (const dir of snapshotDirs) {
           corroboration: r.corroboration,
           agreeingDistributors: r.agreeingDistributors ?? [],
           debugDigest: r.debugDigest,
+          // §5.3: the language THIS bundle's positions are written in. It travels with
+          // the bundle rather than being named by the reader, which is what makes a
+          // bundle and its language unable to disagree — there used to be only one of
+          // the two, a `const` in `ingest.nim`, so nothing could be checked against it.
+          language: POSITION_LANGUAGE,
           files: Object.fromEntries(r.files.map((f) => [f.path, f.source])),
         }));
       const srcDir = join(dir, 'sources');
@@ -400,7 +407,11 @@ for (const dir of snapshotDirs) {
       blockNumber: c.blockNumber,
       // Per-step source coordinates, or `null` where none were computed. Consumed by
       // `ingest.nim`, which republishes them beside the container as `positions.json`.
-      positions: positioning.length === 1 ? positioning[0]
+      // The stream states its own `schema`, exactly as a captured one does: the reader
+      // republishes the token and names none itself, so both sources of a position
+      // stream in this tree have to say what shape they wrote.
+      positions: positioning.length === 1
+        ? { schema: POSITION_STREAM_SCHEMA, ...positioning[0] }
         : (positioning.length === 0 ? null
            : { unavailable: 'more than one contract positioned steps and the published step '
                + 'stream does not say which executed each one' }),

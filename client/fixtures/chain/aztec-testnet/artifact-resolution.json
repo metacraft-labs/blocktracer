@@ -62,6 +62,7 @@
    "txHash": "0x12525d6d2a629f908a9d68aade391624eda2bfe38866d00c06233be7810e795f",
    "blockNumber": 63670,
    "positions": {
+    "schema": "avm-source-positions/1",
     "steps": 108,
     "positioned": 86,
     "artifactRung": 1,

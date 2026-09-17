@@ -63,6 +63,8 @@ import { assertRefusalsAreClosed, refuseNotFirstInBlock,
          classifyRefusal } from './lib/refusal.mjs';
 import { recountSnapshot } from './lib/recount.mjs';
 import { assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
+// §5.3's cost vector and execution partition, stated by the producer that knows them.
+import { costVectorForRow, executionsForRow } from './lib/producer-facts.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (name, dflt) => {
@@ -246,6 +248,8 @@ for (let n = from; n <= to; n++) {
       snap.transactions.push({
         txHash: eff.txHash, blockNumber: n, txIndexInBlock: i,
         revertCode: eff.revertCode, transactionFee: eff.transactionFee,
+        cost: costVectorForRow(eff.transactionFee),
+        executions: executionsForRow(),
         bodyRetained: false, effectVisible: true, firstInBlock: i === 0,
         observedAt: new Date().toISOString(), ...why,
       });

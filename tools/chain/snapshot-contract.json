@@ -165,7 +165,179 @@
     "S5-SIDECAR-CHAIN": {
       "section": "§5.4",
       "statement": "A sidecar that names a chain must name this snapshot's; attaching one chain's answers to another's transactions is refused."
+    },
+    "S5-RECORDER-STATED": {
+      "section": "§5.3",
+      "statement": "`provenance.recorder` states the recorder's id and the trace schema it writes; a snapshot that states neither is refused, because a recorder identity supplied by the reader is the reader deciding which chain produced the capture."
+    },
+    "S5-PRESTATE-STATED": {
+      "section": "§5.3",
+      "statement": "`provenance.prestateStrategy` states how the producer obtained the state each execution ran against; a snapshot that does not is refused."
+    },
+    "S5-PRESTATE-CLOSED": {
+      "section": "§5.3",
+      "statement": "`provenance.prestateStrategy` is drawn from a closed set, verbatim; a value outside it is refused naming the set, because a producer emitting an unlisted strategy is a gap in the table rather than a producer using a free-text field."
+    },
+    "S5-COST-VECTOR": {
+      "section": "§5.3",
+      "statement": "A row's cost is a VECTOR the producer states, and every entry names itself and carries a figure; the reader supplies no name, unit or token, because a cost the reader named is a page that looks right and states the wrong cost."
+    },
+    "S5-EXECUTIONS-NAMED": {
+      "section": "§5.3",
+      "statement": "A row names the executions it holds, each by its own selector; the reader supplies none, because a selector the reader supplied collapses a chain's execution partition into a single unnamed one."
+    },
+    "S5-EXECUTIONS-ONE-TRACED": {
+      "section": "§5.3",
+      "statement": "At most one of a row's executions may be left without its own reason — the one the row's container belongs to — and a traced row must leave exactly one, because a row carries one container and two executions claiming it would publish one recording as evidence of two."
+    },
+    "S5-POSITIONS-SCHEMA": {
+      "section": "§5.4",
+      "statement": "A position stream states its own schema token, which is republished verbatim; a stream that states none is refused rather than published under a token the reader chose for it."
     }
+  },
+
+  "_prestateStrategiesComment": [
+    "THE CLOSED SET `provenance.prestateStrategy` IS DRAWN FROM.",
+    "",
+    "It is the six rows of Chain-Support-Matrix.md §1.4, verbatim, and it is DATA here for the",
+    "reason the refusal-reason set and the rule table are: two languages need it, the reader",
+    "refuses a value outside it by name, and a set spelled twice is two sets.",
+    "",
+    "§1.4 states the rule this list implements: a producer emitting a value that is not in the",
+    "table is A GAP IN THAT SECTION, not a producer exercising a free-text field, and the",
+    "remedy is a row there — never a new string in a snapshot. So a term added here without a",
+    "row there is the failure this file cannot see; what it can hold is that the reader draws",
+    "from a stated set rather than from whatever a snapshot says."
+  ],
+  "prestateStrategies": {
+    "source": "codetracer-specs/BlockTracer/Chain-Support-Matrix.md §1.4",
+    "tokens": [
+      "version-addressed",
+      "self-contained",
+      "prestate-trace",
+      "replay-preceding",
+      "hydrated-from-node",
+      "self-contained-circuit"
+    ]
+  },
+
+  "_chainVocabularyComment": [
+    "THE VOCABULARY THE READER MAY NOT SPELL. Data-Contract.md §5.3.",
+    "",
+    "§5.3's whole subject is that the reader is chain-PARAMETERISED in every dimension that",
+    "reaches a URL and was chain-CONSTANT in six that do not. Once those six are read out of",
+    "the snapshot, the property worth holding is not 'those six literals are gone' — it is",
+    "that NO SEVENTH arrives. A literal naming a chain, a VM, a fee token or an ecosystem",
+    "language is how one arrives, every time, and it arrives looking like a small convenience.",
+    "",
+    "── WHAT THE RULE IS, EXACTLY ─────────────────────────────────────────────────────────",
+    "",
+    "`chainVocabularyLiterals` in `lib/reader-contract.mjs` matches each term below,",
+    "case-insensitively, against the reader's CODE — prose comments and doc comments",
+    "stripped, and `&`-joined string literals SPLICED first so `\"azt\" & \"ec\"` reads as one",
+    "token. The splice does NOT require the quotes to touch the operator (`(\"azt\") & (\"ec\")`",
+    "is the same evasion), and it resolves a `&`-adjacent name bound to a single literal",
+    "(`\"azt\" & suffixEc`) before joining. It matches an identifier as readily as a string,",
+    "because a `const aztecFee` names a chain exactly as loudly as `\"aztec\"` does.",
+    "",
+    "The boundary is not `\\b` and not a plain non-alphanumeric run: a match is admitted at a",
+    "non-alphanumeric boundary OR at an uppercase letter following a lowercase one or a digit",
+    "— so `aztecFee`, `feeInGas` and `gasUsed` all match — and is rejected when a LOWERCASE",
+    "letter follows it, which is what keeps `manage` off `mana` and `gasoline` off `gas`.",
+    "",
+    "── WHAT IT DOES NOT REACH, STATED RATHER THAN IMPLIED ────────────────────────────────",
+    "",
+    "  * A PROSE COMMENT. Deliberate, and it is the reason the scan strips them: the reader's",
+    "    comments record which chain a decision was measured on and why, and a comment cannot",
+    "    reach a published object. The count of comment occurrences is REPORTED by the check",
+    "    rather than written down here, so the figure cannot go stale.",
+    "  * A NAME SYNTHESISED AT RUNTIME OR AT COMPILE TIME from characters — `chr(97) & …`, a",
+    "    `staticRead` of a file this list does not cover, a `strformat` assembly. No text scan",
+    "    can see those, and pretending otherwise is worse than saying so.",
+    "  * A TERM FOLLOWED BY A LOWERCASE LETTER — `\"aztecnet\"`, `\"myaztecchain\"`. This is the",
+    "    OTHER HALF of the boundary rule above rather than an oversight: the clause that lets",
+    "    a correct reader write `manage` and `gasoline` is the same clause that lets those",
+    "    through, and there is no version of the rule that has one without the other.",
+    "  * A NAME ACCUMULATED RATHER THAN JOINED — `var s = \"azt\"` then `s.add \"ec\"`. The splice",
+    "    reads one expression; an accumulation spreads the operands over statements.",
+    "  * A VALUE THE READER OBTAINS FROM DATA. That is not an evasion, it is the point: the",
+    "    snapshot, `identifier-encodings.json`, `refusal-reasons.json` and this file are where",
+    "    such values belong, and a reader reading one of them names no chain.",
+    "",
+    "Each of the four is PLANTED and asserted to be MISSED by §9 of the selftest, so a",
+    "residual that is described here is also one that is measured.",
+    "",
+    "── WHY SOME OBVIOUS TERMS ARE ABSENT ─────────────────────────────────────────────────",
+    "",
+    "`move`, `flow`, `func`, `dot`, `near` and `cadence` are chains, VMs or languages AND they",
+    "are ordinary English or Nim words — `move(x)` is a Nim builtin, `func` a Nim keyword. A",
+    "ban that a correct reader cannot satisfy gets an exemption written into it, and an",
+    "exemption is how a ban stops being one. They are left out, named here, rather than",
+    "banned and then excused. `gas` IS banned, because `gas` standing alone as a token in this",
+    "reader would be a fee unit and nothing else.",
+    "",
+    "`wasm`, `ink`, `zksync`, `polygon`, `optimism` and `yul` were added after a reviewer",
+    "measured them missing. `wasm` is a VM name and this workspace ships three Wasm recorders;",
+    "`ink` is Polkadot's language while `polkavm`, its VM, was already banned, so the pair was",
+    "half-covered. None of them is an ordinary English or Nim word, so none needs an exemption,",
+    "and all six were measured at zero occurrences over every file in scope before landing."
+  ],
+  "chainVocabulary": {
+    "scope": [
+      "src/blocktracer/chain/ingest.nim",
+      "src/blocktracer/chain/contract_rules.nim",
+      "src/blocktracer/chain/refusal_reasons.nim",
+      "src/blocktracer/chain/snapshot_format.nim",
+      "src/blocktracer_chain_ingest.nim"
+    ],
+    "terms": [
+      {"term": "aztec", "kind": "chain"},
+      {"term": "ethereum", "kind": "chain"},
+      {"term": "arbitrum", "kind": "chain"},
+      {"term": "starknet", "kind": "chain"},
+      {"term": "starkware", "kind": "chain"},
+      {"term": "solana", "kind": "chain"},
+      {"term": "aptos", "kind": "chain"},
+      {"term": "sui", "kind": "chain"},
+      {"term": "cardano", "kind": "chain"},
+      {"term": "substrate", "kind": "chain"},
+      {"term": "ton", "kind": "chain"},
+      {"term": "aleo", "kind": "chain"},
+      {"term": "hedera", "kind": "chain"},
+      {"term": "zksync", "kind": "chain"},
+      {"term": "polygon", "kind": "chain"},
+      {"term": "optimism", "kind": "chain"},
+      {"term": "avm", "kind": "vm"},
+      {"term": "wasm", "kind": "vm"},
+      {"term": "evm", "kind": "vm"},
+      {"term": "sbf", "kind": "vm"},
+      {"term": "sealevel", "kind": "vm"},
+      {"term": "polkavm", "kind": "vm"},
+      {"term": "miden", "kind": "vm"},
+      {"term": "fuel", "kind": "vm"},
+      {"term": "stylus", "kind": "vm"},
+      {"term": "noir", "kind": "language"},
+      {"term": "nargo", "kind": "language"},
+      {"term": "solidity", "kind": "language"},
+      {"term": "vyper", "kind": "language"},
+      {"term": "cairo", "kind": "language"},
+      {"term": "sway", "kind": "language"},
+      {"term": "aiken", "kind": "language"},
+      {"term": "uplc", "kind": "language"},
+      {"term": "plutus", "kind": "language"},
+      {"term": "leo", "kind": "language"},
+      {"term": "tolk", "kind": "language"},
+      {"term": "circom", "kind": "language"},
+      {"term": "ink", "kind": "language"},
+      {"term": "yul", "kind": "language"},
+      {"term": "feejuice", "kind": "token"},
+      {"term": "mana", "kind": "token"},
+      {"term": "gas", "kind": "token"},
+      {"term": "wei", "kind": "token"},
+      {"term": "gwei", "kind": "token"},
+      {"term": "lamports", "kind": "token"},
+      {"term": "ctfs", "kind": "trace-schema"}
+    ]
   },
 
   "containers": {
@@ -209,7 +381,21 @@
         "nodeVersion": {"required": false, "access": "optional",
                         "holds": "the node's own version string, republished verbatim"},
         "l1ChainId": {"required": false, "access": "optional",
-                      "holds": "the settlement chain's id where the chain has one; meaningless on a chain with no L1, and therefore never required"}
+                      "holds": "the settlement chain's id where the chain has one; meaningless on a chain with no L1, and therefore never required"},
+        "recorder": {"required": true, "access": "optional", "enforcedBy": "S5-RECORDER-STATED",
+                     "holds": "who recorded this capture's executions, and in what trace schema — §5.3"},
+        "prestateStrategy": {"required": true, "access": "optional", "enforcedBy": "S5-PRESTATE-STATED",
+                             "holds": "how the producer obtained the state each execution ran against, from Chain-Support-Matrix.md §1.4's closed set — §5.3"}
+      }
+    },
+
+    "snapshot.provenance.recorder": {
+      "section": "§5.3",
+      "members": {
+        "id": {"required": true, "access": "optional", "enforcedBy": "S5-RECORDER-STATED",
+               "holds": "the recorder's identity, which every published trace address is derived from"},
+        "traceSchema": {"required": true, "access": "optional", "enforcedBy": "S5-RECORDER-STATED",
+                        "holds": "the schema this recorder's containers are written in, which the trace address is also derived from"}
       }
     },
 
@@ -297,8 +483,10 @@
                       "holds": "the replay's own measurements of the recording it wrote"},
         "recordedBy": {"required": false, "access": "optional",
                        "holds": "this row's own recorder commit, which outranks every other source"},
-        "transactionFee": {"required": false, "access": "optional",
-                           "holds": "the fee the chain charged, as the row's cost vector"},
+        "cost": {"required": true, "access": "required",
+                 "holds": "what this transaction cost, as Static-Site-Architecture.md §2.3's VECTOR — one entry per fee dimension, verbatim"},
+        "executions": {"required": true, "access": "required",
+                       "holds": "the independently-debuggable executions this transaction holds, each named by the producer's own selector — §5.3"},
         "sourceBundles": {"required": false, "access": "optional",
                           "holds": "where this row's source bundle is; §5.1's default applies when it is silent"},
         "instructions": {"required": false, "access": "optional",
@@ -320,6 +508,34 @@
         "rootsAnyAgree": {"required": false, "access": "optional", "holds": "republished under `native.replay`"},
         "refusal": {"required": false, "access": "optional",
                     "holds": "the runtime error class behind a `refused` row, kept as evidence in the published summary"}
+      }
+    },
+
+    "snapshot.transactions[].cost[]": {
+      "section": "§5.3",
+      "members": {
+        "name": {"required": true, "access": "optional", "enforcedBy": "S5-COST-VECTOR",
+                 "holds": "what this dimension is called, in the producer's own words"},
+        "used": {"required": true, "access": "optional", "enforcedBy": "S5-COST-VECTOR",
+                 "holds": "the figure charged in this dimension, verbatim"},
+        "limit": {"required": false, "access": "optional", "holds": "the ceiling, where the chain has one"},
+        "price": {"required": false, "access": "optional", "holds": "the per-unit price, where the chain has one"},
+        "unit": {"required": false, "access": "optional",
+                 "holds": "the unit `used` is counted in; the reader supplies none, so an unstated unit is published unstated"},
+        "token": {"required": false, "access": "optional",
+                  "holds": "the token the fee is denominated in; the reader supplies none"},
+        "refundable": {"required": false, "access": "optional",
+                       "holds": "whether the unused part comes back; absent reads as false, which is what a chain with no refund model means"}
+      }
+    },
+
+    "snapshot.transactions[].executions[]": {
+      "section": "§5.3",
+      "members": {
+        "selector": {"required": true, "access": "optional", "enforcedBy": "S5-EXECUTIONS-NAMED",
+                     "holds": "this execution's name within the transaction — the value the overlay row and the trace address are keyed by"},
+        "reason": {"required": false, "access": "optional",
+                   "holds": "why THIS execution carries no trace, where the row's own container is not its. Its presence is what tells the reader which execution the container belongs to, so it is the member S5-EXECUTIONS-ONE-TRACED counts"}
       }
     },
 
@@ -405,7 +621,9 @@
         "shape": {"required": false, "access": "optional", "holds": "the artifact's shape, republished beside the text"},
         "corroboration": {"required": false, "access": "optional", "holds": "`corroborated` for two independent distributors, `single-distributor` for one"},
         "agreeingDistributors": {"required": false, "access": "optional",
-                                 "holds": "who agreed on the debug symbols; an absent list publishes as the empty one"}
+                                 "holds": "who agreed on the debug symbols; an absent list publishes as the empty one"},
+        "language": {"required": false, "access": "optional",
+                     "holds": "the language THIS bundle's positions are written in, which is what makes a bundle and its language unable to disagree. The reader names none on the producer's behalf: a bundle that states none publishes none, and the manifest beside it claims none — §5.3"}
       }
     },
 
@@ -426,6 +644,8 @@
       "defaultPath": "positions",
       "section": "§5.4",
       "members": {
+        "schema": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-SCHEMA",
+                   "holds": "the stream's own schema token, republished verbatim onto the published stream — §5.3"},
         "steps": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-AGREE",
                   "holds": "the stream's own step count, which must equal the recording's"},
         "pathId": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-COLUMNS", "holds": "per-step index into `paths`"},
@@ -509,6 +729,8 @@
       "section": "§5.4",
       "sameShapeAs": "sidecar:positions",
       "members": {
+        "schema": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-SCHEMA",
+                   "holds": "the stream's own schema token, republished verbatim onto the published stream — §5.3"},
         "steps": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-AGREE", "holds": "the stream's own step count"},
         "pathId": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-COLUMNS", "holds": "per-step index into `paths`"},
         "line": {"required": true, "access": "optional", "enforcedBy": "S5-POSITIONS-COLUMNS", "holds": "per-step line"},

@@ -9,10 +9,13 @@
 // Until this file the only thing holding the two together was that somebody had read both
 // and agreed with themselves, and the measured result of that was:
 //
-//   * §5 named NINE member paths. The reader consumes 117 over 22 containers — so 108
+//   * §5 named NINE member paths. The reader consumed 117 over 22 containers — so 108
 //     were unnamed, across `provenance`, `window`, `blocks[]`, `captures[]`,
 //     `transactions[]` and five sidecars, and 19 of them were reached by unguarded
-//     bracket access, which RAISES in Nim rather than answering null.
+//     bracket access, which RAISES in Nim rather than answering null. Those are the
+//     figures of the GAP, measured on 2026-09-17 when it closed; the census has grown
+//     since and §1 and §2 below PRINT its current size rather than any comment restating
+//     one.
 //
 //     THE NINE ARE the member paths §5 stated as REQUIREMENTS: §5.2's six-row table
 //     (`format`, `provenance`, `window`, `counts`, `blocks`, `transactions`) plus the three
@@ -48,11 +51,13 @@
 // The mutation arms in §6 are copies of those real files with one edit, which is the
 // opposite of a mock: the point is that the thing under test is the shipping artifact.
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { extractReaderContract, flatten, readerShapeViolations, pathDefaultLiterals,
-         REQUIRED, OPTIONAL } from './lib/reader-contract.mjs';
+         chainVocabularyLiterals, REQUIRED, OPTIONAL } from './lib/reader-contract.mjs';
+import { RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
+         costVectorForRow, executionsForRow } from './lib/producer-facts.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CONTRACT = join(root, 'tools', 'chain', 'snapshot-contract.json');
@@ -508,6 +513,225 @@ test('§8 the reader uses no access shape the walk cannot see, and spells no pat
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
+test('§9 the reader names no chain, and the scan that says so is shown able to fail');
+{
+  // WHAT THIS HOLDS, AND WHY IT IS NOT COVERED BY THE CENSUS ABOVE. §5.3's six facts are
+  // read out of the snapshot now, and §2 would notice if one stopped being read. What §2
+  // cannot notice is a SEVENTH arriving — a literal naming a chain, a VM, a fee token or an
+  // ecosystem language, written somewhere the census has no member for. One had already
+  // arrived exactly that way: `"schema": "avm-source-positions/1"`, a VM name in a
+  // published wire token, which no reading of the six would have found.
+  //
+  // The vocabulary is DATA (`chainVocabulary` in the census) rather than a regex in a
+  // script, for the reason the rule ids are: a check may only cite what the contract
+  // states. `contract_rules.nim` parses the same block at COMPILE time, so an empty or
+  // malformed term list stops the reader's build rather than producing a scan that matches
+  // nothing.
+  const vocab = contract.chainVocabulary;
+  ck(`the ban ranges over a stated set of files — ${vocab.scope.length}`,
+     Array.isArray(vocab.scope) && vocab.scope.length >= 5
+     && vocab.scope.includes(contract.reader));
+
+  // …AND THE SCOPE CANNOT BE OUTGROWN, WHICH IS THE OTHER DIRECTION AND THE ONE THAT WAS
+  // MISSING. The arm above says the stated set cannot SHRINK unnoticed. It said nothing
+  // about the reader GROWING past it: a new module under `src/blocktracer/chain/` holding
+  // the literal seventh-constant shape was added by a reviewer and this suite reported
+  // "5 files, 0 violations" and rc 0 — a clean result about a file it had never opened,
+  // which is the same vacuity the scope exists to prevent, one directory over.
+  //
+  // The reader's own directory is the boundary the ban is about, so it is DERIVED here
+  // rather than restated: every `.nim` beside the reader must be in the declared scope,
+  // and the failure names the files, because "the scope is incomplete" is not actionable
+  // and "chain_facts.nim is not in the ban's scope" is.
+  const readerDir = dirname(contract.reader);
+  const beside = readdirSync(join(root, readerDir))
+    .filter((f) => f.endsWith('.nim')).map((f) => `${readerDir}/${f}`).sort();
+  const outOfScope = beside.filter((f) => !vocab.scope.includes(f));
+  ck(`…and it covers every .nim beside the reader — ${beside.length} file(s), `
+     + `${outOfScope.length} outside the ban`
+     + (outOfScope.length ? `: ${outOfScope.join(', ')}` : ''),
+     outOfScope.length === 0);
+  ck(`the vocabulary is not empty and every term names its category — ${vocab.terms.length} term(s), `
+     + `${new Set(vocab.terms.map((t) => t.kind)).size} kind(s)`,
+     vocab.terms.length >= 30
+     && vocab.terms.every((t) => t.term && t.kind)
+     && ['chain', 'vm', 'language', 'token'].every((k) => vocab.terms.some((t) => t.kind === k)));
+
+  let totalViolations = 0, totalComments = 0;
+  const offenders = [];
+  for (const rel of vocab.scope) {
+    const src = readFileSync(join(root, rel), 'utf8');
+    const r = chainVocabularyLiterals(src, vocab.terms);
+    totalViolations += r.violations.length;
+    totalComments += r.commentOccurrences;
+    for (const v of r.violations) offenders.push(`${rel}:${v.line} ${v.term} (${v.kind})`);
+  }
+  ck(`no file in scope names a chain, a VM, a fee token or a language in CODE — ${totalViolations}`,
+     totalViolations === 0);
+  if (offenders.length) console.error(`    ${offenders.join('\n    ')}`);
+
+  // THE COMMENT HALF IS REPORTED, NOT BANNED, AND THE FIGURE IS MEASURED HERE SO NO PROSE
+  // ANYWHERE CARRIES IT. The reader's comments record which chain a decision was measured
+  // on and why; a comment cannot reach a published object. Banning them would delete the
+  // reasoning and buy nothing. What the arm holds is that the count is NON-ZERO — because
+  // a zero here would mean the scan had stopped seeing the file at all, which is exactly
+  // how a "must not contain" check goes quietly vacuous.
+  ck(`…and the comments that do name one are counted rather than banned — ${totalComments}`,
+     totalComments > 0);
+
+  // ── EACH ATTACK, PLANTED, WITH WHAT IT IS STATED TO DO ────────────────────────────
+  //
+  // "Banned outright" about a regex that is not banned outright is the failure this
+  // library has already made once, with three spellings walked past a nine-shape ban that
+  // documented itself as covering them. So the scan is ATTACKED here, form by form, and
+  // the forms it does NOT catch are asserted to be missed rather than left unmentioned: a
+  // residual that is measured is a residual, and one that is only described is a hope.
+  const READER_SRC = readerSrc;
+  const ATTACKS = [
+    ['plain literal',                '  let x = "aztec"',                     true],
+    ['adjacent-literal concatenation', '  let x = "azt" & "ec"',              true],
+    ['concatenation across lines',   '  let x = "azt" &\n    "ec"',           true],
+    ['concatenation past a comment', '  let x = "azt" & # why\n    "ec"',     true],
+    // THE TWO FORMS THE SPLICE DID NOT SEE, and they sat INSIDE the class this bullet
+    // claims: the first rule required the quotes to touch the `&`, so parentheses walked
+    // past it, and it joined only quoted operands, so a named one walked past it too.
+    // Both compile, both print `aztec`, and the scan said nothing about either.
+    ['parenthesised concatenation',  '  let x = ("azt") & ("ec")',            true],
+    ['concatenation with a NAMED operand',
+     '  let suffixEc = "ec"\n  let x = "azt" & suffixEc',                     true],
+    ['…and with the name on the left',
+     '  let prefixAzt = "azt"\n  let x = prefixAzt & "ec"',                   true],
+    ['a const alias',                '  const AztecSlug = "aztec"',           true],
+    ['a case change',                '  let x = "AZTEC"',                     true],
+    ['an identifier, not a string',  '  let aztecFee = 1',                    true],
+    ['a camel hump in suffix position', '  let feeInGas = 1',                 true],
+    ['a term glued to a camelCase word', '  let gasUsed = 1',                 true],
+    ['a hyphenated token',           '  let x = "aztec-avm"',                 true],
+    ['a slashed wire token',         '  let x = "avm-source-positions/1"',    true],
+    ['a fee unit',                   '  let x = "mana"',                      true],
+    ['a fee token',                  '  let x = "FeeJuice"',                  true],
+    ['an ecosystem language',        '  let x = "noir"',                      true],
+    ['a chain nobody here has run',  '  let x = "solana"',                    true],
+    // THE SIX TERMS A REVIEWER MEASURED MISSING. One apiece for the two the absence was
+    // concretely wrong about: `wasm` is a VM name and this workspace ships three Wasm
+    // recorders, and `ink` is Polkadot's language while `polkavm`, its VM, was already
+    // banned — so the pair was half-covered.
+    ['a VM this workspace ships three recorders for', '  let x = "wasm"',     true],
+    ['the language whose VM was already banned', '  let x = "ink"',           true],
+    ['a rollup nobody here has run', '  let x = "zksync"',                    true],
+    // The FALSE POSITIVE the camel-hump rule buys, stated as one rather than hidden: an
+    // all-caps word whose interior spells a term. Measured at zero over every file in
+    // scope (the green arm above), which is why the rule is worth its cost.
+    ['all-caps prose whose interior spells a term (a FALSE POSITIVE)',
+     '  let x = "THE MANAGER SAID SO"',                                       true],
+    // ── AND THE FOUR IT CANNOT SEE ──────────────────────────────────────────────────
+    ['a trailing comment (deliberately not a violation)',
+     '  discard 1 # aztec is the chain this was measured on',                 false],
+    ['a doc comment (deliberately not a violation)',
+     '  ## aztec is the chain this was measured on',                          false],
+    ['a character escape (RESIDUAL: no text scan reaches it)',
+     '  let x = "azt\\x65c"',                                                 false],
+    ['a name synthesised from a char (RESIDUAL: same)',
+     '  let x = chr(97) & "ztec"',                                            false],
+    // THE OTHER HALF OF THE BOUNDARY RULE, planted so the limit is measured rather than
+    // only described. The clause that rejects a match followed by a lowercase letter is
+    // what lets a correct reader write `manage`, `gasoline` and `suite`; the same clause
+    // is why a term with a lowercase tail walks past. There is no version of the rule
+    // that has one without the other, so this is a residual and not a bug.
+    ['a term with a lowercase tail (RESIDUAL: the manage/gasoline rule, the other way)',
+     '  let x = "aztecnet"',                                                  false],
+    ['a term inside a longer lowercase word (RESIDUAL: same clause)',
+     '  let x = "myaztecchain"',                                              false],
+    // AND THE ACCUMULATED FORM. The splice reads one expression because that is where a
+    // concatenation's operands sit; spread over two statements they are a program a text
+    // scan would have to interpret.
+    ['a name accumulated over statements (RESIDUAL: not one expression)',
+     '  var s = "azt"\n  s.add "ec"',                                         false],
+  ];
+  const misbehaved = ATTACKS.filter(([, code, expect]) =>
+    (chainVocabularyLiterals(READER_SRC + '\n' + code + '\n', vocab.terms)
+      .violations.length > 0) !== expect);
+  const caught = ATTACKS.filter(([, , e]) => e).length;
+  ck(`each planted form behaves exactly as stated — ${ATTACKS.length - misbehaved.length} of `
+     + `${ATTACKS.length} (${caught} caught, ${ATTACKS.length - caught} stated as missed)`
+     + (misbehaved.length ? `; ${misbehaved.map((a) => a[0]).join('; ')}` : ''),
+     misbehaved.length === 0);
+  // Stated separately, because "22 of 29 behave as stated" is satisfied by a scan that
+  // catches nothing and a table that expects nothing. The missed count is pinned EXACTLY
+  // rather than bounded: a residual that quietly grows is how a ban stops being one.
+  ck(`…and the caught half is the majority of the table — ${caught} of ${ATTACKS.length}`,
+     caught >= 22 && ATTACKS.length - caught === 7);
+
+  // …AND THE NARROW BOUNDARY RULE, WHICH IS WHAT THIS WAS FIRST WRITTEN AS, MISSES THE
+  // IDENTIFIER FORM. Without this arm the green above is a pass whose subject cannot be
+  // shown to have moved. The narrow rule is a plain non-alphanumeric boundary on both
+  // sides; it catches every quoted form and walks straight past `let aztecFee = 1`, which
+  // is the evasion one token wide. Same WIDE/NARROW idiom as §6j and §8.
+  const narrowFinds = (code) => {
+    for (const { term } of vocab.terms) {
+      const re = new RegExp('(?<![A-Za-z0-9])' + term + '(?![A-Za-z0-9])', 'i');
+      for (const line of code.split('\n')) if (re.test(line)) return true;
+    }
+    return false;
+  };
+  const narrowMissed = ['  let aztecFee = 1', '  let feeInGas = 1', '  let gasUsed = 1']
+    .filter((code) => !narrowFinds(code));
+  ck(`…and the NARROW boundary rule misses all three camelCase forms — ${narrowMissed.length} of 3`,
+     narrowMissed.length === 3
+     && narrowFinds('  let x = "aztec"'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+test('§10 the lift is faithful: the producer states exactly what the reader used to spell');
+{
+  // WHY THIS EQUALITY IS HERE RATHER THAN NOWHERE. Six values moved out of the reader and
+  // into the producer. "Moved" is a claim about two trees and the strong
+  // evidence for it is the byte-identity recipe — `just byte-identity <pre-lift-ref>`,
+  // which rebuilds both producers and diffs every published object. That recipe cannot run
+  // inside a suite, so what runs here is the other half: the values the producer now states
+  // are compared against the literals the reader used to spell, written out below.
+  //
+  // THE LITERALS BELOW ARE THE POINT. They are a second, independent copy — the pre-lift
+  // reader's own text, transcribed once — so a change to `producer-facts.mjs` turns this
+  // red and has to be made deliberately in two places. That is the opposite of the usual
+  // rule against two copies: here the two copies ARE the assertion, because the claim is
+  // that one equals the other.
+  ck(`the recorder identity is the one the reader spelled — ${RECORDER.id}`,
+     RECORDER.id === 'aztec-avm');
+  ck(`the trace schema is the one the reader spelled — ${RECORDER.traceSchema}`,
+     RECORDER.traceSchema === 'ctfs/v4');
+  ck(`the position language is the one the reader spelled — ${POSITION_LANGUAGE}`,
+     POSITION_LANGUAGE === 'noir');
+  ck(`the position-stream schema token is the one the reader spelled — ${POSITION_STREAM_SCHEMA}`,
+     POSITION_STREAM_SCHEMA === 'avm-source-positions/1');
+  ck(`the prestate strategy is the one the reader spelled — ${PRESTATE_STRATEGY}`,
+     PRESTATE_STRATEGY === 'hydrated-from-node');
+  {
+    const v = costVectorForRow('0xdeadbeef');
+    ck(`the cost vector is the single entry the reader constructed — ${JSON.stringify(v)}`,
+       v.length === 1 && v[0].name === 'transactionFee' && v[0].used === '0xdeadbeef'
+       && v[0].limit === '' && v[0].price === '' && v[0].unit === 'mana'
+       && v[0].token === 'FeeJuice' && v[0].refundable === false);
+    // AND AN ABSENT FIGURE IS AN EMPTY ONE, which is what `t{"transactionFee"}.getStr`
+    // answered before the lift. A row whose receipt carried no fee published `used: ""`,
+    // and it still does — a lift that turned that into `undefined` would drop the member
+    // and be refused by the very rule that requires it.
+    ck('…and a row with no fee figure states an empty one, as the reader did',
+       costVectorForRow(undefined)[0].used === '');
+  }
+  ck(`the execution partition is the single selector the reader spelled — `
+     + `${JSON.stringify(executionsForRow())}`,
+     executionsForRow().length === 1 && executionsForRow()[0].selector === 'public'
+     && executionsForRow()[0].reason === undefined);
+  // …AND THE PRESTATE STRATEGY IS IN THE CLOSED SET IT IS NOW DRAWN FROM. The lift is only
+  // faithful if the value it moved is one the new refusal admits; a producer stating a
+  // value its own reader refuses is a lift that published nothing.
+  ck(`…and it is one of §1.4's six — ${contract.prestateStrategies.tokens.length} token(s)`,
+     contract.prestateStrategies.tokens.includes(PRESTATE_STRATEGY)
+     && contract.prestateStrategies.tokens.length === 6);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
 test('§7 the census is well formed');
 {
   ck(`it declares the format this build reads`,
@@ -534,8 +758,8 @@ test('§7 the census is well formed');
 }
 
 console.error(`\nassertion count: ${asserted} (as declared)`);
-if (asserted !== 51) {
-  console.error(`snapshot-contract-selftest: asserted ${asserted}, declared 51`);
+if (asserted !== 68) {
+  console.error(`snapshot-contract-selftest: asserted ${asserted}, declared 68`);
   process.exit(1);
 }
 if (failed) {

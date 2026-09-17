@@ -44,6 +44,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { POSITION_STREAM_SCHEMA } from './lib/producer-facts.mjs';
 
 const dir = process.argv[2];
 if (!dir) {
@@ -138,7 +139,10 @@ for (const t of snap.transactions) {
 
   mkdirSync(outDir, { recursive: true });
   const out = {
-    schema: 'avm-source-positions/1',
+    // §5.3: the stream's own schema token. The READER used to spell this and now
+    // republishes whatever the stream states, so it is single-sourced beside the rest
+    // of this producer's facts rather than spelled once here and once there.
+    schema: POSITION_STREAM_SCHEMA,
     tx: t.txHash,
     steps: steps.length,
     positioned,
