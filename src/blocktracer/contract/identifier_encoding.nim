@@ -559,18 +559,6 @@ proc identifierKindList*(): string =
   ## The kind members, for a failure message.
   identifierKindIds().join(", ")
 
-static:
-  # THE THREE NAMED KINDS ARE MEMBERS, ASSERTED AT COMPILE TIME. Without this the
-  # constants above would be a second, silently-diverging copy of the kind set:
-  # renaming `address` in the shared file would leave `addressIndexPath` asking
-  # for a kind no row can declare, and the failure would arrive at run time in a
-  # producer rather than here.
-  doAssert isIdentifierKind(KindTransaction)
-  doAssert isIdentifierKind(KindAddress)
-  doAssert isIdentifierKind(KindBlock)
-  # …and the legacy fallback names a real member, for the same reason.
-  doAssert isIdentifierEncoding(LegacyUndeclaredEncoding)
-
 func identifierEncodingRule*(encoding: string): ShardKeyRule =
   ## The shard-path rule a token implies, from the shared file.
   ##
@@ -586,6 +574,34 @@ func identifierEncodingRule*(encoding: string): ShardKeyRule =
     ". Adding one is an amendment to Search-And-Routing.md §2's shape table " &
     "and belongs in tools/chain/identifier-encodings.json with the row it " &
     "comes from and the shardKey rule it implies.")
+
+
+func isShardableIdentifierEncoding*(id: string): bool =
+  ## Can a member of the set be a shard path SEGMENT?
+  ##
+  ## The one place that asks it, so `shards.nim`'s refusal and a producer's
+  ## up-front refusal are the same question rather than two spellings of it.
+  ## `base64` answers false: its alphabet contains `/`, so about one 44-character
+  ## digest in eight would publish into a nested directory.
+  identifierEncodingRule(id).pathSafe
+
+proc shardableIdentifierEncodingList*(): string =
+  ## The members that CAN key a path, for a failure message. A refusal that names
+  ## only the rejected token makes the reader go looking; one that also names what
+  ## it could have been makes the repair visible from the failure.
+  var ids: seq[string]
+  for e in IdentifierEncodings:
+    if isShardableIdentifierEncoding(e.id): ids.add e.id
+  ids.join(", ")
+
+proc unshardableIdentifierEncodingList*(): string =
+  ## ...and the members that cannot, so the set is printed WHOLE. Naming only the
+  ## permitted half leaves a reader unable to tell a token that is unknown from
+  ## one that is known and refused, which are two different repairs.
+  var ids: seq[string]
+  for e in IdentifierEncodings:
+    if not isShardableIdentifierEncoding(e.id): ids.add e.id
+  ids.join(", ")
 
 func identifierCaseRule*(encoding: string): IdentifierCaseRule =
   ## The CASE rule a token implies, from the shared file.

@@ -636,9 +636,13 @@ test('exactly the expected files know about each half of the seam');
   // `blocktracer_client/paths.nim`'s signature, not a second reader of the declaration,
   // and the module it re-exports is in the set.
   ck('nine files under src/ read the declaration', sizeOf('declaration').src.length === 9);
-  ck('seven under client/, and one under tools/ — this suite',
+  // TWO under tools/ AND NOT ONE: `snapshot-contract-selftest.mjs` joined when §5.6's
+  // declaration became reachable. `provenance.identifierEncoding` is in §5.2b's census
+  // now, so the census check names it, and its §15 asserts the SHAPE of the reader's one
+  // binding. It derives nothing — it reads a Nim file as text.
+  ck('seven under client/, and TWO under tools/ — this suite and the census check',
      sizeOf('declaration').client.length === 7
-     && sizeOf('declaration').tools.length === 1);
+     && sizeOf('declaration').tools.length === 2);
   ck('six files under src/ read the case rule', sizeOf('caseRule').src.length === 6);
   ck('three under client/ — the query canonicaliser, the route enumerator and the '
      + 'browser bundle — and one under tools/',

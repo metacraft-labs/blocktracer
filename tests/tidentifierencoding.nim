@@ -1324,6 +1324,187 @@ suite "case handling is stated per encoding, not applied globally":
     removeDir t2
 
 # ───────────────────────────────────────────────────────────────────────────
+suite "a PRODUCER declares how its chain writes identifiers, and the reader keys by it":
+
+  # ── WHY THIS SUITE EXISTS ────────────────────────────────────────────────
+  #
+  # `Data-Contract.md` §5.6 recorded this as a BLOCKER: the derivation took the
+  # encoding as data, and no producer had a member with which to say which
+  # encoding its chain used, so the reader called `hexIdentifierEncoding()`
+  # unconditionally for every chain. A Tezos capture carrying canonical
+  # base58check operation hashes therefore published them lowercased, at
+  # addresses that do not exist on the chain, and the only repair available to
+  # that producer was to fold its own identifiers — which makes the run green
+  # and the tree wrong.
+  #
+  # `provenance.identifierEncoding` is the declaration. The suites above measure
+  # the VALUE and the registry round trip; this one measures the READER: that it
+  # reads the member, keys by what it read, publishes what it keyed with, and
+  # refuses the declarations it cannot honour.
+  #
+  # NO MOCKS. Every tree is built by the real `ingestSnapshot` over a copy of the
+  # committed mainnet capture with one member edited, and every path is checked
+  # by asking the filesystem whether the object is there.
+
+  proc ingestDeclaring(tag: string, decl: JsonNode): string =
+    ## The real producer over a real capture whose provenance declares `decl`
+    ## (or nothing, when `decl` is nil). Returns the tree.
+    let snapDir = tmpDir(tag & "-snap")
+    copyDir(LiveMainnet, snapDir)
+    var snap = parseJson(readFile(snapDir / "snapshot.json"))
+    if decl == nil:
+      if snap["provenance"].hasKey("identifierEncoding"):
+        snap["provenance"].delete("identifierEncoding")
+    else: snap["provenance"]["identifierEncoding"] = decl
+    writeFile(snapDir / "snapshot.json", snap.pretty & "\n")
+    result = tmpDir(tag)
+    discard ingestSnapshot(IngestConfig(outDir: result, snapshotDir: snapDir))
+    removeDir snapDir
+
+  proc refusedBy(tag: string, decl: JsonNode): string =
+    ## The message the producer refuses a declaration with, or "" if it did not.
+    try:
+      let t = ingestDeclaring(tag, decl)
+      removeDir t
+      ""
+    except ValueError as e:
+      e.msg
+
+  proc treeBytes(root: string): seq[(string, string)] =
+    for p in relFiles(root): result.add (p, readFile(root / p))
+
+  test "a capture that declares nothing is hex, and that is the additive rule":
+    # The compatibility case, and it is the one every committed capture is in:
+    # none of them carries the member, and the trees they publish are the trees
+    # they always published.
+    let tree = ingestDeclaring("decl-absent", nil)
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    ck row.hasKey("identifierEncoding")
+    ck row["identifierEncoding"]["transaction"].getStr == "hex"
+    ck row["identifierEncoding"]["address"].getStr == "hex"
+    ck row["identifierEncoding"]["block"].getStr == "hex"
+    removeDir tree
+
+  test "…and a capture that DECLARES hex publishes the identical tree, byte for byte":
+    # THE BYTE-NEUTRALITY CLAIM, AS A MEASUREMENT RATHER THAN AS A SENTENCE.
+    # §5.6 said the member would be additive; this is the reading. The two trees
+    # are built by the same producer over the same capture, one with the member
+    # and one without, and every published path and every published byte is
+    # compared.
+    let a = ingestDeclaring("decl-none", nil)
+    let b = ingestDeclaring("decl-hex", %*{"block": "hex", "transaction": "hex",
+                                           "address": "hex"})
+    let ba = treeBytes(a)
+    let bb = treeBytes(b)
+    # ANTI-VACUITY: two empty trees compare equal perfectly.
+    ck ba.len >= 20
+    var differing: seq[string]
+    for i in 0 ..< max(ba.len, bb.len):
+      if i >= ba.len or i >= bb.len or ba[i] != bb[i]:
+        differing.add (if i < ba.len: ba[i][0] else: bb[i][0])
+    if differing.len > 0:
+      checkpoint("differing: " & differing.join(", "))
+    ck differing.len == 0
+    removeDir a
+    removeDir b
+
+  test "a DIFFERENT declaration moves every sharded path, so the reader reads it":
+    # The control for the arm above: if the member were ignored, declaring
+    # something else would change nothing. `base64url` preserves case and strips
+    # no prefix, so the `0x` that hex strips is payload here and every shard
+    # segment moves.
+    let hexTree = ingestDeclaring("decl-hex2", %*{"block": "hex",
+                                                  "transaction": "hex",
+                                                  "address": "hex"})
+    let b64Tree = ingestDeclaring("decl-b64url", %*{"block": "base64url",
+                                                    "transaction": "base64url",
+                                                    "address": "base64url"})
+    let hexPaths = relFiles(hexTree)
+    let b64Paths = relFiles(b64Tree)
+    ck hexPaths.len == b64Paths.len          # the same objects…
+    ck hexPaths != b64Paths                  # …at different addresses
+    # And the addresses are the ones the DECLARATION implies, recomputed here
+    # from the declared token rather than from the tree.
+    let slug = onlySlug(rawRegistry(b64Tree))
+    var checkedTx = 0
+    for p in relFiles(hexTree):
+      if not (p.startsWith("d/" & slug & "/tx/") and p.endsWith(".json")): continue
+      let txHash = p.splitFile.name
+      ck fileExists(b64Tree / txFactsPath(slug, txHash,
+                    chainIdentifierEncoding({"transaction": "base64url"})))
+      ck shardKeyFor("base64url", txHash) == txHash[0 ..< 4]
+      ck shardKeyFor("hex", txHash) != shardKeyFor("base64url", txHash)
+      inc checkedTx
+    ck checkedTx >= 1
+    # …and the registry states what the paths were keyed with, which is the whole
+    # single-source property: one value published and derived from.
+    let row = rawRegistry(b64Tree)["chains"][slug]
+    ck row["identifierEncoding"]["transaction"].getStr == "base64url"
+    ck row["identifierEncoding"]["address"].getStr == "base64url"
+    ck row["identifierEncoding"]["block"].getStr == "base64url"
+    removeDir hexTree
+    removeDir b64Tree
+
+  test "base64 is DECLARABLE and not shardable, and is refused by name":
+    # §5.6's named blocker: the member is in the closed set and its alphabet
+    # contains `/`, so about one 44-character digest in eight would publish into
+    # a nested directory. The refusal happens before anything is written, names
+    # the encoding and the kind, prints BOTH halves of the set, and says what
+    # closing it needs.
+    ck isIdentifierEncoding("base64")
+    ck not isShardableIdentifierEncoding("base64")
+    let msg = refusedBy("decl-b64", %*{"block": "hex", "transaction": "base64",
+                                       "address": "hex"})
+    ck msg.len > 0
+    ck msg.contains("S5-IDENTIFIER-ENCODING-SHARDABLE")
+    ck msg.contains("'base64'")
+    ck msg.contains("transaction")
+    ck msg.contains("not legal in one")
+    ck msg.contains(shardableIdentifierEncodingList())
+    ck msg.contains(unshardableIdentifierEncodingList())
+    ck msg.contains("identifier-encodings.json")
+    ck msg.contains("Search-And-Routing.md")
+    # The whole set is printed, both halves, and they partition it.
+    var both = shardableIdentifierEncodingList().split(", ")
+    both.add unshardableIdentifierEncodingList().split(", ")
+    both.sort()
+    ck both == identifierEncodingIds().sorted()
+    ck unshardableIdentifierEncodingList() == "base64"
+
+  test "a token outside the closed set is refused naming the set, not read as hex":
+    let msg = refusedBy("decl-bad-token", %*{"block": "hex",
+                                             "transaction": "base32",
+                                             "address": "hex"})
+    ck msg.contains("S5-IDENTIFIER-ENCODING-CLOSED")
+    ck msg.contains("'base32'")
+    ck msg.contains(identifierEncodingList())
+
+  test "a kind outside the closed set is refused naming the kinds":
+    let msg = refusedBy("decl-bad-kind", %*{"block": "hex", "transaction": "hex",
+                                            "address": "hex",
+                                            "traceArtifactId": "hex"})
+    ck msg.contains("S5-IDENTIFIER-ENCODING-CLOSED")
+    ck msg.contains("traceArtifactId")
+    ck msg.contains(identifierKindList())
+
+  test "a kind this producer writes a path for may not be omitted":
+    # An omitted kind is LEGAL in the contract — Substrate's `blockIndex`
+    # transaction identity is the case that forces it — and `encodingFor` raises
+    # on one. That raise would arrive from inside a path builder, halfway through
+    # a tree. This producer writes all three, so it refuses before it starts.
+    for kind in [KindBlock, KindTransaction, KindAddress]:
+      var decl = %*{"block": "hex", "transaction": "hex", "address": "hex"}
+      decl.delete(kind)
+      let msg = refusedBy("decl-omit-" & kind, decl)
+      ck msg.contains("S5-IDENTIFIER-ENCODING-CLOSED")
+      ck msg.contains("declares no identifier encoding for kind '" & kind & "'")
+
+  test "a declaration of the wrong SHAPE is refused rather than shrugged at":
+    let msg = refusedBy("decl-shape", %"hex")
+    ck msg.contains("S5-IDENTIFIER-ENCODING-CLOSED")
+    ck msg.contains("object of kind -> encoding")
+
+# ───────────────────────────────────────────────────────────────────────────
 suite "the encoding has exactly one source: the registry row":
 
   # The milestone's `test_the_encoding_has_exactly_one_source` and
@@ -1682,7 +1863,12 @@ suite "the boundary: who knows about each half of the seam":
     # back to reconstruct a format-1 entry's `0x`, which format 1 cannot store.
     ck expectedLen("declaration", "src") == 9
     ck expectedLen("declaration", "client") == 7
-    ck expectedLen("declaration", "tools") == 1
+    # 2 AND NOT 1: `tools/chain/snapshot-contract-selftest.mjs` joined when §5.6's
+    # declaration became reachable. The member is in §5.2b's census now, so the
+    # census check names it — and its §15 asserts the SHAPE of the reader's one
+    # binding, which is a claim about `ingest.nim`'s source that no behavioural
+    # test can make. It derives nothing; it reads a Nim file as text.
+    ck expectedLen("declaration", "tools") == 2
     ck expectedLen("caseRule", "src") == 6
     ck expectedLen("caseRule", "client") == 3
     ck expectedLen("caseRule", "tools") == 1
@@ -1721,7 +1907,13 @@ suite "the boundary: who knows about each half of the seam":
 
     let ingest = readFile(RepoRoot / "src/blocktracer/chain/ingest.nim")
     ck ingest.contains("identifier_encoding")
-    ck ingest.contains("let identifierEncoding = hexIdentifierEncoding()")
+    # The binding is an EXPRESSION — `let x = block:` — so there is nowhere to
+    # reassign it, and the value it takes comes from the producer's own
+    # declaration rather than from a constant in this reader. §5.6 was open
+    # precisely because that constant was unconditional.
+    ck ingest.contains("let identifierEncoding = block:")
+    ck ingest.contains("prov{\"identifierEncoding\"}")
+    ck not ingest.contains("var identifierEncoding")
     ck ingest.contains(
       "\"identifierEncoding\": identifierEncoding.identifierEncodingNode()")
     ck not ingest.contains("\"identifierEncoding\": {")
@@ -1878,4 +2070,4 @@ suite "the boundary: who knows about each half of the seam":
       inc comparedTops
     ck comparedTops == 3
 
-expectCount(664)
+expectCount(733)

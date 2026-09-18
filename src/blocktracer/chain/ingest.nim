@@ -873,15 +873,127 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # failure the encoding-as-data seam exists to remove, and the reason the
   # declaration and the derivation are not two variables here.
   #
-  # `hex` is MEASURED for this chain and not assumed — `hexIdentifierEncoding`
-  # carries the counts and says where to re-run them.
   # AND EVERY PATH IS BUILT BY THE FUNCTIONS THE CLIENT USES, not by hand. That
   # is the other half of "one decision": handing the same value to `shardKeyFor`
   # and then naming the object with the RAW identifier is two decisions again,
   # and it was measured writing `d/{chain}/tx/0a80/0x0A807E….json` — folded
   # shard, unfolded name — for an uppercase `txHash`. `contract/shards.nim` holds
   # the builders for exactly this reason; see its header.
-  let identifierEncoding = hexIdentifierEncoding()
+  #
+  # ---- IT IS THE PRODUCER'S DECLARATION NOW, NOT THIS READER'S CONSTANT ------
+  #
+  # This was `hexIdentifierEncoding()` unconditionally — one hard-coded call, for
+  # every chain — and that was §5.6's blocker stated as code: a producer had no
+  # member with which to say which encoding its chain uses, so a Tezos capture
+  # carrying canonical base58check operation hashes published them lowercased, at
+  # addresses that do not exist on the chain. The only repair available to that
+  # producer was to fold its own identifiers, which makes the run green and the
+  # tree wrong.
+  #
+  # `provenance.identifierEncoding` is the declaration, and it is ADDITIVE
+  # (§3.1): absent means hex, which is what every tree published before the
+  # member existed was keyed under. Measured before it was made reachable, so
+  # "byte-neutral" is a reading rather than an expectation — 18,039 distinct
+  # `0x…` identifiers across all five committed captures, 0 not already
+  # lowercase, and 2,928 path segments in a freshly produced tree, 0 not
+  # lowercase. On this corpus the fold the encoding selects IS the identity
+  # function, which is also why `just byte-identity`'s mutant is the payload
+  # composition and not the case rule (that recipe's own header says so).
+  #
+  # ONE `let`, AND IT IS AN EXPRESSION SO THERE IS NOWHERE TO REASSIGN IT. The
+  # declaration and the derivation are one value or they are two decisions, and
+  # `tools/chain/snapshot-contract-selftest.mjs` §15 asserts the shape of this
+  # binding rather than trusting the sentence above it.
+  let identifierEncoding = block:
+    let declared = prov{"identifierEncoding"}
+    if declared == nil or declared.kind == JNull:
+      hexIdentifierEncoding()
+    else:
+      if declared.kind != JObject:
+        raise newException(ValueError,
+          RuleIdentifierEncodingClosed &
+          "the snapshot for chain '" & chain & "' at " & snapPath &
+          " states `provenance.identifierEncoding` as a " & $declared.kind &
+          " and §5.6 makes it an object of kind -> encoding. " &
+          ruleStatement("S5-IDENTIFIER-ENCODING-CLOSED") &
+          " The kinds are: " & identifierKindList() &
+          ". The encodings are: " & identifierEncodingList() & ".")
+      var byKind: seq[(string, string)]
+      for kind, value in declared:
+        if not isIdentifierKind(kind):
+          raise newException(ValueError,
+            RuleIdentifierEncodingClosed &
+            "the snapshot for chain '" & chain & "' at " & snapPath &
+            " declares identifier kind '" & kind &
+            "', which is not a member of the closed set (" &
+            identifierKindList() & "). " &
+            ruleStatement("S5-IDENTIFIER-ENCODING-CLOSED") &
+            " Adding a kind is an amendment to Configuration.md §2.1 and belongs " &
+            "in tools/chain/identifier-encodings.json with the path sites it names.")
+        if value.kind != JString or not isIdentifierEncoding(value.getStr):
+          raise newException(ValueError,
+            RuleIdentifierEncodingClosed &
+            "the snapshot for chain '" & chain & "' at " & snapPath &
+            " declares '" & (if value.kind == JString: value.getStr else: $value.kind) &
+            "' for identifier kind '" & kind &
+            "', which is not a member of the closed set (" &
+            identifierEncodingList() & "). " &
+            ruleStatement("S5-IDENTIFIER-ENCODING-CLOSED") &
+            " Adding one is an amendment to Search-And-Routing.md §2's shape " &
+            "table and belongs in tools/chain/identifier-encodings.json with the " &
+            "row it comes from.")
+        # ---- DECLARABLE IS NOT THE SAME AS SHARDABLE ------------------------
+        #
+        # `base64` is a member of the set and cannot be a path segment: its
+        # alphabet contains `/`, so about one 44-character TON digest in eight
+        # would publish into a nested directory. `contract/shards.nim` already
+        # refuses on `pathSafe`, but it refuses at the moment a path is built —
+        # partway through a run, per identifier, after the registry row has been
+        # decided. A declaration is refused HERE, before anything is written, and
+        # both refusals ask `isShardableIdentifierEncoding` rather than each
+        # spelling the rule.
+        if not isShardableIdentifierEncoding(value.getStr):
+          raise newException(ValueError,
+            RuleIdentifierEncodingShardable &
+            "the snapshot for chain '" & chain & "' at " & snapPath &
+            " declares '" & value.getStr & "' for identifier kind '" & kind &
+            "'. It is a member of the closed set and it cannot be a shard path " &
+            "segment: its alphabet contains a character that is not legal in one. " &
+            ruleStatement("S5-IDENTIFIER-ENCODING-SHARDABLE") &
+            " The members that CAN key a path are: " &
+            shardableIdentifierEncodingList() &
+            ". The members that cannot are: " &
+            unshardableIdentifierEncodingList() &
+            ". Closing this means choosing a path-safe re-encoding, which " &
+            "Search-And-Routing.md §2 and §5 do not specify — see the shardKey " &
+            "notes in tools/chain/identifier-encodings.json.")
+        byKind.add (kind, value.getStr)
+      # ---- AND EVERY KIND THIS PRODUCER WRITES A PATH FOR MUST BE THERE -----
+      #
+      # An omitted kind is legal in the contract — Substrate's `blockIndex`
+      # transaction identity is the case that forces it — and `encodingFor`
+      # raises on one. That raise would arrive from inside a path builder,
+      # halfway through a tree, naming a kind rather than the snapshot. This
+      # producer writes a block path, a transaction path and an address path, so
+      # a declaration silent about any of the three cannot publish and says so
+      # before it starts.
+      for kind in [KindBlock, KindTransaction, KindAddress]:
+        var found = false
+        for (k, _) in byKind:
+          if k == kind: found = true
+        if not found:
+          raise newException(ValueError,
+            RuleIdentifierEncodingClosed &
+            "the snapshot for chain '" & chain & "' at " & snapPath &
+            " declares no identifier encoding for kind '" & kind &
+            "'. This producer writes a sharded path for every one of " &
+            KindBlock & ", " & KindTransaction & " and " & KindAddress &
+            ", so a declaration silent about one of them cannot key a tree. " &
+            ruleStatement("S5-IDENTIFIER-ENCODING-CLOSED") &
+            " An omitted kind is legal in the contract and means the chain does " &
+            "not identify it by an encoded string; it is refused here because " &
+            "this reader would then have no path to write.")
+      chainIdentifierEncoding(byKind)
 
   # ---- the artifact-resolution SIDECAR, if this capture has one -------------
   #

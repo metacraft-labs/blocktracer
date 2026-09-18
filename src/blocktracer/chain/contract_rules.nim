@@ -244,6 +244,8 @@ const
   RuleExecutionsNamed* = cite("S5-EXECUTIONS-NAMED")
   RuleExecutionsOneTraced* = cite("S5-EXECUTIONS-ONE-TRACED")
   RulePositionsSchema* = cite("S5-POSITIONS-SCHEMA")
+  RuleIdentifierEncodingClosed* = cite("S5-IDENTIFIER-ENCODING-CLOSED")
+  RuleIdentifierEncodingShardable* = cite("S5-IDENTIFIER-ENCODING-SHARDABLE")
 
 # ── THE MEMBERS A READER TAKES BY BRACKET, FROM THE CENSUS ────────────────────
 #

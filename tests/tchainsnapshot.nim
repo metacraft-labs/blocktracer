@@ -662,6 +662,18 @@ proc violate(id, dir: string): string =
     # which of them the row's single container is a recording of.
     firstOutcome(doc, "replayed")["executions"] =
       %*[{"selector": "one"}, {"selector": "two"}]
+  of "S5-IDENTIFIER-ENCODING-CLOSED":
+    # PRESENT AND OUTSIDE THE SET, which is the shape §5.6's rule is about. An
+    # ABSENT member is the §3.1 compatibility case and means `hex`, so deleting
+    # it reaches no rule at all — the reader publishes exactly what it always did.
+    doc["provenance"]["identifierEncoding"] =
+      %*{"block": "hex", "transaction": "base32", "address": "hex"}
+  of "S5-IDENTIFIER-ENCODING-SHARDABLE":
+    # DECLARABLE AND NOT SHARDABLE, which is the OTHER §5.6 refusal and the
+    # reason it is a rule of its own: `base64` IS a member of the closed set, so
+    # the rule above has nothing to say about it. Its alphabet contains `/`.
+    doc["provenance"]["identifierEncoding"] =
+      %*{"block": "hex", "transaction": "base64", "address": "hex"}
   of "S5-POSITIONS-SCHEMA":
     let p = dir / "positions" / (PositionedTx & ".json")
     var n = parseJson(readFile(p))
@@ -698,6 +710,7 @@ const RuleCases = [
   "S5-RECORDER-STATED", "S5-PRESTATE-STATED", "S5-PRESTATE-CLOSED",
   "S5-COST-VECTOR", "S5-EXECUTIONS-NAMED", "S5-EXECUTIONS-ONE-TRACED",
   "S5-POSITIONS-SCHEMA",
+  "S5-IDENTIFIER-ENCODING-CLOSED", "S5-IDENTIFIER-ENCODING-SHARDABLE",
 ]
 
 suite "a refusal names the §5 rule it enforces, and the repaired snapshot ingests":
@@ -822,7 +835,7 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
   # the last test. 3 × 4 = 12. The case-list test's own arms are three regardless
   # of how many rules there are, which is why it is an equality rather than a
   # count.
-  expectCount(163)
+  expectCount(171)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT

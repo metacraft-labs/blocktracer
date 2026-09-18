@@ -252,13 +252,13 @@ fi
 # SO THE ARM IS A RESOLUTION AND NOT A FILE LISTING. It takes a real refusal
 # inside the sandbox, reads the rule id the kit itself printed, and requires that
 # id to be found in the shipped contract file — which is the thing a recipient
-# actually does. A `[ -f ... ]` check would pass over three empty files.
-for f in snapshot-contract.json snapshot-format.json refusal-reasons.json; do
+# actually does. A `[ -f ... ]` check would pass over four empty files.
+for f in snapshot-contract.json snapshot-format.json refusal-reasons.json identifier-encodings.json; do
 	if [ -s "${kit}/contract/${f}" ]; then
 		report_pass "the release carries contract/${f} ($(wc -c <"${kit}/contract/${f}") bytes)"
 	else
 		report_fail "the release does not carry a non-empty contract/${f}" \
-			"a recipient holding a rule id, a format token or a refusalReason has nothing to resolve it against"
+			"a recipient holding a rule id, a format token, a refusalReason or an identifier-encoding token has nothing to resolve it against"
 	fi
 done
 cited="$(printf '%s\n' "${rel_out}" | grep -m1 '^  rule: ' | sed 's/^  rule: //' | cut -d' ' -f1)"
@@ -295,8 +295,8 @@ fi
 echo
 echo "conformance-kit-sandbox: $((pass + fail)) check(s), ${fail} failing"
 [ "${fail}" -eq 0 ] || exit 1
-[ "${pass}" -ge 18 ] || {
-	echo "conformance-kit-sandbox: only ${pass} arm(s) ran; at least 18 are expected." >&2
+[ "${pass}" -ge 19 ] || {
+	echo "conformance-kit-sandbox: only ${pass} arm(s) ran; at least 19 are expected." >&2
 	echo "  A suite that lost its arms reports zero failures, which is the shape of" >&2
 	echo "  green this file exists to refuse." >&2
 	exit 1

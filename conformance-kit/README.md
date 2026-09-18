@@ -99,6 +99,10 @@ contract/snapshot-format.json     the readable `format` tokens, what each requir
                                   three populations they partition
 contract/refusal-reasons.json     the closed set of `refusalReason` members, each
                                   with its durability and the condition it means
+contract/identifier-encodings.json  the closed set of identifier ENCODINGS a chain
+                                  may declare, and per member the shard-key rule and
+                                  the case rule that token implies — including which
+                                  members can key a path at all
 ```
 
 These are the *same files* the binary reads — they are compiled into it — so they
@@ -113,9 +117,9 @@ contract. Between them every member you **may leave out** appears present in one
 and absent in the other — which is how you learn, without reading §5.2b line by line,
 which those are. The **52** members the contract requires of every container appear in
 both, because a tree short of one of them is not a conforming tree and could not be
-shipped here as an example of one. (The census is 136 members: 52 required
+shipped here as an example of one. (The census is 137 members: 52 required
 everywhere, 6 required on some rows and not others — `container` on a traced row,
-`refusalReason` on an untraced one — and 78 optional. The 84 that are not required
+`refusalReason` on an untraced one — and 79 optional. The 85 that are not required
 everywhere are the ones shown both ways.)
 
 **`minimal/`** is the floor: one block, one untraced transaction, every member the
@@ -181,20 +185,34 @@ trace" button, and `unsupported` says no recorder exists for this VM. The reader
 constructs neither, and `tests/tchainsnapshot.nim` asserts that it does not, so this
 is a measured gap rather than a claim about coverage.
 
-## Before you write identifiers: the case constraint
+## Before you write identifiers: say which encoding your chain uses
 
-**This tree is read as though every chain wrote `hex` identifiers, and `hex`
-folds case.** If your chain's identifiers are case-significant — base58,
-base58check, base64url or SS58, which is Solana, Sui, TON, Cardano, Tezos and
-Cosmos — the published objects are keyed by a *lowercased* form of what you
-wrote, and `[2/3]` refuses the tree by name.
+**`provenance.identifierEncoding` is where you say it**, and if you leave it out
+your tree is read as `hex` — which folds case. If your chain's identifiers are
+case-significant — base58, base58check, base64url or SS58, which is Solana, Sui,
+TON, Cardano, Tezos and Cosmos — a tree that declares nothing is keyed by a
+*lowercased* form of what you wrote, and `[2/3]` refuses it by name.
 
-Lowercasing your identifiers makes the run green and is the **wrong repair**: it
-produces a tree whose transaction hashes do not exist on your chain. The seam
-below this is already per-encoding and correct; what is missing is any member
-through which a snapshot can *declare* its chain's encoding. `Data-Contract.md`
-§5.6 states the whole of it and records it as an open blocker rather than a rule
-you can satisfy. Tell us which chain you are recording before you start.
+**Do not lowercase your identifiers to make that go away.** It makes the run
+green and produces a tree whose transaction hashes do not exist on your chain.
+Declare the encoding instead:
+
+```json
+"provenance": {
+  "identifierEncoding": { "block": "base58", "transaction": "base58", "address": "base58" }
+}
+```
+
+Three things to know before you write one. It is **per kind**, and all three of
+`block`, `transaction` and `address` must be there, because the reader writes a
+sharded path for each of them. The tokens come from the closed set in
+`contract/identifier-encodings.json` beside this file — a token outside it is
+refused naming the set rather than read as `hex`. And **`base64` is declarable
+and cannot key a path**: its alphabet contains `/`, so a fraction of identifiers
+would publish into a nested directory, and the reader refuses a tree that
+declares it rather than doing that. If your chain is one of those, say so before
+you start — choosing a path-safe re-encoding is our decision to make, not yours
+to work around.
 
 ## The two documents this file names
 

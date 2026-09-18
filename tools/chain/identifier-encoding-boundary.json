@@ -226,6 +226,10 @@
           {
             "path": "tools/chain/identifier-encoding-selftest.mjs",
             "why": "the JavaScript half's selftest, and still nothing else: the capture tooling enumerates what was published rather than deriving it"
+          },
+          {
+            "path": "tools/chain/snapshot-contract-selftest.mjs",
+            "why": "§5.2b's census check. It joined this set when §5.6's declaration became reachable: the member is now in the census, so this suite names it, and its §15 asserts the STRUCTURE of the reader's one binding — that `ingest.nim` builds one declaration, publishes that value and keys every path from it. That is a claim about the reader's source which no behavioural test can make, and it derives nothing"
           }
         ]
       }

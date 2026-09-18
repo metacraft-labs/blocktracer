@@ -205,6 +205,14 @@
     "S5-POSITIONS-SCHEMA": {
       "section": "§5.4",
       "statement": "A position stream states its own schema token, which is republished verbatim; a stream that states none is refused rather than published under a token the reader chose for it."
+    },
+    "S5-IDENTIFIER-ENCODING-CLOSED": {
+      "section": "§5.6",
+      "statement": "`provenance.identifierEncoding` is OPTIONAL and maps identifier KIND to encoding TOKEN, both drawn from the closed sets tools/chain/identifier-encodings.json states. Absent means hex — what every tree published before the member existed was keyed under. A member of the wrong shape, a kind or a token outside the set, or a declaration that omits a kind this producer writes a path for, is refused naming the sets: reading any of them as hex would publish objects at addresses no client computes."
+    },
+    "S5-IDENTIFIER-ENCODING-SHARDABLE": {
+      "section": "§5.6",
+      "statement": "Every encoding a snapshot declares must be usable as a shard path SEGMENT. base64 is declarable and is not one — its alphabet contains a slash, so a fraction of identifiers would silently publish into a nested directory. Such a declaration is refused naming the encoding, the kind that declared it, the path-safe members of the set it could be instead, and the decision closing it needs."
     }
   },
 
@@ -399,7 +407,9 @@
         "recorder": {"required": true, "access": "optional", "enforcedBy": "S5-RECORDER-STATED",
                      "holds": "who recorded this capture's executions, and in what trace schema — §5.3"},
         "prestateStrategy": {"required": true, "access": "optional", "enforcedBy": "S5-PRESTATE-STATED",
-                             "holds": "how the producer obtained the state each execution ran against, from Chain-Support-Matrix.md §1.4's closed set — §5.3"}
+                             "holds": "how the producer obtained the state each execution ran against, from Chain-Support-Matrix.md §1.4's closed set — §5.3"},
+        "identifierEncoding": {"required": false, "access": "optional", "enforcedBy": "S5-IDENTIFIER-ENCODING-CLOSED",
+                               "holds": "how this chain writes its identifiers, per kind — the one declaration the reader keys every sharded path from AND publishes onto the registry row. Absent means hex, which is what every tree published before the member existed was keyed under — §5.6"}
       }
     },
 

@@ -12,7 +12,12 @@
       "id": "example-recorder",
       "traceSchema": "example-trace/v1"
     },
-    "prestateStrategy": "self-contained"
+    "prestateStrategy": "self-contained",
+    "identifierEncoding": {
+      "block": "hex",
+      "transaction": "hex",
+      "address": "hex"
+    }
   },
   "window": {
     "tip": 1002,

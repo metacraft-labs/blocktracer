@@ -135,7 +135,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TEN suites — 98 + 19 + 24 + 24 + 57 + 229 + 33 + 153 + 53 + 105 = 795 counted assertions —
+# TEN suites — 98 + 19 + 24 + 24 + 57 + 229 + 33 + 153 + 53 + 115 = 805 counted assertions —
 # over the ten decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -840,8 +840,8 @@ conformance dir="conformance-kit/template/complete":
 # rather than a debug build of a working tree.
 #
 # `ci/test/conformance-kit-sandbox.sh` is the arm that proves the negatives, by
-# running this artifact somewhere they all hold — 18 checks, of which the last
-# five are the FOURTH absence: no specification either. A refusal taken inside
+# running this artifact somewhere they all hold — 19 checks, of which the last
+# six are the FOURTH absence: no specification either. A refusal taken inside
 # the sandbox has its rule id resolved against `contract/snapshot-contract.json`
 # as shipped, which is what a recipient with a tarball and no checkout does.
 #
@@ -866,7 +866,12 @@ conformance dir="conformance-kit/template/complete":
 # "Compiled into the binary" is true and is not the same as "travelling with you":
 # a recipient holding `S5-COUNTS-ROWS` had no file to look it up in, and
 # `prestateStrategy`'s closed set lived in a spec document the release omits. The
-# three data files the reader itself reads are copied in beside the binaries.
+# four data files the reader itself reads are copied in beside the binaries.
+#
+# `identifier-encodings.json` joined them when Data-Contract.md §5.6's declaration
+# became reachable: the README now tells a recorder to pick an encoding token out
+# of a closed set, and a closed set named in a README that does not travel with
+# the README is a set the recipient cannot read.
 conformance-kit-release out="conformance-kit-release":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -881,6 +886,7 @@ conformance-kit-release out="conformance-kit-release":
     cp tools/chain/snapshot-contract.json "$out/contract/snapshot-contract.json"
     cp tools/chain/snapshot-format.json "$out/contract/snapshot-format.json"
     cp tools/chain/refusal-reasons.json "$out/contract/refusal-reasons.json"
+    cp tools/chain/identifier-encodings.json "$out/contract/identifier-encodings.json"
     echo "conformance kit staged in $out/ — run $out/bin/blocktracer-conformance --snapshot $out/template/complete"
 
 # Prove the released artifact needs no toolchain, no checkout and no network.

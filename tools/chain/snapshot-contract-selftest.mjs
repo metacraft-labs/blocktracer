@@ -1227,6 +1227,146 @@ test('§14 every tool that writes a transaction row states the lifted facts thro
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
+//
+// §15 IS THE ASSERTION §5.6 ASKED FOR RATHER THAN THE SENTENCE IT USED TO BE. The
+// declaration a producer writes and the key form every published path is derived from
+// must be ONE value: "a producer that declared one encoding and keyed another is the
+// failure the encoding-as-data seam exists to remove" is §5.6's own wording, and until
+// this section the only thing making it true of `ingest.nim` was a comment above a `let`.
+//
+// It is a structural check over the reader's SOURCE because that is where the property
+// lives. A behavioural test can show that one declaration produces one keying; it cannot
+// show that there is no SECOND place the reader could decide, and a second place is what
+// this is about. The behavioural half — default hex, a declared encoding moving every
+// path, and `base64` refused by name — is `tests/tidentifierencoding.nim`'s.
+test('§15 the reader builds ONE identifier encoding, and both its uses derive from it');
+{
+  /**
+   * The whole rule, as one function, so the arms below call exactly what the green arm
+   * calls (Verification-Harness-Traps §30). Returns a finding per violation.
+   */
+  const oneEncodingViolations = (src) => {
+    const out = [];
+    const code = src.split('\n')
+      .map((l) => (/^\s*#/.test(l) ? '' : l.replace(/\s#(?!\{).*$/, '')))
+      .join('\n');
+    // 1. exactly one BINDING, and it is a `let` — a `var` is a place to reassign.
+    const bindings = [...code.matchAll(/\b(let|var)\s+identifierEncoding\b/g)];
+    if (bindings.length !== 1) {
+      out.push(`the reader binds \`identifierEncoding\` ${bindings.length} time(s); §5.6 `
+               + 'makes it one value');
+    } else if (bindings[0][1] !== 'let') {
+      out.push('the reader binds `identifierEncoding` with `var`, so the declaration it '
+               + 'publishes and the one it keys with can be made to differ');
+    }
+    // 2. and nothing assigns to it afterwards. The BINDING is an assignment too, so it
+    //    is subtracted rather than excluded by a lookbehind: the count that means
+    //    something is "writes beyond the one that created it".
+    const allWrites = [...code.matchAll(/(^|[^.\w])identifierEncoding\s*=[^=]/g)];
+    const writes = allWrites.length - bindings.length;
+    if (writes !== 0) {
+      out.push(`\`identifierEncoding\` is assigned ${writes} time(s) after it is bound`);
+    }
+    // 3. exactly one construction of each kind — a second `hexIdentifierEncoding()` or a
+    //    second `chainIdentifierEncoding(` is a second decision however it is named.
+    for (const ctor of ['hexIdentifierEncoding()', 'chainIdentifierEncoding(']) {
+      const n = code.split(ctor).length - 1;
+      if (n !== 1) out.push(`the reader calls \`${ctor}\` ${n} time(s), and one decision `
+                            + 'is one call');
+    }
+    // 4. the registry row publishes THAT value, not a freshly built one.
+    if (!/"identifierEncoding":\s*identifierEncoding\.identifierEncodingNode\(\)/.test(code)) {
+      out.push('the registry row does not publish `identifierEncoding.identifierEncodingNode()`, '
+               + 'so the declaration it states is not demonstrably the one it keyed with');
+    }
+    // 5. and every sharded path builder is handed it. The builders are the census's own
+    //    path sites; a call with a bare encoding TOKEN instead of the value is the shape
+    //    that let the two drift before `shardKeyFor` took a declaration.
+    for (const builder of ['blockPath(', 'txFactsPath(', 'txStatePath(',
+                           'traceSelectionPath(', 'addressIndexPath(']) {
+      const calls = [...code.matchAll(new RegExp(`${builder.replace('(', '\\(')}[^)]*\\)`, 'g'))];
+      if (calls.length === 0) {
+        out.push(`the reader calls no \`${builder}…)\` at all, so this rule is looking at `
+                 + 'nothing');
+        continue;
+      }
+      const bare = calls.filter((c) => !/\bidentifierEncoding\b/.test(c[0]));
+      if (bare.length) {
+        out.push(`${bare.length} \`${builder}…)\` call(s) do not derive from `
+                 + '`identifierEncoding`');
+      }
+    }
+    return out;
+  };
+
+  const live = oneEncodingViolations(readerSrc);
+  ck(`the reader as it ships states one encoding and derives everything from it — `
+     + `${live.length} finding(s)` + (live.length ? `: ${live.join('; ')}` : ''),
+     live.length === 0);
+  // ANTI-VACUITY: the rule is a set of set-differences over the reader's text, and a
+  // reader the walk could not read would report no violations exactly as a correct one
+  // does. Rule 5 already refuses an empty path-builder set; this is the same guard on the
+  // subject as a whole.
+  ck(`…and the subject is the shipping reader, not an empty string — `
+     + `${readerSrc.length} bytes`, readerSrc.length > 10000);
+
+  /** an arm fires when one edit to the shipping reader produces a finding matching `re` */
+  const bites = (what, edit, re) => {
+    const found = oneEncodingViolations(edit(readerSrc));
+    ck(`${what} — caught` + (found.length ? `: ${found.find((f) => re.test(f)) ?? found[0]}` : ''),
+       found.some((f) => re.test(f)));
+  };
+
+  bites('a SECOND encoding built beside the first',
+        (s) => s.replace('  let identifierEncoding = block:',
+                         '  let encodingForPaths = hexIdentifierEncoding()\n'
+                         + '  let identifierEncoding = block:'),
+        /hexIdentifierEncoding\(\)` 2 time\(s\)/);
+  bites('the one binding turned into a `var`',
+        (s) => s.replace('let identifierEncoding = block:', 'var identifierEncoding = block:'),
+        /binds `identifierEncoding` with `var`/);
+  bites('…and then reassigned after the declaration was read',
+        (s) => s.replace('let identifierEncoding = block:',
+                         'var identifierEncoding = block:')
+                .replace('  # ---- the artifact-resolution SIDECAR',
+                         '  identifierEncoding = hexIdentifierEncoding()\n'
+                         + '  # ---- the artifact-resolution SIDECAR'),
+        /assigned 1 time\(s\) after it is bound/);
+  bites('the registry row publishing a FRESHLY built declaration instead of the one it keyed',
+        (s) => s.replace('"identifierEncoding": identifierEncoding.identifierEncodingNode()',
+                         '"identifierEncoding": hexIdentifierEncoding().identifierEncodingNode()'),
+        /does not publish `identifierEncoding\.identifierEncodingNode\(\)`/);
+  bites('one path builder keyed by a bare token instead of the declaration',
+        (s) => s.replace('txFactsPath(chain, txHash, identifierEncoding)',
+                         'txFactsPath(chain, txHash, hexIdentifierEncoding())'),
+        /`txFactsPath\(…\)` call\(s\) do not derive from/);
+
+  // ── AND THE DECLARATION IS REACHABLE, WHICH IS THE OTHER HALF OF §5.6 ───────────────
+  //
+  // A reader that reads one value and never reads the snapshot's member would satisfy
+  // every arm above while §5.6's blocker stayed open. These three assert that the value
+  // comes from the producer's declaration, that the census records the member it reads,
+  // and that the unshardable case is refused rather than keyed.
+  ck('it reads the declaration off the snapshot the producer wrote',
+     /prov\{"identifierEncoding"\}/.test(readerSrc));
+  ck('…and §5.2b\'s census records that member as optional, defaulting to hex',
+     contract.containers['snapshot.provenance'].members.identifierEncoding?.required === false
+     && contract.containers['snapshot.provenance'].members.identifierEncoding?.access === 'optional');
+  {
+    // The refusal prints the WHOLE set — both halves — and the remedy, which is this
+    // house's closed-set style and is what makes a refusal a diagnosis. Asserted over the
+    // reader's text because the behavioural arm is the Nim suite's.
+    const refusal = readerSrc.slice(readerSrc.indexOf('RuleIdentifierEncodingShardable'));
+    const parts = ['shardableIdentifierEncodingList()', 'unshardableIdentifierEncodingList()',
+                   'identifier-encodings.json', 'Search-And-Routing.md'];
+    const absent = parts.filter((p) => !refusal.slice(0, 1400).includes(p));
+    ck(`the unshardable refusal names the encoding, both halves of the set and the remedy`
+       + (absent.length ? `; MISSING: ${absent.join(', ')}` : ''),
+       absent.length === 0 && /declares '" & value\.getStr/.test(refusal.slice(0, 1400)));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
 test('§7 the census is well formed');
 {
   ck(`it declares the format this build reads`,
@@ -1253,8 +1393,8 @@ test('§7 the census is well formed');
 }
 
 console.error(`\nassertion count: ${asserted} (as declared)`);
-if (asserted !== 105) {
-  console.error(`snapshot-contract-selftest: asserted ${asserted}, declared 105`);
+if (asserted !== 115) {
+  console.error(`snapshot-contract-selftest: asserted ${asserted}, declared 115`);
   process.exit(1);
 }
 if (failed) {
