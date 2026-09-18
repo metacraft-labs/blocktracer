@@ -420,7 +420,9 @@
         "finalized": {"required": true, "access": "required",
                       "holds": "the node's own finalized tip at capture, which is what the published pointer names"},
         "blocks": {"required": true, "access": "required",
-                   "holds": "how many blocks the replay window spans, republished verbatim"}
+                   "holds": "how many blocks the replay window spans, republished verbatim"},
+        "replayableFrom": {"required": false, "access": "optional",
+                           "holds": "the lowest position the node could serve prestate for at capture \u2014 the parameter of Chain-Support-Matrix.md \u00a71.3's history floor, published on the chain's registry row and nowhere else"}
       }
     },
 
@@ -650,7 +652,9 @@
       "section": "§5.4",
       "members": {
         "steps": {"required": true, "access": "optional", "enforcedBy": "S5-INSTRUCTIONS-AGREE",
-                  "holds": "the listing's own step count, which must equal the recording's"}
+                  "holds": "the listing's own step count, which must equal the recording's"},
+        "isa": {"required": false, "access": "optional",
+                "holds": "the instruction set this listing's opcode numbers are numbers in; carried up to the chain's registry row so a consumer may select a mnemonic table before it opens a recording"}
       }
     },
 

@@ -24,8 +24,14 @@
 import std/[json, strutils]
 import ../blocktracer/contract/model
 import ../blocktracer/contract/version
+# The registry's per-chain PROFILE — Configuration.md §2.1's `reach`,
+# `historyFloor`, `ordering` and `vm`. Re-exported here for `model`'s reason: a
+# consumer needs one import to get both the reader and the vocabulary it speaks,
+# and the profile's vocabulary is the same `TxOrderKind` union this module
+# already decodes every transaction's ordering with.
+import ../blocktracer/contract/chain_profile
 
-export model, version
+export model, version, chain_profile
 
 type
   ContractDecodeError* = object of ValueError

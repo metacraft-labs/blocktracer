@@ -40,7 +40,8 @@
 ## position resolve to a line of code.
 
 import std/[json, os, strutils, sha1, algorithm, tables]
-import ../contract/[model, version, ids, searchidx, identifier_encoding]
+import ../contract/[model, version, ids, searchidx, identifier_encoding,
+                    chain_profile]
 import ./entrypages
 
 type
@@ -257,6 +258,20 @@ proc demoIdentifierEncoding(): ChainIdentifierEncoding =
   ## `0x` + 40 lowercase hex and every synthetic hash here is the same shape.
   hexIdentifierEncoding()
 
+const DemoOrderingKind* = tokBlockIndex
+  ## WHICH QUANTITY SEQUENCES THIS CHAIN'S TRANSACTIONS — ONE DECISION FOR THIS
+  ## PRODUCER, for `demoIdentifierEncoding`'s reason.
+  ##
+  ## Every `TxOrder` this generator constructs takes its kind from here, and
+  ## `writeRegistry` declares the same constant, so the registry's claim about
+  ## this chain and the rows it published cannot come to disagree. Two literals
+  ## in two procs would be two places to drift, which is what
+  ## Static-Site-Architecture.md §2.3's union exists to prevent one level down.
+  ##
+  ## This chain is a synthetic one whose blocks are numbered and whose
+  ## transactions carry an index within their block, so `blockIndex` is what its
+  ## rows are and not an assumption about chains in general.
+
 proc recorderRef(): RecorderRef =
   RecorderRef(id: recorderId, build: recorderBuildHash(recorderId, recorderVersion),
               version: recorderVersion)
@@ -287,13 +302,31 @@ proc writeRegistry(cfg: DemoConfig) =
   # IT IS `demoIdentifierEncoding()`, WHICH IS ALSO WHAT `generate` KEYS WITH —
   # that function's doc says why this producer's declaration and its derivation
   # have to be one decision.
-  reg["chains"][chain] = %*{
+  let row = %*{
     "recorder": {"id": recorderId, "build": recorderBuildHash(recorderId, recorderVersion),
                  "version": recorderVersion},
     "profile": {"name": profileName, "hash": profileHash(profileName)},
     "traceSchema": traceSchema,
     "identifierEncoding": demoIdentifierEncoding().identifierEncodingNode()
   }
+  # THE CHAIN PROFILE — Configuration.md §2.1, additive under §2.2.
+  #
+  # ONE OF ITS FOUR MEMBERS IS DECLARED HERE AND THREE ARE NOT, and the
+  # asymmetry is the point rather than an omission. The ordering kind is a fact
+  # this producer knows because it constructs every row (`DemoOrderingKind`, the
+  # same constant those rows take their kind from). The other three are facts it
+  # does not have: this chain has no node with a retention window, so there is no
+  # boundary to measure and no reach to state — and `archive` would be a claim
+  # that any historical position is reachable, which is a strong claim to make
+  # about a chain that is generated rather than observed. It publishes no
+  # instruction listing either, so there is no instruction set to name.
+  #
+  # Absent is the honest answer for all three, and the consumer distinguishes
+  # "nobody said" from every value it could have said.
+  row.mergeChainProfile(ChainProfile(
+    ordering: ChainOrdering(state: dsDeclared, kind: DemoOrderingKind,
+                            token: $DemoOrderingKind)))
+  reg["chains"][chain] = row
   cfg.writeJson("registry" / "chains.v" & $ContractVersion & ".json", reg)
 
 proc readSourceFiles(dir: string): seq[tuple[path, content: string]] =
@@ -473,7 +506,7 @@ proc mkPublicFacts(seed, txHash, blockHash: string, height, index: int;
   TransactionFacts(
     chain: chain,
     id: TxId(kind: tikHash, hash: txHash),
-    order: TxOrder(kind: tokBlockIndex, obBlock: blockHash, obHeight: height,
+    order: TxOrder(kind: DemoOrderingKind, obBlock: blockHash, obHeight: height,
                    obIndex: index),
     outcome: Outcome(overall: ooSucceeded, parts: @[]),
     roles: @[Role(role: "feePayer", address: synthAddr(seed, "feepayer", payerIdx))],
@@ -743,7 +776,7 @@ proc build(cfg: DemoConfig): seq[DemoTx] =
     var facts = TransactionFacts(
       chain: chain,
       id: TxId(kind: tikHash, hash: h),
-      order: TxOrder(kind: tokBlockIndex, obBlock: b101, obHeight: 101, obIndex: 0),
+      order: TxOrder(kind: DemoOrderingKind, obBlock: b101, obHeight: 101, obIndex: 0),
       outcome: Outcome(overall: ooPartial,
         reason: "private-part-succeeded-public-part-succeeded",
         parts: @[%*{"unit": "private", "outcome": "succeeded"},

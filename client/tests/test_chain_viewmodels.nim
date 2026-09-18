@@ -75,6 +75,8 @@ type
     recorderPinned: bool
     historyFloor: int             ## 0 => the registry states none
     floorReason: string
+    reach: string                 ## "" => the registry states none
+    orderingKind: string          ## "" => the registry declares no ordering
     stale: bool                   ## summary.json's own flag
     headHeight: int               ## current.json's canonical tip
     indexedHeight: int            ## the height the generation actually indexed
@@ -109,6 +111,11 @@ func defaultOpts(): TreeOpts =
     chain: "eth", generation: "1",
     recorderPinned: true,
     historyFloor: 0, stale: false,
+    # The undegraded chain is ordered by block height, because every row this
+    # builder writes is. A tree whose registry declared nothing would be a tree
+    # on which no floor is comparable, which would make every floor case below
+    # pass for the wrong reason.
+    orderingKind: "blockIndex",
     headHeight: 19_000_000, indexedHeight: 19_000_000,
     txCanonical: true, txStatePublished: true,
     availability: taReady, publishManifest: true,
@@ -136,6 +143,14 @@ proc buildTree(dir: string; o: TreeOpts): Tree =
   if o.historyFloor > 0:
     chainEntry["historyFloor"] =
       %*{"height": o.historyFloor, "reason": o.floorReason}
+    # §1.3's kind beside its parameter. A floor with no reach is refused by the
+    # validator (`profileConsistency`), so a builder that wrote one would be
+    # building trees no producer may publish.
+    chainEntry["reach"] = %(if o.reach.len > 0: o.reach else: "floor")
+  elif o.reach.len > 0:
+    chainEntry["reach"] = %o.reach
+  if o.orderingKind.len > 0:
+    chainEntry["ordering"] = %*{"kind": o.orderingKind}
   # A registry with the chain present but no recorder pin is the tree shape
   # that produces `trkUnresolvable` — §14's "recorder unavailable" at chain
   # granularity. `decodeRecorderPin` needs `recorder`, so removing it is
@@ -696,6 +711,12 @@ suite "M12 — §14 row 5: transaction below the history floor":
     var o = defaultOpts()
     o.historyFloor = 19_500_000
     o.floorReason = "prestate is not archived below this height"
+    # §14's row is "Debug ABSENT", so the subject is a transaction with nothing
+    # to open. A transaction that already has a published container is not this
+    # row — see `trace_status_vm`'s note on why a container outranks the floor —
+    # and driving this case on one would have been asserting the wrong rule.
+    o.availability = taOnDemand
+    o.publishManifest = false
     let t = buildTree(tmpDir("below-floor"), o)
     let l = openTree(t)
     check l.registry.floor.val.stated
@@ -729,22 +750,109 @@ suite "M12 — §14 row 5: transaction below the history floor":
     check l.tx.degradation.val == cdNone
 
   test "a chain that does not order by height cannot be compared to a floor":
+    # THE DECLARATION DECIDES, AND THE CONTROL IS THE SAME NUMBER ON A CHAIN
+    # THAT DOES ORDER BY HEIGHT. Both trees carry the identical floor and the
+    # identical row; the only difference between them is the ordering kind the
+    # registry declares, so the refusal is attributable to that and to nothing
+    # else.
+    var nonHeight = defaultOpts()
+    nonHeight.historyFloor = 19_500_000
+    nonHeight.orderingKind = "consensusTime"   # Hedera's
+    let a = buildTree(tmpDir("order-consensus-time"), nonHeight)
+    let la = openTree(a)
+    check la.registry.floor.val.stated
+    check la.registry.floor.val.height == 19_500_000
+    check not la.registry.orderedByHeight
+    # …including on a row that carries a perfectly good height. An inference
+    # from the row would answer `fvBelow` here.
+    check la.registry.floorVerdict(
+      BlockPosition(known: true, height: 19_000_000)) == fvNotComparable
+    check la.registry.floorVerdict(BlockPosition(known: false)) == fvNotComparable
+    la.loadTx(a)
+    check la.traceStatus.floorVerdict.val == fvNotComparable
+
+    var height = defaultOpts()
+    height.historyFloor = 19_500_000
+    height.orderingKind = "blockIndex"
+    let b = buildTree(tmpDir("order-block-index"), height)
+    let lb = openTree(b)
+    check lb.registry.floor.val.height == la.registry.floor.val.height
+    check lb.registry.orderedByHeight
+    check lb.registry.floorVerdict(
+      BlockPosition(known: true, height: 19_000_000)) == fvBelow
+    # …and a row with no position of its own is still not comparable, which is
+    # the case this VM answered before the declaration existed and still does.
+    check lb.registry.floorVerdict(BlockPosition(known: false)) == fvNotComparable
+
+  test "an ordering kind this build does not recognise is not comparable either":
+    # The conservative direction. A token from outside §2.3's union means this
+    # build cannot say how the chain is ordered, which is not the same as
+    # knowing it is ordered by height.
     var o = defaultOpts()
     o.historyFloor = 19_500_000
-    let t = buildTree(tmpDir("no-height"), o)
+    o.orderingKind = "sequenceNumber"
+    let t = buildTree(tmpDir("order-unrecognised"), o)
     let l = openTree(t)
-    # A Hedera-shaped position: ordered by consensus time, no height at all.
-    check l.registry.floorVerdict(BlockPosition(known: false)) == fvNotComparable
-    check l.registry.floorVerdict(BlockPosition(known: true, height: 19_000_000)) == fvBelow
+    check l.registry.profile.val.ordering.state == dsUnrecognised
+    check not l.registry.orderedByHeight
+    check l.registry.floorVerdict(
+      BlockPosition(known: true, height: 19_000_000)) == fvNotComparable
+    # …and it says which token it met, and the whole set, and what to do.
+    let r = l.registry.profile.val.ordering.refusal
+    check "sequenceNumber" in r
+    for k in TxOrderKind:
+      check $k in r
 
-  test "both registry spellings of the floor are read":
-    check readHistoryFloor(%*{"chains": {"eth": {"historyFloor": 42}}}, "eth") ==
-      HistoryFloor(stated: true, height: 42)
+  test "a chain that declares no ordering at all is not compared":
+    var o = defaultOpts()
+    o.historyFloor = 19_500_000
+    o.orderingKind = ""
+    let t = buildTree(tmpDir("order-absent"), o)
+    let l = openTree(t)
+    check l.registry.profile.val.ordering.state == dsAbsent
+    check l.registry.floorVerdict(
+      BlockPosition(known: true, height: 19_000_000)) == fvNotComparable
+
+  test "ONE registry spelling of the floor is read, and the other is refused by name":
+    # The half of the settlement that is about the member itself. The consumer used to
+    # accept a bare integer AND an object, which is two spellings of one fact —
+    # the thing this member was added to stop. The object won because it is the
+    # only one with room for the producer's reason.
     check readHistoryFloor(
       %*{"chains": {"eth": {"historyFloor": {"height": 42, "reason": "x"}}}},
       "eth") == HistoryFloor(stated: true, height: 42, reason: "x")
+    let bare = parseHistoryFloor(%42)
+    check not bare.stated
+    check "bare integer" in bare.refusal
+    check "height" in bare.refusal
+    check not readHistoryFloor(%*{"chains": {"eth": {"historyFloor": 42}}},
+                               "eth").stated
     check not readHistoryFloor(%*{"chains": {"eth": {}}}, "eth").stated
     check not readHistoryFloor(newJObject(), "eth").stated
+
+  test "the reach kind and the floor are one fact split, and each side is checked":
+    # `reach` answers WHAT KIND of history this chain has; `historyFloor`
+    # answers WHERE the boundary is. Exactly two of §1.3's six take a boundary,
+    # and the rule is checked in both directions by one predicate that the
+    # producer-side validator reports from.
+    proc rowOf(j: JsonNode): ChainProfile = parseChainProfile(j)
+    check profileConsistency(rowOf(%*{"reach": "windowed",
+                                      "historyFloor": {"height": 10}})) == ""
+    check profileConsistency(rowOf(%*{"reach": "archive"})) == ""
+    check "declines to say where" in
+      profileConsistency(rowOf(%*{"reach": "floor"}))
+    check "cannot have it" in
+      profileConsistency(rowOf(%*{"reach": "archive",
+                                  "historyFloor": {"height": 10}}))
+    # …and the notation §1.3 writes the two parameterised kinds in is refused
+    # outright, with the remedy, because a parsed registry value is the drift
+    # the split exists to stop.
+    let parsed = parseReach(%"floor(632813)")
+    check parsed.state == dsUnrecognised
+    check "prose notation" in parsed.refusal
+    check "historyFloor" in parsed.refusal
+    for k in ReachKind:
+      check $k in parsed.refusal
 
 suite "M12 — §14 row 6: reorganised away":
   test "a non-canonical transaction is reorganised away":
@@ -1694,6 +1802,7 @@ suite "M12 — TraceStatusVM: published, unsupported, divergent, reconstructed":
       reached.incl l.traceStatus.provenance.val
     block floor:
       var o = defaultOpts(); o.historyFloor = 19_500_000
+      o.availability = taOnDemand; o.publishManifest = false
       let t = buildTree(tmpDir("prov-floor"), o)
       let l = openTree(t); l.loadTx(t)
       reached.incl l.traceStatus.provenance.val
@@ -1723,6 +1832,8 @@ suite "M12 — TraceStatusVM: published, unsupported, divergent, reconstructed":
     unsupported.publishManifest = false
     var belowFloor = defaultOpts()
     belowFloor.historyFloor = 19_500_000
+    belowFloor.availability = taOnDemand
+    belowFloor.publishManifest = false
     var i = 0
     for o in [noRecorder, unsupported, belowFloor]:
       inc i

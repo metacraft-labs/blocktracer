@@ -19,7 +19,7 @@
 ## (Trace-Artifacts.md §8) — and it recomputes container hashes only structurally.
 
 import std/[json, os, strutils, sets, tables]
-import ./contract/[model, version, ids, searchidx, entrypage]
+import ./contract/[model, version, ids, searchidx, entrypage, chain_profile]
 import ./chain/refusal_reasons
 import ./chain/contract_rules
 
@@ -66,6 +66,9 @@ type
     identifierEncodings: Table[string, ChainIdentifierEncoding]
       ## chain -> how that chain DECLARES its identifiers, read out of the tree
       ## under validation. See `encodingFor`.
+    profiles: Table[string, ChainProfile]
+      ## chain -> what that chain DECLARES about its history, its ordering and
+      ## its instruction set, read out of the same row. See `profileFor`.
     # Entities reached during the current generation's walk, so the render layer
     # (entry pages) and the /idx/** search indices can be checked for completeness:
     # every walked entity MUST have a page and MUST be resolvable in the hash index.
@@ -179,6 +182,12 @@ proc checkSourceBundles(v: var Validator, mrel, chain: string, m: JsonNode) =
         if entry{"content"}.getStr.len == 0:
           v.err(bundleRel, "source '" & path & "' has empty content")
 
+proc profileFor(v: var Validator, chain: string): ChainProfile
+  ## Forward-declared because the artifact walk below needs the chain's declared
+  ## instruction set and the registry readers are defined after it. Declaring it
+  ## here rather than moving either block keeps the readers together with the
+  ## caching they share.
+
 proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
                                execInputId: string, overlayBytes: int,
                                overlayRecorderBuild = "") =
@@ -283,6 +292,30 @@ proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
       if overlayBytes >= 0 and overlayBytes != bytes.len:
         v.err(mrel, "overlay advertises bytes " & $overlayBytes &
               " but the container is " & $bytes.len & " bytes")
+  # ── THE LISTING'S INSTRUCTION SET AGAINST THE CHAIN'S DECLARED ONE ─────────
+  #
+  # `instructions.json` states the instruction set its opcode numbers are
+  # numbers in, and the registry states the chain's. A consumer SELECTS a
+  # mnemonic table from the chain's identity, so the two disagreeing means a
+  # table chosen for one instruction set would be applied to a recording of
+  # another — which is the "confident nonsense" failure the per-recording check
+  # exists to catch after the fact, caught here before anything is published.
+  #
+  # The per-recording check is NOT replaced by this. Agreement about the NAME of
+  # an instruction set says nothing about whether a particular table describes
+  # this particular recording; only the program counters say that, and they
+  # still have to.
+  let irel = dir / "instructions.json"
+  if fileExists(v.root / irel):
+    let ins = v.loadJson(irel)
+    if ins != nil:
+      let declaredVm = v.profileFor(chain).vm
+      let carried = ins{"isa"}.getStr
+      if declaredVm.stated and carried.len > 0 and
+         carried != declaredVm.instructionSet:
+        v.err(irel, "this listing declares instruction set '" & carried &
+              "' and the registry declares this chain runs '" &
+              declaredVm.instructionSet & "'")
   # Source bundles the manifest recommends must resolve (§2.5).
   v.checkSourceBundles(mrel, chain, m)
   # validation block is not optional decoration (§4).
@@ -327,6 +360,30 @@ proc encodingFor(v: var Validator, chain: string): ChainIdentifierEncoding =
     enc = parseChainIdentifierEncoding(nil)
   v.identifierEncodings[chain] = enc
   enc
+
+proc profileFor(v: var Validator, chain: string): ChainProfile =
+  ## **WHAT THE TREE UNDER VALIDATION SAYS ABOUT THIS CHAIN**, read back out of
+  ## its own registry row for `encodingFor`'s reason: a validator carrying its
+  ## own opinion could not catch a producer that declared one thing and
+  ## published another, because it would agree with whichever producer shared
+  ## its opinion.
+  ##
+  ## Every refusal `contract/chain_profile.nim` can produce is collected HERE,
+  ## once per chain, and every one of them is a finding rather than a throw —
+  ## this walk exists to produce a list, and a raise would report one problem
+  ## and hide the rest. The sentences are that module's, not restated: the
+  ## client's view model displays the same strings, so the rule has one
+  ## statement and two consumers.
+  if chain in v.profiles: return v.profiles[chain]
+  let row = v.registryFor(chain)
+  let p = parseChainProfile(row)
+  for r in p.refusals:
+    v.err("registry", "chain '" & chain & "': " & r)
+  let inconsistent = profileConsistency(p)
+  if inconsistent.len > 0:
+    v.err("registry", "chain '" & chain & "': " & inconsistent)
+  v.profiles[chain] = p
+  p
 
 proc checkIdentifierForms(v: var Validator, chain, rel, kind, named: string,
                           carried: string) =
@@ -562,7 +619,27 @@ proc checkTransaction(v: var Validator, chain, txHash, gen, tsv: string) =
       discard v.need(f, frel, field)
     # discriminated unions must carry their kind
     if "id" in f: discard v.need(f["id"], frel & ".id", "kind")
-    if "order" in f: discard v.need(f["order"], frel & ".order", "kind")
+    if "order" in f:
+      discard v.need(f["order"], frel & ".order", "kind")
+      # ── THE CHAIN'S DECLARED ORDERING KIND, CHECKED AGAINST THE ROW ────────
+      #
+      # The registry states which quantity sequences this chain's transactions
+      # (Configuration.md §2.1, from Static-Site-Architecture.md §2.3's union).
+      # A row of a different kind means the chain-wide claim is false of at
+      # least one of its own transactions — and a consumer that selected a
+      # comparison from the declaration would then be comparing the wrong
+      # quantity, silently, which is the failure a declaration is supposed to
+      # remove rather than introduce.
+      #
+      # A chain that declares nothing is checked against nothing. That is the
+      # compatibility case (§2.2), not a finding.
+      let declaredOrder = v.profileFor(chain).ordering
+      let rowKind = f["order"]{"kind"}.getStr
+      if declaredOrder.state == dsDeclared and rowKind.len > 0 and
+         rowKind != $declaredOrder.kind:
+        v.err(frel, "this row is ordered by '" & rowKind &
+              "' and the registry declares this chain is ordered by '" &
+              $declaredOrder.kind & "'")
     if "outcome" in f:
       v.mustBeOneOf(f["outcome"], frel & ".outcome", "overall", outcomeOveralls)
     # §2.3b: mutable interpretation must NOT be baked into the immutable facts.

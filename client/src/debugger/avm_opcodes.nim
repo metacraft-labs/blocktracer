@@ -118,16 +118,77 @@ const AvmInstructionSet* = [
   ins("TORADIXBE", 13),
 ]
 
-func knownAvmOpcode*(op: int): bool =
-  ## Whether the table has an entry for this number at all.
-  op >= 0 and op < AvmInstructionSet.len
+const AvmInstructionSetId* = "aztec-avm"
+  ## The instruction-set IDENTITY the table above describes.
+  ##
+  ## It is the token a recording writes in `instructions.json`'s `isa` and the
+  ## token a chain's registry row declares as its VM's instruction set
+  ## (Configuration.md §2.1). Named here, beside the table, because the identity
+  ## and the table are one fact: a table whose identity lived elsewhere could be
+  ## repointed at another instruction set by an edit that looked like a rename.
 
-func avmOpcodeName*(op: int): string =
+type
+  OpcodeTable* = object
+    ## A mnemonic table SELECTED BY IDENTITY.
+    ##
+    ## ## Why this is a lookup and not a comparison
+    ##
+    ## The listing used to decide whether it might name opcodes by comparing the
+    ## recording's declared instruction set against ONE string literal. That is
+    ## correct for exactly one instruction set and does not scale to two: a
+    ## second one makes the comparison a lookup, and the thing being looked up
+    ## has to be a table rather than a boolean, because the names and the
+    ## instruction lengths both come from it.
+    ##
+    ## ## And why selecting a table does not license naming anything
+    ##
+    ## `known` says a table was found. It does NOT say the table describes this
+    ## recording, and the two are different claims: an instruction set that
+    ## gained a member upstream shifts every later name by one, and the
+    ## recording would still declare the same identity. So the earned check
+    ## stays exactly where it was — `explainsProgramCounters` below, run per
+    ## recording, against THIS table — and a recording the selected table cannot
+    ## explain renders numbers even though its identity matched.
+    id*: string           ## empty when no table is known for the identity asked
+    instructions*: seq[AvmInstruction]
+
+func known*(t: OpcodeTable): bool =
+  ## Whether an identity selected a table at all.
+  t.id.len > 0 and t.instructions.len > 0
+
+func opcodeTableFor*(isa: string): OpcodeTable =
+  ## The table for an instruction-set identity, or an empty one.
+  ##
+  ## AN UNKNOWN IDENTITY IS NOT AN ERROR. A recording from an instruction set
+  ## this build holds no table for is a perfectly good recording; it renders
+  ## opcode numbers, which is the honest floor and is what the listing shows
+  ## anyway for any recording whose counters a table cannot predict. There is
+  ## nothing to refuse and nobody to refuse it to.
+  ##
+  ## One entry today. The shape is a lookup rather than a comparison because
+  ## that is what the second entry needs, and the second entry is what made the
+  ## comparison worth replacing.
+  if isa == AvmInstructionSetId:
+    OpcodeTable(id: AvmInstructionSetId, instructions: @AvmInstructionSet)
+  else:
+    OpcodeTable()
+
+func knownOpcode*(t: OpcodeTable; op: int): bool =
+  ## Whether this table has an entry for this number at all.
+  op >= 0 and op < t.instructions.len
+
+func opcodeName*(t: OpcodeTable; op: int): string =
   ## The mnemonic, or `""` for a number this table does not cover.
   ##
   ## Empty and not a placeholder such as `UNKNOWN`: the caller has to render
   ## something else for it, and a name-shaped string would be rendered as a name.
-  if knownAvmOpcode(op): AvmInstructionSet[op].name else: ""
+  if t.knownOpcode(op): t.instructions[op].name else: ""
+
+func opcodeSize*(t: OpcodeTable; op: int): int =
+  if t.knownOpcode(op): t.instructions[op].size else: 0
+
+func opcodeBranches*(t: OpcodeTable; op: int): bool =
+  t.knownOpcode(op) and t.instructions[op].branches
 
 type
   OpcodeTableCheck* = object
@@ -153,9 +214,18 @@ func explains*(c: OpcodeTableCheck): bool =
   ##     otherwise pass by never being asked anything.
   c.unknown == 0 and c.checked > 0 and c.matched == c.checked
 
-func explainsProgramCounters*(pc, op, ctx: openArray[int]): OpcodeTableCheck =
-  ## Does this table's instruction lengths reproduce the recording's own program
+func explainsProgramCounters*(t: OpcodeTable;
+                              pc, op, ctx: openArray[int]): OpcodeTableCheck =
+  ## Do THIS table's instruction lengths reproduce the recording's own program
   ## counters?
+  ##
+  ## The table is a parameter now rather than the module's one constant, which
+  ## is the whole of what "identity selects a table" means at this level: the
+  ## question asked of a recording is the same question it always was, asked of
+  ## the table its declared identity chose. A table that was never found
+  ## explains nothing — every opcode is outside it, so `unknown` is the step
+  ## count and `explains` is false — which is the same answer by the same rule
+  ## rather than a special case.
   ##
   ## A prediction is made only where one is possible: consecutive steps in the
   ## same execution context whose first instruction does not branch. Everything
@@ -184,14 +254,14 @@ func explainsProgramCounters*(pc, op, ctx: openArray[int]): OpcodeTableCheck =
   const NoPc = -1
   let n = min(pc.len, op.len)
   for i in 0 ..< n:
-    if not knownAvmOpcode(op[i]): inc result.unknown
+    if not t.knownOpcode(op[i]): inc result.unknown
   if result.unknown > 0: return
   for i in 0 ..< n - 1:
     let sameContext =
       ctx.len <= i + 1 or ctx[i] == ctx[i + 1]
     if pc[i] == NoPc or pc[i + 1] == NoPc or
-       AvmInstructionSet[op[i]].branches or not sameContext:
+       t.opcodeBranches(op[i]) or not sameContext:
       inc result.skipped
       continue
     inc result.checked
-    if pc[i + 1] - pc[i] == AvmInstructionSet[op[i]].size: inc result.matched
+    if pc[i + 1] - pc[i] == t.opcodeSize(op[i]): inc result.matched

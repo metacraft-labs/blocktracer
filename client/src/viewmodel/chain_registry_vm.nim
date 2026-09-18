@@ -10,7 +10,7 @@
 ## from the signed registry rather than by listing directories, because a
 ## consumer reading over HTTP has no directory listing.
 ##
-## ## The history floor, and what is honestly missing
+## ## The history floor
 ##
 ## §14's row reads: "Transaction below the history floor → Debug absent,
 ## stating the floor and that prestate does not exist below it", and §14.1's
@@ -18,30 +18,37 @@
 ## rather than the client guesses (Pipeline-Architecture.md §705 spells the
 ## machine-readable token).
 ##
-## **No producer in this repository writes a history floor.** The demo
-## generator emits a registry with `recorder`, `profile` and `traceSchema` per
-## chain and nothing else; real per-chain floors arrive with M6's ingestion.
-## So this VM reads the field **when the registry carries it** and reports
-## `fvUnstated` when it does not — which is the honest answer, and is what makes
+## **The chain ingest now writes one, measured from the capture's own replay
+## window**, so `fvBelow` is reachable from a produced tree and not only from a
+## fixture. This VM reads the field when the registry carries it and reports
+## `fvUnstated` when it does not — the honest answer, and what makes
 ## `belowHistoryFloor` a row that can be *established* rather than one that can
-## only be asserted. A tree without the field cannot produce `fvBelow`, and the
-## test suite drives both a tree with the field and a tree without it, so
-## neither branch is theoretical.
+## only be asserted. A tree without the field cannot produce `fvBelow`, and both
+## trees are driven: a produced one carrying a measured floor, and the same
+## capture with the boundary removed.
 ##
-## The shape read is the minimal one the spec's wording implies — a height,
-## with an optional reason — and both a bare integer and an object are
-## accepted, because a registry field with no normative schema should not be
-## made brittle by a consumer guessing one of two spellings.
+## ONE SPELLING IS ACCEPTED, and it used to be two. `contract/chain_profile.nim`
+## states why the object won and why a bare integer is refused by name rather
+## than ignored; this VM does not restate the rule, it calls it.
 ##
-## ## Chains that do not order by height
+## ## Chains that do not order by height, and who says so
 ##
 ## `TxOrder` is a discriminated union because ordering is not universal: Hedera
 ## orders by consensus time, Aptos by a global version, Sui by checkpoint, TON
-## by logical time. A floor expressed as a height cannot be compared against
-## any of those, and `fvNotComparable` says so instead of coercing a `0`.
-## Silently answering "above the floor" for a chain whose transactions have no
-## height would make the row unreachable on exactly the chains most likely to
-## need it.
+## by logical time. A floor expressed as a height cannot be compared against any
+## of those, and `fvNotComparable` says so instead of coercing a `0`.
+##
+## **The kind is the CHAIN's declaration, not an inference from the row in
+## hand.** It used to be the latter — `blockPosition` reports `known: false` for
+## any order that is not `blockIndex`, and this VM concluded from that one row
+## that the chain does not order by height. That answers correctly and for the
+## wrong reason, and the wrong reason shows up twice: a row this client failed
+## to decode reads as a chain with no heights, and a chain that genuinely has no
+## heights cannot be told apart from a tree with one odd row in it. The registry
+## states the chain's ordering kind now (Configuration.md §2.1, from
+## Static-Site-Architecture.md §2.3's union), and a declaration this build does
+## not recognise is **also** not comparable — the conservative direction, because
+## "we cannot read how this chain is ordered" is not "it is ordered by height".
 
 import std/json
 
@@ -52,14 +59,16 @@ import ./contract_equality   # the facade, plus `==` for its discriminated union
 import ./chain_degradation
 
 type
-  HistoryFloor* = object
-    ## The lowest block a chain's prestate is obtainable for.
-    stated*: bool
-      ## Whether the registry said anything at all. `false` is not "zero"; it
-      ## is "unknown", and the two must not render the same.
-    height*: int
-    reason*: string
-      ## The producer's words, when it supplied any.
+  HistoryFloor* = ChainHistoryFloor
+    ## The lowest position a chain's prestate is obtainable for.
+    ##
+    ## An ALIAS and not a second declaration, which it used to be. This VM held
+    ## its own three-field copy of the contract's floor, and a milestone whose
+    ## subject is "two spellings of one fact drift" should not leave a second
+    ## spelling of the floor in the consumer that reads it. `stated` is not
+    ## "zero" — it is "unknown", and the two must not render the same — and the
+    ## shape rule that produces it lives in `contract/chain_profile.nim`, which
+    ## is also what the producer-side validator reports findings from.
 
   FloorVerdict* = enum
     fvAbove = "above"
@@ -85,6 +94,10 @@ type
     activeChain*: Signal[string]
     floor*: Signal[HistoryFloor]
       ## The active chain's floor. Reloaded by `selectChain`.
+    profile*: Signal[ChainProfile]
+      ## Everything else the active chain's row declares about itself — its
+      ## reach, its ordering kind and its instruction-set identity. Reloaded by
+      ## `selectChain` beside the floor, from the same row and the same read.
     session*: Signal[ChainSession]
     hasSession*: Signal[bool]
     openOutcome*: Signal[OpenOutcome]
@@ -102,33 +115,50 @@ type
       ## address can be derived at all (Trace-Artifacts.md §2.1).
     presence*: Memo[ObjectPresence]
       ## The chain slug itself, as the axis `chain_degradation.nim` resolves.
+    instructionSet*: Memo[string]
+      ## The instruction-set identity this chain declares its recordings are
+      ## written against, or `""`. It is what a consumer holding mnemonic tables
+      ## SELECTS one with, and it is available here — before any recording is
+      ## opened — which is the whole reason the identity is on the chain's row
+      ## and not only in each listing. Selecting a table still names nothing: the
+      ## table has to predict the recording's own program counters, which is
+      ## `instruction_listing.nim`'s check and is unchanged.
+
+proc registryRow(registry: JsonNode; chain: string): JsonNode =
+  ## This chain's row, or `nil`. One navigation, shared by everything below, so
+  ## the profile and the floor are read out of the same object rather than by
+  ## two walks that could disagree about which row they found.
+  if registry.isNil or registry.kind != JObject: return nil
+  if not registry.hasKey("chains"): return nil
+  let cs = registry["chains"]
+  if cs.kind != JObject or not cs.hasKey(chain): return nil
+  let entry = cs[chain]
+  if entry.kind != JObject: return nil
+  entry
+
+proc readChainProfile*(registry: JsonNode; chain: string): ChainProfile =
+  ## The whole declaration. Exposed so a test can drive it directly rather than
+  ## only through a whole tree.
+  parseChainProfile(registryRow(registry, chain))
 
 proc readHistoryFloor*(registry: JsonNode; chain: string): HistoryFloor =
-  ## Both accepted spellings, or `stated = false`. Exposed so a test can drive
-  ## it directly rather than only through a whole tree.
-  if registry.isNil or registry.kind != JObject: return
-  if not registry.hasKey("chains"): return
-  let cs = registry["chains"]
-  if cs.kind != JObject or not cs.hasKey(chain): return
-  let entry = cs[chain]
-  if entry.kind != JObject or not entry.hasKey("historyFloor"): return
-  let hf = entry["historyFloor"]
-  case hf.kind
-  of JInt:
-    HistoryFloor(stated: true, height: hf.getInt)
-  of JObject:
-    if not hf.hasKey("height") or hf["height"].kind != JInt: HistoryFloor()
-    else: HistoryFloor(stated: true, height: hf["height"].getInt,
-                       reason: hf{"reason"}.getStr)
-  else:
-    HistoryFloor()
+  ## The accepted spelling, or `stated = false`.
+  ##
+  ## The shape rule is `contract/chain_profile.parseHistoryFloor`'s and is not
+  ## restated here — this is the same predicate the producer-side validator
+  ## reports findings from, so the client and the validator cannot come to
+  ## disagree about what a registry says. A member present in a shape the
+  ## contract refuses reads as unstated HERE and as a finding THERE, which is
+  ## the right division: a page renders what it can and a validator names what
+  ## is wrong.
+  parseHistoryFloor(registryRow(registry, chain){FloorMember})
 
-proc loadFloor(vm: ChainRegistryVM; chain: string): HistoryFloor =
+proc loadProfile(vm: ChainRegistryVM; chain: string): ChainProfile =
   let version =
     if vm.hasSession.val: vm.session.val.contractVersion else: ContractVersion
   let r = vm.store.getJson(registryPath(version))
-  if not r.found or r.error.len > 0: return HistoryFloor()
-  readHistoryFloor(r.node, chain)
+  if not r.found or r.error.len > 0: return
+  readChainProfile(r.node, chain)
 
 proc loadRegistry*(vm: ChainRegistryVM) =
   ## Read the signed registry once. An unreadable registry leaves `chains`
@@ -154,13 +184,44 @@ proc selectChain*(vm: ChainRegistryVM; chain: string) =
   else:
     vm.hasSession.val = false
     vm.openReason.val = opened.reason
-  vm.floor.val = vm.loadFloor(chain)
+  let p = vm.loadProfile(chain)
+  vm.profile.val = p
+  vm.floor.val = p.floor
+
+proc orderedByHeight*(vm: ChainRegistryVM): bool =
+  ## Whether a HEIGHT is a quantity this chain can be compared on at all.
+  ##
+  ## Three cases and only one of them is `true`, which is the whole content of
+  ## this function:
+  ##
+  ##   * the chain declares `blockIndex` — heights sequence it, compare;
+  ##   * the chain declares any other member of §2.3's union — it is sequenced
+  ##     by something else and a height means nothing on it;
+  ##   * the chain declares nothing this build recognises, or nothing at all —
+  ##     also not comparable. An undeclared ordering is the compatibility case
+  ##     and an unrecognised one is a producer this build cannot read, and
+  ##     neither is evidence that heights apply.
+  ##
+  ## The third case is the one worth stating: treating silence as `blockIndex`
+  ## would make the default a claim, and the claim would be made loudest on
+  ## exactly the chains that do not order by height, because those are the ones
+  ## whose producers have not been written yet.
+  vm.profile.val.ordering.state == dsDeclared and
+    vm.profile.val.ordering.kind == tokBlockIndex
 
 proc floorVerdict*(vm: ChainRegistryVM; position: BlockPosition): FloorVerdict =
   ## Where a transaction sits relative to the floor. Takes the position rather
   ## than the whole transaction so the comparison is testable without a tree.
+  ##
+  ## THE COMPARABILITY TEST COMES FIRST AND COMES FROM THE CHAIN. A registry
+  ## that states a height floor for a chain sequenced by consensus time has
+  ## stated two things that cannot be put beside each other, and the answer is
+  ## `fvNotComparable` however this particular row happens to be shaped —
+  ## including when the row carries a perfectly good height, which is the case
+  ## an inference from the row would get wrong.
   let f = vm.floor.val
   if not f.stated: return fvUnstated
+  if not vm.orderedByHeight: return fvNotComparable
   if not position.known: return fvNotComparable
   if position.height < f.height: fvBelow else: fvAbove
 
@@ -178,6 +239,7 @@ proc createChainRegistryVM*(store: ObjectStore): ChainRegistryVM =
       registryLoaded: createSignal(false),
       activeChain: createSignal(""),
       floor: createSignal(HistoryFloor()),
+      profile: createSignal(ChainProfile()),
       session: createSignal(ChainSession()),
       hasSession: createSignal(false),
       openOutcome: createSignal(ooChainNotFound),
@@ -190,6 +252,9 @@ proc createChainRegistryVM*(store: ObjectStore): ChainRegistryVM =
 
     vm.coverageMode = createMemo(proc(): string =
       if vm.hasSession.val: vm.session.val.coverageMode else: "")
+
+    vm.instructionSet = createMemo(proc(): string =
+      if vm.profile.val.vm.stated: vm.profile.val.vm.instructionSet else: "")
 
     vm.recorderPinned = createMemo(proc(): bool =
       vm.hasSession.val and vm.session.val.hasPin)

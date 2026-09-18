@@ -12,7 +12,7 @@
 ##
 ## | ViewModel | Module | Status |
 ## | --- | --- | --- |
-## | `ChainRegistryVM` | `chain_registry_vm` | built; the history-floor field has no producer yet (M6) — read when present, `fvUnstated` otherwise |
+## | `ChainRegistryVM` | `chain_registry_vm` | built; the chain ingest writes a measured history floor, a reach kind, an ordering kind and an instruction-set identity — each read when present, and each distinguishable from every value it could have had when absent |
 ## | `ChainVM` | `chain_vm` | built |
 ## | `BlockVM` | `block_vm` | built |
 ## | `TransactionVM` | `transaction_vm` | built |

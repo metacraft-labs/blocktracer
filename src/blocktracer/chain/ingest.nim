@@ -93,7 +93,7 @@
 ## is published.
 
 import std/[json, os, algorithm, strutils, tables, times]
-import ../contract/[model, ids, version, identifier_encoding]
+import ../contract/[model, ids, version, identifier_encoding, chain_profile]
 import ./refusal_reasons
 import ./snapshot_format
 import ./contract_rules
@@ -975,6 +975,33 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   let finalizedAt = win["finalized"].getInt
   let tipAt = win["tip"].getInt
 
+  # ---- THE CHAIN'S OWN HISTORY BOUNDARY, READ OFF THE CAPTURE ---------------
+  #
+  # `replayableFrom` is the lowest position the node could serve prestate for
+  # when this capture was taken. It is the parameter of Chain-Support-Matrix.md
+  # §1.3's floor, and it is the reason the untraced rows below it are untraced —
+  # so it is MEASURED here rather than asserted anywhere, and a capture that
+  # states none publishes no floor at all.
+  #
+  # An absent boundary is a valid capture (the conformance templates carry no
+  # such member) and is deliberately not an error, for the reason the sidecars
+  # are not: refusing the publish would make a capture taken before the member
+  # existed unpublishable to buy a page a row it can already do without. The
+  # honest answer is the unstated one, and the consumer distinguishes it from a
+  # floor of zero.
+  let boundaryNode = win{"replayableFrom"}
+  let hasBoundary = boundaryNode != nil and boundaryNode.kind == JInt
+  let replayableFromAt = (if hasBoundary: boundaryNode.getInt else: 0)
+
+  # The two facts the registry row states that are gathered rather than read:
+  # which ordering kinds this ingest actually published, and which instruction
+  # sets its listings declare. Both are collected from what is written and
+  # asserted to be singular before anything is declared, because a chain-wide
+  # claim drawn from a set of more than one would be a claim about whichever
+  # member was seen last.
+  var orderKinds: set[TxOrderKind]
+  var isaTokens: seq[string]
+
   # ---- WHICH RECORDER PRODUCED WHICH CONTAINER ------------------------------
   #
   # THIS USED TO BE ONE VALUE FOR THE WHOLE SNAPSHOT, AND THAT WAS A PROVENANCE
@@ -1585,6 +1612,15 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       payloadRaw: "", payloadSelector: "", payloadTarget: "",
       logs: @[], codeEdges: codeEdges, executions: executions,
       native: native)
+    # WHICH QUANTITY SEQUENCES THIS CHAIN'S TRANSACTIONS, TAKEN FROM THE ROW
+    # THIS READER JUST PUBLISHED. Static-Site-Architecture.md §2.3 makes
+    # ordering a discriminated union because height is not universal, and a
+    # consumer that inferred the kind from whichever row it happened to read
+    # first would be inferring a chain-wide fact from one sample. The chain
+    # states it, in the registry — and it states the kind it actually wrote,
+    # from the same binding, so the declaration and the published rows cannot
+    # come to disagree.
+    orderKinds.incl facts.order.kind
     cfg.writeJson(txFactsPath(chain, txHash, identifierEncoding), facts.toJson)
 
     # -- mutable per-generation state ---------------------------------------
@@ -1938,6 +1974,19 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
             "the instruction listing for " & txHash & " at " & insFile & " holds " & $carried &
             " steps and the recording declares " & $declared &
             "; refusing to publish a listing the position cannot be located in")
+        # THE INSTRUCTION SET THIS LISTING DECLARES, CARRIED UP TO THE CHAIN.
+        #
+        # The listing states the instruction set its opcode numbers are numbers
+        # in. A consumer holding a mnemonic table has to know which table
+        # applies before it may name anything, and asking each listing one at a
+        # time answers only for the recording in front of it. So the identity is
+        # gathered here and published on the registry row, where a consumer can
+        # select a table before it opens a recording — and the per-recording
+        # check that the table PREDICTS this recording's program counters is
+        # unaffected and still has to pass. Identity selects; it does not
+        # license.
+        let isa = ins{"isa"}.getStr
+        if isa.len > 0 and isa notin isaTokens: isaTokens.add isa
         cfg.writeJson(dir / "instructions.json", ins)
 
       # ---- POSITIONS: the source coordinate per step, where one was computed ----
@@ -2378,12 +2427,62 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # the tree the index keys, so it follows the index.
   #
   # `hex` is MEASURED for this chain, not assumed — see `hexIdentifierEncoding`.
-  reg["chains"][chain] = %*{
+  let row = %*{
     "recorder": {"id": rRef.id, "build": rRef.build, "version": rRef.version},
     "recorders": recordersNode,
     "profile": {"name": pRef.name, "hash": pRef.hash},
     "traceSchema": traceSchema,
     "identifierEncoding": identifierEncoding.identifierEncodingNode()}
+
+  # ---- THE CHAIN PROFILE, BESIDE THE ENCODING AND FOR ITS REASONS -----------
+  #
+  # Three more per-chain facts that consumers ask for and that this producer is
+  # the only thing in a position to state: where this chain's prestate boundary
+  # is and what KIND of boundary it is (Chain-Support-Matrix.md §1.3), which
+  # quantity sequences its transactions (Static-Site-Architecture.md §2.3's
+  # ordering union), and which instruction set its recordings are written
+  # against. All three sit here rather than in `snapshot.json` because all three
+  # are facts about the CHAIN and not about a row: §5.2b's census of a
+  # transaction row has nowhere to put them, and a row that carried them would
+  # be restating one chain-wide answer once per transaction.
+  #
+  # EVERY ONE IS MEASURED FROM THIS CAPTURE. The boundary is the window's own
+  # `replayableFrom`; its kind follows from whether that boundary coincides with
+  # the node's moving finalized pointer (`reachFromWindow` states the rule); the
+  # ordering kind is the kind of the rows this run published, collected as they
+  # were written; the instruction set is what the listings published above
+  # declare. Nothing here is keyed by a chain name and nothing is a constant —
+  # the reader states no fact about any chain on a producer's behalf
+  # (Data-Contract.md §5.3).
+  #
+  # ALL THREE ARE ADDITIVE (Configuration.md §2.2). A capture short of the
+  # inputs publishes a row short of the member, and a consumer built before the
+  # member existed reads a row carrying it and answers identically.
+  var profile = ChainProfile(reach: reachFromWindow(hasBoundary,
+                                                    replayableFromAt, finalizedAt))
+  if hasBoundary:
+    profile.floor = ChainHistoryFloor(stated: true, height: replayableFromAt,
+      # The producer's own words, and they state the MEASUREMENT rather than a
+      # cause: what this capture observed is that the node served prestate from
+      # here and not below, which is what a visitor meeting the refusal needs to
+      # know. Why the node draws the line there is a fact about the node.
+      reason: "prestate was obtainable from " & $replayableFromAt &
+        " upward when this generation was captured, and not below it")
+  # ONE KIND, OR NOTHING IS DECLARED. A chain that published rows of two
+  # ordering kinds has no single answer to "which quantity sequences this
+  # chain", and declaring whichever was seen last would be exactly the inference
+  # from one sample the declaration exists to remove. An ingest that published no
+  # row at all has nothing to declare either.
+  for k in TxOrderKind:
+    if orderKinds == {k}:
+      profile.ordering = ChainOrdering(state: dsDeclared, kind: k, token: $k)
+  # …and the same rule for the instruction set, for the same reason: two
+  # listings that disagree leave the chain with no single identity, and a table
+  # selected by the wrong one would name the wrong instructions confidently.
+  if isaTokens.len == 1:
+    profile.vm = ChainVmIdentity(stated: true, instructionSet: isaTokens[0])
+  row.mergeChainProfile(profile)
+  reg["chains"][chain] = row
   cfg.writeJson(regRel, reg)
 
   # ---- address history -----------------------------------------------------

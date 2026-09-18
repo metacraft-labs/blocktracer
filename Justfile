@@ -126,6 +126,7 @@ test:
     nim c -r --hints:off tests/tclientsdk.nim
     nim c -r --hints:off tests/tchainsnapshot.nim
     nim c -r --hints:off tests/tidentifierencoding.nim
+    nim c -r --hints:off tests/tchainprofile.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
     cd client && just test-searchboot

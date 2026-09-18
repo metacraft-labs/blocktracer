@@ -17,6 +17,7 @@
   "window": {
     "tip": 1002,
     "finalized": 1001,
+    "replayableFrom": 1002,
     "blocks": 3
   },
   "counts": {

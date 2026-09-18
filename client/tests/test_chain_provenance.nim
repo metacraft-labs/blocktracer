@@ -71,6 +71,22 @@ import blocktracer/chain/refusal_reasons
 # the round trip than reaching around the boundary was, because it also asserts
 # the symbol is actually published.
 import blocktracer_client
+# The history-floor verdict and §14's row, driven over a tree THIS FILE'S OWN
+# PRODUCERS wrote. `ChainRegistryVM` is the only thing that reads the registry's
+# `historyFloor`, and until a producer wrote one the only trees it could be
+# driven over were hand-built. The suite at the foot of this file is what makes
+# the below-floor branch a branch that has run against real output.
+# `Signal.val` / `Memo.val` — the reactive accessors the view models expose.
+import isonim/core/[signals, computation]
+import ../src/viewmodel/chain_registry_vm
+import ../src/viewmodel/trace_status_vm
+import ../src/viewmodel/chain_degradation
+# The instruction listing, and the table its declared identity selects. The
+# listings graded at the foot of this file are the ones the ingest above
+# published, so what is checked is the shipping path rather than a constructed
+# payload.
+import ../src/debugger/instruction_listing
+import ../src/debugger/avm_opcodes
 
 let
   clientRoot = currentSourcePath().parentDir.parentDir
@@ -4210,3 +4226,335 @@ suite "ING-3 — a refusal is not an absence":
     # `expectCount(24 + (n - 2) * 4 + n * 6)` above already does it the right way.
     # Adding a MEMBER is now free here; adding an ASSERTION is still counted.
     expectCount(16 + 4 + 6 + 9 + 9 + refusalReasonIds().len)
+
+# ───────────────────────────────────────────────────────────────────────────
+# THE CHAIN'S OWN HISTORY BOUNDARY, PUBLISHED BY THE PRODUCER AND READ BACK
+#
+# Page-Descriptions.md §14's row — "Transaction below the history floor →
+# Debug absent, stating the floor and that prestate does not exist below it" —
+# was reachable only from a hand-built registry until a producer wrote one.
+# A row that exists on every surface and is never produced is not a feature; it
+# is a branch waiting to appear for the first time in production.
+#
+# So both verdicts below are driven from trees this file's own producers wrote,
+# over the committed capture, and the control is the SAME capture with the one
+# member removed — which is two branches against one producer rather than one
+# branch against a fixture.
+# ───────────────────────────────────────────────────────────────────────────
+
+suite "the chain states its own history boundary, and both verdicts come from one producer":
+  asserted = 0
+
+  let producedReg = parseJson(readFile(
+    workDir / "registry" / ("chains.v" & $ContractVersion & ".json")))
+  let producedRow = producedReg["chains"][RealChain]
+  let capturedWindow = snap["window"]
+
+  test "the published floor IS this capture's own replay boundary, measured":
+    # Not a constant and not a chain name: the number on the registry row is
+    # read back and compared with the number in the snapshot the producer read.
+    # A floor stated by this test would be a test agreeing with itself.
+    ck producedRow.hasKey("historyFloor")
+    ck producedRow["historyFloor"]["height"].getInt ==
+       capturedWindow["replayableFrom"].getInt
+    ck producedRow["historyFloor"]{"reason"}.getStr.len > 0
+    # …AND ITS KIND FOLLOWS FROM WHERE THE BOUNDARY SITS. `windowed` rather than
+    # `floor` because the boundary coincides with the node's own finalized
+    # pointer, which moves with the chain — so what is reachable is a window and
+    # not a fixed point in this chain's history. That coincidence is a property
+    # of the capture and is asserted here rather than assumed by the reader.
+    ck producedRow["reach"].getStr == "windowed"
+    ck capturedWindow["replayableFrom"].getInt ==
+       capturedWindow["finalized"].getInt + 1
+    # The other two members of the profile, published from what this ingest
+    # actually wrote rather than from anything it was told.
+    ck producedRow["ordering"]["kind"].getStr == "blockIndex"
+    ck producedRow["vm"]["instructionSet"].getStr.len > 0
+
+  # ── the three subjects, chosen from the CAPTURE and not from the tree ──────
+  #
+  # Ground truth comes out of the capture's own JSON for the reason the top of
+  # this file gives: a test that asked the reader which transactions are below
+  # the floor would agree with itself about a tree it had misread.
+  let floorAt = capturedWindow["replayableFrom"].getInt
+  var untracedBelow, anyAbove, tracedBelow = ""
+  var untracedBelowHeight = 0
+  for t in snap["transactions"]:
+    let h = t["blockNumber"].getInt
+    let outcome = t["outcome"].getStr
+    if h < floorAt and outcome != "replayed" and untracedBelow.len == 0:
+      untracedBelow = t["txHash"].getStr
+      untracedBelowHeight = h
+    if h < floorAt and outcome == "replayed" and tracedBelow.len == 0:
+      tracedBelow = t["txHash"].getStr
+    if h >= floorAt and anyAbove.len == 0:
+      anyAbove = t["txHash"].getStr
+
+  test "the capture really carries all three populations":
+    # Without this the three arms below would each be grading an empty set, and
+    # an empty set satisfies every assertion written over it.
+    ck untracedBelow.len > 0
+    ck tracedBelow.len > 0
+    ck anyAbove.len > 0
+
+  # ── the layer, over a produced tree ────────────────────────────────────────
+  type OpenedTree = object
+    store: ObjectStore
+    registry: ChainRegistryVM
+    status: TraceStatusVM
+
+  proc openProduced(treeDir, chain: string): OpenedTree =
+    let store = localTree(treeDir)
+    let registry = createChainRegistryVM(store)
+    registry.loadRegistry()
+    registry.selectChain(chain)
+    OpenedTree(store: store, registry: registry,
+               status: createTraceStatusVM(registry))
+
+  proc verdictOf(o: OpenedTree; chain, txHash: string): FloorVerdict =
+    let t = transaction(o.store, o.registry.session.val, txHash)
+    doAssert t.outcome == roFound,
+      "the produced tree does not carry " & txHash & " — the verdict below " &
+      "would be about a transaction that is not there"
+    o.registry.floorVerdictFor(t.view)
+
+  test "a transaction below the produced floor reports the below-floor row":
+    let o = openProduced(workDir, RealChain)
+    ck o.registry.floor.val.stated
+    ck o.registry.floor.val.height == floorAt
+    ck o.registry.orderedByHeight
+    ck untracedBelowHeight < floorAt
+    ck verdictOf(o, RealChain, untracedBelow) == fvBelow
+    # …and §14's row, with the floor in its words, from the same tree.
+    o.status.floorVerdict.val = verdictOf(o, RealChain, untracedBelow)
+    ck o.status.provenance.val == tpBelowHistoryFloor
+    ck $floorAt in o.status.reason.val
+    ck producedRow["historyFloor"]["reason"].getStr in o.status.reason.val
+
+  test "a transaction at or above the produced floor does not":
+    let o = openProduced(workDir, RealChain)
+    ck verdictOf(o, RealChain, anyAbove) == fvAbove
+    o.status.floorVerdict.val = verdictOf(o, RealChain, anyAbove)
+    ck o.status.provenance.val != tpBelowHistoryFloor
+
+  test "a PUBLISHED container below the floor is still openable, and says so":
+    # The defect the first produced tree with a floor in it exposed. The floor
+    # answers "can a recording be MADE" and not "may an existing one be
+    # opened", and on this capture the two answers differ for real rows: the
+    # boundary sits thousands of blocks above the oldest transaction, so most
+    # of the capture is below it, and some of those rows have containers.
+    #
+    # The verdict is still `fvBelow` — the transaction IS below the floor, and
+    # saying otherwise would be a false statement about the chain. What changed
+    # is that §14's row is not this row, because there is something to open.
+    let o = openProduced(workDir, RealChain)
+    let t = transaction(o.store, o.registry.session.val, tracedBelow)
+    ck t.outcome == roFound
+    o.status.floorVerdict.val = o.registry.floorVerdictFor(t.view)
+    ck o.status.floorVerdict.val == fvBelow
+    var resolved: ResolvedTrace
+    var found = false
+    for r in resolveTraces(o.store, o.registry.session.val, t.view):
+      if r.isReplayable: resolved = r; found = true
+    ck found
+    o.status.setTrace(resolved)
+    ck o.status.published.val
+    ck o.status.provenance.val != tpBelowHistoryFloor
+    ck o.status.reason.val.len == 0
+
+  # ── THE CONTROL: the same capture, with the one member removed ─────────────
+  test "the same capture without the boundary publishes no floor, and the verdict is unstated":
+    let ctlSnapshot = workDir / "control-no-boundary-snapshot"
+    let ctlTree = workDir / "control-no-boundary-tree"
+    removeDir(ctlSnapshot); removeDir(ctlTree)
+    copyDir(snapshotDir, ctlSnapshot)
+    var doc = parseJson(readFile(ctlSnapshot / "snapshot.json"))
+    # ONE MEMBER, AND THE REMOVAL IS VERIFIED BEFORE ANYTHING IS READ FROM THE
+    # RESULT. A control keyed on an edit that silently did nothing reads as a
+    # passing control.
+    ck doc["window"].hasKey("replayableFrom")
+    doc["window"].delete("replayableFrom")
+    ck not doc["window"].hasKey("replayableFrom")
+    writeFile(ctlSnapshot / "snapshot.json", $doc)
+    createDir(ctlTree)
+    discard ingestSnapshot(IngestConfig(outDir: ctlTree, snapshotDir: ctlSnapshot))
+    let ctlRow = parseJson(readFile(
+      ctlTree / "registry" / ("chains.v" & $ContractVersion & ".json")))[
+        "chains"][RealChain]
+    ck not ctlRow.hasKey("historyFloor")
+    ck not ctlRow.hasKey("reach")
+    # …and the two members that do NOT come from the window are unmoved, so the
+    # difference between the two trees is the boundary and not the run.
+    ck ctlRow["ordering"] == producedRow["ordering"]
+    ck ctlRow["vm"] == producedRow["vm"]
+    let o = openProduced(ctlTree, RealChain)
+    ck not o.registry.floor.val.stated
+    ck verdictOf(o, RealChain, untracedBelow) == fvUnstated
+    o.status.floorVerdict.val = verdictOf(o, RealChain, untracedBelow)
+    ck o.status.provenance.val != tpBelowHistoryFloor
+    removeDir(ctlSnapshot); removeDir(ctlTree)
+
+
+  # ── THE ORDERING KIND DECIDES WHETHER THE FLOOR IS COMPARABLE AT ALL ───────
+  #
+  # Same produced tree, same transaction, same number on the registry row. The
+  # ONLY difference between the two reads below is the ordering kind the row
+  # declares, which is what makes the refusal attributable to the declaration
+  # and not to anything about the transaction in front of it.
+  #
+  # The registry is overlaid rather than the tree re-ingested: a second ingest
+  # would have moved more than the one member, and then "the difference is the
+  # declaration" would be an assumption instead of a construction.
+  proc verdictWithOrdering(kind, txHash: string): FloorVerdict =
+    var reg = parseJson(readFile(
+      workDir / "registry" / ("chains.v" & $ContractVersion & ".json")))
+    doAssert reg["chains"][RealChain]["ordering"]["kind"].getStr == "blockIndex"
+    reg["chains"][RealChain]["ordering"] = %*{"kind": kind}
+    let overlay = $reg
+    let store = newObjectStore("ordering-" & kind, proc(path: string): ObjectResponse =
+      if path.startsWith("registry/"):
+        return ObjectResponse(found: true, body: overlay)
+      let full = workDir / path
+      if fileExists(full): ObjectResponse(found: true, body: readFile(full))
+      else: ObjectResponse(found: false))
+    let vm = createChainRegistryVM(store)
+    vm.loadRegistry()
+    vm.selectChain(RealChain)
+    let t = transaction(store, vm.session.val, txHash)
+    doAssert t.outcome == roFound
+    vm.floorVerdictFor(t.view)
+
+  test "a chain that does not order by height reports the floor NOT COMPARABLE":
+    ck verdictWithOrdering("consensusTime", untracedBelow) == fvNotComparable
+    ck verdictWithOrdering("checkpoint", untracedBelow) == fvNotComparable
+
+  test "CONTROL: the same floor on a height-ordered chain compares normally":
+    # Same overlay machinery, same number, same rows — only the token differs.
+    ck verdictWithOrdering("blockIndex", untracedBelow) == fvBelow
+    ck verdictWithOrdering("blockIndex", anyAbove) == fvAbove
+
+  test "assertion count":
+    #   7 — the published floor, its kind and the two siblings
+    #   3 — the three populations are non-empty
+    #   8 — the below-floor arm: four about the tree, the verdict, the row and
+    #       the two halves of its sentence
+    #   2 — the above-floor arm
+    #   6 — a published container below the floor stays openable
+    #   4 — the ordering kind decides comparability, and its control
+    #   9 — the control: the perturbation verified both ways, four about the
+    #       control registry, and three about the verdict it produces
+    expectCount(7 + 3 + 8 + 2 + 6 + 4 + 9)
+
+# ───────────────────────────────────────────────────────────────────────────
+# OPCODE NAMES: IDENTITY SELECTS THE TABLE, THE RECORDING STILL EARNS THE NAMES
+#
+# The listing used to decide whether it might name opcodes by comparing the
+# recording's declared instruction set against ONE string literal. The
+# comparison is a lookup now, keyed by the same identity the chain's registry
+# row declares — and the earned per-recording check is unchanged, because
+# identity is not evidence about a recording. Both halves are graded here, over
+# listings this file's own producer published.
+# ───────────────────────────────────────────────────────────────────────────
+
+suite "opcode names are selected by identity and still earned per recording":
+  asserted = 0
+
+  proc publishedListings(): seq[JsonNode] =
+    for p in walkDirRec(workDir):
+      if p.endsWith("instructions.json"):
+        result.add parseJson(readFile(p))
+
+  let listings = publishedListings()
+
+  test "the tree really published listings to grade":
+    ck listings.len > 0
+
+  # The first published listing this build can both select a table for and
+  # explain. Chosen by asking the reader rather than by naming a transaction,
+  # so the arms below are about whatever this tree publishes.
+  var subject: JsonNode = nil
+  for node in listings:
+    let l = decodeInstructionListing(node)
+    if l.named and l.check.checked > 0 and l.steps.len > 2:
+      subject = node
+      break
+  # REFUSES RATHER THAN CRASHES OBSCURELY. `ck` is non-fatal, so an assertion
+  # that the subject exists does not stop the arms below from running over a
+  # nil and dying in `copy`. The population is a property of what this tree
+  # publishes, and if it is empty this suite has nothing to grade and must say
+  # so in one sentence.
+  doAssert subject != nil,
+    "no published instruction listing in " & workDir & " is both explained by " &
+    "the table its identity selects and longer than two steps, so there is " &
+    "nothing here to grade and a green would mean nothing"
+
+  test "a published listing is named, and the table predicted every counter it claimed":
+    ck subject != nil
+    let l = decodeInstructionListing(subject)
+    ck l.isa.len > 0
+    ck l.table.known                       # the identity selected a table
+    ck l.table.id == l.isa                 # …and it is that identity's table
+    ck l.check.unknown == 0
+    ck l.check.checked > 0
+    ck l.check.matched == l.check.checked  # every prediction held
+    ck l.named
+    # …and a mnemonic actually reaches a row, rather than `opcode N`.
+    var named = 0
+    for s in l.steps:
+      if not opcodeText(l, s.opcode).startsWith("opcode "): inc named
+    ck named > 0
+
+  test "the chain's registry declares the identity the listings declare":
+    # The seam. A consumer holding tables can select one BEFORE it opens a
+    # recording, which is the whole reason the identity is on the chain's row
+    # and not only inside each listing.
+    let l = decodeInstructionListing(subject)
+    let row = parseJson(readFile(
+      workDir / "registry" / ("chains.v" & $ContractVersion & ".json")))[
+        "chains"][RealChain]
+    ck row["vm"]["instructionSet"].getStr == l.isa
+    ck opcodeTableFor(row["vm"]["instructionSet"].getStr).known
+
+  test "CONTROL: an identity this build holds no table for is left unnamed":
+    # Identity selects. An identity that selects nothing names nothing — and the
+    # listing is still a listing, because losing the names is not losing the
+    # rows.
+    var other = subject.copy()
+    other["isa"] = %"an-instruction-set-this-build-has-no-table-for"
+    let l = decodeInstructionListing(other)
+    ck not l.table.known
+    ck not l.named
+    ck l.steps.len == decodeInstructionListing(subject).steps.len
+    for s in l.steps:
+      if not opcodeText(l, s.opcode).startsWith("opcode "):
+        ck false                            # no mnemonic may survive
+    ck opcodeText(l, l.steps[0].opcode).startsWith("opcode ")
+
+  test "CONTROL: a recording the SELECTED table cannot explain is unnamed DESPITE a matching identity":
+    # The half that keeps identity from becoming a licence. The identity is the
+    # real one and selects the real table; only the recording's own program
+    # counters are made inconsistent with it, and that alone withdraws the
+    # names.
+    var perturbed = subject.copy()
+    let before = decodeInstructionListing(subject)
+    perturbed["pc"].elems[1] = %(perturbed["pc"].elems[1].getInt + 1)
+    ck perturbed["pc"].elems[1].getInt != subject["pc"].elems[1].getInt
+    let l = decodeInstructionListing(perturbed)
+    ck l.isa == before.isa                  # the identity is unchanged…
+    ck l.table.known                        # …and still selects a table
+    ck l.check.unknown == 0                 # …and every opcode is still in it
+    ck l.check.checked > 0
+    ck l.check.matched < l.check.checked    # the counters are what disagreed
+    ck not l.named
+    # …and the rows survive, which is the rule this listing states about itself:
+    # a listing may be unnamed and still render every program counter.
+    ck l.steps.len == before.steps.len
+    ck opcodeText(l, l.steps[0].opcode).startsWith("opcode ")
+
+  test "assertion count":
+    #   1 — the population is not empty
+    #   9 — the named arm
+    #   2 — the registry declares the same identity
+    #   4 — the unknown-identity control (its loop asserts nothing when clean)
+    #   9 — the unexplained-recording control
+    expectCount(1 + 9 + 2 + 4 + 9)

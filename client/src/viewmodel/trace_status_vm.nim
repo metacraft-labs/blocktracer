@@ -116,12 +116,34 @@ proc createTraceStatusVM*(registry: ChainRegistryVM): TraceStatusVM =
       else: rsNone)
 
     vm.provenance = createMemo(proc(): TraceProvenance =
-      # The floor is checked first. It is the only one of the three that is a
-      # statement about the *transaction* rather than about the artifact, and
-      # a transaction below the floor cannot have a trace generated for it at
-      # all — so reporting "awaiting generation" for one would be §14's retry
-      # that cannot succeed.
-      if vm.floorVerdict.val == fvBelow: return tpBelowHistoryFloor
+      # The floor is checked first, UNLESS A CONTAINER ALREADY EXISTS. It is
+      # the only one of the three that is a statement about the *transaction*
+      # rather than about the artifact, and a transaction below the floor
+      # cannot have a trace generated for it — so reporting "awaiting
+      # generation" for one would be §14's retry that cannot succeed.
+      #
+      # ── AND A PUBLISHED CONTAINER OUTRANKS IT, WHICH THIS DID NOT SAY ─────
+      #
+      # The floor answers "can a recording be MADE for this transaction"
+      # (Pipeline-Architecture.md §5.3.2 lists `below_history_floor` among the
+      # reasons a GENERATION REQUEST is refused). It does not answer "may an
+      # existing recording be opened", and the two are different questions with
+      # different answers: a container that exists is evidence that the
+      # prestate was obtainable when it was made, and it stays openable
+      # afterwards whatever the node has since pruned.
+      #
+      # This was latent while no producer wrote a floor at all. It stopped
+      # being latent the moment one did, and the first produced tree showed the
+      # size of it. Measured on the committed testnet capture: the boundary is
+      # 3,490 blocks above the oldest transaction, so 846 of its 866 rows are
+      # below it, and SIX of those 846 were replayed and have containers.
+      # Unqualified, this branch told a visitor "no recording can be made of
+      # it" on six pages that already had one, and offered no way to open it.
+      #
+      # `published` is the right test and not `hasTrace`: it is this VM's own
+      # "a container exists to open, right now", so the rule is stated once.
+      if vm.floorVerdict.val == fvBelow and not vm.published.val:
+        return tpBelowHistoryFloor
       if not vm.hasTrace.val: return tpAvailable
       case vm.trace.val.kind
       of trkUnsupported, trkUnresolvable: tpRecorderUnavailable
@@ -135,7 +157,11 @@ proc createTraceStatusVM*(registry: ChainRegistryVM): TraceStatusVM =
         tpAvailable)
 
     vm.reason = createMemo(proc(): string =
-      if vm.floorVerdict.val == fvBelow:
+      # Keyed on the resolved provenance rather than on the verdict again, so
+      # the sentence and the row cannot disagree about which case this is —
+      # they used to be two independent tests of `fvBelow`, and only one of
+      # them learnt that a published container outranks the floor.
+      if vm.provenance.val == tpBelowHistoryFloor:
         let f = vm.registry.floor.val
         let stated =
           "this transaction is below the chain's history floor at block " &

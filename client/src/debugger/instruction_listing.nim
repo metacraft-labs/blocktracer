@@ -149,6 +149,14 @@ type
       ## The instruction set the recording declares. Empty means it declared
       ## none, and an unrecognised one is why `named` can be false without any
       ## mismatch having been found.
+    table*: OpcodeTable
+      ## The mnemonic table `isa` SELECTED, or an empty one. Carried on the
+      ## listing rather than looked up per row, because three functions below
+      ## need it and three lookups would be three chances to look up something
+      ## else. `table.known` is false for an identity this build holds no table
+      ## for, and every one of those functions then behaves exactly as it does
+      ## for an opcode the table does not cover — numbers, no destination
+      ## arrows, no names.
     hasGas*: bool
     check*: OpcodeTableCheck
     named*: bool
@@ -236,13 +244,23 @@ proc decodeInstructionListing*(node: JsonNode): InstructionListing =
       pc: pc[i], opcode: op[i],
       l2Gas: (if result.hasGas: l2[i] else: 0),
       context: (if ctx.len == n: ctx[i] else: 0))
-  result.check = explainsProgramCounters(pc, op, ctx)
-  # THE NAMES ARE EARNED PER RECORDING. `isa` alone would be the recording
-  # asserting its own decodability; the check is the table predicting this
+  # IDENTITY SELECTS THE TABLE. It used to be an equality against one string
+  # literal, which is a correct test for exactly one instruction set and does
+  # not survive a second. The chain states the same identity on its registry row
+  # (Configuration.md §2.1), so a consumer can select a table before it opens a
+  # recording; this is the same selection made from the recording's own
+  # declaration, which is what a listing has in front of it.
+  result.table = opcodeTableFor(result.isa)
+  result.check = result.table.explainsProgramCounters(pc, op, ctx)
+  # AND SELECTING A TABLE NAMES NOTHING. The names are still earned per
+  # recording: `isa` alone would be the recording asserting its own
+  # decodability, and the check is the selected table predicting this
   # recording's program counters and being right about every one it predicted.
-  # A recording from an instruction set this table is not fails it, which is the
-  # case that made the check worth writing rather than asserting.
-  result.named = result.isa == "aztec-avm" and result.check.explains
+  # A recording the selected table does not describe fails it despite the
+  # identity matching, which is the case that made the check worth writing
+  # rather than asserting — and is why identity was made a lookup rather than a
+  # licence.
+  result.named = result.table.known and result.check.explains
 
 # ---------------------------------------------------------------------------
 # the rows
@@ -305,7 +323,7 @@ func opcodeText*(l: InstructionListing; op: int): string =
   ## `opcode 39` and not `UNKNOWN_39`: a name-shaped string is read as a name,
   ## and the whole reason this branch exists is that no name has been earned.
   if l.named:
-    let name = avmOpcodeName(op)
+    let name = l.table.opcodeName(op)
     if name.len > 0: return name
   "opcode " & $op
 
@@ -339,8 +357,8 @@ func destinationSuffix*(l: InstructionListing; i, pcw: int): string =
   if not here.hasProgramCounter or not next.hasProgramCounter: return ""
   if next.context != here.context:
     return " → context " & $next.context & " " & pcText(next.pc, pcw)
-  if not knownAvmOpcode(here.opcode): return ""
-  if next.pc == here.pc + AvmInstructionSet[here.opcode].size: return ""
+  if not l.table.knownOpcode(here.opcode): return ""
+  if next.pc == here.pc + l.table.opcodeSize(here.opcode): return ""
   " → " & pcText(next.pc, pcw)
 
 proc listingDocument*(l: InstructionListing; currentStep: int): SourceDocument =

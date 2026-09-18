@@ -1109,14 +1109,40 @@ suite "no reader path touches the producer's own bookkeeping":
       if line notin ds: inc differing
     for line in ds:
       if line notin df: inc differing
-    # MEASURED: six containers, each losing its `instructions.json` and its
-    # `calltrace.json`, is twelve objects — and they are LOST rather than moved, so
-    # twelve differing lines and not twenty-four.
-    checkpoint("control differing: " & $differing)
-    ck differing == 12
+    # THE CLAIM IS ABOUT OBJECTS, SO STATE IT OVER OBJECTS AND NOT OVER A LINE
+    # COUNT. `differing == N` has to be edited by hand every time a legitimate
+    # object joins the difference — and a number a human lowers by hand is
+    # exactly the place a deleted test hides. The three questions the control is
+    # really asking are separable, and each of them is a rule:
+    proc pathOf(line: string): string = line.split('\t')[0]
+    let ps = ds.mapIt(it.pathOf)
+    let pf = df.mapIt(it.pathOf)
+    var lost: seq[string] = @[]      # published by the full tree, not by the stripped one
+    var changed: seq[string] = @[]   # same path on both sides, different bytes
+    for line in df:
+      let p = line.pathOf
+      if p notin ps: lost.add p
+      elif line notin ds: changed.add p
+    let gained = ps.filterIt(it notin pf)   # stripping cannot ADD an object
+    checkpoint("control differing: " & $differing & "  lost: " & $lost.len &
+               "  gained: " & $gained.len & "  changed: " & $changed)
+    ck gained.len == 0
+    # Six containers, each losing its `instructions.json` and its `calltrace.json`.
+    ck lost.len == 12
+    ck lost.allIt(it.endsWith("instructions.json") or it.endsWith("calltrace.json"))
     ck df.len == ds.len + 12
+    # Everything else that differs is an object present on BOTH sides whose
+    # CONTENT the stripping moved, and only a DERIVED aggregate under `registry/`
+    # is allowed to do that: a per-block or per-transaction object is written
+    # from the producer's own bytes and cannot move because a sidecar went away.
+    # Today that set is `registry/chains.v1.json` — with no listings published,
+    # the ingest declares no `vm` for the chain. Another aggregate may join
+    # without an edit here; a per-object change may not.
+    ck changed.allIt(it.startsWith("registry/"))
+    # And the control must actually fire, which is the whole reason it exists.
+    ck differing > 0
 
-  expectCount(16)
+  expectCount(20)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE COST VECTOR IS THE PRODUCER'S, AND IT IS A VECTOR
