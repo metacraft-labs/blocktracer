@@ -1,0 +1,198 @@
+{
+ "format": "blocktracer/object-set-recheck@1",
+ "_comment": [
+  "CAN THE OBJECT BASELINE BE RE-DERIVED? MEASURED, AND THE ANSWER IS IN TWO PARTS.",
+  "",
+  "`published-object-set.json` beside this file records 138,287 objects with whole-tree and",
+  "per-class digests, taken on 2026-09-15 off the tree the genesis-to-tip publish of",
+  "2026-09-10 left on disk. It says of itself that the tree is machine-local, `.gitignore`d,",
+  "and will not survive the machine. IT HAS NOT. Searched on 2026-09-18 across the build",
+  "area and the whole home tree to six directory levels for a `.chain-state` directory or",
+  "for that reading's own generation id: no match. So its digests can no longer be",
+  "recomputed here, and a comparison against them is a comparison against a record rather",
+  "than against a tree.",
+  "",
+  "THAT IS NOT THE SAME AS THE BASELINE BEING UNCHECKABLE, AND THIS FILE IS THE PART THAT",
+  "IS. Two contiguous ranges of the same chain were fetched, ingested and published fresh on",
+  "2026-09-18 and measured with the same tool. What they establish is not the count — 2,200",
+  "blocks are not 75,971 — but the two things a count cannot carry on its own:",
+  "",
+  "  1. THE IDENTITY THAT GENERATES THE COUNT HOLDS, at two scales, exactly. A published",
+  "     metadata-only tree is `blocks + 3 x transactions + 6` objects: 200 + 3 x 23 + 6 =",
+  "     275, and 2,200 + 3 x 367 + 6 = 3,307, both observed rather than predicted. The same",
+  "     identity gives the recorded 75,971 + 3 x 20,770 + 6 = 138,287, and the ten object",
+  "     classes are the same ten, with the same shapes, in both readings.",
+  "",
+  "  2. THE NOISE FLOOR OF A BYTE-FOR-BYTE COMPARISON, which is what anyone comparing two",
+  "     published trees has to know before calling a difference a regression. The 200-block",
+  "     range was fetched TWICE, eight minutes apart, from the live chain, and ingested at a",
+  "     pinned generation both times. Object count, byte total and `pathDigest` are",
+  "     IDENTICAL: the key set is fully reproducible from the chain. Nine of the ten classes",
+  "     are byte-identical too. The tenth is ONE object — the generation's `summary.json` —",
+  "     and the whole difference is three fields that describe the RUN and not the chain:",
+  "     `capturedAt`, `tipAtCapture` and `replayableWindowBlocks`. So a re-run that differs",
+  "     in one object, in those fields, has not regressed; a re-run that moves `pathDigest`",
+  "     has.",
+  "",
+  "THE INGEST ITSELF IS DETERMINISTIC AND THE FETCH IS NOT, WHICH IS WHERE THAT ONE OBJECT",
+  "COMES FROM. Re-ingesting one snapshot at one generation reproduces all four figures",
+  "exactly, digests included. The per-row `observedAt` a fetch stamps reaches NO published",
+  "object (measured: zero files in the tree contain it), so the only wall-clock that",
+  "survives into the tree is the one in `summary.json`.",
+  "",
+  "AND THE WHOLE-CHAIN READING COULD NOT SIMPLY BE RE-TAKEN, FOR A REASON WORTH RECORDING.",
+  "See `producerGap` below: the range producer does not write the facts the reader now",
+  "requires of every row, so the path that published the 138,287-object tree cannot publish",
+  "a tree this reader accepts without a migration step in the middle. That is a defect in",
+  "the producer and not in the baseline, but it is the reason this file measures ranges",
+  "rather than the chain."
+ ],
+ "measuredAt": "2026-09-18",
+ "tool": "tools/chain/object-set.mjs",
+ "chain": "aztec-testnet",
+ "endpoint": "https://aztec-testnet.drpc.org",
+
+ "theRecordedTreeIsGone": {
+  "record": "tools/chain/measurements/published-object-set.json",
+  "recordedObjects": 138287,
+  "searchedFor": [".chain-state directories", "the recorded reading's generation id"],
+  "searchedIn": ["/build", "/home/zahary"],
+  "searchDepth": 6,
+  "found": 0,
+  "consequence": "the recorded whole-tree pathDigest and setDigest cannot be recomputed on this host"
+ },
+
+ "chainIsTheSameInstance": {
+  "why": "a baseline taken against one chain and re-taken against another is not a comparison, so the instance is checked by its own identifiers rather than by its name",
+  "l1ChainId": 11155111,
+  "rollupAddress": "0xd73a91bdcf6891c7642f3e460036e1ef2cc23178",
+  "rollupVersion": 1821665230,
+  "nodeVersion": "5.2.0",
+  "agreesWith": [
+   "client/fixtures/chain/aztec-testnet/snapshot.json provenance",
+   "tools/chain/measurements/published-object-set.json provenance"
+  ],
+  "tipAtRecheck": 87008,
+  "tipWhenTheBaselineWasTaken": 75971,
+  "historyServed": {
+   "_note": "node_getBlock answered 200 at every height probed, including genesis — nothing below the baseline's range has been pruned away",
+   "heightsProbed": [1, 200, 24700, 45000, 68000, 75700, 75971, 87000],
+   "answered200": 8
+  },
+  "oneMethodIsNowGated": {
+   "method": "node_getProvenBlockNumber",
+   "response": "HTTP 400, code 35, 'method is not available on free plan, please upgrade to paid plan'",
+   "note": "reported because it is a plan change on somebody else's endpoint, not a chain change; this tree calls it at one site"
+  }
+ },
+
+ "samples": [
+  {
+   "name": "one 200-block range, fetched twice",
+   "blocksFrom": 45000,
+   "blocksTo": 45199,
+   "generationPinnedTo": "rTEST1",
+   "blocks": 200,
+   "transactions": 23,
+   "objects": 275,
+   "identity": "200 + 3*23 + 6 = 275",
+   "bytes": 127195,
+   "pathDigest": "sha256:b4081368e6ee56ad99479eaf411bbe28b43a1b845e6d52695d2abf101d7b19f7",
+   "setDigestFetchA": "sha256:b6cdb8847575a0395b054134b69a1bf50e6628fd01a875ca328c7786740515d6",
+   "setDigestFetchB": "sha256:b9d01261cf9801afa527e2e98a6265014d7873efe992858222b78297a297a529",
+   "betweenTheTwoFetches": {
+    "objects": "identical",
+    "bytes": "identical",
+    "pathDigest": "identical",
+    "classesByteIdentical": 9,
+    "classesDiffering": 1,
+    "theDifferingClass": "d/{chain}/g/{gen}/summary.json",
+    "theDifferingObjects": 1,
+    "theDifferingFields": ["capturedAt", "tipAtCapture", "replayableWindowBlocks"]
+   },
+   "fetchCost": { "rpcCalls": 30, "rateLimited": 0, "faults": 0, "fetchMs": 1847 }
+  },
+  {
+   "name": "the same range extended to 2,200 blocks",
+   "blocksFrom": 45000,
+   "blocksTo": 47199,
+   "generationPinnedTo": "rTEST2",
+   "blocks": 2200,
+   "transactions": 367,
+   "objects": 3307,
+   "identity": "2200 + 3*367 + 6 = 3307",
+   "bytes": 1592202,
+   "pathDigest": "sha256:24d9c589411f077a8ab69a8cb9e15f768aaeb64e1e6ddecaa860852887e79ee0",
+   "setDigest": "sha256:2c48bf50786223ff58dc6b312dee8543e64b34cca453fde00280fb68e2c773f7",
+   "reIngestOfTheSameSnapshot": "objects, bytes, pathDigest and setDigest all identical — the ingest is deterministic",
+   "fetchCostOfTheAddedRange": {
+    "blocks": 2000,
+    "rpcCalls": 384,
+    "rateLimited": 0,
+    "faults": 0,
+    "fetchMs": 33628
+   },
+   "ingestMs": 917,
+   "publishMs": 1376,
+   "publishedContentObjects": 3305,
+   "publishedPointers": 2
+  }
+ ],
+
+ "classPartition": {
+  "_note": "the same ten classes as the recorded reading, in both samples",
+  "classes": [
+   "d/{chain}/block/{blockHash}.json",
+   "d/{chain}/current.json",
+   "d/{chain}/g/{gen}/blocks/**",
+   "d/{chain}/g/{gen}/height/**",
+   "d/{chain}/g/{gen}/root.json",
+   "d/{chain}/g/{gen}/summary.json",
+   "d/{chain}/g/{gen}/txstate/{shard}/{txHash}.json",
+   "d/{chain}/ts/{v}/{shard}/{txHash}.json",
+   "d/{chain}/tx/{shard}/{txHash}.json",
+   "registry/chains.v1.json"
+  ]
+ },
+
+ "producerGap": {
+  "_comment": [
+   "THE RANGE PRODUCER CANNOT WRITE A SNAPSHOT THIS READER ACCEPTS, AND IT IS FOUR MEMBERS.",
+   "",
+   "The facts lifted out of the reader and into snapshot data are supplied by",
+   "`tools/chain/lib/producer-facts.mjs`. Three producers import it — `backfill-blocks.mjs`,",
+   "`capture-chain.mjs` and `follow-chain.mjs`. `ingest-range.mjs` does not, and it is the",
+   "one a range-by-range backfill runs. Its row construction writes `transactionFee` and",
+   "stops there.",
+   "",
+   "Reproduced on a freshly fetched range, rc 1 and zero objects written:",
+   "  [S5-ROW-MEMBERS-REQUIRED] a transaction row ... carries no `cost`",
+   "",
+   "Running `tools/chain/migrate-chain-facts.mjs --write` over the merged snapshot supplies",
+   "all four and the same ingest then exits 0 — so the gap is exactly these members and",
+   "nothing else is wrong with the path. The repair is the import the three siblings already",
+   "have; the migration in the middle is a workaround and is not one a backfill should need."
+  ],
+  "missingRowMembers": ["cost", "executions"],
+  "missingProvenanceMembers": ["recorder", "prestateStrategy"],
+  "site": "tools/chain/ingest-range.mjs, the transaction row construction",
+  "refusalObserved": "[S5-ROW-MEMBERS-REQUIRED] ... carries no `cost`",
+  "objectsWrittenOnRefusal": 0,
+  "withTheMigrationApplied": { "ingestRc": 0, "objects": 3307 }
+ },
+
+ "unknownTokenRefusalIsTotal": {
+  "_comment": [
+   "MEASURED HERE BECAUSE IT DECIDES WHETHER A FORMAT-TOKEN BUMP CAN COEXIST WITH A",
+   "BYTE-FOR-BYTE COMPARISON. A producer built from this tree, handed a snapshot carrying an",
+   "unreadable token, does not write a partial tree — it writes NOTHING. So a comparison",
+   "between a producer that knows a newer token and one that does not is not a diff with a",
+   "few named lines in it; one side is absent, which is the same signature a broken",
+   "comparison has."
+  ],
+  "tokenPlanted": "blocktracer/chain-snapshot@3",
+  "rc": 1,
+  "objectsWritten": 0,
+  "refusal": "[S5-FORMAT-UNKNOWN] unsupported chain snapshot format ... refused by name rather than read in part"
+ }
+}
