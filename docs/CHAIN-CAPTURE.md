@@ -80,6 +80,27 @@ recorded as a transaction's refusal**.
 Five 200-block windows, testnet, 2026-09-10, tip 76,024. Every transaction the
 chain published in each window; nothing sampled within a window.
 
+**A window is its ABSOLUTE RANGE. The `blocks below tip` column in the table
+below is a reading taken at that tip and nothing else.** The tip was 76,024 when
+this was measured and 87,073 on 2026-09-18, so a re-run picking windows by depth
+measures
+five windows about eleven thousand blocks away from these and reports the
+difference as a change in the producer. Re-run `1–200`, `24700–24899`,
+`45000–45199`, `68000–68199`, `75700–75899`.
+
+**Two properties of the recorded artifact rather than of the chain**, measured
+2026-09-18 and stated here because the table below is where they are quoted
+from. `75700–75899` contributes 92 of the 211 and its ledger carries only
+`fetch` — no `replay` object, so no runtime commit and no timestamp for the run
+that produced the largest share of the total. And `ledger.replay.attempted` is a
+count for ONE PASS, not a total: the replay loop skips rows already `replayed`
+or `divergent`, so a resumed pass attempts only what is still undecided. That is
+why it equals `refused` in all four windows that have a replay ledger and why
+`45000–45199` reads `attempted: 0` beside `replayed: 21` — those are resumed
+passes. A first pass over `1–200` into an empty state directory reports
+`attempted: 91` = 43 + 2 + 46, measured 2026-09-18. Every figure in the table
+below is counted from the rows rather than from that field.
+
 | window | blocks below tip | tx | first-in-block | traced | private-only | refused | traced ÷ all tx | traced ÷ has a public half |
 | ------ | ---------------- | -- | -------------- | ------ | ------------ | ------- | --------------- | -------------------------- |
 | 75700–75899 | 125    | 98  | 95  | 92  | 3  | 0  | **93.9%** | 100.0% |
