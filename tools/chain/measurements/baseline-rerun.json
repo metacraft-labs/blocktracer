@@ -1,0 +1,385 @@
+{
+ "format": "blocktracer/baseline-rerun@1",
+ "_comment": [
+  "THE THREE BASELINE READINGS, RE-TAKEN, AND EVERY DIFFERENCE NAMED WITH ITS CAUSE.",
+  "",
+  "The baseline is three numbers taken on 2026-09-10 and 2026-09-15: 75,971 blocks",
+  "contiguous, 138,287 objects published, and 211 of 343 historic transactions traced",
+  "across five whole 200-block windows. This is that measurement repeated on 2026-09-18,",
+  "against the same chain, over the SAME ABSOLUTE BLOCK RANGES.",
+  "",
+  "-- WHY RANGES AND NOT DEPTHS -------------------------------------------------------",
+  "",
+  "The windows were originally quoted as depths below the tip. The tip was 76,024 then",
+  "and 87,114 when this ran, so a re-run by depth measures five windows eleven thousand",
+  "blocks away from the ones the baseline is over and reports the difference as a change",
+  "in the producer. The absolute range is the reproducible identity. Likewise the",
+  "backfill: this covers 1..75,971 exactly, not `genesis to tip`, because the chain has",
+  "grown and a tip-relative run is a different measurement.",
+  "",
+  "-- THE OBJECT SET, AND WHAT IT IS COMPARED AGAINST ----------------------------------",
+  "",
+  "`published-object-set.json` measured a tree produced on 2026-09-10 by a build whose",
+  "commit it records. That tree is gone -- it says of itself that it is machine-local --",
+  "so what can be compared is its DIGESTS, and they were computed with the generation id",
+  "in the paths. This run therefore re-ingests the merged snapshot at that same",
+  "generation id, so the comparison is about the producer rather than about a run label.",
+  "",
+  "WHOLE-TREE `pathDigest` IS IDENTICAL: 138,287 objects at exactly the 138,287 paths the",
+  "record names. Seven of the ten object classes are byte-identical as well. The three",
+  "that are not are three reader changes that landed BETWEEN the two measurements, and",
+  "each is attributed to the byte by reconstruction rather than by argument -- see",
+  "`objectSet.differingClasses`, where every `reconstructedBytes` equals the recorded",
+  "`baselineBytes` exactly.",
+  "",
+  "-- THE THREE TRANSACTIONS THAT MOVED ------------------------------------------------",
+  "",
+  "208 traced, not 211. Three transactions that replayed in the baseline refused here,",
+  "all with runtime class `unknown` -- the class the producer records when the driver's",
+  "stderr carries no thrown error at all. The cause is the HOST and it was measured, not",
+  "inferred: the replay driver is killed by SIGSEGV, exit code null, 0 bytes on stdout,",
+  "43 seconds in. See `replay.hostFinding`. Two of the three replay on a re-attempt and",
+  "one does not, which is what a crash under contention looks like from outside.",
+  "",
+  "Every other figure in the replay half reproduces exactly: 343 transactions, 333",
+  "first-in-block, 5 divergent, 64 private-only, 269 with a public half, and three of the",
+  "five windows identical in every column."
+ ],
+ "measuredAt": "2026-09-18",
+ "chain": "aztec-testnet",
+ "endpoint": "https://aztec-testnet.drpc.org",
+ "tipAtRun": 87114,
+ "backfill": {
+  "range": {
+   "from": 1,
+   "to": 75971
+  },
+  "blocks": 75971,
+  "transactions": 20770,
+  "ranges": 38,
+  "contiguity": {
+   "walkedBy": "node tools/chain/coverage-contiguity.mjs <ledger> 1 75971",
+   "verdict": "CONTIGUOUS WITH ZERO GAPS: YES",
+   "gaps": 0,
+   "overlaps": 0,
+   "notServed": 0,
+   "throttledOut": 0,
+   "_note": "asserted by WALKING the ledger's 38 ranges, not by comparing a total"
+  },
+  "outcomes": {
+   "not-attempted": 18508,
+   "not-first-in-block": 2262
+  },
+  "baseline": {
+   "blocks": 75971,
+   "ranges": 152,
+   "_note": "the baseline's own contiguity conclusion, recorded inside published-object-set.json's provenance; no coverage-ledger@1 artifact of it survives, so there are no pre-refactor ranges to walk"
+  },
+  "delta": {
+   "blocks": 0,
+   "transactions": 0,
+   "_note": "the chain-wide population matches the committed yield artifact's chainWidePopulation exactly: 20,770 transactions, 18,508 first-in-block, 2,262 not"
+  }
+ },
+ "objectSet": {
+  "objects": 138287,
+  "bytes": 70916790,
+  "pathDigest": "sha256:dc642cddf7187f0e861e9b5aafc0ca78e9fa74fcbd48a9041b3c3d3cb3bd8966",
+  "setDigest": "sha256:d99d5fc1fdc3990c055275d91da70369f185875077f32e36db691a2c2951a410",
+  "generation": "rcab127b14cf4",
+  "baseline": {
+   "objects": 138287,
+   "bytes": 69251727,
+   "pathDigest": "sha256:dc642cddf7187f0e861e9b5aafc0ca78e9fa74fcbd48a9041b3c3d3cb3bd8966",
+   "setDigest": "sha256:00c090d15bca63c64c2914ec7363753aedd00c63aa4f243636fa738a01f50048"
+  },
+  "pathDigestIdentical": true,
+  "classesByteIdentical": 7,
+  "classesTotal": 10,
+  "differingClasses": [
+   {
+    "class": "d/{chain}/ts/{v}/{shard}/{txHash}.json",
+    "objects": 20770,
+    "baselineBytes": 9948263,
+    "bytes": 11612468,
+    "reconstructedBytes": 9948263,
+    "pathDigestIdentical": true,
+    "cause": "two reader changes landed after the baseline tree was produced: `refusalReason` became a required member at blocktracer/chain-snapshot@2, and the outcome vocabulary was corrected from `pruned` to `not-attempted` with a longer narrative. Reconstructing the 2026-09-10 shape from these objects -- old narrative, no refusalReason -- gives 9,948,263 bytes, which is the recorded figure exactly."
+   },
+   {
+    "class": "registry/chains.v1.json",
+    "objects": 1,
+    "baselineBytes": 538,
+    "bytes": 913,
+    "reconstructedBytes": 538,
+    "pathDigestIdentical": true,
+    "cause": "four registry members landed after the baseline: identifierEncoding, reach, historyFloor and ordering. Removing exactly those four from the published row gives 538 bytes, which is the recorded figure exactly."
+   },
+   {
+    "class": "d/{chain}/g/{gen}/summary.json",
+    "objects": 1,
+    "baselineBytes": 895,
+    "bytes": 1378,
+    "reconstructedBytes": 895,
+    "pathDigestIdentical": true,
+    "cause": "the `refusals` tally block landed after the baseline. Removing it gives 895 bytes, which is the recorded figure exactly. Note what did NOT move: capturedAt, tipAtCapture and finalizedAtCapture all changed VALUE between the two runs and none changed LENGTH, so the run-describing fields contribute nothing to this delta."
+   }
+  ],
+  "byteIdenticalClasses": [
+   "d/{chain}/block/{blockHash}.json",
+   "d/{chain}/current.json",
+   "d/{chain}/g/{gen}/blocks/**",
+   "d/{chain}/g/{gen}/height/**",
+   "d/{chain}/g/{gen}/root.json",
+   "d/{chain}/g/{gen}/txstate/{shard}/{txHash}.json",
+   "d/{chain}/tx/{shard}/{txHash}.json"
+  ]
+ },
+ "replay": {
+  "toolchain": {
+   "runtime": "metacraft-labs/aztec-avm-runtime dfb9ebe (the baseline's own commit)",
+   "node": "nodejs-22.23.2",
+   "avm": "barretenberg avm.wasm, --import-memory",
+   "_hostNote": "the prebuilt barretenberg native addon is renamed OFF on this host: it raises SIGILL on this CPU (no AVX2), and the WASM fallback is what makes replay possible at all."
+  },
+  "windows": [
+   {
+    "from": 1,
+    "to": 200,
+    "transactions": 110,
+    "firstInBlock": 104,
+    "notFirstInBlock": 6,
+    "replayed": 43,
+    "divergent": 2,
+    "traced": 45,
+    "privateOnly": 13,
+    "refused": 46,
+    "withPublicHalf": 91,
+    "yieldOverWithPublicHalf": 49.5,
+    "attempted": 91,
+    "replayMsMedian": 14842,
+    "replayMsMax": 53205,
+    "runtimeClasses": {
+     "ModuleRefusedReplay": 45,
+     "unknown": 1
+    },
+    "baseline": {
+     "replayed": 44,
+     "divergent": 2,
+     "traced": 46,
+     "privateOnly": 13,
+     "refused": 45,
+     "withPublicHalf": 91,
+     "replayMsMedian": 3404
+    },
+    "delta": {
+     "replayed": -1,
+     "divergent": 0,
+     "traced": -1,
+     "privateOnly": 0,
+     "refused": 1
+    }
+   },
+   {
+    "from": 24700,
+    "to": 24899,
+    "transactions": 83,
+    "firstInBlock": 82,
+    "notFirstInBlock": 1,
+    "replayed": 27,
+    "divergent": 3,
+    "traced": 30,
+    "privateOnly": 40,
+    "refused": 12,
+    "withPublicHalf": 42,
+    "yieldOverWithPublicHalf": 71.4,
+    "attempted": 42,
+    "replayMsMedian": 17992,
+    "replayMsMax": 33573,
+    "runtimeClasses": {
+     "ModuleRefusedReplay": 11,
+     "Expected": 1
+    },
+    "baseline": {
+     "replayed": 27,
+     "divergent": 3,
+     "traced": 30,
+     "privateOnly": 40,
+     "refused": 12,
+     "withPublicHalf": 42,
+     "replayMsMedian": 2410
+    },
+    "delta": {
+     "replayed": 0,
+     "divergent": 0,
+     "traced": 0,
+     "privateOnly": 0,
+     "refused": 0
+    }
+   },
+   {
+    "from": 45000,
+    "to": 45199,
+    "transactions": 23,
+    "firstInBlock": 23,
+    "notFirstInBlock": 0,
+    "replayed": 21,
+    "divergent": 0,
+    "traced": 21,
+    "privateOnly": 2,
+    "refused": 0,
+    "withPublicHalf": 21,
+    "yieldOverWithPublicHalf": 100.0,
+    "attempted": 21,
+    "replayMsMedian": 15851,
+    "replayMsMax": 19988,
+    "runtimeClasses": {},
+    "baseline": {
+     "replayed": 21,
+     "divergent": 0,
+     "traced": 21,
+     "privateOnly": 2,
+     "refused": 0,
+     "withPublicHalf": 21,
+     "replayMsMedian": 6378
+    },
+    "delta": {
+     "replayed": 0,
+     "divergent": 0,
+     "traced": 0,
+     "privateOnly": 0,
+     "refused": 0
+    }
+   },
+   {
+    "from": 68000,
+    "to": 68199,
+    "transactions": 29,
+    "firstInBlock": 29,
+    "notFirstInBlock": 0,
+    "replayed": 20,
+    "divergent": 0,
+    "traced": 20,
+    "privateOnly": 6,
+    "refused": 3,
+    "withPublicHalf": 23,
+    "yieldOverWithPublicHalf": 87.0,
+    "attempted": 23,
+    "replayMsMedian": 15602,
+    "replayMsMax": 94628,
+    "runtimeClasses": {
+     "ModuleRefusedReplay": 1,
+     "unknown": 2
+    },
+    "baseline": {
+     "replayed": 22,
+     "divergent": 0,
+     "traced": 22,
+     "privateOnly": 6,
+     "refused": 1,
+     "withPublicHalf": 23,
+     "replayMsMedian": 5380
+    },
+    "delta": {
+     "replayed": -2,
+     "divergent": 0,
+     "traced": -2,
+     "privateOnly": 0,
+     "refused": 2
+    }
+   },
+   {
+    "from": 75700,
+    "to": 75899,
+    "transactions": 98,
+    "firstInBlock": 95,
+    "notFirstInBlock": 3,
+    "replayed": 92,
+    "divergent": 0,
+    "traced": 92,
+    "privateOnly": 3,
+    "refused": 0,
+    "withPublicHalf": 92,
+    "yieldOverWithPublicHalf": 100.0,
+    "attempted": 92,
+    "replayMsMedian": 11606,
+    "replayMsMax": 19766,
+    "runtimeClasses": {},
+    "baseline": {
+     "replayed": 92,
+     "divergent": 0,
+     "traced": 92,
+     "privateOnly": 3,
+     "refused": 0,
+     "withPublicHalf": 92,
+     "replayMsMedian": 4382
+    },
+    "delta": {
+     "replayed": 0,
+     "divergent": 0,
+     "traced": 0,
+     "privateOnly": 0,
+     "refused": 0
+    }
+   }
+  ],
+  "totals": {
+   "transactions": 343,
+   "firstInBlock": 333,
+   "notFirstInBlock": 10,
+   "replayed": 203,
+   "divergent": 5,
+   "traced": 208,
+   "privateOnly": 64,
+   "refused": 61,
+   "withPublicHalf": 269,
+   "baseline": {
+    "transactions": 343,
+    "firstInBlock": 333,
+    "notFirstInBlock": 10,
+    "replayed": 206,
+    "divergent": 5,
+    "traced": 211,
+    "privateOnly": 64,
+    "refused": 58,
+    "withPublicHalf": 269
+   }
+  },
+  "yield": {
+   "tracedOverAllTransactions": 60.6,
+   "tracedOverFirstInBlock": 62.5,
+   "tracedOverFirstInBlockWithPublicHalf": 77.3,
+   "baseline": {
+    "tracedOverAllTransactions": 61.5,
+    "tracedOverFirstInBlock": 63.4,
+    "tracedOverFirstInBlockWithPublicHalf": 78.4
+   }
+  },
+  "hostFinding": {
+   "what": "the three transactions that moved from replayed to refused, all classified `unknown`",
+   "transactions": [
+    {
+     "blockNumber": 98,
+     "txHash": "0x22df218bb2cbdb7970186b7dc15ce8b65851c6508abce26155fcb847f78c324d",
+     "reAttempts": "2 of 2 refused, at 77,282 ms and 53,559 ms against a window median of 14,842 ms",
+     "appLogicEnqueuedCalls": 4
+    },
+    {
+     "blockNumber": 68099,
+     "txHash": "0x0aa5677b35a37fbe73b64e3e0b7dfd692efd9bd77f40ff0bff77f6bce7113983",
+     "reAttempts": "2 of 2 REPLAYED, at 17,283 ms and 15,820 ms",
+     "appLogicEnqueuedCalls": 1
+    },
+    {
+     "blockNumber": 68150,
+     "txHash": "0x22499ee8b79f2c3c799da17cb252c38f78ee2e64c3eae9f1c7c5853fb3526adf",
+     "reAttempts": "1 refused at 43,094 ms, 1 REPLAYED at 12,194 ms",
+     "appLogicEnqueuedCalls": 1
+    }
+   ],
+   "measurement": "the driver was spawned directly against a body proxy for block 98's transaction: exit code null, signal SIGSEGV, 0 bytes on stdout, after 43,164 ms. The AVM had already simulated the transaction and printed its per-phase progress; there is no thrown error anywhere in stderr, which is exactly why the producer classifies it `unknown`.",
+   "conclusion": "a host property, not a chain property and not a producer regression. The WASM AVM crashes on this CPU for the heaviest transactions; the same three transactions replay elsewhere in the baseline's own record.",
+   "residual": "a row that refuses because its driver was KILLED cannot say so. `lib/replay.mjs` has the exit code and the signal in hand and neither reaches the published `reason` or `detail`; the operator sees `refused with unknown` and a progress log. Recording it would change published `reason` bytes, so it is named here rather than done inside a zero-regression measurement."
+  }
+ }
+}
