@@ -67,12 +67,11 @@
     "     clauses cannot drift apart."
   ],
   "format": "blocktracer/health-checks@1",
-
   "carried": [
     {
-      "id": "reader-schema-disagreement",
+      "id": "corpus-predates-the-line-index-correction",
       "measuredOn": "2026-09-18",
-      "note": "All 52 real containers in this repository declare `meta.dat` schema version 3. The Nim reader accepts versions 4 and 5 and refuses 3 BY NAME — a version-3 writer packed a line-only step position as `prefixSum[path_id] + line`, a current writer packs `prefixSum[path_id] + (line - 1)`, and both land inside the trace's address space, so a step read under the current decode comes back one line high rather than failing. The two Rust readers are pinned at version 3 and accept them. The supported sets are disjoint: the two readers cannot open each other's containers, and this corpus sits on the superseded side. Nothing here settles which reader a sweep should believe.",
+      "note": "All 52 real containers in this repository declare `meta.dat` schema version 3, and every current reader refuses that version BY NAME. A version-3 writer packed a line-only step position as `prefixSum[path_id] + line`; a current writer packs `prefixSum[path_id] + (line - 1)`. Both land inside the trace's address space, so a version-3 step read under the current decode comes back ONE LINE HIGH rather than failing - which is why the schema version is the only possible discriminator and why readers refuse instead of decoding. The Nim reader accepts [4, 5]; the two Rust readers are at META_DAT_VERSION = 4 with SUPPORTED_VERSIONS = [4, META_DAT_VERSION_EXTENDED_FLAGS]. THEY AGREE. So the corpus is readable by nothing current, and the remedy is to re-record it rather than to reconcile readers. The committed instructions/, positions/ and calltrace/ sidecars were derived by a reader build that accepted version 3, and nothing in the tree records which one. CORRECTED 2026-09-18, same day: this entry first said the readers supported DISJOINT sets with Rust pinned at 3. That was read from a checkout of the sibling repository standing 199 commits behind its mainline; the Rust readers had already moved to 4. A claim about another repository's constant is only as current as the checkout it was read from.",
       "bounds": "every check marked needsContainer"
     },
     {
@@ -82,7 +81,6 @@
       "bounds": "how `containersOpened` and `containersRefused` are counted"
     }
   ],
-
   "checks": {
     "H-READ-NONE": {
       "kind": "not-measured",
@@ -93,7 +91,6 @@
       "fires": "containersOpened == 0 and at least one requested check is marked needsContainer",
       "why": "A check that could not run must be reported as not run and never as passed. Without this finding a sweep with no reader wired prints the same clean verdict as a sweep that read every container and found nothing wrong, and the two are not the same measurement. It is the control that makes a zero mean something."
     },
-
     "H-SOURCE-ABSENT": {
       "kind": "unhealthy",
       "needsContainer": false,
@@ -114,7 +111,6 @@
       ],
       "reportsNote": "The rates are published whether or not the finding fires. The finding is a threshold; the gradient is what tells an operator whether a chain is moving."
     },
-
     "H-OUTCOME-REASON-JOINT": {
       "kind": "unhealthy",
       "needsContainer": false,
@@ -135,7 +131,6 @@
         "check over an empty scope is reported NOT RUN, never passed."
       ]
     },
-
     "H-RECORDER-UNATTRIBUTED": {
       "kind": "unhealthy",
       "needsContainer": false,
@@ -146,7 +141,6 @@
       "why": "A defect found in a recording is worth reporting only if it can be attributed. `recordedBy` is per row because a range may be replayed over more than one build; `provenance.runtimeCommit` is the snapshot-wide fallback. A row with neither is a recording nobody can pin to a build, and nothing requires either member: `S5-RECORDER-STATED` is about a DIFFERENT member — `provenance.recorder`, the recorder's id and trace schema, which is an identity rather than a build — and it ranges over the snapshot, not the row.",
       "scope": "rows that name a container"
     },
-
     "H-CONTAINER-UNREADABLE": {
       "kind": "unhealthy",
       "needsContainer": true,
@@ -158,7 +152,6 @@
       "why": "The contract's member census declares the container OPAQUE: its entry has zero members, and every rule that mentions a recording reads the producer's claim about it rather than the bytes. A producer that mis-measures its own recording and writes sidecars consistent with the mis-measurement is conformant. This is the question that closes that, and it is the reason the `needsContainer` accounting exists at all."
     }
   },
-
   "containerReader": {
     "_comment": [
       "HOW A SWEEP DECIDES THAT A RECORDING OPENED, when a reader is named with",
@@ -177,7 +170,6 @@
     "refusalSignature": "(?:^|\\n)\\s*(?:Error|error):",
     "refusalSignatureFlags": ""
   },
-
   "admissibleOutcomeReasonPairs": [
     {
       "outcome": "not-first-in-block",
@@ -252,7 +244,6 @@
       "justification": "The execution reached an opcode, precompile, host function or syscall the recorder does not implement. The condition exists because `runtime-refused` was the wrong home for it — that member asserts the runtime declined BY NAME, and a recorder that never started the execution has established nothing of the kind — and the outcome stays `refused` because the transaction was, in the end, declined."
     }
   ],
-
   "reasonMemberJoints": [
     {
       "refusalReason": "no-container-written",
