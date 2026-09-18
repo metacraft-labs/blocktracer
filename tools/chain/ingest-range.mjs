@@ -87,6 +87,8 @@ import { preflightToolchain, replayTransaction } from './lib/replay.mjs';
 import { startBodyProxy } from './lib/body-proxy.mjs';
 import { recountSnapshot } from './lib/recount.mjs';
 import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
+import { RECORDER, PRESTATE_STRATEGY, costVectorForRow, executionsForRow }
+  from './lib/producer-facts.mjs';
 import { storeBasePath } from './backfill-bodies.mjs';
 
 const argv = process.argv.slice(2);
@@ -507,6 +509,16 @@ async function fetchRange(nodeInfo, tip, finalized) {
         transactions.push({
           txHash: eff.txHash, blockNumber: n, txIndexInBlock: i,
           revertCode: eff.revertCode, transactionFee: eff.transactionFee,
+          // §5.3's cost VECTOR and execution partition, from the same module the three
+          // sibling producers import. This file stated `transactionFee` and stopped, so
+          // every row it wrote was refused by the reader — `[§5.2b
+          // S5-ROW-MEMBERS-REQUIRED] … carries no 'cost'`, exit 1, zero objects written —
+          // and the range had to be run through `migrate-chain-facts.mjs` before it would
+          // publish. That is the lift reaching three of four producers. A second spelling
+          // here is how the four diverge again, so this calls the module rather than
+          // restating what it returns.
+          cost: costVectorForRow(eff.transactionFee),
+          executions: executionsForRow(),
           bodyRetained: false, effectVisible: true, firstInBlock: i === 0,
           observedAt: new Date().toISOString(), ...why,
         });
@@ -523,6 +535,11 @@ async function fetchRange(nodeInfo, tip, finalized) {
       chain, label, endpoint: url,
       capturedAt: new Date().toISOString(),
       firstCapturedAt: new Date().toISOString(),
+      // §5.3: who recorded this and in what schema, and how the prestate was obtained —
+      // the same two the other three producers state, from the same module. Absent here,
+      // the reader refused the whole range by name.
+      recorder: { ...RECORDER },
+      prestateStrategy: PRESTATE_STRATEGY,
       // `?? ''` ON ALL FOUR. `rollupAddress` had it and the three beside it did not,
       // and `JSON.stringify` drops an `undefined`-valued key — so a node whose
       // `getNodeInfo` omits a field wrote a snapshot missing the member while this

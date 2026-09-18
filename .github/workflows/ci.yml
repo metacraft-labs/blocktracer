@@ -666,7 +666,7 @@ jobs:
         run: node tools/chain/object-set-selftest.mjs
 
       - name: Do the reader and the document a producer writes against name the same members?
-        # 91 assertions. The seam's producer half is a DOCUMENT (Data-Contract.md
+        # 105 assertions. The seam's producer half is a DOCUMENT (Data-Contract.md
         # §5) and a READER (`src/blocktracer/chain/ingest.nim`), and until this
         # suite the only thing holding the two together was that somebody had read
         # both and agreed with themselves. What that produced, measured: §5 named

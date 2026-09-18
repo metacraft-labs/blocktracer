@@ -431,6 +431,18 @@ async function main() {
         chain, label, endpoint: url,
         capturedAt,
         firstCapturedAt: snap.provenance?.firstCapturedAt ?? priorCapturedAt ?? capturedAt,
+        // §5.3's two, RESTATED ON THE GROW PATH and not only on the start path.
+        //
+        // This literal spreads the provenance of a snapshot that was already on disk, so
+        // it carried these forward only when the tool that wrote that snapshot stated
+        // them. A follower pointed at a snapshot from an earlier build therefore grew it
+        // into one the reader refuses — the same hole `ingest-range.mjs` had, one file
+        // over, and `lib/producer-scan.mjs` R3 is what named it. The values are this
+        // producer's own either way, so restating them is a no-op on a snapshot this tool
+        // started: a key present in the spread keeps its position and takes the new value,
+        // which is the same value.
+        recorder: { ...RECORDER },
+        prestateStrategy: PRESTATE_STRATEGY,
         // ── FOUR FALLBACKS, BECAUSE `JSON.stringify` DROPS `undefined` ──────────
         //
         // `rollupAddress` already had `?? ''` and the three beside it did not, and the

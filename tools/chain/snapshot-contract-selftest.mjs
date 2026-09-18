@@ -51,7 +51,7 @@
 // The mutation arms in §6 are copies of those real files with one edit, which is the
 // opposite of a mock: the point is that the thing under test is the shipping artifact.
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { extractReaderContract, flatten, readerShapeViolations, pathDefaultLiterals,
@@ -59,6 +59,7 @@ import { extractReaderContract, flatten, readerShapeViolations, pathDefaultLiter
          REQUIRED, OPTIONAL } from './lib/reader-contract.mjs';
 import { RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
          costVectorForRow, executionsForRow } from './lib/producer-facts.mjs';
+import { scanProducers, FACTS_MODULE } from './lib/producer-scan.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CONTRACT = join(root, 'tools', 'chain', 'snapshot-contract.json');
@@ -1113,6 +1114,119 @@ test('§13 no optional member in src/ is reached by a form that cannot survive i
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
+//
+// §14 EXISTS BECAUSE §10 ONLY CHECKED ONE SIDE. §10 asserts that `producer-facts.mjs`
+// states what the reader used to spell — that the MODULE is faithful. It says nothing
+// about whether the tools that write rows CALL it, and three of the four did while the
+// fourth did not. `ingest-range.mjs` stated a row's `transactionFee` and stopped, so the
+// reader refused every range it produced by name (`[§5.2b S5-ROW-MEMBERS-REQUIRED] …
+// carries no 'cost'`, exit 1, zero objects written) and a freshly fetched range had to be
+// migrated before it would publish at all. Nothing said so for a whole milestone.
+//
+// The subject list is DERIVED from the directory rather than written down — see
+// `lib/producer-scan.mjs`'s header and `Verification-Harness-Traps.md` §35 — and the last
+// two arms below are that trap's two rules: the enumeration is armed so a lister matching
+// nothing cannot satisfy the rule, and a fifth producer planted in the directory is shown
+// to be SEEN rather than skipped.
+test('§14 every tool that writes a transaction row states the lifted facts through the module');
+{
+  const TOOLS_DIR = join(root, 'tools', 'chain');
+  const PROBE = join(TOOLS_DIR, 'zz-producer-scan-probe.mjs');
+  const real = (f) => readFileSync(join(TOOLS_DIR, f), 'utf8');
+  /** one mutated file, every other file read from disk — the arms' only difference */
+  const withEdit = (name, edit) => (f) => (f === name ? edit(real(f)) : real(f));
+  const live = scanProducers(TOOLS_DIR);
+
+  ck(`the directory is enumerated, not listed — ${live.producers.length} producers, `
+     + `${live.others.length} other tools, ${live.suites.length} suites`,
+     live.producers.length > 0 && live.others.length > 0 && live.suites.length > 0);
+  // The roster is compared so a NEW producer arrives as a named failure rather than as a
+  // silently larger green number. It is not what makes the new file covered — the
+  // derivation does that — it is what makes the claim's size visible.
+  const ROSTER = ['backfill-blocks.mjs', 'capture-chain.mjs', 'follow-chain.mjs',
+                  'ingest-range.mjs'];
+  ck(`and they are exactly — ${live.producers.join(', ')}`,
+     JSON.stringify(live.producers) === JSON.stringify(ROSTER));
+  ck(`the scan worked over ${live.rows} transaction-row literals and `
+     + `${live.provenances} live-capture provenance literals`,
+     live.rows >= ROSTER.length && live.provenances >= 3);
+  ck(`every one of them reaches ${FACTS_MODULE} — ${live.findings.length} finding(s)`
+     + (live.findings.length
+        ? `: ${live.findings.map((x) => `${x.file}:${x.line} ${x.rule} ${x.what}`).join('; ')}`
+        : ''),
+     live.findings.length === 0);
+
+  /** an arm fires when the mutated tree reports >=1 finding of exactly the named rule */
+  const fires = (what, name, edit, rule) => {
+    const r = scanProducers(TOOLS_DIR, withEdit(name, edit));
+    const hit = r.findings.filter((x) => x.file === name && x.rule === rule);
+    ck(`${what} — ${rule} fires, ${hit.length} finding(s)`
+       + (hit.length ? `: ${hit[0].what}` : ''),
+       hit.length >= 1);
+  };
+
+  // R1/R2 — THE DEFECT AS IT ACTUALLY SHIPPED, replayed on the shipping file.
+  fires('the range producer with its import of the facts module removed',
+        'ingest-range.mjs', (s) => s.replace(/import \{ RECORDER[^;]*producer-facts\.mjs';/s, ''),
+        'R1');
+  fires('…and with the cost vector dropped from its row, as it was before this milestone',
+        'ingest-range.mjs', (s) => s.replace('cost: costVectorForRow(eff.transactionFee),', ''),
+        'R2');
+  fires('…and with the execution partition dropped from its row',
+        'ingest-range.mjs', (s) => s.replace('executions: executionsForRow(),', ''), 'R2');
+  fires('the one-shot producer with the recorder dropped from its provenance',
+        'capture-chain.mjs', (s) => s.replace('recorder: { ...RECORDER },', ''), 'R3');
+  fires('…and with the prestate strategy dropped from its provenance',
+        'capture-chain.mjs', (s) => s.replace('prestateStrategy: PRESTATE_STRATEGY,', ''), 'R3');
+  // R4 — the drift this campaign has watched four times: not an omission, a SECOND
+  // SPELLING that is right today and stale the day the module changes.
+  fires('the one-shot producer restating a lifted value instead of importing it',
+        'capture-chain.mjs',
+        (s) => s.replace('recorder: { ...RECORDER },',
+                         "recorder: { id: 'aztec-avm', traceSchema: 'ctfs/v4' },"),
+        'R4');
+
+  // §35's SECOND rule — arm the enumeration. A lister that matches nothing satisfies
+  // "every producer states the facts" by leaving no producer to disagree with it.
+  const vacuous = scanProducers(TOOLS_DIR, real, '.mj');
+  ck(`a lister that matches nothing is NOT a pass — narrowing the extension to '.mj' `
+     + `finds ${vacuous.producers.length} producers and ${vacuous.findings.length} findings, `
+     + `which the roster comparison above refuses`,
+     vacuous.producers.length === 0 && vacuous.findings.length === 0
+     && JSON.stringify(vacuous.producers) !== JSON.stringify(ROSTER));
+
+  // §35's FIRST rule, demonstrated the way that trap demands — the probe is planted INSIDE
+  // the directory the scan claims to cover, because that is the only thing a derived
+  // subject list can be wrong about. Removed in the same block whatever happens.
+  try {
+    if (existsSync(PROBE)) rmSync(PROBE);
+    const probeSrc = (facts) => 'export const row = (eff, i, n) => ({\n'
+      + '  txHash: eff.txHash, blockNumber: n, txIndexInBlock: i,\n'
+      + (facts ? '  cost: costVectorForRow(eff.transactionFee),\n'
+               + '  executions: executionsForRow(),\n' : '')
+      + '  bodyRetained: false, effectVisible: true, firstInBlock: i === 0,\n});\n';
+    writeFileSync(PROBE, probeSrc(false));
+    const planted = scanProducers(TOOLS_DIR);
+    const hit = planted.findings.filter((x) => x.file === 'zz-producer-scan-probe.mjs');
+    ck(`a FIFTH tool that writes a row, planted in the directory, is derived as a producer `
+       + `and reported — ${planted.producers.length} producers, ${hit.length} finding(s) `
+       + `against it`,
+       planted.producers.includes('zz-producer-scan-probe.mjs')
+       && hit.some((x) => x.rule === 'R1') && hit.some((x) => x.rule === 'R2'));
+    writeFileSync(PROBE, `import { costVectorForRow, executionsForRow } from '${FACTS_MODULE}';\n`
+                         + probeSrc(true));
+    const repaired = scanProducers(TOOLS_DIR);
+    ck('…and the same fifth tool with the facts stated is accepted, so the arm discriminates '
+       + 'the defect and not the file',
+       repaired.producers.includes('zz-producer-scan-probe.mjs')
+       && repaired.findings.length === 0);
+  } finally {
+    if (existsSync(PROBE)) rmSync(PROBE);
+  }
+  ck('the probe is removed', !existsSync(PROBE));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
 test('§7 the census is well formed');
 {
   ck(`it declares the format this build reads`,
@@ -1139,8 +1253,8 @@ test('§7 the census is well formed');
 }
 
 console.error(`\nassertion count: ${asserted} (as declared)`);
-if (asserted !== 91) {
-  console.error(`snapshot-contract-selftest: asserted ${asserted}, declared 91`);
+if (asserted !== 105) {
+  console.error(`snapshot-contract-selftest: asserted ${asserted}, declared 105`);
   process.exit(1);
 }
 if (failed) {
