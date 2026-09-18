@@ -1413,7 +1413,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // sentence is now CHECKED: each term is read out of the suite that owns it, and the
   // arithmetic is checked as arithmetic.
   //
-  // THE TEN DECLARATIONS ARE IN FOUR DIFFERENT PATTERNS, which is why each has its own
+  // THE ELEVEN DECLARATIONS ARE IN FOUR DIFFERENT PATTERNS, which is why each has its own
   // rather than one generic sweep. A generic regex over the phrasings is the false-green
   // this file exists to refuse: it would silently match most of them and score the rest as
   // absent. If a suite rephrases its declaration this arm goes RED, which is correct — the
@@ -1435,6 +1435,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ['identifier-encoding-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['object-set-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['snapshot-contract-selftest.mjs', /asserted !== (\d+)\) \{/],
+    ['chain-health-selftest.mjs', /asserted !== (\d+)\) \{/],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1446,7 +1447,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# TEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  const m = /# ELEVEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
@@ -1455,7 +1456,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's ten terms are the suites' own declarations, in recipe order — `
+    ck(`the header's eleven terms are the suites' own declarations, in recipe order — `
        + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
@@ -1574,7 +1575,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   ck(`every suite has a ci.yml step whose comment states its count exactly once — `
      + `${ciProblems.length} problem(s)`, ciProblems.length === 0);
   if (ciProblems.length) console.error(`    ${ciProblems.join('\n    ')}`);
-  ck(`…and ci.yml's ten counts are the suites' own — [${ciTerms.join(', ')}] vs `
+  ck(`…and ci.yml's eleven counts are the suites' own — [${ciTerms.join(', ')}] vs `
      + `[${terms.join(', ')}]`,
      ciTerms.length === terms.length && ciTerms.every((n, i) => n === terms[i]));
 }
@@ -1707,7 +1708,11 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       the row that reaches it is built through `classifyRefusal` like every other, and the
 //       unreached-member count widened from five to six because no chain captured here has a
 //       recorder with a capability gap to report.
-expectCount(229);
+//   +1  an ELEVENTH suite joined `chain-selftest`, and the `declared` array's per-suite arm
+//       is a loop, so a suite adds exactly one assertion here — the one that reads its own
+//       count out of it. The three cross-checks that follow (the header's arithmetic, the
+//       recipe body's order, ci.yml's copy) are aggregates and do not grow with it.
+expectCount(230);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

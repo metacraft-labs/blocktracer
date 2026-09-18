@@ -1,0 +1,273 @@
+{
+  "_comment": [
+    "THE CLOSED SET OF QUESTIONS THE RECORDING-HEALTH SWEEP ASKS, and the admissibility",
+    "tables two of them are decided against. `tools/chain/chain-health.mjs` reads it;",
+    "`tools/chain/chain-health-selftest.mjs` reads it to check the tool against it.",
+    "",
+    "── WHY THE IDS ARE `H-` AND WHY A SELFTEST REFUSES AN `S5-` ────────────────────────────",
+    "",
+    "`snapshot-contract.json` already carries a rule table, its ids are `S5-*`, and both",
+    "`src/blocktracer/chain/contract_rules.nim` and `snapshot-contract-selftest.mjs` read it.",
+    "That table is the CONTRACT: what a producer must write for a tree to be conformant, and",
+    "what the reader refuses. This file is a different thing and must stay one — a health",
+    "sweep reports on trees that are ALREADY conformant, so every question here has to be one",
+    "the contract does not ask.",
+    "",
+    "The mechanism is an assertion rather than a convention: `chain-health-selftest.mjs`",
+    "requires the id set here to be DISJOINT from the id set in `snapshot-contract.json`, and",
+    "it has a mutation arm that plants a contract rule id in this file and requires the",
+    "assertion to go red. A finding whose failure an `S5-*` rule already produces is a second",
+    "copy of that rule, and a second copy of a rule is a second answer to the same question.",
+    "",
+    "── THE TWO SUBJECTS THAT ARE LEFT ──────────────────────────────────────────────────────",
+    "",
+    "  the container      `snapshot-contract.json`'s census entry for `container` has ZERO",
+    "                     members, deliberately: nothing in the contract describes anything",
+    "                     INSIDE a recording. Every `*-AGREE` rule compares a sidecar to the",
+    "                     producer's own claim about its recording, never to the bytes.",
+    "  the joints         the contract closes `outcome` and closes `refusalReason`, each on",
+    "                     its own. It says nothing about which combinations of the two a",
+    "                     producer can actually reach, and nothing about whether a reason",
+    "                     agrees with the members sitting beside it on the row.",
+    "",
+    "── `needsContainer`, AND WHY A CHECK MAY BE DECLARED BEFORE IT CAN RUN ──────────────────",
+    "",
+    "A check marked `needsContainer` cannot be answered from the snapshot tree alone; it needs",
+    "a reader that opens the recording. `implemented: false` says this tool does not carry one",
+    "yet. Such a check is reported as NOT RUN on every sweep, with its reason, and it is never",
+    "reported as passed — which is the whole point of the accounting: the figures",
+    "`containersOpened` / `containersRefused` / `checksNotRun` exist so that a sweep which",
+    "read nothing cannot present as a clean sweep.",
+    "",
+    "`H-READ-NONE` is the control for that. It fires when no container was opened and at least",
+    "one `needsContainer` check was requested, and its kind is `not-measured` rather than",
+    "`unhealthy`: the tool is saying it could not answer, not that the answer is bad.",
+    "",
+    "── TWO MEASURED FACTS ABOUT READING THESE CONTAINERS, CARRIED RATHER THAN FIXED ─────────",
+    "",
+    "Both were measured on 2026-09-18 over the 52 real containers in this repository, and both",
+    "bound what a container-opening check can currently claim. They are repeated in the tool's",
+    "header and in every artifact it writes, because a reader who meets the figures needs to",
+    "meet these at the same time.",
+    "",
+    "  1. ALL 52 DECLARE `meta.dat` SCHEMA VERSION 3. The Nim reader accepts versions 4 and 5",
+    "     and refuses 3 by name, stating that a version-3 writer packed a line-only step",
+    "     position as `prefixSum[path_id] + line` where a current writer packs",
+    "     `prefixSum[path_id] + (line - 1)` — so a step read under the current decode comes",
+    "     back one line high rather than failing. The two Rust readers are pinned at 3 and",
+    "     accept them. The supported sets are disjoint, so the two readers cannot open each",
+    "     other's containers, and this corpus sits on the superseded side. Settling which",
+    "     reader a sweep should believe is not this repository's call to make alone.",
+    "",
+    "  2. THE NIM READER EXITS 0 WHILE REFUSING. It prints its refusal and returns success.",
+    "     Anything keyed on its exit status reports a clean sweep over a corpus it could not",
+    "     read. `containerReader.refusalSignature` below is the consequence: a container",
+    "     counts as OPENED only when the reader exits 0 AND its output does not match that",
+    "     signature, and the rule lives in this file rather than in the tool so the two",
+    "     clauses cannot drift apart."
+  ],
+  "format": "blocktracer/health-checks@1",
+
+  "carried": [
+    {
+      "id": "reader-schema-disagreement",
+      "measuredOn": "2026-09-18",
+      "note": "All 52 real containers in this repository declare `meta.dat` schema version 3. The Nim reader accepts versions 4 and 5 and refuses 3 BY NAME — a version-3 writer packed a line-only step position as `prefixSum[path_id] + line`, a current writer packs `prefixSum[path_id] + (line - 1)`, and both land inside the trace's address space, so a step read under the current decode comes back one line high rather than failing. The two Rust readers are pinned at version 3 and accept them. The supported sets are disjoint: the two readers cannot open each other's containers, and this corpus sits on the superseded side. Nothing here settles which reader a sweep should believe.",
+      "bounds": "every check marked needsContainer"
+    },
+    {
+      "id": "reader-exit-status-is-not-a-verdict",
+      "measuredOn": "2026-09-18",
+      "note": "The Nim reader prints its refusal and exits 0. Over the 52 real containers it did that 52 times. A sweep keyed on exit status would have reported 52 of 52 opened having opened none. `containerReader.opened` therefore requires two clauses, and the signature that spells the second one lives in this file.",
+      "bounds": "how `containersOpened` and `containersRefused` are counted"
+    }
+  ],
+
+  "checks": {
+    "H-READ-NONE": {
+      "kind": "not-measured",
+      "needsContainer": false,
+      "implemented": true,
+      "question": "Did this sweep open any recording at all, given that some of the checks it was asked for can only be answered by opening one?",
+      "healthy": "Either no requested check needed a recording, or at least one recording was opened.",
+      "fires": "containersOpened == 0 and at least one requested check is marked needsContainer",
+      "why": "A check that could not run must be reported as not run and never as passed. Without this finding a sweep with no reader wired prints the same clean verdict as a sweep that read every container and found nothing wrong, and the two are not the same measurement. It is the control that makes a zero mean something."
+    },
+
+    "H-SOURCE-ABSENT": {
+      "kind": "unhealthy",
+      "needsContainer": false,
+      "implemented": true,
+      "question": "Does any recording this chain published reach source level?",
+      "healthy": "At least one traced row in the chain carries `recording.sourceLevel: true`.",
+      "fires": "the chain has traced rows and not one of them is source level",
+      "why": "An operator reading a transaction page wants the source the execution ran. `sourceLevel` is the producer's own claim that a recording has it, and no rule anywhere requires a chain to ever produce one — `S5-BUNDLE-REQUIRED` only says that a recording CLAIMING source level must have a bundle beside it, which is satisfied perfectly by a corpus that never claims it. So the absence is invisible: every tree with zero source-level recordings conforms.",
+      "scope": "rows whose outcome is in the snapshot format's `traced` set",
+      "reports": [
+        "tracedRows",
+        "sourceLevelRows",
+        "stepsPositionedRows",
+        "sourceBundleRows",
+        "declaredRungs",
+        "artifacts",
+        "artifactsResolved"
+      ],
+      "reportsNote": "The rates are published whether or not the finding fires. The finding is a threshold; the gradient is what tells an operator whether a chain is moving."
+    },
+
+    "H-OUTCOME-REASON-JOINT": {
+      "kind": "unhealthy",
+      "needsContainer": false,
+      "implemented": true,
+      "question": "Is every declined row's reason one a producer in this repository could actually have reached with that outcome, and does it agree with the members sitting beside it?",
+      "healthy": "Every row in scope has an `(outcome, refusalReason)` pair in `admissibleOutcomeReasonPairs`, and violates none of `reasonMemberJoints`.",
+      "fires": "any row in scope carries a pair outside the table, or breaks a reason-member joint",
+      "why": "`S5-OUTCOME-CLOSED` closes the outcomes and `S5-REFUSALREASON-CLOSED` closes the reasons, each on its own. Nothing relates them. Two independently closed sets have a product with as many members as their sizes multiply to, and a producer can write any cell of it.",
+      "scope": "rows whose outcome is in the snapshot format's `untraced` set AND that carry a `refusalReason`",
+      "scopeNote": [
+        "THE SCOPE IS NARROW ON PURPOSE, so this finding cannot become a second copy of a rule",
+        "that already exists. Three populations are deliberately excluded:",
+        "  a traced row carrying a reason      — `auditRefusals` refuses the two statements folded together",
+        "  a chain-absent row carrying a reason — `S5-REFUSALREASON-FORBIDDEN`",
+        "  an untraced `@2` row carrying none   — `S5-REFUSALREASON-REQUIRED`",
+        "On `@1` the member is optional, so an untraced row without one is simply out of scope",
+        "rather than a finding — which is also why the tool reports the size of the scope. A",
+        "check over an empty scope is reported NOT RUN, never passed."
+      ]
+    },
+
+    "H-RECORDER-UNATTRIBUTED": {
+      "kind": "unhealthy",
+      "needsContainer": false,
+      "implemented": true,
+      "question": "Can every recording in this tree be pinned to the build that produced it?",
+      "healthy": "Every row that names a container reaches a runtime commit — from its own `recordedBy`, or failing that from the snapshot's `provenance.runtimeCommit`.",
+      "fires": "any row naming a container reaches neither",
+      "why": "A defect found in a recording is worth reporting only if it can be attributed. `recordedBy` is per row because a range may be replayed over more than one build; `provenance.runtimeCommit` is the snapshot-wide fallback. A row with neither is a recording nobody can pin to a build, and nothing requires either member: `S5-RECORDER-STATED` is about a DIFFERENT member — `provenance.recorder`, the recorder's id and trace schema, which is an identity rather than a build — and it ranges over the snapshot, not the row.",
+      "scope": "rows that name a container"
+    },
+
+    "H-CONTAINER-UNREADABLE": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "implemented": false,
+      "notRunReason": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first.",
+      "question": "Can a reader open every recording a row names, and do the recording's own measurements agree with what the row claims about it?",
+      "healthy": "Every container a row names opens, and its measurements are the row's.",
+      "fires": "not yet decidable — see notRunReason",
+      "why": "The contract's member census declares the container OPAQUE: its entry has zero members, and every rule that mentions a recording reads the producer's claim about it rather than the bytes. A producer that mis-measures its own recording and writes sidecars consistent with the mis-measurement is conformant. This is the question that closes that, and it is the reason the `needsContainer` accounting exists at all."
+    }
+  },
+
+  "containerReader": {
+    "_comment": [
+      "HOW A SWEEP DECIDES THAT A RECORDING OPENED, when a reader is named with",
+      "`--container-reader <cmd>`. The reader is invoked as `<cmd> <absolute-container-path>`.",
+      "",
+      "THE EXIT STATUS IS NOT THE VERDICT, and that is measured rather than cautious: the Nim",
+      "reader prints `Error: meta.dat present but corrupt: …` and exits 0. Over the 52 real",
+      "containers in this repository it does that 52 times, so a sweep keyed on exit status",
+      "reports 52 of 52 opened having opened none.",
+      "",
+      "So both clauses are required, and they live here rather than in the tool because a",
+      "refusal signature spelled in one place and a verdict computed in another is the drift",
+      "this repository's data files exist to prevent."
+    ],
+    "opened": "the reader exited 0 AND its combined output does not match refusalSignature",
+    "refusalSignature": "(?:^|\\n)\\s*(?:Error|error):",
+    "refusalSignatureFlags": ""
+  },
+
+  "admissibleOutcomeReasonPairs": [
+    {
+      "outcome": "not-first-in-block",
+      "refusalReason": "not-first-in-block",
+      "statedBy": "tools/chain/lib/refusal.mjs refuseNotFirstInBlock",
+      "justification": "The one producer that writes this outcome writes this reason with it, in the same object literal. `memberForLegacyUntracedRow` classifies it the same way and says why: the outcome names the member."
+    },
+    {
+      "outcome": "pruned",
+      "refusalReason": "body-unavailable",
+      "statedBy": "tools/chain/lib/refusal.mjs refuseBodyUnavailable",
+      "justification": "The node no longer serves the body AND the keyless transaction file store was asked and holds none. Both clauses, and the producer throws rather than publish the claim on one of them."
+    },
+    {
+      "outcome": "pruned",
+      "refusalReason": "not-attempted",
+      "statedBy": "tools/chain/lib/refusal.mjs refuseBodyNotSoughtFromStore",
+      "justification": "THIS PAIR LOOKS WRONG AND IS THE CORRECTION, which is exactly why a derived table matters here. The outcome names what the producer OBSERVED of the node — the body was pruned — and the reason names what the run ESTABLISHED, which is nothing, because it never asked the file store. 912 committed rows carry it after the migration that put it there, and a table written from the outcome's name rather than from the producer would redden every one of them."
+    },
+    {
+      "outcome": "not-attempted",
+      "refusalReason": "not-attempted",
+      "statedBy": "tools/chain/capture-chain.mjs (beyond-this-run-budget), tools/chain/backfill-blocks.mjs and tools/chain/ingest-range.mjs (historic-range-not-replayed), tools/chain/ingest-range.mjs (endpoint-throttled-this-run)",
+      "justification": "Three different observations that make one statement — the run stopped, the chain did not — so they are three conditions and one reason, and all three carry this outcome."
+    },
+    {
+      "outcome": "not-attempted",
+      "refusalReason": "body-source-unreachable",
+      "statedBy": "tools/chain/lib/refusal.mjs refuseBodySourceUnreachable",
+      "justification": "The run looked and was not answered: a 5xx, a 429, a TLS failure or a timeout from the body source. The producer sets this outcome explicitly, and the reason is deliberately NOT `not-attempted` — whose every narrative asserts the body IS obtainable, which is the claim a run that could not reach the store has failed to establish."
+    },
+    {
+      "outcome": "refused",
+      "refusalReason": "runtime-refused",
+      "statedBy": "tools/chain/lib/replay.mjs decideOutcome rule 2, via refusal.mjs reasonForRuntimeClass",
+      "justification": "The replay runtime declined by name and the class it named is not one of the four the reason table classifies further. This is the fallback, and the class travels on the row as evidence."
+    },
+    {
+      "outcome": "refused",
+      "refusalReason": "not-first-in-block",
+      "statedBy": "tools/chain/lib/refusal.mjs REASON_FOR_RUNTIME_CLASS IntraBlockPredecessorsUnavailable",
+      "justification": "The runtime itself raised the intra-block case. The producer that PREDICTS this condition writes the `not-first-in-block` outcome; the runtime that MEETS it writes `refused`, and both reach the same member."
+    },
+    {
+      "outcome": "refused",
+      "refusalReason": "body-unavailable",
+      "statedBy": "tools/chain/lib/refusal.mjs REASON_FOR_RUNTIME_CLASS SettledTransactionNotFound",
+      "justification": "The runtime asked for the settled transaction and was told it does not exist. Same member as the `pruned` route, reached through the runtime's own class rather than through the node-and-store observation."
+    },
+    {
+      "outcome": "refused",
+      "refusalReason": "artifact-unresolvable",
+      "statedBy": "tools/chain/lib/refusal.mjs REASON_FOR_RUNTIME_CLASS MissingContractArtifact",
+      "justification": "A contract the transaction executed has no artifact provable against its class's artifactHash, so the runtime declined by name."
+    },
+    {
+      "outcome": "refused",
+      "refusalReason": "prestate-unavailable",
+      "statedBy": "tools/chain/lib/refusal.mjs REASON_FOR_RUNTIME_CLASS SettlingBlockUnavailable",
+      "justification": "The state the replay must read is not served at the depth it is required at. A statement about the STATE, which is why it is not `body-unavailable`."
+    },
+    {
+      "outcome": "refused",
+      "refusalReason": "no-container-written",
+      "statedBy": "tools/chain/lib/replay.mjs decideOutcome rule 3",
+      "justification": "The driver reported a completed execution and wrote no container, so there is nothing to step. The rule fires on the container's absence from disk and sets this outcome in the same literal."
+    },
+    {
+      "outcome": "refused",
+      "refusalReason": "instruction-unimplemented",
+      "statedBy": "tools/chain/lib/refusal.mjs CONDITIONS recorder-does-not-implement-instruction",
+      "justification": "The execution reached an opcode, precompile, host function or syscall the recorder does not implement. The condition exists because `runtime-refused` was the wrong home for it — that member asserts the runtime declined BY NAME, and a recorder that never started the execution has established nothing of the kind — and the outcome stays `refused` because the transaction was, in the end, declined."
+    }
+  ],
+
+  "reasonMemberJoints": [
+    {
+      "refusalReason": "no-container-written",
+      "member": "container",
+      "mustBe": "absent",
+      "statedBy": "tools/chain/refusal-reasons.json, the member's own condition; tools/chain/lib/replay.mjs decideOutcome rule 3",
+      "justification": "The reason's whole condition is that the driver wrote NO container. The rule that publishes it fires on `!containerOnDisk`. A row that names one is a row whose reason contradicts its own members, and nothing checks the two against each other — `S5-CONTAINER-BYTES` and `S5-CONTAINER-NONEMPTY` both take the container's existence as given and ask about its size."
+    },
+    {
+      "refusalReason": "artifact-unresolvable",
+      "member": "artifacts",
+      "mustBe": "not-all-resolved",
+      "statedBy": "tools/chain/refusal-reasons.json, the member's own condition",
+      "justification": "The condition is that A CONTRACT the transaction executed has no artifact provable against its class's artifactHash. A transaction executes several contracts and one resolving while another does not is precisely the condition — so the rule is that NOT ALL artifacts are resolved, not that none is. A row whose every artifact carries `resolved: true` names no unresolvable contract, and its reason is about something the row does not record.",
+      "vacuousWhen": "the row carries no `artifacts` array at all, which is an absence of measurement rather than a contradiction and is not a finding"
+    }
+  ]
+}

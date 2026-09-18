@@ -135,8 +135,8 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TEN suites — 98 + 19 + 24 + 24 + 57 + 229 + 33 + 153 + 53 + 115 = 805 counted assertions —
-# over the ten decisions the capture path makes that nothing else can check
+# ELEVEN suites — 98 + 19 + 24 + 24 + 57 + 230 + 33 + 153 + 53 + 115 + 90 = 896 counted assertions —
+# over the eleven decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -148,8 +148,10 @@ test:
 # is actually contiguous (`coverage-contiguity-selftest`), which encodings a
 # chain may DECLARE its identifiers in (`identifier-encoding-selftest`),
 # WHAT WAS ACTUALLY PUBLISHED, as a set of keys rather than as a total
-# (`object-set-selftest`), and whether the SNAPSHOT READER and the document a
-# producer writes against name the same members (`snapshot-contract-selftest`).
+# (`object-set-selftest`), whether the SNAPSHOT READER and the document a
+# producer writes against name the same members (`snapshot-contract-selftest`),
+# and whether a prepared tree's RECORDINGS are in a state worth publishing
+# (`chain-health-selftest`).
 #
 # `snapshot-contract-selftest` IS THE ONE THAT READS A NIM FILE FROM JAVASCRIPT,
 # and it is a suite rather than a review because the alternative is a person
@@ -322,11 +324,13 @@ test:
 # was found dead, and all of them were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All TEN are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# All ELEVEN are OFFLINE and toolchain-free — plain node plus bash, a mock node
 # for the freeze gate, a mock node AND a mock file store for the body verifier,
 # recorded driver output for the replay rule, for the
 # fold suite an event stream reconstructed from the committed sidecars rather
-# than read out of a `.ct` with `ct-print`, and for the encoding suite nothing
+# than read out of a `.ct` with `ct-print`, for the health sweep a STAND-IN
+# reader so the figure that counts opened recordings can be shown non-zero,
+# and for the encoding suite nothing
 # but files already in this repository — so they run
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
 # reason its header gives: a gate that needs the busy Nix runner to prove it
@@ -342,6 +346,45 @@ chain-selftest:
     node tools/chain/identifier-encoding-selftest.mjs
     node tools/chain/object-set-selftest.mjs
     node tools/chain/snapshot-contract-selftest.mjs
+    node tools/chain/chain-health-selftest.mjs
+
+# ── is the recording layer healthy? ────────────────────────────────────────
+#
+# `just chain-health <snapshot-dir>` sweeps one prepared tree;
+# `just chain-health-corpus` sweeps every snapshot tree in this repository and
+# rewrites `tools/chain/measurements/chain-health.json`. Both print a
+# `blocktracer/chain-health@1` artifact on stdout and a short verdict on stderr.
+#
+# WHY IT IS NOT PART OF `just conformance`. Conformance is a statement about a
+# tree's SHAPE and it is the right shape of statement: a tree either satisfies
+# the contract or it does not, and the answer is a verdict. This is a statement
+# about the tree's CONTENTS — how many of its recordings reach source level, how
+# many of its recordings can be pinned to a build — and the answer is a set of
+# figures that get better or worse. Folding a gradient into a gate produces
+# either a gate nobody can pass or a threshold nobody can defend.
+#
+# IT REPORTS WHAT IT DID NOT MEASURE AS LOUDLY AS WHAT IT DID. `containersOpened`
+# is 0 unless `--container-reader` names a program, and a finding that could not
+# be answered is printed under NOT MEASURED rather than folded into the health
+# verdict. Reading a container is not wired here yet, so that is the normal
+# output today and the tool says so in those words.
+#
+# THE EXIT CODE IS THE VERDICT AND THE CORPUS RECIPE CURRENTLY EXITS 1, which is
+# the tool working rather than the recipe failing: 0 is nothing found, 1 is at
+# least one finding about the recordings, 3 is only findings about what could not
+# be measured, 2 is usage. The committed reading is written before the exit, so
+# `just chain-health-corpus` refreshes the measurement and then reports what it
+# found. Six of the seven findings it reports today are the source-level absence
+# the tool was written to put a number on.
+#
+# Offline: it reads snapshot trees, reaches no network, and writes nothing unless
+# asked. `--out` is what the corpus recipe passes.
+chain-health SNAPSHOT *ARGS:
+    node tools/chain/chain-health.mjs {{SNAPSHOT}} {{ARGS}}
+
+chain-health-corpus *ARGS:
+    node tools/chain/chain-health.mjs --corpus \
+      --out tools/chain/measurements/chain-health.json {{ARGS}}
 
 # ── §5's member census, as the spec's own tables ───────────────────────────
 #

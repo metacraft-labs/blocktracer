@@ -508,7 +508,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 229 assertions, and the reason it is offline is the reason it
+        # ING-3, 230 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -706,6 +706,39 @@ jobs:
         #
         # Offline and toolchain-free like the nine above it: it reads two files.
         run: node tools/chain/snapshot-contract-selftest.mjs
+
+      - name: Are the recordings a prepared tree publishes in a state worth publishing?
+        # 90 assertions. `chain-health.mjs` reports figures about trees that are
+        # ALREADY conformant, so nothing else here can contradict it: there is no
+        # second opinion on "1 of 45 traced rows declares source level" and no gate
+        # that goes red when the number is wrong. That is the gap it fills and it is
+        # also why it needs a suite — a tool whose output nobody can check is a
+        # claim.
+        #
+        # Every finding is driven against a TWIN that must not raise it beside a
+        # MUTATION of one field that must. The two that matter most:
+        #
+        #   * The finding ids are asserted DISJOINT from the contract's rule ids, in
+        #     both directions, with an anti-vacuity guard so an empty read on either
+        #     side cannot satisfy it, and a mutation that plants a contract rule id
+        #     in the health registry and requires it to go red. A health finding
+        #     whose failure a contract rule already produces is that rule, twice.
+        #   * The container-open accounting is driven with a STAND-IN reader,
+        #     because the figure that counts opened recordings is the control for
+        #     every question the sweep cannot yet answer, and a control that can
+        #     never produce a non-zero value is not one. One arm is the measured
+        #     fact that the real reader for these containers prints its refusal and
+        #     EXITS 0 — a stand-in doing the same must be counted refused, and a
+        #     reader that merely mentions the word error and succeeds must not.
+        #
+        # Its table of admissible outcome/reason pairs is derived from the producers
+        # that write them rather than typed, and the corpus is the evidence: all 925
+        # in-scope committed rows must carry an admissible pair. A table written from
+        # the outcomes' names instead would redden 912 correct ones.
+        #
+        # Offline and toolchain-free like the ten above it: temporary trees, `node`,
+        # and files already in this repository.
+        run: node tools/chain/chain-health-selftest.mjs
 
   contract:
     runs-on: [self-hosted, linux, x64]
