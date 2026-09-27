@@ -40,7 +40,8 @@ import { fileURLToPath } from 'node:url';
 
 import {
   healthChecks, healthCheckIds, contractRuleIds, corpusSnapshotDirs,
-  examineSnapshot, sweep, render, verdict, HEALTH_CHECKS_PATH, REPO_ROOT,
+  examineSnapshot, sweep, render, verdict, readerBuildId, modeFlagInCallerArgv,
+  HEALTH_CHECKS_PATH, REPO_ROOT,
 } from './chain-health.mjs';
 import { REFUSAL_REASON_IDS, UNTRACED_OUTCOMES, TRACED_OUTCOMES, CHAIN_ABSENT_OUTCOMES }
   from './lib/refusal.mjs';
@@ -508,10 +509,15 @@ console.error('\n§6 — the accounting, the artifact and the CLI');
        === corpus.corpus.totals.rowsExamined);
   ck('the artifact declares its format', corpus.format === 'blocktracer/chain-health@1');
 
-  // THE TWO CARRIED FACTS REACH A READER.
-  ck('the artifact carries the two measured facts that bound what it can claim',
-     Array.isArray(corpus.carried) && corpus.carried.length === 2
-     && corpus.carried.every((c) => c.note.length > 100 && c.measuredOn && c.bounds));
+  // THE CARRIED FACTS REACH A READER. ENUMERATED FROM THE REGISTRY, never counted here: a
+  // number typed in this file is a claim about the facts that were carried when somebody typed
+  // it, and the floor is what stops an emptied list satisfying the shape test for free.
+  ck(`the artifact carries every measured fact the registry carries — ${REG.carried.length}`,
+     Array.isArray(corpus.carried) && corpus.carried.length === REG.carried.length);
+  ck(`…and there are at least three of them, so an emptied list cannot pass the shape test `
+     + `below for free — ${REG.carried.length}`, REG.carried.length >= 3);
+  ck('…and each states its note, the date it was measured and what it bounds',
+     corpus.carried.every((c) => c.note.length > 100 && c.measuredOn && c.bounds));
   const V = verdict(corpus, REG).join('\n');
   ck('…and the human verdict states both where a reader will meet them',
      /meta.dat` schema version 3|meta\.dat. schema version 3/.test(V)
@@ -607,13 +613,247 @@ console.error('\n§7 — the registry\'s own shape, so a table cannot name a tok
          .every((p) => UNTRACED_OUTCOMES.includes(p.outcome)));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════
+console.error('\n§8 — the container opens, or it does not, and the reader is identified rather than blamed');
+// ═══════════════════════════════════════════════════════════════════════════════════════
+{
+  const row = (over = {}) => ({
+    txHash: '0xc1', blockNumber: 1, txIndexInBlock: 0, outcome: 'replayed',
+    container: 'ct/0xc1.ct', containerBytes: 8,
+    recording: { steps: 1, sourceLevel: true, stepsPositioned: 1 },
+    sourceBundles: 'text/0xc1.json', ...over,
+  });
+  const dir = tree({ rows: [row()], containers: ['0xc1.ct'] });
+
+  /** A stand-in reader. The probes append the mode, so a stub that ignores argv is exactly
+   *  what the seam invokes; what the reader IS is not this suite's subject, that it is ASKED
+   *  and that its ANSWER reaches the finding is. */
+  const stub = (body) => {
+    const p = join(tmp, `r${treeN++}.mjs`);
+    writeFileSync(p, body);
+    return `${process.execPath} ${p}`;
+  };
+  // A reader that opens: a `--meta-json` document with counts, which is what the real one
+  // prints on a container it accepts.
+  const OPENS = stub('process.stdout.write(JSON.stringify({metadata:{program:"p"},'
+    + 'counts:{steps:1,calls:1,values:1,io_events:0,paths:1,functions:1,types:1,varnames:1}})'
+    + '+"\\n");\n');
+  // A reader that refuses the way the real one refuses this corpus — the sentence, and the
+  // schema version inside it, copied from the measured output rather than invented.
+  const refusesAt = (v) => stub('process.stderr.write("Error: meta.dat present but corrupt: '
+    + `meta.dat: schema version ${v} predates the global line index correction, and this trace `
+    + 'cannot be read.\\n"); process.exit(1);\n');
+  const REFUSES_V3 = refusesAt(3);
+  const REFUSES_V4 = refusesAt(4);
+  // A refusal that names NO version — the shape the conformance template's ASCII placeholders
+  // produce ("not a recognised .ct file"), which is a different measurement from v3.
+  const REFUSES_NAMELESS = stub(
+    'process.stderr.write("ct-print: not a recognised .ct file: no CTFS magic\\n");'
+    + ' process.exit(1);\n');
+
+  // ── CONTROL: a container that opens raises nothing, and the check RAN ────────────────
+  const ok = run([dir, '--container-reader', OPENS, '--quiet']);
+  const okRep = JSON.parse(ok.out);
+  ck('control: a container the reader opens raises no H-CONTAINER-UNREADABLE',
+     !has(okRep, 'H-CONTAINER-UNREADABLE'));
+  ck('control: …and the check RAN over a scope of 1, rather than being skipped',
+     okRep.snapshots[0].checkStatus['H-CONTAINER-UNREADABLE'].ran === true
+     && okRep.snapshots[0].checkStatus['H-CONTAINER-UNREADABLE'].scope === 1);
+  ck('control: …and the artifact names the build that answered, by its own bytes',
+     /^[0-9a-f]{64}$/.test(okRep.containerReaderBuild?.sha256 ?? '')
+     && okRep.containerReaderBuild.bytes > 0);
+
+  // ── MUTATION: the same tree, a reader that refuses it by name ────────────────────────
+  const m3 = run([dir, '--container-reader', REFUSES_V3, '--quiet']);
+  const m3Rep = JSON.parse(m3.out);
+  const f3 = m3Rep.findings.find((x) => x.check === 'H-CONTAINER-UNREADABLE');
+  bite('mutation: a reader that refuses the container raises H-CONTAINER-UNREADABLE',
+       f3 !== undefined && f3.txHash === '0xc1');
+  bite('mutation: …and the finding keeps the reader\'s OWN sentence, so the refusal has a reason',
+       /schema version 3 predates the global line index correction/.test(f3.readerSaid));
+  bite('mutation: …and names the build that refused, so the refusal is reproducible',
+       /^[0-9a-f]{64}$/.test(f3.readerBuildId?.sha256 ?? ''));
+  bite('mutation: …and states the version THE CONTAINER declared, out of the refusal',
+       f3.declaredSchemaVersion === 3 && m3Rep.corpus.totals.containerSchemaCensus['3'] === 1);
+  // THE ARM THIS WHOLE FINDING EXISTS FOR. Over the real corpus the refusal is unanimous, so a
+  // sentence that blamed the reader would read as a broken tool once per row. The finding must
+  // name the CONTAINER'S property as the defect and the reader as the witness.
+  bite('mutation: …and its sentence names the CONTAINER as the defect, not the reader — it says '
+     + 'the container declares a version the reader does not accept and refused BY NAME',
+       /this container declares meta\.dat schema version 3/.test(f3.says)
+       && /refused the container BY NAME/.test(f3.says)
+       && /a fact about the recording and not a reader failure/.test(f3.says));
+
+  // A REFUSAL THAT NAMES NO VERSION IS A DIFFERENT MEASUREMENT, and must not be recorded as a
+  // version. `unstated` is its own census key for exactly this reason.
+  const mn = JSON.parse(run([dir, '--container-reader', REFUSES_NAMELESS, '--quiet']).out);
+  const fn = mn.findings.find((x) => x.check === 'H-CONTAINER-UNREADABLE');
+  bite('mutation: a refusal naming no version is counted `unstated`, never as a version',
+       mn.corpus.totals.containerSchemaCensus.unstated === 1
+       && mn.corpus.totals.containerSchemaCensus['3'] === undefined
+       && fn.declaredSchemaVersion === null);
+  bite('mutation: …and its sentence says only what the reader said, claiming nothing more',
+       /named no schema version/.test(fn.says) && /not a recognised \.ct file/.test(fn.says));
+
+  // ── THE ABSENT CONTAINER: a row naming a file nobody has ────────────────────────────
+  const gone = tree({ rows: [row()], containers: [] });
+  const mg = JSON.parse(run([gone, '--container-reader', OPENS, '--quiet']).out);
+  const fg = mg.findings.find((x) => x.check === 'H-CONTAINER-UNREADABLE');
+  bite('mutation: a row naming a container that is not on disk raises the finding by name',
+       fg !== undefined && /no such file is on disk/.test(fg.says)
+       && mg.corpus.totals.containersRefused === 1);
+
+  // ── PREMISE: WITH NO READER THE CHECK IS NOT RUN, AND FOR ITS OWN REASON ────────────
+  //
+  // A negative assertion is satisfied when its premise does not hold, so the premise is
+  // asserted in the same arm: the check did not merely raise nothing, it was never asked, and
+  // its reason must be the INVOCATION's rather than the tree's. "The scope is empty" is a fact
+  // about the tree and would be the wrong sentence here.
+  const nr = JSON.parse(run([dir, '--quiet']).out);
+  ck('premise: with no reader named, H-CONTAINER-UNREADABLE is NOT RUN',
+     nr.snapshots[0].checkStatus['H-CONTAINER-UNREADABLE'].ran === false
+     && !has(nr, 'H-CONTAINER-UNREADABLE'));
+  ck('premise: …and its reason is the INVOCATION\'s, not "the scope is empty"',
+     /No container reader was named/.test(nr.snapshots[0].checkStatus['H-CONTAINER-UNREADABLE'].why)
+     && !/scope is empty/.test(nr.snapshots[0].checkStatus['H-CONTAINER-UNREADABLE'].why));
+  ck('premise: …and the schema census is empty rather than absent, so a zero is readable',
+     JSON.stringify(nr.corpus.totals.containerSchemaCensus) === '{}');
+  ck('premise: …and the artifact carries no build id, because no reader answered',
+     nr.containerReaderBuild === null);
+
+  // ── THE BUILD ID IS THE READER'S OWN BYTES, AND A FAILURE TO GET IT IS REPORTED ─────
+  const realId = readerBuildId(join(REPO_ROOT, 'tools', 'chain', 'chain-health.mjs'));
+  ck('the build id is a sha256 of the program\'s own bytes plus its size',
+     /^[0-9a-f]{64}$/.test(realId.sha256) && realId.bytes > 1000);
+  const noId = readerBuildId(join(tmp, 'no-such-reader'));
+  bite('mutation: a reader whose bytes cannot be read reports sha256 null WITH the reason, '
+     + 'never an absent field', noId.sha256 === null && 'sha256' in noId
+       && (noId.why ?? '').length > 20);
+
+  // ── H-CONTAINER-SCHEMA-SKEW: TWO CONSUMERS, TWO ANSWERS, NEITHER A COPY ─────────────
+  //
+  // This is the pair that proves the arms are independent. The SAME tree, probed by two
+  // readers that differ only in the version they name, must move the two consumers in
+  // OPPOSITE directions — and if one finding covered both consumers, one of these two arms
+  // could not be written.
+  const CONS = REG.containerSchema.consumers;
+  ck(`the registry declares more than one consumer, so "per consumer" is not one consumer — `
+     + `[${CONS.map((c) => c.id).join(', ')}]`, CONS.length >= 2);
+  ck('…and every consumer states a non-empty accepted set, what it is, who it is for, the '
+     + 'constant it was read from and the revision it was read at',
+     CONS.every((c) => Array.isArray(c.accepts) && c.accepts.length > 0
+       && c.accepts.every((v) => Number.isInteger(v))
+       && (c.what ?? '').length > 20 && (c.audience ?? '').length > 20
+       && (c.statedBy ?? '').length > 30 && (c.readFrom?.revision ?? '').length > 6
+       && (c.readFrom?.on ?? '').length === 10));
+  // ANTI-VACUITY ON THE TABLE ITSELF: if the two consumers accepted the same set the finding
+  // could never distinguish them and the whole per-consumer design would be decoration.
+  ck('…and no two consumers accept the same set, or the per-consumer split measures nothing',
+     new Set(CONS.map((c) => [...c.accepts].sort().join(','))).size === CONS.length);
+
+  const skewOf = (rep) => rep.findings.filter((f) => f.check === 'H-CONTAINER-SCHEMA-SKEW')
+    .map((f) => `${f.consumer}@v${f.declaredSchemaVersion}`).sort();
+  const s3 = skewOf(m3Rep);
+  bite('mutation: a container declaring v3 skews the PINNED READER, which accepts [4, 5]',
+       s3.includes('pinned-reader@v3'));
+  bite('mutation: …and does NOT skew the shipped engine, which accepts [3] — so the two arms '
+     + 'are not one finding wearing two names', !s3.includes('shipped-engine@v3'));
+  const m4Rep = JSON.parse(run([dir, '--container-reader', REFUSES_V4, '--quiet']).out);
+  const s4 = skewOf(m4Rep);
+  bite('mutation: the SAME tree declaring v4 instead skews the shipped engine',
+       s4.includes('shipped-engine@v4'));
+  bite('mutation: …and no longer skews the pinned reader — the pair moves in opposite '
+     + 'directions, which one combined verdict could not report',
+       !s4.includes('pinned-reader@v4'));
+  const f4 = m4Rep.findings.find((x) => x.check === 'H-CONTAINER-SCHEMA-SKEW');
+  bite('mutation: …and the skew finding names the consumer, its accepted set, the count of '
+     + 'containers and the constant the set was read from',
+       f4.consumer === 'shipped-engine' && f4.containers === 1
+       && JSON.stringify(f4.accepts) === JSON.stringify([3])
+       && /SUPPORTED_VERSIONS/.test(f4.statedBy) && f4.readFrom.revision.length > 6);
+  bite('mutation: …and says whether that consumer refuses the version BY NAME or will attempt '
+     + 'the decode, because those are different outcomes for an operator',
+       /does NOT refuse 4 by name, so it will attempt the decode/.test(f4.says));
+  const f3s = m3Rep.findings.find((x) => x.check === 'H-CONTAINER-SCHEMA-SKEW');
+  bite('mutation: …and the by-name case says so instead', f3s.refusesByName === true
+       && /refuses 3 BY NAME, so it will decline rather than mis-read/.test(f3s.says));
+
+  // AN UNSTATED VERSION IS NOT A SKEW, AND THE CHECK REPORTS NOT RUN RATHER THAN PASSED.
+  ck('anti-vacuity: a probed container that stated no version leaves the skew check NOT RUN, '
+     + 'never passed',
+     mn.snapshots[0].checkStatus['H-CONTAINER-SCHEMA-SKEW'].ran === false
+     && mn.snapshots[0].summary.checksNotRun.includes('H-CONTAINER-SCHEMA-SKEW')
+     && !has(mn, 'H-CONTAINER-SCHEMA-SKEW'));
+
+  // ── THE ENGINE PIN FORCES A RE-READ. ────────────────────────────────────────────────
+  //
+  // The shipped engine's accepted set is a constant in ANOTHER repository, transcribed here.
+  // Transcriptions rot, and this file's own `carried` records one that did. The only thing
+  // that makes a re-read unavoidable is tying the entry to something in THIS repository that
+  // changes when the engine changes — and `engine-pin.txt` asserts the engine's sha256 on
+  // every fetch, so a new engine means a new pin means this arm goes red.
+  const pinText = readFileSync(join(REPO_ROOT, 'client', 'hydrate', 'engine-pin.txt'), 'utf8');
+  const wasmPin = pinText.split('\n').map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'))
+    .map((l) => l.split(/\s+/))
+    .find((c) => c[0] === 'pkg/db_backend_bg.wasm')?.[2] ?? null;
+  ck('control: the engine pin file yields the wasm\'s sha256, so the comparison below is not '
+     + 'two nulls being equal', /^[0-9a-f]{64}$/.test(wasmPin ?? ''));
+  const engine = CONS.find((c) => c.id === 'shipped-engine');
+  ck('control: the shipped-engine entry exists and records the pin it was read against',
+     engine !== undefined && /^[0-9a-f]{64}$/.test(engine.readFrom?.pin ?? ''));
+  ck('the shipped engine\'s accepted set was read against the engine this repository PINS — a '
+     + 're-pin therefore cannot land without re-reading the constant',
+     engine.readFrom.pin === wasmPin);
+  bite('mutation: a pin that moved makes that arm red rather than silently stale',
+       engine.readFrom.pin !== `${wasmPin.slice(0, 63)}${wasmPin[63] === '0' ? '1' : '0'}`);
+
+  // ── THE CALLER MUST NOT PASS A MODE FLAG ────────────────────────────────────────────
+  //
+  // The probes append their own mode. `--meta-json --events <path>` leaves the reader printing
+  // one shape and this tool parsing another, while the exit status, the refusal signature and
+  // the container path all look right. A silent wrong answer.
+  const withMode = run([dir, '--container-reader', `${OPENS} --meta-json`, '--quiet']);
+  bite('a caller that passes a reader MODE flag is refused by name, with the flag quoted',
+       withMode.rc === 2 && /must name the PROGRAM and not a mode/.test(withMode.err)
+       && /"--meta-json"/.test(withMode.err));
+  ck('control: the same reader without the flag runs, so the refusal is about the flag',
+     ok.rc === 0 || ok.rc === 3);
+  const banned = REG.containerReader.callerMustNotPassAModeFlag.flags;
+  ck(`the banned mode set is not empty and covers every mode the probes use — `
+     + `[${banned.join(' ')}]`,
+     banned.length > 0
+     && Object.values(REG.containerReader.probes).filter((p) => p && p.argv)
+          .every((p) => p.argv.every((a) => banned.includes(a))));
+  bite('mutation: a mode flag the ban does not list is NOT refused, so the list is what bites',
+       modeFlagInCallerArgv(['prog', '--not-a-mode'], REG.containerReader) === null
+       && modeFlagInCallerArgv(['prog', banned[0]], REG.containerReader) === banned[0]);
+
+  // ── THE REAL CORPUS, WITHOUT A READER — which is how this suite runs everywhere ─────
+  //
+  // `ct-print` is not built in CI and is not a dependency of this repository, so this suite
+  // never assumes it. What it CAN assert over the real trees is that the container half
+  // reports itself unanswered rather than passed, with its own reason, on every tree.
+  const real = sweep(corpusSnapshotDirs(), { registry: REG });
+  const needsC = Object.keys(REG.checks).filter((id) => REG.checks[id].needsContainer === true);
+  ck(`control: the registry declares ${needsC.length} container check(s), so the sweep below is `
+     + `not vacuous — [${needsC.join(', ')}]`, needsC.length >= 2);
+  ck('over the real corpus with no reader, every container check reports NOT RUN in every tree '
+     + 'and is nowhere reported as having run',
+     real.snapshots.length > 0
+     && needsC.every((id) => real.snapshots.every((s) => s.checkStatus[id]?.ran === false))
+     && needsC.every((id) => real.corpus.totals.checksNotRun.includes(id)));
+  ck('…and the human verdict states the container half as NOT MEASURED, naming both checks',
+     needsC.every((id) => verdict(real, REG).join('\n').includes(id)));
+}
+
 cleanup();
 console.error('');
-if (asserted !== 90) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 90 — a case was added, removed or skipped.`);
+if (asserted !== 131) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 131 — a case was added, removed or skipped.`);
   failed++;
 } else {
-  console.error(`assertion count: ${asserted} (as declared)`);
+  console.error(`assertion count: ${asserted} (as declared: 131)`);
 }
 if (failed) { console.error(`FAIL — ${failed} problem(s)`); process.exit(1); }
 console.error('PASS — every finding has a twin it must not fire on and a mutation it must');

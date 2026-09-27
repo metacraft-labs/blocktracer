@@ -708,7 +708,7 @@ jobs:
         run: node tools/chain/snapshot-contract-selftest.mjs
 
       - name: Are the recordings a prepared tree publishes in a state worth publishing?
-        # 90 assertions. `chain-health.mjs` reports figures about trees that are
+        # 131 assertions. `chain-health.mjs` reports figures about trees that are
         # ALREADY conformant, so nothing else here can contradict it: there is no
         # second opinion on "1 of 45 traced rows declares source level" and no gate
         # that goes red when the number is wrong. That is the gap it fills and it is
@@ -725,11 +725,27 @@ jobs:
         #     whose failure a contract rule already produces is that rule, twice.
         #   * The container-open accounting is driven with a STAND-IN reader,
         #     because the figure that counts opened recordings is the control for
-        #     every question the sweep cannot yet answer, and a control that can
-        #     never produce a non-zero value is not one. One arm is the measured
-        #     fact that the real reader for these containers prints its refusal and
-        #     EXITS 0 — a stand-in doing the same must be counted refused, and a
-        #     reader that merely mentions the word error and succeeds must not.
+        #     every question the sweep cannot answer without one, and a control that
+        #     can never produce a non-zero value is not one. One arm is the measured
+        #     fact that a build of the real reader printed its refusal and EXITED 0 —
+        #     a stand-in doing the same must be counted refused, and a reader that
+        #     merely mentions the word error and succeeds must not.
+        #   * A refused container is a finding ABOUT THE CONTAINER and the reader is
+        #     the witness, not the accused. Over this repository's corpus the refusal
+        #     is unanimous, so a sentence that blamed the reader would read as a
+        #     broken tool once per row and send an operator to the wrong repository.
+        #     The arms require the finding to name the container's declared schema
+        #     version as the defect, to keep the reader's own sentence, and to carry
+        #     the reader's BUILD ID — its own sha256, because the reader states no
+        #     version and two of its builds refuse the same container differently.
+        #   * The schema skew is reported PER CONSUMER, and the pair is driven in
+        #     OPPOSITE directions from one tree: a container declaring v3 skews the
+        #     pinned reader (accepts [4, 5]) and not the shipped engine (accepts
+        #     [3]); the same tree declaring v4 swaps them. One combined verdict could
+        #     not report that, which is why there are two. The engine's accepted set
+        #     is a constant in another repository, so the entry records the sha256
+        #     this repository PINS on the engine and an arm requires the two to agree
+        #     — a re-pin therefore cannot land without the constant being re-read.
         #
         # Its table of admissible outcome/reason pairs is derived from the producers
         # that write them rather than typed, and the corpus is the evidence: all 925

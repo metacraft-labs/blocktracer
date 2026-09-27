@@ -5,7 +5,12 @@
 //   node tools/chain/chain-health.mjs <snapshot-dir> [<snapshot-dir> …]
 //   node tools/chain/chain-health.mjs --corpus
 //   node tools/chain/chain-health.mjs --corpus --out tools/chain/measurements/chain-health.json
-//   node tools/chain/chain-health.mjs <dir> --container-reader '../codetracer-trace-format-nim/ct-print --meta-json'
+//   node tools/chain/chain-health.mjs <dir> --container-reader ../codetracer-trace-format-nim/ct-print
+//
+// `--container-reader` NAMES THE PROGRAM AND NOT A MODE. The modes are the reader's own
+// interface, so they live in `health-checks.json` under `containerReader.probes`, and a mode
+// flag in the caller's argv is refused by name — `--meta-json --events <path>` leaves the
+// reader printing one shape and this tool parsing another while every other clause looks fine.
 //
 // ── WHY THIS EXISTS, AND WHY IT IS NOT A CONFORMANCE CHECK ─────────────────────────────
 //
@@ -62,23 +67,39 @@
 //
 // `H-READ-NONE` is the control for the container half: it fires when nothing was opened and
 // at least one requested check needs a recording. ITS KIND IS `not-measured`, NOT
-// `unhealthy`. As things stand this tool carries no container reader, so H-READ-NONE is the
-// NORMAL output and the verdict says so in those words — the tool is reporting that it could
-// not answer, not that the answer is bad. `--container-reader` names one; naming it moves
-// `containersOpened` off zero, and nothing more than that yet.
+// `unhealthy`. With no `--container-reader` named, H-READ-NONE is the NORMAL output and the
+// verdict says so in those words — the tool is reporting that it could not answer, not that
+// the answer is bad.
 //
-// ── TWO MEASURED FACTS THIS TOOL CARRIES AND DOES NOT FIX ─────────────────────────────
+// ── WHAT THE CONTAINER HALF REPORTS, AND WHAT IT REFUSES TO BLAME ─────────────────────
 //
-// Both are in `health-checks.json` under `carried`, both are echoed into every artifact, and
-// both bound what a container-opening check can claim:
+// With a reader named, every container a row names is opened and two questions are answered.
+// `H-CONTAINER-UNREADABLE` asks whether it opened at all, and `H-CONTAINER-SCHEMA-SKEW` asks,
+// SEPARATELY FOR EACH CONSUMER, whether the schema version it declares is one that consumer
+// accepts.
 //
-//   1. All 52 real containers here declare `meta.dat` schema version 3. The Nim reader
-//      accepts 4 and 5 and refuses 3 by name — a version-3 writer packed a line-only step
-//      position one line high relative to the current decode — while both Rust readers are
-//      pinned at 3 and accept them. The supported sets are DISJOINT, so this corpus sits on
-//      the superseded side of a disagreement no single repository settles.
-//   2. That reader EXITS 0 WHILE REFUSING, 52 times out of 52. Nothing here keys a container
-//      verdict on exit status; `containerReader.opened` in the data file spells both clauses.
+// OVER THIS REPOSITORY'S CORPUS THE HONEST ANSWER IS THAT NOTHING OPENS, and the tool is
+// written so that answer cannot be mistaken for a broken reader. Every container declares
+// `meta.dat` schema version 3; the pinned reader accepts [4, 5] and refuses 3 BY NAME rather
+// than decoding it under a rule that would put every source position one line high; so it
+// refuses all of them and says exactly why. Each finding therefore carries the reader's own
+// sentence, the reader's BUILD ID, and the version the container declared — the reader is
+// identified, not accused, and the defect named is the recording's schema and not the reader.
+//
+// The skew is per consumer because the consumers disagree with each other. The shipped replay
+// engine — the wasm a visitor's browser runs, pinned by sha256 in `client/hydrate/engine-pin.txt`
+// — accepts [3] and refuses nothing, so it accepts every container the pinned reader refuses.
+// One combined verdict would have to pick which consumer matters, and that is not a tie a
+// sweep breaks.
+//
+// ── THE MEASURED FACTS THIS TOOL CARRIES AND DOES NOT FIX ─────────────────────────────
+//
+// They are in `health-checks.json` under `carried`, echoed into every artifact, and they bound
+// what a container-opening check can claim. Read them there; the figures in a comment go
+// stale, and one of these already did: the note that the reader EXITS 0 WHILE REFUSING was
+// measured on a build that is no longer the one on disk. A reader built from a current
+// checkout exits 1, on all 58 `.ct` files here. The two-clause `opened` rule is kept anyway —
+// it costs one regular-expression test and the behaviour it guards against was real.
 //
 // ── WHAT IT DOES NOT DO ───────────────────────────────────────────────────────────────
 //
@@ -89,6 +110,7 @@
 
 import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { spawnSync, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { resolve, join, dirname, relative } from 'node:path';
 
@@ -141,37 +163,131 @@ function outcomePartition(path = SNAPSHOT_FORMAT_PATH) {
 // ── the container-open seam ────────────────────────────────────────────────────────────
 
 /**
+ * THE READER'S BUILD ID, which is its own bytes.
+ *
+ * `ct-print --version` answers `Unknown option: version` and exits 1, so the reader states no
+ * id. That is not a cosmetic gap: this repository's history already holds two builds of the
+ * same reader that refuse the same container DIFFERENTLY — one exited 0 while refusing and the
+ * current one exits 1 — so a refusal reported without saying which build produced it is a
+ * refusal nobody can reproduce. Content-addressing the program is `engine-pin.txt`'s idiom
+ * applied to the reader.
+ *
+ * A failure here is reported, never swallowed: `null` plus the reason, so it reads as "not
+ * established" rather than as an absent field.
+ */
+export function readerBuildId(programPath) {
+  try {
+    const bytes = readFileSync(programPath);
+    return { path: programPath, sha256: createHash('sha256').update(bytes).digest('hex'),
+             bytes: bytes.length };
+  } catch (e) {
+    return { path: programPath, sha256: null, bytes: null,
+             why: `the reader's own bytes could not be read: ${e.message}` };
+  }
+}
+
+/**
  * Open one container with the named reader, and decide whether it OPENED.
  *
  * THE EXIT STATUS IS NOT THE VERDICT and the rule is not spelled here — `containerReader`
  * in `health-checks.json` carries both clauses, because a refusal signature written in one
  * place and a verdict computed in another is two statements of one rule.
  *
+ * WHAT IT RETURNS BESIDES THE VERDICT is the reader's own sentence and, when the refusal names
+ * a schema version, that version. Both are the reader's EVIDENCE rather than a judgement on
+ * it: over this repository's corpus the refusal is unanimous, so a finding that said only
+ * "unreadable" would read as a broken tool once per row and point an operator at the wrong
+ * repository. The version is taken from the refusal and not from the container's bytes
+ * deliberately — walking a CTFS directory here would be a second implementation of another
+ * repository's format in a tool whose whole argument is that it adds none.
+ *
  * @param {string[]} argv  program plus leading arguments; the container path is appended
- * @param {{opened: string, refusalSignature: string, refusalSignatureFlags: string}} rule
+ * @param {object} rule    `containerReader` from the registry
+ * @param {string[]} [probeArgv]  the probe's own mode arguments, from the registry
  */
-export function openContainer(argv, containerPath, rule) {
+export function openContainer(argv, containerPath, rule, probeArgv = []) {
   const [cmd, ...lead] = argv;
-  const r = spawnSync(cmd, [...lead, containerPath],
+  const r = spawnSync(cmd, [...lead, ...probeArgv, containerPath],
                       { encoding: 'utf8', timeout: 120_000 });
   const said = `${r.stdout ?? ''}${r.stderr ?? ''}`;
-  if (r.error) {
-    return { opened: false, why: `the reader could not be run: ${r.error.message}` };
+  const schema = rule.schemaRefusal ?? null;
+  // The version the reader NAMED, when it named one. `undefined` would be indistinguishable
+  // from a key nobody set, so an unstated version is an explicit null.
+  let declaredSchemaVersion = null;
+  if (schema) {
+    const m = new RegExp(schema.signature, schema.signatureFlags || undefined).exec(said);
+    if (m && m[1] !== undefined) declaredSchemaVersion = Number(m[1]);
   }
-  const refused = new RegExp(rule.refusalSignature, rule.refusalSignatureFlags || undefined)
-    .test(said);
+  // The reader's own sentence, kept whole enough to say WHY. A count of refusals with no
+  // reason is a count.
+  const sig = new RegExp(rule.refusalSignature, rule.refusalSignatureFlags || undefined);
+  const firstSaid = (said.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? '');
+  const refusalLine = (said.split('\n').find((l) => new RegExp(rule.refusalSignature).test(`\n${l}`))
+                       ?? firstSaid).trim();
+  const base = { readerSaid: refusalLine.slice(0, 400), declaredSchemaVersion,
+                 stdout: r.stdout ?? '' };
+
+  if (r.error) {
+    return { ...base, opened: false, readerSaid: `the reader could not be run: ${r.error.message}`,
+             why: `the reader could not be run: ${r.error.message}`, ran: false };
+  }
+  const refused = sig.test(said);
   if (r.status !== 0) {
-    return { opened: false, why: `the reader exited ${r.status}`, refusedByName: refused };
+    return { ...base, opened: false, ran: true, exit: r.status, refusedByName: refused,
+             why: `the reader exited ${r.status}`
+                + (refusalLine ? ` and said: ${refusalLine.slice(0, 300)}` : '') };
   }
   if (refused) {
-    // The clause the exit status cannot supply. Keep the reader's own sentence: it is the
-    // only thing that says WHY, and a count of refusals with no reason is a count.
-    const line = (said.split('\n').find((l) => new RegExp(rule.refusalSignature).test(`\n${l}`))
-                  ?? '').trim();
-    return { opened: false, why: `the reader exited 0 and refused: ${line.slice(0, 300)}`,
-             refusedByName: true };
+    return { ...base, opened: false, ran: true, exit: 0, refusedByName: true,
+             why: `the reader exited 0 and refused: ${refusalLine.slice(0, 300)}` };
   }
-  return { opened: true, why: '' };
+  return { ...base, opened: true, ran: true, exit: 0, refusedByName: false, why: '' };
+}
+
+/**
+ * The counts the container itself states, out of the `counts` probe's payload.
+ *
+ * A PAYLOAD THAT DOES NOT PARSE IS NOT A CLOSED CONTAINER. The verdicts are kept apart on
+ * purpose: a reader that exited 0 and printed something this parser cannot read HAS opened the
+ * recording, and calling it refused would blame the container for the parser. So this returns
+ * `{ available: false, why }` and the container stays counted as opened.
+ */
+export function countsFromProbeOutput(stdout, rule) {
+  const p = rule.probes?.counts;
+  if (!p || p.parse !== 'json') {
+    return { available: false, why: 'the registry declares no JSON counts probe' };
+  }
+  let doc;
+  try { doc = JSON.parse(stdout); }
+  catch (e) {
+    return { available: false,
+             why: `the counts probe's output is not JSON (${e.message.slice(0, 120)}), so the `
+                + `container's own counts were not read — the container itself opened` };
+  }
+  const at = p.at ? doc?.[p.at] : doc;
+  if (!at || typeof at !== 'object') {
+    return { available: false,
+             why: `the counts probe's output carries no ${JSON.stringify(p.at ?? '(root)')} `
+                + `object, so the container's own counts were not read` };
+  }
+  const out = { available: true };
+  for (const k of p.yields ?? Object.keys(at)) {
+    if (typeof at[k] === 'number' && Number.isFinite(at[k])) out[k] = at[k];
+  }
+  return out;
+}
+
+/**
+ * The probe registry's own guard: a caller that passes a MODE FLAG breaks every probe.
+ *
+ * `--meta-json --events <path>` leaves the reader printing whichever mode it parsed last and
+ * this tool reading a document of the wrong shape, while the exit status, the refusal
+ * signature and the container path all look exactly right. That is a silent wrong answer, so
+ * it is refused by name with the flag quoted rather than tolerated.
+ */
+export function modeFlagInCallerArgv(argv, rule) {
+  const banned = rule.callerMustNotPassAModeFlag?.flags ?? [];
+  return argv.find((a) => banned.includes(a)) ?? null;
 }
 
 // ── reading one snapshot tree ──────────────────────────────────────────────────────────
@@ -214,6 +330,13 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     attributedRows: 0, unattributedRows: 0,
     declaredRungs: {},
     jointScopeRows: 0,
+    // THE SCHEMA CENSUS IS PUBLISHED WHETHER OR NOT THE SKEW FINDING FIRES, for the same
+    // reason H-SOURCE-ABSENT publishes its rates: the finding is a threshold and the census
+    // is the gradient. `unstated` is its own key rather than an omission, because a container
+    // the reader OPENED states no version anywhere the reader prints — see
+    // `containerReader.schemaRefusal.cost` — and "opened, version unknown" and "not probed"
+    // are different measurements.
+    containerSchemaCensus: {},
   };
   const raised = [];   // {check, ...detail}
   const add = (check, detail) => raised.push({ check, ...detail });
@@ -317,11 +440,14 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
 
   // ── the container-open seam ─────────────────────────────────────────────────────────
   //
-  // No check consumes what a reader returns yet. What it produces is the ACCOUNTING — how
-  // many of the containers this tree names could be opened at all — which is what makes
-  // `H-READ-NONE` a measurement rather than a constant.
+  // Two things come out of it. The ACCOUNTING — how many of the containers this tree names
+  // could be opened at all — which is what makes `H-READ-NONE` a measurement rather than a
+  // constant. And, for every container that did not open, the reader's own evidence: its
+  // sentence, its build id, and the schema version its refusal named.
   const readerNotes = [];
+  const build = readerArgv && readerArgv.length ? readerBuildId(readerArgv[0]) : null;
   if (readerArgv && readerArgv.length) {
+    const probe = reg.containerReader.probes?.open?.argv ?? [];
     for (const row of rows) {
       if (!row.container) continue;
       const p = resolve(dir, row.container);
@@ -329,14 +455,86 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
         sum.containersRefused++;
         row.containerRead = 'absent';
         readerNotes.push(`${row.txHash}: ${row.container} is not on disk`);
+        if (want.includes('H-CONTAINER-UNREADABLE')) {
+          add('H-CONTAINER-UNREADABLE', {
+            txHash: row.txHash, container: row.container,
+            readerSaid: null, readerBuildId: build, declaredSchemaVersion: null,
+            says: `this row names ${JSON.stringify(row.container)} and no such file is on `
+                + `disk, so the recording it claims to have made cannot be opened by anybody`,
+          });
+        }
         continue;
       }
-      const v = openContainer(readerArgv, p, reg.containerReader);
-      if (v.opened) { sum.containersOpened++; row.containerRead = 'opened'; }
-      else {
+      const v = openContainer(readerArgv, p, reg.containerReader, probe);
+      row.containerProbe = { exit: v.exit ?? null };
+      if (v.declaredSchemaVersion !== null) {
+        row.declaredSchemaVersion = v.declaredSchemaVersion;
+        const k = String(v.declaredSchemaVersion);
+        sum.containerSchemaCensus[k] = (sum.containerSchemaCensus[k] ?? 0) + 1;
+      } else {
+        sum.containerSchemaCensus.unstated = (sum.containerSchemaCensus.unstated ?? 0) + 1;
+      }
+      if (v.opened) {
+        sum.containersOpened++;
+        row.containerRead = 'opened';
+        row.containerCounts = countsFromProbeOutput(v.stdout, reg.containerReader);
+      } else {
         sum.containersRefused++;
         row.containerRead = 'refused';
         readerNotes.push(`${row.txHash}: ${v.why}`);
+        if (want.includes('H-CONTAINER-UNREADABLE')) {
+          // THE SENTENCE NAMES THE CONTAINER'S PROPERTY WHEN THERE IS ONE, AND THE READER'S
+          // WORDS OTHERWISE. Over this repository's corpus every refusal names a schema
+          // version, so every one of these findings says what about the CONTAINER made it
+          // unreadable — which is the difference between reporting a corpus fact and
+          // reporting a broken tool.
+          const ver = v.declaredSchemaVersion;
+          add('H-CONTAINER-UNREADABLE', {
+            txHash: row.txHash, container: row.container,
+            readerSaid: v.readerSaid, readerBuildId: build, declaredSchemaVersion: ver,
+            says: ver !== null
+              ? `this container declares meta.dat schema version ${ver}, which the reader at `
+                + `build ${build?.sha256?.slice(0, 16) ?? 'unknown'} does not accept — it `
+                + `refused the container BY NAME rather than decoding it under the wrong rule, `
+                + `so this is a fact about the recording and not a reader failure. The reader `
+                + `said: ${v.readerSaid}`
+              : `the reader at build ${build?.sha256?.slice(0, 16) ?? 'unknown'} did not open `
+                + `this container and named no schema version, so what it found is only what `
+                + `it said: ${v.readerSaid || '(it said nothing)'}`,
+          });
+        }
+      }
+    }
+  }
+
+  // ── H-CONTAINER-SCHEMA-SKEW — one finding per (declared version, consumer) ───────────
+  //
+  // PER CONSUMER, NEVER COMBINED. A single verdict would have to decide which consumer
+  // matters, and over this corpus the two answer oppositely: the pinned reader refuses every
+  // container and the shipped engine accepts every one. That is not a tie to break in a tool.
+  const consumers = reg.containerSchema?.consumers ?? [];
+  const declaredVersions = Object.keys(sum.containerSchemaCensus)
+    .filter((k) => k !== 'unstated').map(Number).sort((a, b) => a - b);
+  if (want.includes('H-CONTAINER-SCHEMA-SKEW')) {
+    for (const ver of declaredVersions) {
+      for (const c of consumers) {
+        if (c.accepts.includes(ver)) continue;
+        add('H-CONTAINER-SCHEMA-SKEW', {
+          consumer: c.id, declaredSchemaVersion: ver,
+          containers: sum.containerSchemaCensus[String(ver)],
+          accepts: c.accepts,
+          refusesByName: (c.refusesByName ?? []).includes(ver),
+          statedBy: c.statedBy, readFrom: c.readFrom,
+          says: `${sum.containerSchemaCensus[String(ver)]} container(s) in this tree declare `
+              + `meta.dat schema version ${ver}, and the consumer ${JSON.stringify(c.id)} — `
+              + `${c.what} — accepts [${c.accepts.join(', ')}]. `
+              + ((c.refusesByName ?? []).includes(ver)
+                  ? `It refuses ${ver} BY NAME, so it will decline rather than mis-read.`
+                  : `It does NOT refuse ${ver} by name, so it will attempt the decode; `
+                    + `whether that decode is right is the disagreement recorded under `
+                    + `\`carried\` and is not settled here.`)
+              + ` Its accepted set was read from ${c.statedBy}.`,
+        });
       }
     }
   }
@@ -350,6 +548,12 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     'H-SOURCE-ABSENT': sum.tracedRows,
     'H-OUTCOME-REASON-JOINT': sum.jointScopeRows,
     'H-RECORDER-UNATTRIBUTED': sum.containersNamed,
+    // The containers this sweep actually PROBED — not the ones the rows name. With no reader
+    // the two differ by everything, and the difference is the whole point of the accounting.
+    'H-CONTAINER-UNREADABLE': sum.containersOpened + sum.containersRefused,
+    // The distinct versions there are to compare, not the containers. One version stated by
+    // forty containers is one comparison per consumer.
+    'H-CONTAINER-SCHEMA-SKEW': declaredVersions.length,
   };
   const status = {};
   const notRun = [];
@@ -358,6 +562,15 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     if (!want.includes(id)) { status[id] = { ran: false, why: 'not requested' }; continue; }
     if (c.implemented === false) {
       status[id] = { ran: false, why: c.notRunReason ?? 'not implemented' };
+      notRun.push(id);
+      continue;
+    }
+    // A CONTAINER CHECK WITH NO READER DID NOT MEASURE AN EMPTY POPULATION — IT WAS NEVER
+    // ASKED. Both read as NOT RUN, and they must not read as the same reason: "the scope is
+    // empty" says the tree has nothing subject to the check, which is a fact about the tree,
+    // and this is a fact about the invocation.
+    if (c.needsContainer === true && !(readerArgv && readerArgv.length)) {
+      status[id] = { ran: false, why: c.notRunReason ?? 'no container reader was named' };
       notRun.push(id);
       continue;
     }
@@ -439,12 +652,16 @@ function rollUp(snapshots) {
                 'unattributedRows', 'jointScopeRows'];
   const total = Object.fromEntries(keys.map((k) => [k, 0]));
   const rungs = {};
+  const schemaCensus = {};
   const coverage = {};
   const byChain = {};
   for (const s of snapshots) {
     for (const k of keys) total[k] += s.summary[k] ?? 0;
     for (const [r, n] of Object.entries(s.summary.declaredRungs)) {
       rungs[r] = (rungs[r] ?? 0) + n;
+    }
+    for (const [v, n] of Object.entries(s.summary.containerSchemaCensus ?? {})) {
+      schemaCensus[v] = (schemaCensus[v] ?? 0) + n;
     }
     for (const [id, st] of Object.entries(s.checkStatus)) {
       const c = coverage[id] ??= { ranIn: 0, notRunIn: 0, reasons: [] };
@@ -465,6 +682,7 @@ function rollUp(snapshots) {
     }
   }
   total.declaredRungs = rungs;
+  total.containerSchemaCensus = schemaCensus;
   total.checksNotRun = Object.keys(coverage).filter((id) => coverage[id].ranIn === 0).sort();
   return { snapshots: snapshots.length, totals: total, checkCoverage: coverage,
            sourceCensusByChain: byChain };
@@ -499,15 +717,37 @@ export function sweep(dirs, { registry, requested, readerArgv, now } = {}) {
   }
   if (want.includes('H-READ-NONE') && needsContainerRequested.length > 0
       && corpus.totals.containersOpened === 0) {
+    // WHICH OF THEM ANSWERED ANYWAY, READ OFF THE COVERAGE TABLE RATHER THAN ASSUMED.
+    //
+    // This sentence used to say flatly that every container check was NOT RUN, and that became
+    // FALSE the moment a refusal was made into an answer: a container the reader declines by
+    // name settles `is it readable` (no) and, when the refusal states a version, `is that
+    // version one each consumer accepts`. Reporting those as unrun understates the sweep
+    // exactly as badly as reporting the unanswered ones as passed overstates it, and both
+    // failures have the same cause — a message that names a population instead of measuring it.
+    const answered = needsContainerRequested.filter((id) => (corpus.checkCoverage[id]?.ranIn ?? 0) > 0);
+    const unanswered = needsContainerRequested.filter((id) => (corpus.checkCoverage[id]?.ranIn ?? 0) === 0);
     findings.push({
       check: 'H-READ-NONE',
-      says: `no recording was opened on this sweep — ${corpus.totals.containersNamed} `
-          + `container(s) are named by rows and 0 were opened — while `
-          + `${needsContainerRequested.length} requested check(s) can only be answered by `
-          + `opening one: ${needsContainerRequested.join(', ')}. Those checks are NOT RUN. `
-          + `This is the tool saying it could not answer, not that the answer is bad.`,
+      says: `no recording was OPENED on this sweep — ${corpus.totals.containersNamed} `
+          + `container(s) are named by rows, ${corpus.totals.containersRefused} were probed and `
+          + `refused, and 0 opened. `
+          + (unanswered.length
+              ? `${unanswered.length} requested check(s) could not be answered in any tree: `
+                + `${unanswered.join(', ')}. `
+              : `Every requested container check answered in at least one tree. `)
+          + (answered.length
+              ? `${answered.length} answered from the refusals themselves — `
+                + `${answered.join(', ')} — because a reader declining a container BY NAME is a `
+                + `measurement of the container and not a missing one. `
+              : '')
+          + `Anything that needs a recording to actually open is unanswered here. This is the `
+          + `tool saying what it could and could not answer, not that the answer is bad.`,
       needsContainerRequested,
+      answeredFromRefusals: answered,
+      unansweredInEveryTree: unanswered,
       containersNamed: corpus.totals.containersNamed,
+      containersRefused: corpus.totals.containersRefused,
       containersOpened: 0,
     });
     if (!corpus.totals.checksNotRun.includes('H-READ-NONE')) { /* H-READ-NONE itself ran */ }
@@ -525,6 +765,12 @@ export function sweep(dirs, { registry, requested, readerArgv, now } = {}) {
     generatedAt: now ?? new Date().toISOString(),
     checksRequested: want,
     containerReader: readerArgv && readerArgv.length ? readerArgv.join(' ') : null,
+    // WHICH BUILD ANSWERED. A refusal reported without the build that produced it is a
+    // refusal nobody can reproduce, and this reader's two builds refuse the same container
+    // with different exit statuses — so the id travels on the artifact, not only inside the
+    // findings that happen to quote it.
+    containerReaderBuild: readerArgv && readerArgv.length ? readerBuildId(readerArgv[0]) : null,
+    containerSchemaConsumers: reg.containerSchema?.consumers ?? [],
     carried: reg.carried,
     corpus,
     findings,
@@ -570,6 +816,33 @@ export function verdict(report, registry) {
   L.push(`  containers opened    ${t.containersOpened}`
        + (report.containerReader ? '' : '   (no container reader named)'));
   L.push(`  containers refused   ${t.containersRefused}`);
+  // WHICH BUILD ANSWERED, ON THE OPERATOR'S SCREEN AND NOT ONLY IN THE ARTIFACT. The one
+  // question a reader of "45 refused" asks next is "by what", and two builds of this reader
+  // refuse the same container differently.
+  if (report.containerReaderBuild) {
+    const b = report.containerReaderBuild;
+    L.push(`  reader build         ${b.sha256 ? `${b.sha256.slice(0, 16)}… ${b.bytes} bytes` : `NOT ESTABLISHED — ${b.why}`}`);
+  }
+  const census = Object.entries(t.containerSchemaCensus ?? {});
+  if (census.length) {
+    // `unstated` IS NOT A VERSION and must not print as one. It is the count of containers
+    // that were probed and declared nothing the reader printed — an opened container states no
+    // version anywhere, and a file that is not a container at all names none either.
+    const stated = census.filter(([v]) => v !== 'unstated');
+    const unstated = census.find(([v]) => v === 'unstated')?.[1] ?? 0;
+    L.push(`  container schema     ${stated.map(([v, n]) => `v${v}: ${n}`).join(', ') || 'none stated'}`
+         + (unstated ? `; ${unstated} probed container(s) stated no version` : ''));
+    for (const c of report.containerSchemaConsumers ?? []) {
+      const bad = stated.filter(([v]) => !c.accepts.includes(Number(v)));
+      L.push(`    ${c.id.padEnd(16)} accepts [${c.accepts.join(', ')}] — `
+           + (stated.length === 0
+               ? 'no declared version to compare it against'
+               : bad.length
+                 ? `${bad.reduce((a, [, n]) => a + n, 0)} container(s) outside it `
+                   + `(v${bad.map(([v]) => v).join(', v')})`
+                 : 'every declared version is in it'));
+    }
+  }
   L.push(`  checks not run       ${t.checksNotRun.length}`
        + (t.checksNotRun.length ? `   ${t.checksNotRun.join(', ')}   (ran in no tree)` : ''));
   L.push('');
@@ -626,8 +899,8 @@ const USAGE =
 + '\n'
 + '  --corpus                  every snapshot tree in this repository\n'
 + '  --out <file>              write the blocktracer/chain-health@1 artifact there\n'
-+ '  --container-reader <cmd>  a program invoked as `<cmd> <container-path>`; it moves\n'
-+ '                            containersOpened off zero and nothing else yet\n'
++ '  --container-reader <prog> the reader PROGRAM (not a mode — the modes come from\n'
++ '                            health-checks.json); it opens every container a row names\n'
 + '  --check <id>              run only these findings (repeatable)\n'
 + '  --quiet                   the artifact on stdout, no verdict on stderr\n'
 + '\n'
@@ -658,6 +931,21 @@ export function main(argv) {
     if (!Object.prototype.hasOwnProperty.call(reg.checks, id)) {
       process.stderr.write(`chain-health: no such finding ${JSON.stringify(id)} — the set is `
         + `[${Object.keys(reg.checks).join(', ')}]\n`);
+      return 2;
+    }
+  }
+
+  // THE PROBES APPEND THEIR OWN MODE, so a caller that also passes one produces
+  // `--meta-json --events <path>`: the reader keeps whichever it parsed last, this tool reads
+  // a document of the wrong shape, and the exit status, the refusal signature and the path all
+  // look right. A silent wrong answer, refused by name with the flag quoted.
+  if (readerArgv && readerArgv.length) {
+    const bad = modeFlagInCallerArgv(readerArgv, reg.containerReader);
+    if (bad) {
+      process.stderr.write(`chain-health: --container-reader must name the PROGRAM and not a `
+        + `mode — ${JSON.stringify(bad)} is one of the flags this tool appends itself, and `
+        + `passing it makes every probe read a document of the wrong shape while looking `
+        + `fine. Drop it: --container-reader '${readerArgv.filter((a) => a !== bad).join(' ')}'\n`);
       return 2;
     }
   }

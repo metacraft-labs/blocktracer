@@ -135,7 +135,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 90 + 83 = 980 counted assertions —
+# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 131 + 83 = 1021 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -421,8 +421,43 @@ chain-selftest:
 # IT REPORTS WHAT IT DID NOT MEASURE AS LOUDLY AS WHAT IT DID. `containersOpened`
 # is 0 unless `--container-reader` names a program, and a finding that could not
 # be answered is printed under NOT MEASURED rather than folded into the health
-# verdict. Reading a container is not wired here yet, so that is the normal
-# output today and the tool says so in those words.
+# verdict.
+#
+# ── OPENING THE CONTAINERS, AND WHAT IT FINDS ──────────────────────────────
+#
+#     just chain-health-corpus --container-reader ../codetracer-trace-format-nim/ct-print
+#
+# THE FLAG NAMES THE PROGRAM AND NOT A MODE. The reader's modes are a fact about
+# the reader's own interface, so they live in `tools/chain/health-checks.json`
+# under `containerReader.probes`; a mode flag in the caller's argv is refused by
+# name, because `--meta-json --events <path>` leaves the reader printing one
+# shape and the tool parsing another while every other clause looks right.
+#
+# The reader is `codetracer-trace-format-nim`'s `ct-print`, which is not a
+# dependency of this repository and is not built in CI — the same seam
+# `just chain-instructions` and `just chain-positions` already use. Build it in
+# a sibling checkout with `nimble buildCtPrint`, inside that repository's own
+# devshell: a plain `nim c` outside it fails on `zstd.h`.
+#
+# WHAT IT REPORTS OVER THIS REPOSITORY'S CORPUS IS THAT NOTHING OPENS, and that
+# is a true finding rather than a broken tool. Measured 2026-09-28 with a reader
+# built from a current checkout: 45 of 45 containers named by a committed
+# snapshot row are refused — 42 because they declare `meta.dat` schema version 3
+# and the reader accepts [4, 5], refusing 3 BY NAME rather than decoding it under
+# a rule that would put every source position one line high; and 3 because they
+# are the shipped conformance template's 229-byte ASCII placeholders, which carry
+# no container magic at all. Every finding therefore names the CONTAINER'S
+# declared version as the defect, keeps the reader's own sentence as the
+# evidence, and carries the reader's build id — its own sha256, because the
+# reader states no version of its own and two of its builds refuse the same
+# container with different exit statuses.
+#
+# The schema skew is reported PER CONSUMER and never as one verdict, because the
+# two consumers of these containers accept disjoint sets: the pinned reader above
+# accepts [4, 5] and the replay engine this repository ships to a visitor —
+# pinned by sha256 in `client/hydrate/engine-pin.txt` — accepts [3]. So the same
+# corpus is unreadable to one and readable to the other, and picking which one
+# matters is not a decision a sweep gets to make.
 #
 # THE EXIT CODE IS THE VERDICT AND THE CORPUS RECIPE CURRENTLY EXITS 1, which is
 # the tool working rather than the recipe failing: 0 is nothing found, 1 is at

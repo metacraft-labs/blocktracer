@@ -64,7 +64,28 @@
     "     read. `containerReader.refusalSignature` below is the consequence: a container",
     "     counts as OPENED only when the reader exits 0 AND its output does not match that",
     "     signature, and the rule lives in this file rather than in the tool so the two",
-    "     clauses cannot drift apart."
+    "     clauses cannot drift apart. RE-MEASURED 2026-09-28: a reader built from a current",
+    "     checkout exits **1**, on all 58 `.ct` files in this repository. The exit-0 refusal",
+    "     is therefore a fact about one build and not about the reader, the two-clause rule",
+    "     is no longer load-bearing on today's binary, AND IT IS KEPT — nothing in either",
+    "     repository stops the behaviour returning, and a verdict keyed on exit status alone",
+    "     would have been wrong for as long as that build was the one on disk.",
+    "",
+    "── WHAT A CONTAINER CHECK MAY CONCLUDE, AND WHAT IT MAY NOT BLAME ──────────────────────",
+    "",
+    "A refused container is a finding ABOUT THE CONTAINER, and the reader's own refusal is",
+    "the evidence rather than the defect. The distinction is not a nicety here: over this",
+    "repository's corpus the refusal is unanimous, so a finding phrased as \"the reader could",
+    "not read it\" would read as a broken tool 45 times and send an operator to the wrong",
+    "repository. `H-CONTAINER-UNREADABLE` therefore carries three things every time — the",
+    "reader's own sentence verbatim, the reader's BUILD ID, and, when the refusal names a",
+    "schema version, that version — so the reader is identified rather than accused.",
+    "",
+    "The build id is the reader binary's own content (`sha256` + byte size) because `ct-print`",
+    "has no `--version`: measured 2026-09-28, `ct-print --version` answers `Unknown option:",
+    "version` and exits 1. Content-addressing a program to name it is the idiom",
+    "`client/hydrate/engine-pin.txt` already uses on the replay engine, for the same reason:",
+    "a name that is not the bytes does not pin the bytes."
   ],
   "format": "blocktracer/health-checks@1",
   "carried": [
@@ -77,8 +98,14 @@
     {
       "id": "reader-exit-status-is-not-a-verdict",
       "measuredOn": "2026-09-18",
-      "note": "The Nim reader prints its refusal and exits 0. Over the 52 real containers it did that 52 times. A sweep keyed on exit status would have reported 52 of 52 opened having opened none. `containerReader.opened` therefore requires two clauses, and the signature that spells the second one lives in this file.",
+      "note": "The Nim reader prints its refusal and exits 0. Over the 52 real containers it did that 52 times. A sweep keyed on exit status would have reported 52 of 52 opened having opened none. `containerReader.opened` therefore requires two clauses, and the signature that spells the second one lives in this file. RE-MEASURED 2026-09-28 with a reader built from a current checkout of the reader repository: it exits 1, on every one of the 58 `.ct` files in this repository - 52 with `Error: meta.dat present but corrupt: ... schema version 3 ...` and 6, the conformance template's 229-byte placeholders, with `ct-print: not a recognised .ct file: no CTFS magic`. ZERO exit 0. So the exit-0 refusal was a property of one build rather than of the reader. THE TWO-CLAUSE RULE IS KEPT ANYWAY: it costs one regular-expression test, the behaviour it guards against was real on the build that was on disk when this file was written, and nothing in either repository forbids its return. A rule dropped because today's binary does not need it is a rule that has to be rediscovered by the next sweep that reports a clean pass over a corpus it could not read.",
       "bounds": "how `containersOpened` and `containersRefused` are counted"
+    },
+    {
+      "id": "the-two-consumers-of-a-container-disagree",
+      "measuredOn": "2026-09-28",
+      "note": "THE PINNED READER AND THE SHIPPED ENGINE ACCEPT DISJOINT SCHEMA VERSION SETS, so `is this container readable` has two answers and they are opposite over this corpus. Measured by reading each consumer's own constant, with the checkout revision recorded beside it because a claim about another repository's constant is only as current as the checkout it was read from - the correction on the entry above this one was exactly that mistake. PINNED READER, `codetracer-trace-format-nim` at cf132be: `SupportedMetaDatVersions = [4, 5]` and `LastShiftedGlobalIndexVersion = 3`, the latter refused BY NAME ahead of the generic version mismatch. SHIPPED ENGINE, `codetracer` at afe86214b - the source of the replay wasm this repository pins by sha256 in `client/hydrate/engine-pin.txt`: `SUPPORTED_VERSIONS = &[3]` in the db-backend reader and `SUPPORTED_META_DAT_VERSIONS = &[3]` in the session manager's. {4,5} and {3} share no member. Every container in this repository declares 3, so the pinned reader refuses all of them and the shipped engine accepts all of them - and the shipped engine is the one a visitor's browser runs. THAT IS WHY THE SKEW FINDING IS REPORTED PER CONSUMER AND NEVER FOLDED INTO ONE VERDICT: a single answer would have to pick which consumer matters, and the two are for different audiences.",
+      "bounds": "H-CONTAINER-SCHEMA-SKEW, which reports one finding per consumer and never a combined one"
     }
   ],
   "checks": {
@@ -89,7 +116,8 @@
       "question": "Did this sweep open any recording at all, given that some of the checks it was asked for can only be answered by opening one?",
       "healthy": "Either no requested check needed a recording, or at least one recording was opened.",
       "fires": "containersOpened == 0 and at least one requested check is marked needsContainer",
-      "why": "A check that could not run must be reported as not run and never as passed. Without this finding a sweep with no reader wired prints the same clean verdict as a sweep that read every container and found nothing wrong, and the two are not the same measurement. It is the control that makes a zero mean something."
+      "why": "A check that could not run must be reported as not run and never as passed. Without this finding a sweep with no reader wired prints the same clean verdict as a sweep that read every container and found nothing wrong, and the two are not the same measurement. It is the control that makes a zero mean something.",
+      "whatItsSentenceMustSay": "WHICH container checks answered anyway, read off the coverage table rather than assumed. Its sentence used to say flatly that every container check was NOT RUN. That became false the moment a refusal was made into an answer: a container the reader declines BY NAME settles `is it readable` - no - and, when the refusal states a schema version, settles that version against each consumer's accepted set. So the finding now partitions the requested container checks into the ones that answered from the refusals and the ones no tree could answer. Reporting an answered check as unrun understates the sweep exactly as badly as reporting an unanswered one as passed overstates it, and both come from a sentence that names a population instead of measuring it."
     },
     "H-SOURCE-ABSENT": {
       "kind": "unhealthy",
@@ -144,13 +172,76 @@
     "H-CONTAINER-UNREADABLE": {
       "kind": "unhealthy",
       "needsContainer": true,
-      "implemented": false,
-      "notRunReason": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first.",
-      "question": "Can a reader open every recording a row names, and do the recording's own measurements agree with what the row claims about it?",
-      "healthy": "Every container a row names opens, and its measurements are the row's.",
-      "fires": "not yet decidable — see notRunReason",
-      "why": "The contract's member census declares the container OPAQUE: its entry has zero members, and every rule that mentions a recording reads the producer's claim about it rather than the bytes. A producer that mis-measures its own recording and writes sidecars consistent with the mis-measurement is conformant. This is the question that closes that, and it is the reason the `needsContainer` accounting exists at all."
+      "implemented": true,
+      "notRunReason": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well.",
+      "question": "Can the named reader open every recording a row names?",
+      "healthy": "Every container a row names opens under the named reader.",
+      "fires": "a row names a container the reader does not open — it is absent from disk, or the reader exited non-zero, or it exited 0 and its output matched the refusal signature",
+      "why": "The contract's member census declares the container OPAQUE: its entry has zero members, and every rule that mentions a recording reads the producer's claim about it rather than the bytes. A producer that mis-measures its own recording and writes sidecars consistent with the mis-measurement is conformant. This is the question that closes that, and it is the reason the `needsContainer` accounting exists at all.",
+      "scope": "rows that name a container, when a reader was named",
+      "reports": [
+        "readerSaid",
+        "readerBuildId",
+        "declaredSchemaVersion"
+      ],
+      "reportsNote": "THE READER IS IDENTIFIED, NOT ACCUSED. Over this repository's corpus the refusal is unanimous, so a finding that said only `could not be read` would read as a broken tool once per row and send an operator to the wrong repository. The reader's own sentence says what it found; the build id says which binary said it; the declared schema version, when the refusal names one, says what about the CONTAINER made it unreadable. All three are the reader's evidence and none of them is a verdict on the reader."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "implemented": true,
+      "notRunReason": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against.",
+      "question": "Is the schema version these containers declare one that each consumer of them accepts - separately, because they are separate consumers with separate audiences?",
+      "healthy": "Every declared schema version is in every consumer's accepted set.",
+      "fires": "one finding per (tree, declared version, consumer) whose accepted set does not contain that version",
+      "why": "A container is read by more than one program and they do not agree about what they can read. `containerSchema.consumers` records each one's accepted set, read from its own constant, with the checkout it was read from. A single combined verdict would have to decide which consumer matters, and that is not a decision a sweep gets to make: the pinned reader is what this repository's derivations run, and the shipped engine is what a visitor's browser runs. So the finding is per consumer and the roll-up publishes the census beside it.",
+      "scope": "the declared schema versions of the containers a tree's rows name, crossed with the declared consumers",
+      "reports": [
+        "containerSchemaCensus"
+      ],
+      "reportsNote": "The census is published whether or not the finding fires, for the same reason H-SOURCE-ABSENT publishes its rates: the finding is a threshold and the census is what tells an operator which way the corpus is moving."
     }
+  },
+  "containerSchema": {
+    "_comment": [
+      "WHO READS THESE CONTAINERS, AND WHAT EACH ONE ACCEPTS.",
+      "",
+      "Each entry's `accepts` is that consumer's own constant, transcribed together with the",
+      "file, the symbol and THE REVISION OF THE CHECKOUT IT WAS READ FROM. The revision is not",
+      "decoration: this file's `carried` already records a reading of these very constants that",
+      "was wrong because it came from a checkout 199 commits behind its mainline, and the",
+      "correction it carries is itself contradicted by the checkout in this workspace today.",
+      "A transcribed constant rots, and the only honest mitigation is to say when and from",
+      "where it was read, so a reader can tell a stale entry from a current one.",
+      "",
+      "`readFrom.pin` on the engine entry is the sha256 this repository already asserts on the",
+      "fetched wasm in `client/hydrate/engine-pin.txt`. A re-pin means the engine changed,",
+      "which means this entry has to be re-read - and the self-test asserts the two agree, so",
+      "a re-pin cannot land without re-reading."
+    ],
+    "consumers": [
+      {
+        "id": "pinned-reader",
+        "what": "the Nim CTFS reader this repository's derivations shell out to - the `ct-print` binary built from `codetracer-trace-format-nim`, named by CT_PRINT",
+        "audience": "this repository's own derivations: instructions/, positions/ and calltrace/ sidecars are produced by it",
+        "accepts": [4, 5],
+        "refusesByName": [3],
+        "statedBy": "codetracer-trace-format-nim src/codetracer_trace_writer/meta_dat.nim - `SupportedMetaDatVersions = [4, 5]` and `LastShiftedGlobalIndexVersion = 3`, the latter refused by name ahead of the generic version mismatch",
+        "readFrom": {"repo": "codetracer-trace-format-nim", "revision": "cf132be", "on": "2026-09-28"},
+        "note": "The refusal is BY NAME and it is deliberate rather than a version bump's side effect: a version-3 writer packed a line-only step position as prefixSum[path_id] + line where a current writer packs prefixSum[path_id] + (line - 1). Both land inside the trace's address space, so a version-3 step decoded under the current rule comes back ONE LINE HIGH instead of failing. Refusing is the only outcome that does not silently mis-place every source position."
+      },
+      {
+        "id": "shipped-engine",
+        "what": "the replay engine this repository ships to a visitor - `pkg/db_backend_bg.wasm`, fetched and asserted by sha256",
+        "audience": "a visitor's browser: this is the program that actually steps a published recording on the site",
+        "accepts": [3],
+        "refusesByName": [],
+        "statedBy": "codetracer src/db-backend/src/ctfs_trace_reader/meta_dat.rs - `SUPPORTED_VERSIONS: &[u16] = &[3]`; its sibling src/backend-manager/src/meta_dat.rs states `SUPPORTED_META_DAT_VERSIONS: &[u16] = &[3]`",
+        "readFrom": {"repo": "codetracer", "revision": "afe86214b", "on": "2026-09-28",
+                     "pin": "842c7164dd667085719705b15488f7d5ced1302afde7a5146bc52d08c7634120"},
+        "note": "ACCEPTING IS NOT THE SAME AS READING CORRECTLY, and this consumer is the reason the finding cannot be folded into one verdict. The pinned reader's analysis of version 3 is that its line-only step positions are packed one line high relative to the current rule. If that analysis is right, this consumer does not refuse those containers - it decodes them, and every source position it produces is one line off. The sweep reports the skew and does not adjudicate the analysis: settling which consumer is right is not this repository's call to make alone, and it is recorded under `carried` as such."
+      }
+    ]
   },
   "containerReader": {
     "_comment": [
@@ -168,7 +259,63 @@
     ],
     "opened": "the reader exited 0 AND its combined output does not match refusalSignature",
     "refusalSignature": "(?:^|\\n)\\s*(?:Error|error):",
-    "refusalSignatureFlags": ""
+    "refusalSignatureFlags": "",
+    "buildId": {
+      "how": "sha256 of the reader program's own bytes, plus its size in bytes",
+      "why": "`ct-print --version` answers `Unknown option: version` and exits 1 (measured 2026-09-28), so the reader states no id of its own. A finding that names a refusal without naming which build refused is a finding nobody can reproduce, and the refusals in this repository's history have differed BETWEEN BUILDS of the same reader - one build exited 0 while refusing and the next exits 1. Content-addressing the program is the same idiom `client/hydrate/engine-pin.txt` applies to the replay engine, for the same reason: a name that is not the bytes does not pin the bytes.",
+      "onFailure": "reported as null with the reason, never omitted - a missing build id must read as `not established` rather than as an absent field"
+    },
+    "probes": {
+      "_comment": [
+        "THE READER IS ASKED MORE THAN ONE QUESTION, AND EACH QUESTION'S ARGUMENTS LIVE HERE.",
+        "",
+        "A probe is invoked as `<reader argv> <probe argv...> <absolute container path>`. So the",
+        "caller names the PROGRAM and this file names the MODE. That split matters: the modes are",
+        "a property of the reader's interface, which is a fact about another repository, and a",
+        "fact about another repository belongs in the data file that records such facts rather",
+        "than in a shell invocation somebody types.",
+        "",
+        "`open` is deliberately the same argv as `counts`. Opening a container and reading its",
+        "counts are one invocation of the cheapest mode there is - `--meta-json` reads meta.dat",
+        "and the interning tables and decodes no event stream, so it stays O(meta.dat) on a",
+        "multi-gigabyte trace. Splitting them would double the process count to learn nothing.",
+        "",
+        "A PROBE'S PAYLOAD FAILING TO PARSE IS NOT A CLOSED CONTAINER. The two verdicts are",
+        "separate on purpose: a reader that exits 0 and prints something this tool cannot parse",
+        "HAS opened the recording, and reporting it refused would blame the container for the",
+        "tool's parser. Such a probe reports its measurement as unavailable, with the reason."
+      ],
+      "open": {
+        "argv": ["--meta-json"],
+        "parse": "none",
+        "asks": "does this container open at all"
+      },
+      "counts": {
+        "argv": ["--meta-json"],
+        "parse": "json",
+        "at": "counts",
+        "asks": "what does the container itself count",
+        "yields": ["steps", "calls", "values", "io_events", "paths", "functions", "types", "varnames"]
+      },
+      "stream": {
+        "argv": ["--events"],
+        "parse": "jsonl-header-then-events",
+        "asks": "which paths did the container intern, and where did it place each step",
+        "yields": ["paths", "stepPositions"],
+        "cost": "this one DECODES THE EVENT STREAMS, so it is not run unless a check that needs it was requested. `--meta-json` is the cheap probe and this is the expensive one; the distinction is the reader's own, stated in its --help."
+      }
+    },
+    "callerMustNotPassAModeFlag": {
+      "flags": ["--meta-json", "--events", "--full", "--json", "--json-events", "--summary", "--markers", "--spans", "--correlation-index"],
+      "why": "The probes above append their own mode. A caller that also passes one produces `--meta-json --events <path>`, where the reader keeps whichever it parsed last and the tool gets a document of the wrong shape while every other clause looks fine. That is a silent wrong answer, so it is refused BY NAME with the flag quoted. It is also why the recipe's documented invocation names the program alone."
+    },
+    "schemaRefusal": {
+      "signature": "meta\\.dat: schema version ([0-9]+)",
+      "signatureFlags": "",
+      "captures": ["declaredSchemaVersion"],
+      "why": "THE VERSION IS READ OUT OF THE READER'S OWN REFUSAL, and that is a deliberate choice over parsing the container. A CTFS container's directory would have to be walked to find `meta.dat` and its header read to get the u16 - a second implementation of another repository's container format, in a tool whose whole argument is that it adds no format code. The reader already states the version it found, in the sentence it refuses with, and taking it from there means the tool and the reader cannot disagree about what the container declares.",
+      "cost": "IT ONLY WORKS ON A REFUSAL. A container the reader ACCEPTS states no version anywhere `ct-print` prints - `--meta-json` publishes the metadata and the counts and not the schema version - so for an opened container the declared version is `null` and the skew check reports NOT RUN for it rather than passed. Over this repository's corpus that hole is empty, because every container is refused and therefore every one states its version. Closing it needs a reader mode that prints the version of a container it accepted, which is a change in the reader's repository."
+    }
   },
   "admissibleOutcomeReasonPairs": [
     {
