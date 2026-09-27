@@ -508,7 +508,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 230 assertions, and the reason it is offline is the reason it
+        # ING-3, 231 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -740,6 +740,56 @@ jobs:
         # and files already in this repository.
         run: node tools/chain/chain-health-selftest.mjs
 
+      - name: Is a yield figure counted by the method, or chosen after the fact?
+        # 83 assertions. What fraction of a chain's transactions actually trace is
+        # the number that decides whether a chain ships, which makes it the number
+        # most exposed to being chosen once the answer is known. The two committed
+        # readings in `tools/chain/measurements/` were read by NOTHING before this
+        # suite — `git grep -l` for either artifact token found only the files
+        # themselves — so the baseline several documents state their acceptance
+        # criteria against had no reader at all.
+        #
+        # `tools/chain/yield-method.json` is the method as data,
+        # `tools/chain/lib/yield.mjs` applies it, and the outcome partition is
+        # IMPORTED from the file both languages read rather than restated: a second
+        # classifier is a second place for the denominator to drift. Its rule ids
+        # are asserted disjoint from the contract's AND the health sweep's, both
+        # directions, anti-vacuity first, with a planted id apiece.
+        #
+        # The four it exists for, each against committed data:
+        #
+        #   * THE DENOMINATOR IS AN ENUMERATION. Driven over a real capture and
+        #     cross-checked against that producer's own tally, so "every
+        #     transaction in the window" is an operation over rows. A reading whose
+        #     `transactions` is its `traced` is refused.
+        #   * TWO WINDOWS MOVED IN OPPOSITE DIRECTIONS by the same amount leave
+        #     every total untouched, and only the per-window arm sees it.
+        #   * BOTH DENOMINATORS, DISTINCTION MEASURED. Four committed trees have a
+        #     population the chain never published an execution for and read
+        #     differently over the two; four have none and read equal. Both sides
+        #     floored, so a check that merely printed two numbers fails here.
+        #   * A RE-RUN'S VERDICT HAS FOUR VALUES. A re-run of the five pinned
+        #     windows read 208 traced against the reading's 211, with three named
+        #     transactions and a recorded signal death behind them. `reproduced`
+        #     would misstate the figure and `not-reproduced` would blame the
+        #     producer. What separates them mechanically is that what the chain
+        #     published cannot move between two runs over one absolute range while
+        #     what a run achieved can, so a moved chain column is `not-reproduced`
+        #     however well attributed — and that arm is planted. The attribution
+        #     reconciles PER WINDOW over every run column, not only against the
+        #     total movement in `traced`: `traced` is a sum, so five rows moving
+        #     from `replayed` to `divergent` left it untouched and were accepted as
+        #     "all attributed" until that arm was planted. `yield-method.json`'s
+        #     `chainColumnsNote` records the two ways the chain/run split is
+        #     narrower than it reads — `privateOnly` is decided off a body the
+        #     off-chain store served and the installed decoder parsed, and nothing
+        #     anchors the chain's identity between two runs.
+        #
+        # Offline and toolchain-free like the eleven above it: it reads files
+        # already in this repository and spawns nothing but `git ls-files`, whose
+        # failure is a failure here and not an empty population.
+        run: node tools/chain/yield-method-selftest.mjs
+
   contract:
     runs-on: [self-hosted, linux, x64]
     steps:
@@ -791,7 +841,15 @@ jobs:
         # carries the three data files the binary itself reads, and the arm is a
         # RESOLUTION rather than a file listing: it takes a real refusal inside
         # the sandbox, reads the rule id the kit printed, and requires that id to
-        # be found in the shipped contract. 18 checks in all.
+        # be found in the shipped contract. 19 checks in all, and the script's own
+        # floor is `pass >= 19` so a suite that lost an arm fails rather than
+        # reporting zero failures.
+        #
+        # THE TWO COMMANDS BELOW ARE IN THIS ORDER ON PURPOSE. The sandbox script
+        # does NOT rebuild its subject, so run locally on its own
+        # (`just conformance-kit-sandbox`) it tests whatever was last staged —
+        # which can be an artifact from a different commit. Here the release is
+        # re-staged first, every time, so the subject is this ref's.
         #
         # `bwrap` comes from `.#ci` (flake.nix pins it for this gate). Absent it
         # the script exits 2 rather than skipping.

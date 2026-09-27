@@ -135,8 +135,8 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# ELEVEN suites — 98 + 19 + 24 + 24 + 57 + 230 + 33 + 153 + 53 + 115 + 90 = 896 counted assertions —
-# over the eleven decisions the capture path makes that nothing else can check
+# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 90 + 83 = 980 counted assertions —
+# over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -150,8 +150,10 @@ test:
 # WHAT WAS ACTUALLY PUBLISHED, as a set of keys rather than as a total
 # (`object-set-selftest`), whether the SNAPSHOT READER and the document a
 # producer writes against name the same members (`snapshot-contract-selftest`),
-# and whether a prepared tree's RECORDINGS are in a state worth publishing
-# (`chain-health-selftest`).
+# whether a prepared tree's RECORDINGS are in a state worth publishing
+# (`chain-health-selftest`), and HOW A YIELD FIGURE IS COUNTED — which fraction of a
+# chain's transactions actually trace, over which denominator, against which pinned
+# windows (`yield-method-selftest`).
 #
 # `snapshot-contract-selftest` IS THE ONE THAT READS A NIM FILE FROM JAVASCRIPT,
 # and it is a suite rather than a review because the alternative is a person
@@ -317,6 +319,57 @@ test:
 # `counts.captureSessions` — which appeared at ONE site tree-wide and was
 # covered by nothing, so a review's revert of it passed every suite.
 #
+# `yield-method-selftest` IS THE ONE WHOSE SUBJECT IS A COMMITTED READING, and it
+# was added because the two readings in `tools/chain/measurements/` were read by
+# NOTHING. `git grep -l` for either artifact token found only the files
+# themselves. A yield figure — what fraction of a chain's transactions actually
+# trace — is the number that decides whether a chain ships, which makes it the
+# number most exposed to being chosen after the fact, and the two ways of
+# choosing it both produce a figure that looks fine: a sample of transactions
+# measures the sampler, and a single aggregate hides two windows moving in
+# opposite directions. So the method is `tools/chain/yield-method.json` and
+# `tools/chain/lib/yield.mjs` applies it, with the outcome partition IMPORTED
+# rather than restated — a second classifier is a second place for the
+# denominator to drift.
+#
+# Four things it watches go red, each against the committed data rather than a
+# constructed subject. THE DENOMINATOR IS AN ENUMERATION: driven over a real
+# capture, cross-checked against that producer's own tally, and refused when a
+# reading's `transactions` is its `traced`. TWO WINDOWS MOVED IN OPPOSITE
+# DIRECTIONS BY THE SAME AMOUNT leave every total untouched and are caught by
+# the per-window arm alone. BOTH DENOMINATORS, with the distinction MEASURED:
+# the corpus supplies committed trees on both sides — four where a population
+# the chain never published an execution for makes the two differ, four where
+# there is none and they are equal — and both sides are floored, so a check that
+# merely printed two numbers could not pass. And A RE-RUN'S VERDICT, which has
+# FOUR values and not two, because the measured case needs a third: a re-run of
+# the five pinned windows read 208 traced where the reading has 211, three
+# transactions moved, all three named, and the driver was observed dying on a
+# signal after the VM had already simulated them. `reproduced` would be a lie
+# about the figure and `not-reproduced` a lie about the producer. The mechanical
+# separator is that a re-run's columns are two kinds: what the chain published
+# cannot move between two runs over the same absolute range, and what this run
+# achieved can — so a moved CHAIN column is `not-reproduced` however well
+# attributed, and that arm is planted.
+#
+# TWO THINGS ABOUT THAT VERDICT WERE MEASURED AS HOLES AND CLOSED, and they are
+# named here because the shape recurs. The attribution reconciled against the
+# total movement in `traced` ALONE, and `traced` is a SUM over the traced
+# columns — so five rows moving from `replayed` to `divergent` left it untouched
+# in that window and were accepted as `differs-environmentally` with the note
+# "all attributed", five unexplained divergences and all. It now reconciles PER
+# WINDOW over every run column, which is the same cancellation the per-window
+# rule already refuses one level up. And `bodyUnavailable`/`notAttempted` were in
+# neither column list, so a re-run in which the body store served forty fewer
+# bodies compared as identical; they are run columns now. Both arms are planted.
+# `yield-method.json`'s `chainColumnsNote` records what the chain/run split does
+# NOT establish: `privateOnly` — and `withPublicHalf`, derived from it — is
+# decided off a body an off-chain store served and the installed decoder parsed,
+# so it has moved for the same chain over the same ranges before; and nothing in
+# either artifact anchors the chain's IDENTITY, so a reset testnet reads as a
+# producer regression. Three of the five chain columns are sound; those two are
+# recorded rather than trusted.
+#
 # THEY WERE REFERENCED BY NOTHING. Not by `just test`, not by any CI job, not
 # by `ci-coverage.sh` — whose enumeration covers `ci/test/*.sh` and
 # `client/Justfile`'s aggregate and reaches nothing under `tools/`. That is the
@@ -324,12 +377,13 @@ test:
 # was found dead, and all of them were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All ELEVEN are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# All TWELVE are OFFLINE and toolchain-free — plain node plus bash, a mock node
 # for the freeze gate, a mock node AND a mock file store for the body verifier,
 # recorded driver output for the replay rule, for the
 # fold suite an event stream reconstructed from the committed sidecars rather
 # than read out of a `.ct` with `ct-print`, for the health sweep a STAND-IN
 # reader so the figure that counts opened recordings can be shown non-zero,
+# for the yield method the two committed readings and the committed captures,
 # and for the encoding suite nothing
 # but files already in this repository — so they run
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
@@ -347,6 +401,7 @@ chain-selftest:
     node tools/chain/object-set-selftest.mjs
     node tools/chain/snapshot-contract-selftest.mjs
     node tools/chain/chain-health-selftest.mjs
+    node tools/chain/yield-method-selftest.mjs
 
 # ── is the recording layer healthy? ────────────────────────────────────────
 #
@@ -887,6 +942,14 @@ conformance dir="conformance-kit/template/complete":
 # six are the FOURTH absence: no specification either. A refusal taken inside
 # the sandbox has its rule id resolved against `contract/snapshot-contract.json`
 # as shipped, which is what a recipient with a tarball and no checkout does.
+#
+# IT DOES NOT REBUILD ITS SUBJECT, and that is worth knowing before quoting a
+# local result. `just conformance-kit-sandbox` runs the script against whatever
+# `conformance-kit-release/` currently holds — a gitignored directory that may
+# have been staged at another commit — so a local green is a statement about that
+# directory and not about this ref. CI runs `just conformance-kit-release`
+# immediately before the script, every time, which is what makes the CI arm a
+# gate; run the pair locally too if the result is going to be quoted.
 #
 # STAGING OUTSIDE THE CHECKOUT IS AN OPERATOR PROCEDURE, not a gate: it needs the
 # toolchain and a full `-d:release` build of three binaries, so putting it in the
