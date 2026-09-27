@@ -135,7 +135,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 153 + 83 = 1043 counted assertions —
+# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 187 + 83 = 1077 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -498,6 +498,30 @@ chain-selftest:
 # what it is NOT, and every command that produced it. Read that before quoting
 # anything these five checks report.
 #
+# ── THE RATCHET, AND WHY A THRESHOLD COULD NOT BE ONE ──────────────────────
+#
+# One more finding needs no container and no reader: has any chain published FEWER
+# source-level recordings than the committed reading says it had?
+#
+# The source-absence check is a THRESHOLD AT ZERO, measured rather than read off
+# its own description: driven over one chain at 40 of 40, 20 of 40, 5 of 40 and 1
+# of 40 source-level rows it stays GREEN, and reddens only at 0 of 40. So a chain
+# that went from forty source-level recordings to one is silent in the one check
+# aimed at the operator's primary symptom. A threshold cannot fix that, because
+# there is no defensible absolute number — the right count for a chain is whatever
+# it has already reached. What CAN be stated is that it must not go backwards, and
+# the committed reading is where the previous position is recorded. Same shape as
+# the object-set baseline and the byte-identity manifest.
+#
+# The baseline is read by DEFAULT, because a ratchet nobody remembers to pass a
+# flag for is a ratchet that never fires. `--no-baseline` says so deliberately and
+# makes the check report NOT RUN with that as its reason, which is the difference
+# between a check that was switched off and a check that passed. A `--baseline`
+# naming a file that cannot be read is REFUSED rather than replaced by the
+# default: a typo must not quietly switch off the one check that watches a chain
+# going backwards. A RISE is not a finding — refreshing the reading is a separate
+# reviewable act.
+#
 # THE EXIT CODE IS THE VERDICT AND THE CORPUS RECIPE CURRENTLY EXITS 1, which is
 # the tool working rather than the recipe failing: 0 is nothing found, 1 is at
 # least one finding about the recordings, 3 is only findings about what could not
@@ -514,6 +538,47 @@ chain-health SNAPSHOT *ARGS:
 chain-health-corpus *ARGS:
     node tools/chain/chain-health.mjs --corpus \
       --out tools/chain/measurements/chain-health.json {{ARGS}}
+
+# ── does the committed reading still describe this tree? ────────────────────
+#
+# `just chain-health-check` sweeps the corpus and asserts the roll-up against
+# `tools/chain/measurements/chain-health.json` — the reading
+# `just chain-health-corpus` writes. Exit 4 means the reading no longer describes
+# the tree; that is a different failure from an unhealthy tree and has its own
+# status so the two cannot be confused.
+#
+# WHEN A READING IS BEING ASSERTED, THE READING'S VERDICT IS THE EXIT STATUS. The
+# findings are printed and not folded in, because this repository's corpus carries
+# real ones — 45 containers no current reader can open is the measurement the tool
+# exists to report — so a gate that also failed on those would be permanently red
+# and nobody would run it. Hiding them would be worse, so the count is on the
+# verdict line and `just chain-health-corpus` is where they ARE the verdict.
+#
+# THE FLAG IS `--expect` AND NOT `--check`, because `--check <id>` already selects
+# which findings to run and one word meaning two things on one command line is a
+# defect waiting for a hurried reader. `tools/chain/object-set.mjs` calls the same
+# operation `--expect` too, which is the closer precedent.
+#
+# THREE DIRECTIONS, and the difference is load-bearing. Figures about the TREE are
+# compared for EQUALITY, so a change in either direction lands in a reviewable
+# diff. Figures that measure how far the recording layer has got are FLOORS — the
+# right number of source-level recordings for a chain is whatever it has already
+# reached, so a rise is not a failure and a check that reddened on improvement
+# would have stasis as its only stable state. And figures that exist only when a
+# container reader was named are compared ONLY between like and like: the
+# committed reading is taken WITHOUT one, deliberately, so a host that has no
+# `ct-print` can still run this gate.
+#
+# IT FAILS ON AN EMPTY CORPUS, and that is the control worth knowing about. Every
+# equality over a reading with no snapshots is satisfied; every floor against a
+# zero baseline is satisfied; so a checker pointed at nothing prints that the
+# reading still describes the tree, having compared nothing at all. Both sides are
+# floored — the reading and the run each need a minimum number of trees and rows —
+# and a side below its floor is a FAILURE with the figure quoted. A glob that
+# expanded to nothing is refused by name rather than by printing the flags again.
+chain-health-check *ARGS:
+    node tools/chain/chain-health.mjs --corpus --quiet \
+      --expect tools/chain/measurements/chain-health.json {{ARGS}} > /dev/null
 
 # ── §5's member census, as the spec's own tables ───────────────────────────
 #

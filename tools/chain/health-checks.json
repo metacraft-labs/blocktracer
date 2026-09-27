@@ -139,6 +139,26 @@
       ],
       "reportsNote": "The rates are published whether or not the finding fires. The finding is a threshold; the gradient is what tells an operator whether a chain is moving."
     },
+    "H-SOURCE-RATCHET": {
+      "kind": "unhealthy",
+      "needsContainer": false,
+      "implemented": true,
+      "needsBaseline": true,
+      "notRunReason": "No committed reading was available to ratchet against. `tools/chain/measurements/chain-health.json` is the default baseline and `--baseline <file>` names another; `--no-baseline` says so deliberately.",
+      "question": "Has any chain published FEWER source-level recordings than the committed reading says it had?",
+      "healthy": "Every chain's source-level row count is at least what the committed reading recorded for it.",
+      "fires": "one finding per chain whose source-level row count is below the committed reading's",
+      "why": "H-SOURCE-ABSENT FIRES ONLY AT TOTAL ABSENCE, and that is measured rather than inferred: driven over one chain at 40 of 40, 20 of 40, 5 of 40 and 1 of 40 source-level rows it stays green, and reddens only at 0 of 40. So a chain regressing from forty source-level recordings to one is silent in the one check aimed at the operator's primary symptom. A threshold cannot express that, because there is no defensible absolute number - the right count for a chain is whatever it has already reached. What CAN be expressed is that it must not go backwards, and the committed reading is where the previous position is recorded. Same shape as the object-set baseline and the byte-identity manifest: the measurement is committed, and the check is that the tree has not moved away from it in the direction that matters.",
+      "scope": "the chains the committed reading records, intersected with the chains this sweep saw",
+      "reports": [
+        "baselineSourceLevelRows",
+        "sourceLevelRows",
+        "baselineTracedRows",
+        "tracedRows"
+      ],
+      "reportsNote": "BOTH FIGURES FROM BOTH READINGS, because a drop in source-level rows means two different things depending on whether the traced population also shrank. Nine of ten source-level rows lost out of ten traced rows is a chain that stopped reaching source level; nine lost out of ten rows that were themselves withdrawn is a chain that published less. The finding states both and does not adjudicate: a ratchet is a statement that something moved backwards, not a diagnosis of why.",
+      "asymmetry": "A RISE IS NOT A FINDING AND IS NOT AN ERROR. The baseline is a floor, not an equality: a chain that publishes more source-level recordings than the reading records has improved, and a check that reddened on that would be a check whose only stable state is never improving. Refreshing the reading after a rise is a separate, deliberate act - `just chain-health-corpus` rewrites it - and the diff is reviewable."
+    },
     "H-OUTCOME-REASON-JOINT": {
       "kind": "unhealthy",
       "needsContainer": false,
@@ -493,6 +513,55 @@
       "captures": ["declaredSchemaVersion"],
       "why": "THE VERSION IS READ OUT OF THE READER'S OWN REFUSAL, and that is a deliberate choice over parsing the container. A CTFS container's directory would have to be walked to find `meta.dat` and its header read to get the u16 - a second implementation of another repository's container format, in a tool whose whole argument is that it adds no format code. The reader already states the version it found, in the sentence it refuses with, and taking it from there means the tool and the reader cannot disagree about what the container declares.",
       "cost": "IT ONLY WORKS ON A REFUSAL. A container the reader ACCEPTS states no version anywhere `ct-print` prints - `--meta-json` publishes the metadata and the counts and not the schema version - so for an opened container the declared version is `null` and the skew check reports NOT RUN for it rather than passed. Over this repository's corpus that hole is empty, because every container is refused and therefore every one states its version. Closing it needs a reader mode that prints the version of a container it accepted, which is a change in the reader's repository."
+    }
+  },
+  "committedReading": {
+    "_comment": [
+      "HOW A SWEEP IS COMPARED TO THE COMMITTED READING, key by key and direction by direction.",
+      "",
+      "`--expect <file>` is the assertion; `tools/chain/measurements/chain-health.json` is the",
+      "file `just chain-health-corpus` writes. The flag is `--expect` and not `--check` because",
+      "`--check <id>` already selects which findings to run - naming the reading-comparison",
+      "`--check` too would make one word mean two things on one command line. `--expect` is also",
+      "what `tools/chain/object-set.mjs` calls the same operation, which is the closer precedent.",
+      "",
+      "THREE DIRECTIONS, AND THE DIFFERENCE IS LOAD-BEARING:",
+      "",
+      "  equal     Figures about the TREE. A change is a change to the corpus and belongs in a",
+      "            reviewable diff, in either direction. A row added, a row withdrawn, a",
+      "            container renamed - all of them move one of these, and all of them should.",
+      "  floor     Figures that measure how far the recording layer has got. A RISE IS NOT A",
+      "            FINDING: the right number of source-level recordings for a chain is whatever",
+      "            it has already reached, so the reading is a floor and not an equality. A check",
+      "            that reddened on improvement is a check whose only stable state is stasis.",
+      "  reader    Figures that exist only when a reader was named. Compared ONLY when the",
+      "            committed reading and this run agree about whether one was - otherwise the",
+      "            comparison is between a run that opened containers and a run that could not,",
+      "            which is not a regression, and calling it one would make the gate fail on",
+      "            every host without the reader built. Reported as SKIPPED with the reason, never",
+      "            as compared."
+    ],
+    "equal": [
+      "rowsExamined", "tracedRows", "untracedRows", "chainAbsentRows", "unclassifiedRows",
+      "containersNamed", "jointScopeRows"
+    ],
+    "floor": [
+      "sourceLevelRows", "stepsPositionedRows", "sourceBundleRows", "artifactsResolved",
+      "attributedRows"
+    ],
+    "reader": [
+      "containersOpened", "containersRefused"
+    ],
+    "perChainFloor": [
+      "sourceLevelRows", "artifactsResolved"
+    ],
+    "antiVacuity": {
+      "minSnapshots": 1,
+      "minRowsExamined": 900,
+      "why": "A CORPUS CHECKER THAT PASSES ON AN EMPTY CORPUS IS THIS CAMPAIGN'S MOST-REPEATED FAILURE, and `--expect` is the exact shape it takes: every `equal` comparison over a reading with no snapshots is satisfied, every `floor` comparison against a zero baseline is satisfied, and the tool prints IDENTICAL. So both sides are floored - the committed reading must record at least `minSnapshots` trees and `minRowsExamined` rows, and so must the run - and a side that does not is a FAILURE with the figure quoted rather than a comparison that came out fine.",
+      "measuredOn": "2026-09-28",
+      "measuredRowsExamined": 998,
+      "measuredNote": "The floor is 900 against a measured 998 so an ordinary row's arrival or withdrawal does not redden it, and far enough above zero that an emptied enumeration cannot pass. The same shape as every other population floor in these tools."
     }
   },
   "admissibleOutcomeReasonPairs": [

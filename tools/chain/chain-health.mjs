@@ -122,6 +122,9 @@ export const SNAPSHOT_FORMAT_PATH = join(HERE, 'snapshot-format.json');
 
 export const ARTIFACT_FORMAT = 'blocktracer/chain-health@1';
 
+/** The committed reading `just chain-health-corpus` writes and `--expect` asserts against. */
+export const COMMITTED_READING_PATH = join(HERE, 'measurements', 'chain-health.json');
+
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 
 // ── the two single-sourced tables, and the assertion that keeps them apart ─────────────
@@ -871,7 +874,11 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
       notRun.push(id);
       continue;
     }
-    if (id === 'H-READ-NONE') continue;              // decided below, over the whole sweep
+    // DECIDED OVER THE WHOLE SWEEP, not per tree, so no tree's status carries them.
+    // `H-READ-NONE` is a statement about the run. `H-SOURCE-RATCHET`'s baseline is a CORPUS
+    // census, and a single tree compared against one would ratchet against chains it never
+    // looked at — the tree holding one of a chain's four snapshots would read as a 75% loss.
+    if (id === 'H-READ-NONE' || id === 'H-SOURCE-RATCHET') continue;
     if (Object.prototype.hasOwnProperty.call(scope, id) && scope[id] === 0) {
       status[id] = { ran: false, why: `the scope is empty — 0 row(s) in this tree are `
                                     + `subject to it, so it measured nothing` };
@@ -996,7 +1003,7 @@ function rollUp(snapshots) {
  * `H-READ-NONE` is decided HERE and not per tree, because it is a statement about the SWEEP:
  * nothing was opened, and a check that needs an opened recording was asked for.
  */
-export function sweep(dirs, { registry, requested, readerArgv, now } = {}) {
+export function sweep(dirs, { registry, requested, readerArgv, now, baseline } = {}) {
   const reg = registry ?? healthChecks();
   const want = requested ?? Object.keys(reg.checks);
   const snapshots = dirs.map((d) => examineSnapshot(d, { registry: reg, requested: want, readerArgv }));
@@ -1055,6 +1062,76 @@ export function sweep(dirs, { registry, requested, readerArgv, now } = {}) {
     if (!corpus.totals.checksNotRun.includes('H-READ-NONE')) { /* H-READ-NONE itself ran */ }
   }
 
+  // ── H-SOURCE-RATCHET — the per-chain floor, over the committed reading ───────────────
+  //
+  // H-SOURCE-ABSENT fires only at TOTAL absence, measured: over one chain at 40, 20, 5 and 1
+  // of 40 source-level rows it stays green and reddens only at 0. So a chain going from forty
+  // source-level recordings to one is silent in the one check aimed at the operator's primary
+  // symptom. A threshold cannot fix that — there is no defensible absolute number, the right
+  // count for a chain is whatever it has already reached — so the committed reading is the
+  // floor and the statement is that it must not go backwards.
+  //
+  // IT RANGES OVER THE SWEEP because the baseline is a corpus reading; a single tree compared
+  // to a corpus-wide census would ratchet against chains it never looked at. So the finding is
+  // raised here, keyed by chain, over the intersection of the two readings' chains.
+  const ratchetWanted = want.includes('H-SOURCE-RATCHET');
+  const perChainFloor = reg.committedReading?.perChainFloor ?? [];
+  let ratchetStatus;
+  if (!ratchetWanted) {
+    ratchetStatus = { ranIn: 0, notRunIn: 1, reasons: ['not requested'],
+                      scope: 'the sweep as a whole' };
+  } else if (!baseline || !baseline.corpus?.sourceCensusByChain) {
+    ratchetStatus = { ranIn: 0, notRunIn: 1, scope: 'the sweep as a whole',
+                      reasons: [reg.checks['H-SOURCE-RATCHET']?.notRunReason
+                                ?? 'no committed reading was available'] };
+  } else {
+    const was = baseline.corpus.sourceCensusByChain;
+    const now2 = corpus.sourceCensusByChain;
+    const shared = Object.keys(was).filter((c) => Object.prototype.hasOwnProperty.call(now2, c));
+    // A CHAIN THE BASELINE RECORDS AND THIS SWEEP DID NOT SEE IS NOT A SLIP. It is a tree that
+    // left the corpus, which every `equal` figure in `--expect` already reports; a ratchet that
+    // also fired would report one change twice and make a legitimate withdrawal unlandable.
+    const gone = Object.keys(was).filter((c) => !Object.prototype.hasOwnProperty.call(now2, c));
+    if (shared.length === 0) {
+      // ANTI-VACUITY. Every chain compared, over an empty intersection, agrees. A ratchet whose
+      // population is empty is the failure this whole file is written against, so it reports
+      // NOT RUN with both chain lists rather than passing.
+      ratchetStatus = { ranIn: 0, notRunIn: 1, scope: 'the sweep as a whole',
+                        reasons: [`the committed reading and this sweep share NO chain — the `
+                                + `reading records [${Object.keys(was).join(', ') || 'none'}] and `
+                                + `this sweep saw [${Object.keys(now2).join(', ') || 'none'}], so `
+                                + `there is nothing to ratchet and a comparison over that is `
+                                + `satisfied by everything`] };
+    } else {
+      ratchetStatus = { ranIn: 1, notRunIn: 0, reasons: [], scope: 'the sweep as a whole',
+                        chainsCompared: shared.length, chainsWithdrawn: gone };
+      for (const chain of shared) {
+        for (const key of perChainFloor) {
+          const before = num(was[chain]?.[key]);
+          const after = num(now2[chain]?.[key]);
+          if (after >= before) continue;
+          findings.push({
+            check: 'H-SOURCE-RATCHET', chain, figure: key,
+            baseline: before, now: after,
+            baselineTracedRows: num(was[chain]?.tracedRows),
+            tracedRows: num(now2[chain]?.tracedRows),
+            says: `chain ${JSON.stringify(chain)} published ${before} ${key} in the committed `
+                + `reading and ${after} now — it has gone BACKWARDS by ${before - after}. Over `
+                + `the same two readings its traced row count went from `
+                + `${num(was[chain]?.tracedRows)} to ${num(now2[chain]?.tracedRows)}, which is `
+                + `what tells a regression in reach apart from a smaller corpus. `
+                + `H-SOURCE-ABSENT cannot see this: it fires only when the count reaches ZERO, `
+                + `so every value from 1 upward is green to it. A RISE here is not a finding — `
+                + `the reading is a floor, and refreshing it is a separate reviewable act.`,
+          });
+        }
+      }
+    }
+  }
+  corpus.checkCoverage['H-SOURCE-RATCHET'] = ratchetStatus;
+  corpus.totals.checksNotRun = Object.keys(corpus.checkCoverage)
+    .filter((id) => corpus.checkCoverage[id].ranIn === 0).sort();
+
   const byKind = { unhealthy: [], 'not-measured': [] };
   for (const f of findings) {
     const kind = reg.checks[f.check]?.kind === 'not-measured' ? 'not-measured' : 'unhealthy';
@@ -1080,6 +1157,129 @@ export function sweep(dirs, { registry, requested, readerArgv, now } = {}) {
                      notMeasured: byKind['not-measured'].length },
     snapshots,
   };
+}
+
+// ── the committed reading, asserted ────────────────────────────────────────────────────
+
+/**
+ * Compare a sweep to the committed reading, key by key and direction by direction.
+ *
+ * `--expect` and not `--check`, because `--check <id>` already selects which findings to run,
+ * and one word meaning two things on one command line is a defect waiting for a hurried reader.
+ * `--expect` is also what `tools/chain/object-set.mjs` calls this same operation.
+ *
+ * THE ANTI-VACUITY FLOORS ARE THE POINT OF THE FUNCTION, not a guard on it. Every `equal`
+ * comparison over a reading with no snapshots is satisfied; every `floor` comparison against a
+ * zero baseline is satisfied; so a checker pointed at an empty corpus, or holding an emptied
+ * reading, prints IDENTICAL having compared nothing. That failure has been made more often in
+ * this campaign than any other, so BOTH sides are floored and a side below its floor is a
+ * FAILURE with the figure quoted — never a comparison that came out fine.
+ *
+ * @returns {{ok: boolean, problems: string[], compared: number, skipped: string[]}}
+ */
+export function compareToReading(report, reading, registry) {
+  const reg = registry ?? healthChecks();
+  const spec = reg.committedReading ?? {};
+  const floors = spec.antiVacuity ?? {};
+  const problems = [];
+  const skipped = [];
+  let compared = 0;
+
+  const side = (label, r) => {
+    const n = r?.corpus?.snapshots;
+    const rows = r?.corpus?.totals?.rowsExamined;
+    if (typeof n !== 'number' || typeof rows !== 'number') {
+      problems.push(`${label}: no corpus roll-up at all, so there is nothing to compare — a `
+        + `comparison against a document of the wrong shape is satisfied by everything`);
+      return false;
+    }
+    let ok = true;
+    if (n < (floors.minSnapshots ?? 1)) {
+      problems.push(`${label}: ${n} snapshot(s), below the floor ${floors.minSnapshots ?? 1}. `
+        + `Every comparison over an empty corpus is satisfied, so this is a FAILURE and not a `
+        + `clean sweep.`);
+      ok = false;
+    }
+    if (rows < (floors.minRowsExamined ?? 1)) {
+      problems.push(`${label}: ${rows} row(s) examined, below the floor `
+        + `${floors.minRowsExamined ?? 1}. An enumeration that found almost nothing reports `
+        + `agreement with anything.`);
+      ok = false;
+    }
+    return ok;
+  };
+  const okBase = side(`the committed reading`, reading);
+  const okNow = side(`this sweep`, report);
+  if (!okBase || !okNow) return { ok: false, problems, compared, skipped };
+
+  const was = reading.corpus.totals, now = report.corpus.totals;
+  for (const k of spec.equal ?? []) {
+    compared++;
+    if (num(was[k]) !== num(now[k])) {
+      problems.push(`${k}: the committed reading says ${num(was[k])} and this sweep says `
+        + `${num(now[k])}. This figure is about the TREE, so a change in EITHER direction is a `
+        + `change to the corpus and belongs in a reviewable diff`);
+    }
+  }
+  for (const k of spec.floor ?? []) {
+    compared++;
+    if (num(now[k]) < num(was[k])) {
+      problems.push(`${k}: the committed reading says ${num(was[k])} and this sweep says `
+        + `${num(now[k])} — it has gone BACKWARDS. This figure is a FLOOR: a rise is not a `
+        + `failure and needs no edit here, a fall is`);
+    }
+  }
+  // READER-DEPENDENT FIGURES ARE COMPARED ONLY BETWEEN LIKE AND LIKE. A run with no reader
+  // opened nothing and refused nothing; comparing that to a reading taken with one would fail
+  // on every host without the reader built, which is not a regression and would make the gate
+  // unpassable for the reason it exists to survive.
+  const readerThen = Boolean(reading.containerReader);
+  const readerNow = Boolean(report.containerReader);
+  for (const k of spec.reader ?? []) {
+    if (readerThen !== readerNow) {
+      skipped.push(`${k} — the committed reading was taken `
+        + `${readerThen ? 'WITH' : 'WITHOUT'} a container reader and this sweep ran `
+        + `${readerNow ? 'WITH' : 'WITHOUT'} one, so the two figures are not comparable`);
+      continue;
+    }
+    compared++;
+    if (num(was[k]) !== num(now[k])) {
+      problems.push(`${k}: the committed reading says ${num(was[k])} and this sweep says `
+        + `${num(now[k])}, both taken ${readerNow ? 'with' : 'without'} a reader`);
+    }
+  }
+  // THE PER-CHAIN FLOOR. The roll-up's total can hold still while one chain loses everything
+  // and another gains it, which is exactly the regression an operator cares about and exactly
+  // the one a total cannot see.
+  const wasByChain = reading.corpus.sourceCensusByChain ?? {};
+  const nowByChain = report.corpus.sourceCensusByChain ?? {};
+  let chainsCompared = 0;
+  for (const chain of Object.keys(wasByChain)) {
+    if (!Object.prototype.hasOwnProperty.call(nowByChain, chain)) {
+      // A withdrawn tree moves the `equal` figures above; reporting it here too would report
+      // one change twice and make a legitimate withdrawal unlandable.
+      skipped.push(`chain ${JSON.stringify(chain)} — in the committed reading and not in this `
+        + `sweep; the tree left the corpus, which the equal figures above report`);
+      continue;
+    }
+    chainsCompared++;
+    for (const k of spec.perChainFloor ?? []) {
+      compared++;
+      if (num(nowByChain[chain][k]) < num(wasByChain[chain][k])) {
+        problems.push(`chain ${JSON.stringify(chain)} ${k}: ${num(wasByChain[chain][k])} in the `
+          + `committed reading and ${num(nowByChain[chain][k])} now — backwards. The roll-up's `
+          + `total can hold still while one chain loses what another gains, which is why this `
+          + `is per chain`);
+      }
+    }
+  }
+  if (Object.keys(wasByChain).length > 0 && chainsCompared === 0) {
+    problems.push(`the per-chain comparison matched NO chain — the reading records `
+      + `[${Object.keys(wasByChain).join(', ')}] and this sweep saw `
+      + `[${Object.keys(nowByChain).join(', ') || 'none'}]. A per-chain rule over an empty `
+      + `intersection is satisfied by everything`);
+  }
+  return { ok: problems.length === 0, problems, compared, skipped };
 }
 
 // ── rendering ──────────────────────────────────────────────────────────────────────────
@@ -1204,13 +1404,22 @@ const USAGE =
 + '  --container-reader <prog> the reader PROGRAM (not a mode — the modes come from\n'
 + '                            health-checks.json); it opens every container a row names\n'
 + '  --check <id>              run only these findings (repeatable)\n'
++ '  --expect <file>           assert the roll-up against a committed reading; exits 4 if the\n'
++ '                            reading no longer describes the tree. Named --expect and not\n'
++ '                            --check because --check already selects findings\n'
++ '  --baseline <file>         the reading H-SOURCE-RATCHET ratchets against; the committed\n'
++ '                            one by default, and a named file that cannot be read is refused\n'
++ '  --no-baseline             run without one; the ratchet then reports NOT RUN, with that\n'
++ '                            as its reason\n'
 + '  --quiet                   the artifact on stdout, no verdict on stderr\n'
 + '\n'
-+ 'exit 0 nothing found; 1 an unhealthy finding; 2 usage or IO; 3 only not-measured\n';
++ 'exit 0 nothing found; 1 an unhealthy finding; 2 usage or IO; 3 only not-measured;\n'
++ '     4 the committed reading no longer describes the tree (--expect)\n';
 
 export function main(argv) {
   const dirs = [];
   let out = null, readerArgv = null, quiet = false, corpus = false;
+  let expectPath = null, baselinePath = null, noBaseline = false;
   const requested = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -1218,6 +1427,12 @@ export function main(argv) {
     else if (a === '--out') out = argv[++i];
     else if (a === '--container-reader') readerArgv = String(argv[++i] ?? '').split(/\s+/).filter(Boolean);
     else if (a === '--check') requested.push(argv[++i]);
+    // `--expect` AND NOT `--check`, because `--check <id>` above already selects which findings
+    // to run. One word meaning two things on one command line is a defect waiting for a hurried
+    // reader, and `--expect` is what `tools/chain/object-set.mjs` calls this same operation.
+    else if (a === '--expect') expectPath = argv[++i];
+    else if (a === '--baseline') baselinePath = argv[++i];
+    else if (a === '--no-baseline') noBaseline = true;
     else if (a === '--quiet') quiet = true;
     else if (a === '--help' || a === '-h') { process.stderr.write(USAGE); return 2; }
     else if (a.startsWith('--')) { process.stderr.write(`chain-health: unknown option ${a}\n${USAGE}`); return 2; }
@@ -1257,7 +1472,21 @@ export function main(argv) {
     if (dirs.length) { process.stderr.write(`chain-health: --corpus takes no directories\n${USAGE}`); return 2; }
     subjects = corpusSnapshotDirs();
   }
-  if (subjects.length === 0) { process.stderr.write(USAGE); return 2; }
+  // AN EMPTY SUBJECT LIST UNDER `--expect` IS REFUSED BY NAME, not by falling through to usage.
+  // A glob that expanded to nothing looks exactly like a forgotten argument, and a corpus
+  // checker that passes on an empty corpus is this campaign's most-repeated failure — so the
+  // message says which of the two it is rather than printing the flags again.
+  if (subjects.length === 0) {
+    if (expectPath) {
+      process.stderr.write(`chain-health: --expect ${expectPath} was given and NO snapshot tree `
+        + `was named. If a glob expanded to nothing, that is the empty corpus this flag exists `
+        + `to refuse: every comparison over it would be satisfied and the tool would print that `
+        + `the reading still describes the tree. Use --corpus, or name the trees\n`);
+      return 2;
+    }
+    process.stderr.write(USAGE);
+    return 2;
+  }
 
   for (const d of subjects) {
     const p = join(d, 'snapshot.json');
@@ -1267,14 +1496,83 @@ export function main(argv) {
     }
   }
 
+  // ── THE BASELINE THE RATCHET NEEDS ─────────────────────────────────────────────────
+  //
+  // Read by DEFAULT from the committed reading, because a ratchet nobody remembers to pass a
+  // flag for is a ratchet that never fires. `--no-baseline` says so deliberately, and saying it
+  // makes H-SOURCE-RATCHET report NOT RUN with that as its reason — which is the difference
+  // between a check that was switched off and a check that passed.
+  //
+  // A NAMED BASELINE THAT CANNOT BE READ IS A FAILURE. Falling back to the default, or to no
+  // baseline, would turn a typo into a silent downgrade of the one check that watches a chain
+  // going backwards.
+  let baseline = null;
+  if (!noBaseline) {
+    const bp = baselinePath ?? COMMITTED_READING_PATH;
+    if (existsSync(bp)) {
+      try { baseline = JSON.parse(readFileSync(bp, 'utf8')); }
+      catch (e) {
+        process.stderr.write(`chain-health: --baseline ${bp} is not readable JSON: `
+          + `${e.message}\n`);
+        return 2;
+      }
+    } else if (baselinePath) {
+      process.stderr.write(`chain-health: --baseline ${baselinePath} does not exist. A named `
+        + `baseline that cannot be read is refused rather than replaced by the default — a typo `
+        + `must not quietly switch the ratchet off\n`);
+      return 2;
+    }
+  }
+
   const report = sweep(subjects, { registry: reg, requested: requested.length ? requested : undefined,
-                                   readerArgv });
+                                   readerArgv, baseline });
   const text = render(report) + '\n';
   if (out) writeFileSync(out, text);
   if (quiet) process.stdout.write(text);
   else {
     process.stdout.write(text);
     process.stderr.write('\n' + verdict(report, reg).join('\n') + '\n');
+  }
+
+  // ── `--expect`: THE COMMITTED READING, ASSERTED ────────────────────────────────────
+  //
+  // Its own exit status, ahead of the findings', because a reading that no longer describes the
+  // tree is a different failure from an unhealthy tree and the two must not be confused. rc 4.
+  if (expectPath) {
+    if (!existsSync(expectPath)) {
+      process.stderr.write(`chain-health: --expect ${expectPath} does not exist\n`);
+      return 2;
+    }
+    let reading;
+    try { reading = JSON.parse(readFileSync(expectPath, 'utf8')); }
+    catch (e) {
+      process.stderr.write(`chain-health: --expect ${expectPath} is not readable JSON: `
+        + `${e.message}\n`);
+      return 2;
+    }
+    const v = compareToReading(report, reading, reg);
+    process.stderr.write(`\nAGAINST ${expectPath}: ${v.compared} comparison(s), `
+      + `${v.problems.length} problem(s)`
+      + (v.skipped.length ? `, ${v.skipped.length} not comparable` : '') + '\n');
+    for (const sk of v.skipped) process.stderr.write(`  skipped: ${sk}\n`);
+    if (!v.ok) {
+      for (const pr of v.problems) process.stderr.write(`  ${pr}\n`);
+      process.stderr.write(`\nTHE COMMITTED READING NO LONGER DESCRIBES THIS TREE. If the change `
+        + `is intended, \`just chain-health-corpus\` rewrites it and the diff is the review.\n`);
+      return 4;
+    }
+    // WHEN A READING IS BEING ASSERTED, THE READING'S VERDICT IS THE EXIT STATUS, and the
+    // finding counts are printed rather than folded in. Otherwise this mode could never exit 0
+    // over this repository: the corpus carries real findings — 45 unreadable containers is the
+    // measurement the tool exists to report — so a gate that also failed on those would be
+    // permanently red and nobody would run it. Hiding them would be worse, so they are stated
+    // on the line above the verdict and `just chain-health-corpus` is where they are the
+    // verdict.
+    process.stderr.write(`  the committed reading still describes this tree — `
+      + `${report.findingCounts.unhealthy} unhealthy and `
+      + `${report.findingCounts.notMeasured} not-measured finding(s) stand, unchanged from it; `
+      + `\`just chain-health-corpus\` is where those are the verdict\n`);
+    return 0;
   }
 
   if (report.findingCounts.unhealthy > 0) return 1;

@@ -42,7 +42,7 @@ import { fileURLToPath } from 'node:url';
 import {
   healthChecks, healthCheckIds, contractRuleIds, corpusSnapshotDirs,
   examineSnapshot, sweep, render, verdict, readerBuildId, modeFlagInCallerArgv,
-  HEALTH_CHECKS_PATH, REPO_ROOT,
+  compareToReading, COMMITTED_READING_PATH, HEALTH_CHECKS_PATH, REPO_ROOT,
 } from './chain-health.mjs';
 import { REFUSAL_REASON_IDS, UNTRACED_OUTCOMES, TRACED_OUTCOMES, CHAIN_ABSENT_OUTCOMES }
   from './lib/refusal.mjs';
@@ -119,6 +119,7 @@ function tree({ rows, provenance = {}, format = 'blocktracer/chain-snapshot@2',
   return dir;
 }
 
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const one = (dir, opts = {}) => examineSnapshot(dir, { registry: REG, ...opts });
 const raisedIds = (rep) => rep.findings.map((f) => f.check);
 const has = (rep, id) => raisedIds(rep).includes(id);
@@ -1267,15 +1268,244 @@ console.error('\n§9 — the container against the claim, over the one recording
        .every((id) => real.corpus.totals.checksNotRun.includes(id)));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════
+console.error('\n§11 — the committed reading, and the ratchet H-SOURCE-ABSENT cannot be');
+// ═══════════════════════════════════════════════════════════════════════════════════════
+{
+  // ── FIRST, THE MEASUREMENT THAT MAKES THE RATCHET NECESSARY ────────────────────────
+  //
+  // H-SOURCE-ABSENT is a THRESHOLD AT ZERO, and that is measured here rather than read off its
+  // `fires` line, because the whole case for a second finding rests on it. A chain at 1 of 40
+  // source-level rows is a chain that has lost 39 and it is GREEN — so the check aimed at the
+  // operator's primary symptom is silent on the regression an operator would actually notice.
+  const at = (sourceLevel, total) => {
+    const rows = Array.from({ length: total }, (_, i) => ({
+      txHash: `0x${i.toString(16)}`, blockNumber: 1, txIndexInBlock: i, outcome: 'replayed',
+      container: `ct/0x${i.toString(16)}.ct`, containerBytes: 8,
+      recording: { steps: 1, sourceLevel: i < sourceLevel, stepsPositioned: i < sourceLevel ? 1 : 0 },
+      ...(i < sourceLevel ? { sourceBundles: `text/0x${i.toString(16)}.json` } : {}),
+    }));
+    return one(tree({ rows }));
+  };
+  const LADDER = [[40, 40], [20, 40], [5, 40], [1, 40]];
+  for (const [n, total] of LADDER) {
+    ck(`measured: a chain at ${n} of ${total} source-level row(s) does NOT raise `
+       + `H-SOURCE-ABSENT — the check is a threshold at zero`,
+       !has(at(n, total), 'H-SOURCE-ABSENT'));
+  }
+  const floorCase = at(0, 40);
+  ck('measured: …and 0 of 40 DOES, which is the only place it fires',
+     has(floorCase, 'H-SOURCE-ABSENT') && floorCase.summary.tracedRows === 40
+     && floorCase.summary.sourceLevelRows === 0);
+
+  // ── THE RATCHET, DRIVEN BOTH WAYS OVER SYNTHETIC READINGS ──────────────────────────
+  //
+  // A reading is just a report, so a synthetic one is a real subject: the comparison reads
+  // `corpus.sourceCensusByChain` and nothing else about it.
+  const readingWith = (byChain, over = {}) => ({
+    format: 'blocktracer/chain-health@1',
+    containerReader: null,
+    corpus: {
+      snapshots: 1,
+      totals: { rowsExamined: 1000, tracedRows: 40, untracedRows: 960, chainAbsentRows: 0,
+                unclassifiedRows: 0, containersNamed: 40, jointScopeRows: 960,
+                sourceLevelRows: 40, stepsPositionedRows: 40, sourceBundleRows: 40,
+                artifactsResolved: 0, attributedRows: 40,
+                containersOpened: 0, containersRefused: 0,
+                ...over },
+      sourceCensusByChain: byChain,
+    },
+  });
+  const census = (sourceLevelRows, tracedRows = 40) =>
+    ({ snapshots: 1, tracedRows, sourceLevelRows, stepsPositionedRows: sourceLevelRows,
+       sourceBundleRows: sourceLevelRows, artifacts: 0, artifactsResolved: 0 });
+
+  const dirs40 = [tree({ rows: Array.from({ length: 40 }, (_, i) => ({
+    txHash: `0x${i.toString(16)}`, blockNumber: 1, txIndexInBlock: i, outcome: 'replayed',
+    container: `ct/0x${i.toString(16)}.ct`, containerBytes: 8,
+    recording: { steps: 1, sourceLevel: i < 1 },
+    ...(i < 1 ? { sourceBundles: `text/0x0.json` } : {}) })),
+    provenance: { chain: 'twin-chain' } })];
+
+  const slipped = sweep(dirs40, { registry: REG,
+                                  baseline: readingWith({ 'twin-chain': census(40) }) });
+  const rf = slipped.findings.find((f) => f.check === 'H-SOURCE-RATCHET');
+  bite('a chain that went from 40 source-level rows to 1 raises H-SOURCE-RATCHET — the '
+     + 'regression H-SOURCE-ABSENT is structurally blind to', rf !== undefined);
+  bite('…and the finding names BOTH readings of BOTH figures, because a drop in reach and a '
+     + 'smaller corpus are different things',
+       rf.baseline === 40 && rf.now === 1 && rf.baselineTracedRows === 40
+       && rf.tracedRows === 40 && /gone BACKWARDS by 39/.test(rf.says));
+  ck('…and the same tree raises NO H-SOURCE-ABSENT, so the two findings are not one check '
+     + 'reported twice',
+     !slipped.findings.some((f) => f.check === 'H-SOURCE-ABSENT'));
+  ck('…and the ratchet is reported as having RUN, over a stated number of chains',
+     slipped.corpus.checkCoverage['H-SOURCE-RATCHET'].ranIn === 1
+     && slipped.corpus.checkCoverage['H-SOURCE-RATCHET'].chainsCompared === 1);
+
+  // A RISE IS NOT A FINDING. A floor that reddened on improvement would have stasis as its
+  // only stable state, and that is the asymmetry the registry states.
+  const risen = sweep(dirs40, { registry: REG,
+                                baseline: readingWith({ 'twin-chain': census(0) }) });
+  ck('twin: a chain ABOVE its committed floor raises nothing — the reading is a floor and not '
+     + 'an equality',
+     !risen.findings.some((f) => f.check === 'H-SOURCE-RATCHET')
+     && risen.corpus.checkCoverage['H-SOURCE-RATCHET'].ranIn === 1);
+
+  // ANTI-VACUITY: A RATCHET WHOSE POPULATION IS EMPTY REPORTS NOT RUN, NEVER PASSED.
+  const noShared = sweep(dirs40, { registry: REG,
+                                   baseline: readingWith({ 'a-chain-that-left': census(40) }) });
+  bite('anti-vacuity: a baseline sharing NO chain with the sweep reports the ratchet NOT RUN, '
+     + 'with both chain lists, rather than finding every chain fine',
+       noShared.corpus.checkCoverage['H-SOURCE-RATCHET'].ranIn === 0
+       && /share NO chain/.test(noShared.corpus.checkCoverage['H-SOURCE-RATCHET'].reasons[0])
+       && noShared.corpus.totals.checksNotRun.includes('H-SOURCE-RATCHET'));
+  const noBase = sweep(dirs40, { registry: REG });
+  ck('premise: with NO baseline at all the ratchet reports NOT RUN with its own reason, so a '
+     + 'run without one cannot look like a run that found nothing',
+     noBase.corpus.checkCoverage['H-SOURCE-RATCHET'].ranIn === 0
+     && /No committed reading was available/
+          .test(noBase.corpus.checkCoverage['H-SOURCE-RATCHET'].reasons[0]));
+  // A CHAIN THE BASELINE HAS AND THE SWEEP DOES NOT IS A WITHDRAWAL, NOT A SLIP. Reporting it
+  // here as well as in the `equal` figures would report one change twice and make a legitimate
+  // withdrawal unlandable.
+  const withdrew = sweep(dirs40, { registry: REG,
+    baseline: readingWith({ 'twin-chain': census(1), 'gone-chain': census(9) }) });
+  ck('a chain in the baseline and not in the sweep is recorded as WITHDRAWN rather than as a '
+     + 'slip — the equal figures report the tree leaving',
+     !withdrew.findings.some((f) => f.check === 'H-SOURCE-RATCHET')
+     && withdrew.corpus.checkCoverage['H-SOURCE-RATCHET'].chainsWithdrawn
+          .includes('gone-chain'));
+
+  // ── `--expect`: THE ROLL-UP AGAINST THE COMMITTED READING ──────────────────────────
+  const SPEC = REG.committedReading;
+  ck('the reading comparison declares its equal keys, its floor keys, its reader-dependent '
+     + 'keys and its per-chain floor, each non-empty',
+     [SPEC.equal, SPEC.floor, SPEC.reader, SPEC.perChainFloor]
+       .every((a) => Array.isArray(a) && a.length > 0));
+  ck('…and no key is in two directions at once, which would make one comparison override the '
+     + 'other silently',
+     new Set([...SPEC.equal, ...SPEC.floor, ...SPEC.reader]).size
+       === SPEC.equal.length + SPEC.floor.length + SPEC.reader.length);
+  ck(`…and the anti-vacuity floors are stated with the reading they were calibrated against — `
+     + `${SPEC.antiVacuity.minSnapshots} snapshot(s), ${SPEC.antiVacuity.minRowsExamined} row(s) `
+     + `against a measured ${SPEC.antiVacuity.measuredRowsExamined}`,
+     SPEC.antiVacuity.minSnapshots >= 1
+     && SPEC.antiVacuity.minRowsExamined > 100
+     && SPEC.antiVacuity.minRowsExamined < SPEC.antiVacuity.measuredRowsExamined
+     && (SPEC.antiVacuity.why ?? '').length > 100);
+
+  // THE COMMITTED READING IS COMMITTED, AND IT STILL DESCRIBES THIS TREE.
+  ck('the committed reading exists where the recipe writes it', existsSync(COMMITTED_READING_PATH));
+  const reading = JSON.parse(readFileSync(COMMITTED_READING_PATH, 'utf8'));
+  const live = sweep(corpusSnapshotDirs(), { registry: REG, baseline: reading });
+  const v = compareToReading(live, reading, REG);
+  ck(`the committed reading still describes this tree — ${v.compared} comparison(s), `
+     + `${v.problems.length} problem(s)`, v.ok);
+  if (!v.ok) for (const pr of v.problems.slice(0, 6)) console.error(`      ${pr}`);
+  ck(`…over a comparison count that is not zero — ${v.compared}`, v.compared >= 20);
+  // AND IT WAS TAKEN WITHOUT A READER, deliberately: the reading is asserted on hosts that have
+  // no `ct-print`, so a reading taken WITH one would fail the gate everywhere it matters.
+  ck('the committed reading was taken WITHOUT a container reader, so a host that has none can '
+     + 'still assert it', reading.containerReader === null);
+
+  // ── THE CONTROL THAT MATTERS MOST: AN EMPTY CORPUS MUST FAIL ───────────────────────
+  //
+  // Every `equal` comparison over a reading with no snapshots is satisfied and every `floor`
+  // comparison against a zero baseline is satisfied, so a checker pointed at an empty corpus
+  // prints that the reading still describes the tree. A corpus checker that passes on an empty
+  // corpus is this campaign's most-repeated failure; both sides are floored, and both floors
+  // are driven here.
+  const emptyDir = tree({ rows: [] });
+  const emptySweep = sweep([emptyDir], { registry: REG, baseline: reading });
+  const ev = compareToReading(emptySweep, reading, REG);
+  bite('anti-vacuity: --expect over a corpus with nothing in it FAILS, quoting the figure and '
+     + 'the floor', !ev.ok && ev.problems.some((p) => /this sweep: 0 row\(s\) examined, below the floor/.test(p)));
+  bite('anti-vacuity: …and it compares NOTHING rather than comparing successfully',
+       ev.compared === 0);
+  const emptied = JSON.parse(JSON.stringify(reading));
+  emptied.corpus.snapshots = 0;
+  emptied.corpus.totals.rowsExamined = 0;
+  emptied.corpus.sourceCensusByChain = {};
+  const ev2 = compareToReading(live, emptied, REG);
+  bite('anti-vacuity: an EMPTIED committed reading fails too — the floor is on both sides, '
+     + 'because either one being empty makes the comparison free',
+       !ev2.ok && ev2.problems.some((p) => /the committed reading: 0 snapshot\(s\)/.test(p))
+       && ev2.compared === 0);
+  const wrongShape = compareToReading(live, { format: 'blocktracer/chain-health@1' }, REG);
+  bite('anti-vacuity: a reading with no roll-up at all is refused rather than agreed with',
+       !wrongShape.ok && wrongShape.compared === 0
+       && wrongShape.problems.some((p) => /no corpus roll-up at all/.test(p)));
+
+  // ── EACH DIRECTION BITES, AND IN ITS OWN DIRECTION ────────────────────────────────
+  const bump = (k, by) => {
+    const r = JSON.parse(JSON.stringify(reading));
+    r.corpus.totals[k] = num(r.corpus.totals[k]) + by;
+    return r;
+  };
+  const eqKey = SPEC.equal[0], floorKey = SPEC.floor[0];
+  bite(`an \`equal\` figure moving UP in the reading is a problem — ${eqKey}`,
+       !compareToReading(live, bump(eqKey, 1), REG).ok);
+  bite(`…and moving DOWN is a problem too, because it is about the tree — ${eqKey}`,
+       !compareToReading(live, bump(eqKey, -1), REG).ok);
+  bite(`a \`floor\` figure the reading sets ABOVE the sweep is a problem — ${floorKey}`,
+       !compareToReading(live, bump(floorKey, 1), REG).ok);
+  ck(`…and one the reading sets BELOW the sweep is NOT, because a rise is improvement — `
+     + `${floorKey}`, compareToReading(live, bump(floorKey, -1), REG).ok);
+  // READER-DEPENDENT FIGURES ARE SKIPPED BETWEEN UNLIKE RUNS AND COMPARED BETWEEN LIKE ONES.
+  const readerReading = JSON.parse(JSON.stringify(reading));
+  readerReading.containerReader = 'some-reader';
+  const rv = compareToReading(live, readerReading, REG);
+  ck('a reader-dependent figure is SKIPPED with its reason when the two runs disagree about '
+     + 'whether a reader was named, not failed',
+     rv.ok && SPEC.reader.every((k) => rv.skipped.some((s) => s.startsWith(`${k} —`))));
+  bite('…and IS compared when both ran the same way — otherwise the skip would be a hole',
+       !compareToReading(live, bump(SPEC.reader[0], 1), REG).ok);
+
+  // ── THE TWO CLI-LEVEL GUARDS, WHICH ONLY THE CLI CAN SHOW ─────────────────────────
+  //
+  // Everything above drives `compareToReading` and `sweep` directly, which is right — they are
+  // where the rules live. But two of this mode's guards are decisions the CLI makes before
+  // either function is reached, and they were INERT: driven by hand and asserted nowhere, so a
+  // control plant that removed either left the suite green. Measured: ten plants over this
+  // section, nine turned it red and the missing-baseline one did not.
+  const missing = run([join(REPO_ROOT, 'conformance-kit', 'template', 'complete'),
+                       '--quiet', '--baseline', join(tmp, 'no-such-reading.json')]);
+  bite('a --baseline naming a file that does not exist is REFUSED by name, not replaced by the '
+     + 'committed default — a typo must not quietly switch the ratchet off',
+       missing.rc === 2 && /does not exist/.test(missing.err)
+       && /must not quietly switch the ratchet off/.test(missing.err));
+  const okBaseline = run([join(REPO_ROOT, 'conformance-kit', 'template', 'complete'),
+                          '--quiet', '--baseline', COMMITTED_READING_PATH]);
+  ck('control: the same invocation with a baseline that DOES exist runs, so the refusal is '
+     + 'about the missing file and not about the flag',
+     okBaseline.rc !== 2);
+
+  // AND THE EMPTY GLOB. `--expect` with no subject named is the shape a glob that expanded to
+  // nothing takes, and it is refused with a sentence about the empty corpus rather than by
+  // printing the flags again — a corpus checker that passes on an empty corpus is this
+  // campaign's most-repeated failure, and "you forgot an argument" is not that message.
+  const emptyGlob = run(['--quiet', '--expect', COMMITTED_READING_PATH]);
+  bite('--expect with NO snapshot tree named is refused by name, saying that an empty corpus '
+     + 'is what the flag exists to refuse',
+       emptyGlob.rc === 2 && /NO snapshot tree was named/.test(emptyGlob.err)
+       && /empty corpus this flag exists to refuse/.test(emptyGlob.err));
+  ck('control: the same flag WITH a subject does not hit that refusal, so it is about the '
+     + 'empty subject list',
+     !/NO snapshot tree was named/.test(
+       run([join(REPO_ROOT, 'conformance-kit', 'template', 'complete'), '--quiet',
+            '--expect', COMMITTED_READING_PATH]).err));
+}
+
 cleanup();
 console.error('');
 // THE HOST-INDEPENDENT TOTAL. This is the one the `chain-selftest` header, the recipe body and
 // the CI step comments cross-check, and it is the same on every host by construction.
-if (asserted !== 153) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 153 — a case was added, removed or skipped.`);
+if (asserted !== 187) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 187 — a case was added, removed or skipped.`);
   failed++;
 } else {
-  console.error(`assertion count: ${asserted} (as declared: 153)`);
+  console.error(`assertion count: ${asserted} (as declared: 187)`);
 }
 // AND THE READER-DEPENDENT ONES, DECLARED AND EITHER ASSERTED OR REPORTED UNRUN. A block of arms
 // that quietly contributes nothing on the host where it matters is how a suite comes to be green
