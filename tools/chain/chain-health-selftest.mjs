@@ -1101,7 +1101,14 @@ console.error('\n§9 — the container against the claim, over the one recording
        + 'above were not two empty sets agreeing',
        base.rows[0].containerStream.available === true
        && base.rows[0].containerStream.paths.length >= 2
-       && base.rows[0].containerStream.steps.length >= 10);
+       && base.rows[0].containerStream.steps >= 10);
+    // THE PER-STEP ARRAY IS NOT IN THE ARTIFACT, and that is asserted rather than assumed: a
+    // chain recording here runs to 790 steps, and republishing each one per row would make the
+    // committed reading a copy of the containers rather than a reading of them.
+    ck('…and the row publishes the step COUNT rather than the per-step array, so the artifact '
+       + 'stays a reading of the containers and not a copy of them',
+       typeof base.rows[0].containerStream.steps === 'number'
+       && !Array.isArray(base.rows[0].containerStream.steps));
 
     /** A copy of the subject with one sidecar rewritten. */
     const copyWithSidecar = (rel, edit) => {
@@ -1510,7 +1517,7 @@ if (asserted !== 187) {
 // AND THE READER-DEPENDENT ONES, DECLARED AND EITHER ASSERTED OR REPORTED UNRUN. A block of arms
 // that quietly contributes nothing on the host where it matters is how a suite comes to be green
 // everywhere and load-bearing nowhere.
-const READER_ARMS = 30;
+const READER_ARMS = 31;
 if (assertedWithReader === 0) {
   console.error(`NOT RUN: ${READER_ARMS} arm(s) need the container reader `
     + `(../codetracer-trace-format-nim/ct-print) and it is not on this host. They are not `

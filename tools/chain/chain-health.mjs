@@ -387,6 +387,8 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
   // `recording` object — so the original row is reachable by hash rather than duplicated into
   // the record, which would make the artifact a second copy of the snapshot.
   const txByHash = new Map();
+  // The container's own per-step coordinates, kept beside the artifact rather than in it.
+  const streamByTx = new Map();
   const rows = [];
   const sum = {
     rowsExamined: 0,
@@ -560,9 +562,18 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
         if (wantStream) {
           const sv = openContainer(readerArgv, p, reg.containerReader,
                                    reg.containerReader.probes.stream.argv);
-          row.containerStream = sv.opened
+          const full = sv.opened
             ? streamFromProbeOutput(sv.stdout, reg.containerReader)
             : { available: false, why: `the stream probe did not open the container: ${sv.why}` };
+          // THE PER-STEP ARRAY DOES NOT GO IN THE ARTIFACT. A chain recording here runs to 790
+          // steps, and republishing every one of them per row would make the committed reading
+          // a copy of the containers rather than a reading of them — and an unreadable diff.
+          // The checks below take the full stream from `streamByTx`; the row carries the COUNT,
+          // which is the figure a reader of the artifact needs.
+          streamByTx.set(row.txHash, full);
+          row.containerStream = full.available
+            ? { available: true, paths: full.paths, steps: full.steps.length }
+            : { available: false, why: full.why };
         }
       } else {
         sum.containersRefused++;
@@ -685,8 +696,8 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     const posPath = typeof t?.positions === 'string' ? t.positions : null;
     const bundle = bundlePath ? readJsonOrNull(resolve(dir, bundlePath)) : null;
     const pos = posPath ? readJsonOrNull(resolve(dir, posPath)) : null;
-    const stream = row.containerRead === 'opened' && row.containerStream?.available
-      ? row.containerStream : null;
+    const full = streamByTx.get(row.txHash);
+    const stream = row.containerRead === 'opened' && full?.available ? full : null;
 
     // ── H-PATHS-NOT-IN-BUNDLE ─────────────────────────────────────────────────────────
     if (want.includes('H-PATHS-NOT-IN-BUNDLE') && stream && bundle
