@@ -278,6 +278,56 @@ export function countsFromProbeOutput(stdout, rule) {
 }
 
 /**
+ * The container's own PATHS and per-step POSITIONS, out of the `stream` probe's payload.
+ *
+ * The expensive probe: it decodes the event streams, where `counts` reads only `meta.dat` and
+ * the interning tables. So it is invoked only when a check that needs it was requested, which
+ * is the reader's own distinction rather than a guess — its `--help` states which modes decode.
+ *
+ * The payload is JSONL: the first line is a header carrying the interned `paths`, and every
+ * later line is one event. Only `"kind":"step"` lines are read here.
+ */
+export function streamFromProbeOutput(stdout, rule) {
+  const p = rule.probes?.stream;
+  if (!p || p.parse !== 'jsonl-header-then-events') {
+    return { available: false, why: 'the registry declares no JSONL stream probe' };
+  }
+  const lines = stdout.split('\n').filter((l) => l.trim().length > 0);
+  if (lines.length === 0) {
+    return { available: false, why: 'the stream probe printed nothing' };
+  }
+  let head;
+  try { head = JSON.parse(lines[0]); }
+  catch (e) {
+    return { available: false,
+             why: `the stream probe's first line is not JSON (${e.message.slice(0, 120)}), so `
+                + `the container's interned paths were not read — the container itself opened` };
+  }
+  if (!Array.isArray(head.paths)) {
+    return { available: false,
+             why: 'the stream probe\'s header carries no `paths` array, so the container\'s '
+                + 'interned paths were not read' };
+  }
+  const steps = [];
+  for (const l of lines.slice(1)) {
+    let e;
+    try { e = JSON.parse(l); } catch { continue; }
+    if (e?.kind !== 'step') continue;
+    steps.push({ pathId: typeof e.path_id === 'number' ? e.path_id : null,
+                 line: typeof e.line === 'number' ? e.line : null,
+                 path: typeof e.path === 'string' ? e.path : null });
+  }
+  return { available: true, paths: head.paths, steps };
+}
+
+/** The extension of a path, lowercased, or `null` when it has none. */
+const extensionOf = (p) => {
+  const base = String(p).split('/').pop() ?? '';
+  const i = base.lastIndexOf('.');
+  return i > 0 ? base.slice(i).toLowerCase() : null;
+};
+
+/**
  * The probe registry's own guard: a caller that passes a MODE FLAG breaks every probe.
  *
  * `--meta-json --events <path>` leaves the reader printing whichever mode it parsed last and
@@ -294,6 +344,15 @@ export function modeFlagInCallerArgv(argv, rule) {
 
 const isTrue = (v) => v === true;
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+/** A sidecar this tool READS rather than validates.
+ *
+ *  `null` on anything — absent, unreadable, not JSON — because every check that consumes one
+ *  treats its absence as out of scope rather than as a finding. A sidecar that should be there
+ *  and is not is `S5-*`'s business and would be a second copy of that rule here. */
+function readJsonOrNull(p) {
+  try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; }
+}
 
 /**
  * Examine one snapshot tree and produce its record: one entry per row, one summary, and the
@@ -320,6 +379,11 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     reg.admissibleOutcomeReasonPairs.map((p) => [pairKey(p.outcome, p.refusalReason), p]));
   const joints = reg.reasonMemberJoints;
 
+  // The row records this tool builds carry only what a finding needs to name. The checks below
+  // also need members the record does not copy — `sourceBundles`, `positions`, the whole
+  // `recording` object — so the original row is reachable by hash rather than duplicated into
+  // the record, which would make the artifact a second copy of the snapshot.
+  const txByHash = new Map();
   const rows = [];
   const sum = {
     rowsExamined: 0,
@@ -337,6 +401,11 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     // `containerReader.schemaRefusal.cost` — and "opened, version unknown" and "not probed"
     // are different measurements.
     containerSchemaCensus: {},
+    // A DECLARED LANGUAGE THE EXTENSION TABLE DOES NOT KNOW IS COUNTED, not passed and not
+    // flagged. A known-language table that treated an unknown language as agreeing would be
+    // satisfiable by inventing a name, and the shipped conformance template declares
+    // `example-lang` on purpose — so the honest output is a census an operator can read.
+    bundleLanguagesUnknown: {},
   };
   const raised = [];   // {check, ...detail}
   const add = (check, detail) => raised.push({ check, ...detail });
@@ -436,6 +505,7 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     }
 
     rows.push(row);
+    if (row.txHash !== null) txByHash.set(row.txHash, t);
   }
 
   // ── the container-open seam ─────────────────────────────────────────────────────────
@@ -446,6 +516,8 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
   // sentence, its build id, and the schema version its refusal named.
   const readerNotes = [];
   const build = readerArgv && readerArgv.length ? readerBuildId(readerArgv[0]) : null;
+  const wantStream = want.some((id) => reg.checks[id]?.needsStreamProbe === true)
+                  && Boolean(reg.containerReader.probes?.stream?.argv);
   if (readerArgv && readerArgv.length) {
     const probe = reg.containerReader.probes?.open?.argv ?? [];
     for (const row of rows) {
@@ -478,6 +550,17 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
         sum.containersOpened++;
         row.containerRead = 'opened';
         row.containerCounts = countsFromProbeOutput(v.stdout, reg.containerReader);
+        // THE EXPENSIVE PROBE, RUN ONLY IF SOMETHING ASKED FOR IT. `--meta-json` reads
+        // meta.dat and the interning tables; `--events` decodes the event streams. The
+        // distinction is the reader's own, stated in its `--help`, and honouring it is why a
+        // sweep that only wants counts does not pay for a full decode of every container.
+        if (wantStream) {
+          const sv = openContainer(readerArgv, p, reg.containerReader,
+                                   reg.containerReader.probes.stream.argv);
+          row.containerStream = sv.opened
+            ? streamFromProbeOutput(sv.stdout, reg.containerReader)
+            : { available: false, why: `the stream probe did not open the container: ${sv.why}` };
+        }
       } else {
         sum.containersRefused++;
         row.containerRead = 'refused';
@@ -539,6 +622,206 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     }
   }
 
+  // ── THE CONTAINER AGAINST THE CLAIM — one finding per claim member ──────────────────
+  //
+  // The hole the contract cannot reach. Every `S5-*-AGREE` rule compares a DERIVED FILE to the
+  // producer's claim and takes the claim as the truth, because the census declares the
+  // container opaque. So a producer that mis-measured its own recording and derived every
+  // sidecar from the mis-measurement is conformant in every direction, and this is the only
+  // comparison that can notice.
+  //
+  // ONE FINDING PER CLAIM MEMBER, never one finding over several: two members checked together
+  // cannot be told apart in a log, and a second copy of a number is exactly the copy that
+  // drifts while the first stays right.
+  const agreements = reg.containerClaimAgreements?.agreements ?? [];
+  const agreeScope = {};
+  for (const a of agreements) agreeScope[a.id] = 0;
+  for (const row of rows) {
+    if (row.containerRead !== 'opened' || !row.containerCounts?.available) continue;
+    const t = txByHash.get(row.txHash);
+    for (const a of agreements) {
+      if (!want.includes(a.id)) continue;
+      const member = a.claim.replace(/^recording\./, '');
+      const claimed = t?.recording?.[member];
+      // A CLAIM THE ROW DOES NOT MAKE IS OUT OF SCOPE, not a disagreement. An absent member is
+      // an absent measurement, and `recording.events` is absent on three of this corpus's rows.
+      if (typeof claimed !== 'number' || !Number.isFinite(claimed)) continue;
+      const held = row.containerCounts[a.containerCount];
+      if (typeof held !== 'number') continue;
+      agreeScope[a.id]++;
+      const expected = claimed + (a.containerEqualsClaimPlus ?? 0);
+      if (held === expected) continue;
+      const off = a.containerEqualsClaimPlus ?? 0;
+      add(a.id, {
+        txHash: row.txHash, container: row.container,
+        claimMember: a.claim, claimed,
+        containerCount: a.containerCount, held,
+        relation: off === 0 ? 'container == claim'
+                            : `container == claim + ${off}`,
+        // BOTH FIGURES AND THE MEMBER THE CLAIM CAME FROM. A finding that says only "they
+        // disagree" leaves a reader to go and take both measurements again, and the member is
+        // what tells them which of the producer's several copies of the number is the wrong one.
+        says: `this recording's own ${JSON.stringify(a.containerCount)} count is ${held} and the `
+            + `row claims ${claimed} in ${JSON.stringify(a.claim)}`
+            + (off === 0 ? ', and the two must be equal'
+                         : `, where the container must hold the claim plus ${off} — `
+                           + `${claimed} + ${off} = ${expected}`)
+            + `. The relation is stated by: ${a.statedBy}`,
+      });
+    }
+  }
+
+  // ── THE CONTAINER AGAINST THE SOURCE BUNDLE AND THE POSITIONS ──────────────────────
+  const sourceScope = { 'H-PATHS-NOT-IN-BUNDLE': 0, 'H-BUNDLE-LANGUAGE-SKEW': 0,
+                        'H-POSITIONS-VALUE-SKEW': 0 };
+  const langs = new Map((reg.bundleLanguages?.languages ?? []).map((l) => [l.language, l]));
+  const schemas = new Set((reg.bundleLanguages?.positionStreamSchemas ?? []).map((s) => s.schema));
+  for (const row of rows) {
+    const t = txByHash.get(row.txHash);
+    const bundlePath = typeof t?.sourceBundles === 'string' ? t.sourceBundles : null;
+    const posPath = typeof t?.positions === 'string' ? t.positions : null;
+    const bundle = bundlePath ? readJsonOrNull(resolve(dir, bundlePath)) : null;
+    const pos = posPath ? readJsonOrNull(resolve(dir, posPath)) : null;
+    const stream = row.containerRead === 'opened' && row.containerStream?.available
+      ? row.containerStream : null;
+
+    // ── H-PATHS-NOT-IN-BUNDLE ─────────────────────────────────────────────────────────
+    if (want.includes('H-PATHS-NOT-IN-BUNDLE') && stream && bundle
+        && Array.isArray(bundle.bundles) && stream.paths.length > 0) {
+      sourceScope['H-PATHS-NOT-IN-BUNDLE']++;
+      const published = new Set();
+      for (const b of bundle.bundles) {
+        for (const k of Object.keys(b?.files ?? {})) published.add(k);
+      }
+      const missing = stream.paths.filter((p) => !published.has(p));
+      if (missing.length) {
+        add('H-PATHS-NOT-IN-BUNDLE', {
+          txHash: row.txHash, sourceBundles: bundlePath,
+          internedPaths: stream.paths.length, publishedFiles: published.size,
+          missing: missing.slice(0, 20),
+          says: `this recording interned ${stream.paths.length} source path(s) and `
+              + `${missing.length} of them are in no bundle's \`files\` — the bundle publishes `
+              + `${published.size} file(s). A debugger stopping on a step in `
+              + `${JSON.stringify(missing[0])} has no text to show, and nothing refuses it: `
+              + `\`S5-BUNDLE-REQUIRED\` asks for a bundle to be present and says nothing about `
+              + `what is in it`,
+        });
+      }
+    }
+
+    // ── H-BUNDLE-LANGUAGE-SKEW — three axes, one finding each ─────────────────────────
+    //
+    // NEEDS NO CONTAINER. All three subjects are in the tree: the bundle's own files, the
+    // positions stream's own paths, and the stream's own schema token. That is why this one
+    // has a population over the real corpus while its siblings do not.
+    if (want.includes('H-BUNDLE-LANGUAGE-SKEW') && bundle && Array.isArray(bundle.bundles)) {
+      sourceScope['H-BUNDLE-LANGUAGE-SKEW']++;
+      for (const b of bundle.bundles) {
+        const lang = typeof b?.language === 'string' ? b.language : null;
+        const known = lang ? langs.get(lang) : null;
+        const fileExts = [...new Set(Object.keys(b?.files ?? {}).map(extensionOf)
+                                       .filter((e) => e !== null))];
+        if (lang && known && fileExts.length) {
+          const bad = fileExts.filter((e) => !known.extensions.includes(e));
+          if (bad.length) {
+            add('H-BUNDLE-LANGUAGE-SKEW', {
+              txHash: row.txHash, axis: 'bundle-files', sourceBundles: bundlePath,
+              language: lang, admits: known.extensions, found: fileExts, outside: bad,
+              says: `this bundle declares language ${JSON.stringify(lang)}, which admits `
+                  + `[${known.extensions.join(', ')}], and carries file(s) with extension(s) `
+                  + `[${bad.join(', ')}]. The source shown and the language claimed are not the `
+                  + `same artefact, and nothing relates the two: ${known.statedBy}`,
+            });
+          }
+        }
+        if (lang && known && pos && Array.isArray(pos.paths) && pos.paths.length) {
+          const posExts = [...new Set(pos.paths.map(extensionOf).filter((e) => e !== null))];
+          const bad = posExts.filter((e) => !known.extensions.includes(e));
+          if (bad.length) {
+            add('H-BUNDLE-LANGUAGE-SKEW', {
+              txHash: row.txHash, axis: 'positions-paths', positions: posPath,
+              language: lang, admits: known.extensions, found: posExts, outside: bad,
+              says: `the positions stream beside this row names path(s) with extension(s) `
+                  + `[${bad.join(', ')}] while the bundle declares language `
+                  + `${JSON.stringify(lang)}, which admits [${known.extensions.join(', ')}]. The `
+                  + `steps are being positioned in files the declared language does not write`,
+            });
+          }
+        }
+        // AN UNKNOWN LANGUAGE IS NOT A PASS, and it is not this finding either. It is recorded
+        // on the row so the NOT RUN accounting can see it, because a known-language table that
+        // treated an unknown language as agreeing would be satisfiable by inventing a name —
+        // and the shipped conformance template declares `example-lang` deliberately.
+        if (lang && !known) {
+          row.bundleLanguageUnknown = lang;
+          sum.bundleLanguagesUnknown[lang] = (sum.bundleLanguagesUnknown[lang] ?? 0) + 1;
+        }
+      }
+      if (pos && typeof pos.schema === 'string' && !schemas.has(pos.schema)) {
+        add('H-BUNDLE-LANGUAGE-SKEW', {
+          txHash: row.txHash, axis: 'positions-schema', positions: posPath,
+          schema: pos.schema, defined: [...schemas],
+          says: `this positions stream states schema ${JSON.stringify(pos.schema)} and nothing in `
+              + `this repository defines it — the defined set is [${[...schemas].join(', ')}]. `
+              + `\`S5-POSITIONS-SCHEMA\` refuses a stream that states NO token and republishes `
+              + `whatever it is handed, so a token nothing defines passes it`,
+        });
+      }
+    }
+
+    // ── H-POSITIONS-VALUE-SKEW — value by value, not column by column ─────────────────
+    if (want.includes('H-POSITIONS-VALUE-SKEW') && stream && pos
+        && Array.isArray(pos.paths) && Array.isArray(pos.pathId) && Array.isArray(pos.line)) {
+      const n = Math.min(stream.steps.length, pos.pathId.length);
+      if (n > 0) {
+        sourceScope['H-POSITIONS-VALUE-SKEW']++;
+        let disagreeing = 0;
+        let first = null;
+        for (let i = 0; i < n; i++) {
+          const held = stream.steps[i];
+          // THE SIDECAR'S INDEX IS RESOLVED THROUGH ITS OWN `paths` ARRAY rather than compared
+          // to the container's index. The two index spaces are NOT the same: one producer here
+          // deliberately drops a synthetic pseudo-path at index 0 and re-indexes, so comparing
+          // the numbers would call every correct sidecar of that shape wrong. What must agree
+          // is the FILE and the LINE, which is what a caret lands on.
+          const sidecarPath = (typeof pos.pathId[i] === 'number' && pos.pathId[i] >= 0
+                               && pos.pathId[i] < pos.paths.length)
+            ? pos.paths[pos.pathId[i]] : null;
+          const sidecarLine = typeof pos.line[i] === 'number' ? pos.line[i] : null;
+          const heldPath = held.path ?? (typeof held.pathId === 'number'
+            && held.pathId >= 0 && held.pathId < stream.paths.length
+              ? stream.paths[held.pathId] : null);
+          const heldLine = held.line;
+          // A step the SIDECAR reports unpositioned is out of this comparison: the sidecar's
+          // null is its own spelling of "no position", and the container's counterpart for such
+          // a step is a pseudo-path entry that is not a source coordinate at all.
+          if (sidecarPath === null && sidecarLine === null) continue;
+          if (sidecarPath === heldPath && sidecarLine === heldLine) continue;
+          disagreeing++;
+          if (first === null) {
+            first = { step: i,
+                      sidecar: { path: sidecarPath, line: sidecarLine },
+                      container: { path: heldPath, line: heldLine } };
+          }
+        }
+        if (disagreeing > 0) {
+          add('H-POSITIONS-VALUE-SKEW', {
+            txHash: row.txHash, positions: posPath,
+            stepsCompared: n, stepsDisagreeing: disagreeing, firstDisagreement: first,
+            says: `${disagreeing} of ${n} step(s) in this positions sidecar name a different `
+                + `(file, line) from the one the container wrote. Step ${first.step} is at `
+                + `${JSON.stringify(first.sidecar.path)}:${first.sidecar.line} in the sidecar and `
+                + `${JSON.stringify(first.container.path)}:${first.container.line} in the `
+                + `recording. Only the COUNTS are checked anywhere else — `
+                + `\`S5-POSITIONS-AGREE\` and \`S5-POSITIONS-COLUMNS\` are both about length, `
+                + `and a full-length stream with the wrong values puts the caret on lines the `
+                + `execution never touched exactly as badly as a short one`,
+          });
+        }
+      }
+    }
+  }
+
   // ── which checks ran, which did not, and why ────────────────────────────────────────
   //
   // A check whose SCOPE WAS EMPTY is NOT RUN and not passed. "Every row in an empty set is
@@ -554,6 +837,8 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     // The distinct versions there are to compare, not the containers. One version stated by
     // forty containers is one comparison per consumer.
     'H-CONTAINER-SCHEMA-SKEW': declaredVersions.length,
+    ...agreeScope,
+    ...sourceScope,
   };
   const status = {};
   const notRun = [];
@@ -571,6 +856,18 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     // and this is a fact about the invocation.
     if (c.needsContainer === true && !(readerArgv && readerArgv.length)) {
       status[id] = { ran: false, why: c.notRunReason ?? 'no container reader was named' };
+      notRun.push(id);
+      continue;
+    }
+    // A CHECK THAT NEEDS A RECORDING TO ACTUALLY OPEN, WITH A READER NAMED AND NOTHING OPENED.
+    // Three distinct reasons now reach NOT RUN and each must say which it is: the invocation
+    // named no reader; a reader was named and every container refused; or the tree simply has
+    // nothing subject to the check. Collapsing them is how "we could not look" comes to read
+    // like "there was nothing to see".
+    if (c.needsOpenedContainer === true && sum.containersOpened === 0) {
+      status[id] = { ran: false,
+                     why: `${c.notRunReason ?? 'no container opened'} A reader was named and `
+                        + `${sum.containersRefused} container(s) were probed; none opened.` };
       notRun.push(id);
       continue;
     }
@@ -653,6 +950,7 @@ function rollUp(snapshots) {
   const total = Object.fromEntries(keys.map((k) => [k, 0]));
   const rungs = {};
   const schemaCensus = {};
+  const unknownLangs = {};
   const coverage = {};
   const byChain = {};
   for (const s of snapshots) {
@@ -662,6 +960,9 @@ function rollUp(snapshots) {
     }
     for (const [v, n] of Object.entries(s.summary.containerSchemaCensus ?? {})) {
       schemaCensus[v] = (schemaCensus[v] ?? 0) + n;
+    }
+    for (const [l, n] of Object.entries(s.summary.bundleLanguagesUnknown ?? {})) {
+      unknownLangs[l] = (unknownLangs[l] ?? 0) + n;
     }
     for (const [id, st] of Object.entries(s.checkStatus)) {
       const c = coverage[id] ??= { ranIn: 0, notRunIn: 0, reasons: [] };
@@ -683,6 +984,7 @@ function rollUp(snapshots) {
   }
   total.declaredRungs = rungs;
   total.containerSchemaCensus = schemaCensus;
+  total.bundleLanguagesUnknown = unknownLangs;
   total.checksNotRun = Object.keys(coverage).filter((id) => coverage[id].ranIn === 0).sort();
   return { snapshots: snapshots.length, totals: total, checkCoverage: coverage,
            sourceCensusByChain: byChain };

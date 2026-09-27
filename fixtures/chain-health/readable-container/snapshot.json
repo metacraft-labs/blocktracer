@@ -1,0 +1,102 @@
+{
+  "format": "blocktracer/chain-snapshot@2",
+  "provenance": {
+    "chain": "readable-container",
+    "label": "One recording a current reader can open — the only such subject this repository has",
+    "runtimeCommit": "4444444444444444444444444444444444444444",
+    "endpoint": "https://node.example.invalid",
+    "capturedAt": "2026-09-28T00:00:00.000Z",
+    "nodeVersion": "0.1.0",
+    "l1ChainId": 1,
+    "recorder": {
+      "id": "codetracer-trace-format-nim multi-stream writer",
+      "traceSchema": "ctfs-v4/meta.dat-v4"
+    },
+    "prestateStrategy": "self-contained",
+    "identifierEncoding": {
+      "block": "hex",
+      "transaction": "hex",
+      "address": "hex"
+    }
+  },
+  "window": {
+    "tip": 2000,
+    "finalized": 1999,
+    "replayableFrom": 2000,
+    "blocks": 1
+  },
+  "counts": {
+    "blocks": 1,
+    "transactions": 1,
+    "accountedFor": 1
+  },
+  "blocks": [
+    {
+      "number": 2000,
+      "hash": "0x2000200020002000200020002000200020002000200020002000200020002000",
+      "parentArchiveRoot": "0x1fff1fff1fff1fff1fff1fff1fff1fff1fff1fff1fff1fff1fff1fff1fff1fff",
+      "timestamp": 1790000000,
+      "transactions": [
+        "0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1"
+      ]
+    }
+  ],
+  "transactions": [
+    {
+      "txHash": "0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1",
+      "blockNumber": 2000,
+      "txIndexInBlock": 0,
+      "outcome": "replayed",
+      "revertCode": 0,
+      "container": "ct/0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1.ct",
+      "containerBytes": 151552,
+      "effects": {
+        "matched": 1,
+        "mismatched": 0,
+        "reproduced": true
+      },
+      "recording": {
+        "steps": 10,
+        "events": 10,
+        "callsOpened": 1,
+        "pathsInterned": 2,
+        "sourceLevel": true,
+        "stepsPositioned": 10,
+        "stepsUnpositioned": 0,
+        "declaredRung": 1,
+        "contractRungs": [
+          {
+            "codeHash": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "rung": 1
+          }
+        ]
+      },
+      "recordedBy": "4444444444444444444444444444444444444444",
+      "cost": [
+        {
+          "name": "compute",
+          "used": "10"
+        }
+      ],
+      "executions": [
+        {
+          "selector": "main"
+        }
+      ],
+      "sourceBundles": "sources/0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1.json",
+      "positions": "positions/0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1.json",
+      "artifacts": [
+        {
+          "address": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "resolved": true,
+          "origin": "written beside the container by MAKING.md"
+        }
+      ],
+      "bodyRetained": true,
+      "effectVisible": true,
+      "instructionsExecuted": 10,
+      "hydrationRounds": 1,
+      "preStateReadAt": 1999
+    }
+  ]
+}

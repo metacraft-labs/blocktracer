@@ -32,7 +32,8 @@
 // Offline and toolchain-free: it builds small trees in a temporary directory, runs `node`,
 // and reads files already in this repository.
 
-import { mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync, existsSync, cpSync }
+  from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -45,13 +46,43 @@ import {
 } from './chain-health.mjs';
 import { REFUSAL_REASON_IDS, UNTRACED_OUTCOMES, TRACED_OUTCOMES, CHAIN_ABSENT_OUTCOMES }
   from './lib/refusal.mjs';
+import { POSITION_STREAM_SCHEMA } from './lib/producer-facts.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TOOL = join(HERE, 'chain-health.mjs');
 
+// THE CONFORMANCE BINARY, IF ONE IS BUILT. §9's load-bearing control is that `conformance`
+// stays GREEN over the same mutated tree the health sweep reddens on — which is what makes
+// these findings coverage the contract does not have rather than a second copy of an `S5-*`
+// rule. `just conformance` compiles it on every run and this suite must not compile anything,
+// so it uses a build if one is on disk and RECORDS its absence otherwise. A control that did
+// not run is reported as not run; it is never counted as having passed.
+const CONFORMANCE = join(REPO_ROOT, 'src', 'blocktracer_conformance');
+const CONFORMANCE_BUILT = existsSync(CONFORMANCE);
+
 let asserted = 0, failed = 0;
-const ck = (label, cond) => { asserted++; if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`); };
-const bite = (label, cond) => { asserted++; if (!cond) { failed++; console.error(`  FAIL  MUTATION DID NOT BITE  ${label}`); } else console.error(`  bite  ${label}`); };
+
+// ── TWO COUNTERS, AND THE REASON IS THAT ONE BLOCK OF ARMS NEEDS A BINARY CI HAS NOT GOT ──
+//
+// The container-versus-claim arms need the REAL reader, because their whole subject is whether
+// a container's own measurements match a row's claim about them — drive that with a stand-in
+// and the check is asserting that the stub agrees with the stub. `ct-print` is not a dependency
+// of this repository and is not built in CI.
+//
+// A single declared total would therefore be TWO different numbers depending on the host, and a
+// suite whose declared count is unreproducible is a suite whose count checks nothing: the
+// `chain-selftest` header, the recipe body and the CI step comments all cross-check it, and all
+// three would have to name whichever host the last person ran on.
+//
+// So the arms that need the reader increment their own counter. `asserted` is host-independent
+// and is the number the three cross-check sites read; `assertedWithReader` is declared here and
+// asserted only where the reader exists, and where it does not the suite PRINTS how many arms
+// did not run. That is the honest shape: not a skip, a recorded absence with a figure on it.
+let assertedWithReader = 0;
+let readerArms = false;
+const tally = () => { if (readerArms) assertedWithReader++; else asserted++; };
+const ck = (label, cond) => { tally(); if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`); };
+const bite = (label, cond) => { tally(); if (!cond) { failed++; console.error(`  FAIL  MUTATION DID NOT BITE  ${label}`); } else console.error(`  bite  ${label}`); };
 
 const REG = healthChecks();
 const tmp = mkdtempSync(join(tmpdir(), 'bt-health-'));
@@ -778,6 +809,34 @@ console.error('\n§8 — the container opens, or it does not, and the reader is 
   bite('mutation: …and the by-name case says so instead', f3s.refusesByName === true
        && /refuses 3 BY NAME, so it will decline rather than mis-read/.test(f3s.says));
 
+  // ── THREE REASONS REACH NOT RUN, AND EACH MUST SAY WHICH IT IS ──────────────────────
+  //
+  // A reader was NAMED here and the container was PROBED and REFUSED. So a check that needs
+  // the recording to open is unanswered — but not for the reason an empty tree is unanswered,
+  // and not for the reason a missing reader is. All three print NOT RUN, and collapsing them
+  // is how "we could not look" comes to read like "there was nothing to see".
+  //
+  // This arm exists because the branch that distinguishes them was INERT: disabling it left
+  // the whole suite green, because the arms above assert only that the check did not run and
+  // that it is listed, which the empty-scope branch below it satisfies just as well. Measured:
+  // nine control plants over this section, eight turned it red and this one did not.
+  const needOpenedIds = Object.keys(REG.checks)
+    .filter((id) => REG.checks[id].needsOpenedContainer === true);
+  ck(`the registry declares ${needOpenedIds.length} check(s) that need the recording to OPEN, `
+     + `so this arm has a subject — [${needOpenedIds.join(', ')}]`, needOpenedIds.length >= 5);
+  const refusedStatus = m3Rep.snapshots[0].checkStatus;
+  bite('a check needing an OPENED recording, over a tree whose container was probed and '
+     + 'REFUSED, gives the reader-shaped reason and names how many were probed',
+       needOpenedIds.every((id) => refusedStatus[id]?.ran === false
+         && /A reader was named and 1 container\(s\) were probed; none opened\./
+              .test(refusedStatus[id].why)));
+  bite('…and never "the scope is empty", which is a statement about the TREE and would be the '
+     + 'wrong sentence for a tree that has exactly the row the check wants',
+       needOpenedIds.every((id) => !/scope is empty/.test(refusedStatus[id].why)));
+  ck('…while the no-reader case keeps its own third reason, so all three are distinguishable',
+     needOpenedIds.every((id) => /No container was opened/.test(nr.snapshots[0].checkStatus[id].why)
+       && !/were probed/.test(nr.snapshots[0].checkStatus[id].why)));
+
   // AN UNSTATED VERSION IS NOT A SKEW, AND THE CHECK REPORTS NOT RUN RATHER THAN PASSED.
   ck('anti-vacuity: a probed container that stated no version leaves the skew check NOT RUN, '
      + 'never passed',
@@ -847,13 +906,391 @@ console.error('\n§8 — the container opens, or it does not, and the reader is 
      needsC.every((id) => verdict(real, REG).join('\n').includes(id)));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════
+console.error('\n§9 — the container against the claim, over the one recording a reader can open');
+// ═══════════════════════════════════════════════════════════════════════════════════════
+{
+  // THE SUBJECT IS A REAL CONTAINER AND A REAL READER, and that is the whole reason this
+  // section is different from every other one here. Everything above drives synthetic trees
+  // with stand-in readers, which is right for accounting rules. A comparison between a
+  // container's own measurements and a row's claim about them cannot be driven that way: the
+  // claim would be compared to a number this suite typed, and the check would be asserting
+  // that the stub agrees with the stub.
+  //
+  // So the subject is `fixtures/chain-health/readable-container`, whose MAKING.md states what
+  // it is and what it is NOT, and the reader is the real one. And because that reader is not a
+  // dependency of this repository and is not built in CI, the section HAS TO handle its
+  // absence — which it does by asserting the tool reports NOT RUN with the right reason, and by
+  // asserting, in that same arm, that the reason is the reader's absence and nothing else.
+  // Skipping silently is what a suite does when it has been told to be green.
+  const SUBJECT = join(REPO_ROOT, 'fixtures', 'chain-health', 'readable-container');
+  const READER = join(REPO_ROOT, '..', 'codetracer-trace-format-nim', 'ct-print');
+  const haveReader = existsSync(READER);
+  console.error(`  (the real reader is ${haveReader ? 'present' : 'ABSENT'} at ${READER})`);
+
+  // ── WHAT THE SUBJECT DECLARES, ASSERTED HERE SO ITS MAKING.md CANNOT DRIFT FROM IT ──
+  //
+  // Read from the committed snapshot, not typed: the figures below are what the checks compare,
+  // and a suite that typed them would be checking itself.
+  const snap = JSON.parse(readFileSync(join(SUBJECT, 'snapshot.json'), 'utf8'));
+  const subjectRow = snap.transactions[0];
+  const rec = subjectRow.recording;
+  ck('the readable-container subject is committed, is one traced row, and names a container',
+     snap.transactions.length === 1 && subjectRow.outcome === 'replayed'
+     && typeof subjectRow.container === 'string'
+     && existsSync(join(SUBJECT, subjectRow.container)));
+  ck(`…and it declares every claim member the agreements name — `
+     + `steps ${rec.steps}, events ${rec.events}, callsOpened ${rec.callsOpened}`,
+     REG.containerClaimAgreements.agreements.every((a) =>
+       typeof rec[a.claim.replace(/^recording\./, '')] === 'number'));
+  ck('…and it is source level, names a source bundle and names a positions sidecar, so the '
+     + 'source-side checks have a subject too',
+     rec.sourceLevel === true
+     && existsSync(join(SUBJECT, subjectRow.sourceBundles))
+     && existsSync(join(SUBJECT, subjectRow.positions)));
+
+  // ── THE AGREEMENT TABLE'S OWN SHAPE ────────────────────────────────────────────────
+  const AG = REG.containerClaimAgreements.agreements;
+  ck(`the agreement table is not empty — ${AG.length} agreement(s)`, AG.length >= 3);
+  ck('every agreement names one claim member, one container count, an integer offset, who '
+     + 'states the relation and why',
+     AG.every((a) => /^recording\.[a-zA-Z]+$/.test(a.claim)
+       && typeof a.containerCount === 'string' && a.containerCount.length > 0
+       && Number.isInteger(a.containerEqualsClaimPlus)
+       && (a.statedBy ?? '').length > 30 && (a.justification ?? '').length > 60));
+  ck('every agreement id is a declared check, and every check declaring an agreement has one '
+     + '— so neither table can name a row the other does not',
+     AG.every((a) => REG.checks[a.id]?.agreement === a.id)
+     && Object.keys(REG.checks).filter((id) => REG.checks[id].agreement)
+          .every((id) => AG.some((a) => a.id === id)));
+  ck('no two agreements check the same claim member, or one finding would cover two and '
+     + 'neither could be told from the other in a log',
+     new Set(AG.map((a) => a.claim)).size === AG.length);
+  // THE OFFSET IS THE ONE THING THAT CANNOT BE GUESSED, so at least one must be non-zero —
+  // a table of all-equal relations would make the offset machinery decoration, and the
+  // `callsOpened + 1` relation is precisely the fact a reader of the corpus gets wrong.
+  ck(`at least one agreement carries a non-zero offset, so the relation is not always equality `
+     + `— [${AG.map((a) => `${a.claim}+${a.containerEqualsClaimPlus}`).join(', ')}]`,
+     AG.some((a) => a.containerEqualsClaimPlus !== 0));
+
+  if (!haveReader) {
+    // THE PREMISE IS ASSERTED IN THE SAME ARM AS THE ABSENCE. Without it this is a negative
+    // assertion satisfied because nothing was looked at.
+    const noR = one(SUBJECT);
+    const needOpened = Object.keys(REG.checks)
+      .filter((id) => REG.checks[id].needsOpenedContainer === true);
+    ck(`the reader is absent, so every check needing an opened recording reports NOT RUN with `
+       + `its own reason — [${needOpened.join(', ')}]`,
+       needOpened.length >= 5
+       && needOpened.every((id) => noR.checkStatus[id]?.ran === false)
+       && needOpened.every((id) => noR.summary.checksNotRun.includes(id)));
+    ck('…and none of them is reported as having raised nothing, which is how "we could not '
+       + 'look" comes to read like "there was nothing to see"',
+       needOpened.every((id) => noR.checkStatus[id]?.raised === undefined));
+    ck(`(the container-versus-claim arms need the real reader and it is not on this host — `
+       + `they are NOT RUN here, and this line is the record of that rather than a pass)`,
+       true);
+  } else {
+    readerArms = true;
+    const R = [READER];
+    const base = one(SUBJECT, { readerArgv: R });
+    ck('control: the subject opens under the real reader',
+       base.summary.containersOpened === 1 && base.summary.containersRefused === 0);
+    ck('control: …and the container states its own counts, read out of the reader\'s payload',
+       base.rows[0].containerCounts.available === true
+       && base.rows[0].containerCounts.steps === rec.steps
+       && base.rows[0].containerCounts.calls === rec.callsOpened + 1);
+    ck('control: …and every agreement check RAN over a scope of 1 and raised nothing, so the '
+       + 'row and its recording agree',
+       AG.every((a) => base.checkStatus[a.id].ran === true
+                    && base.checkStatus[a.id].scope === 1
+                    && base.checkStatus[a.id].raised === 0));
+
+    // ── ONE MUTATION PER AGREEMENT, EACH MOVING ONE MEMBER BY ONE ────────────────────
+    //
+    // The mutated tree is a COPY of the committed one, so the committed subject is never
+    // touched — a mutation left on disk that a later copy launders into a reference is the
+    // most dangerous thing this campaign has recorded.
+    const posRelEarly = subjectRow.positions;
+    const copyTree = (edit) => {
+      const d = join(tmp, `subj${treeN++}`);
+      cpSync(SUBJECT, d, { recursive: true });
+      const s = JSON.parse(readFileSync(join(d, 'snapshot.json'), 'utf8'));
+      edit(s);
+      writeFileSync(join(d, 'snapshot.json'), JSON.stringify(s, null, 2) + '\n');
+      return d;
+    };
+    // ── THE MUTATION IS A *CONSISTENT* MIS-MEASUREMENT, AND THAT WAS MEASURED ────────
+    //
+    // The obvious mutation — bump `recording.steps` and change nothing else — does NOT keep
+    // the tree conformant, and finding that out changed this control. `S5-POSITIONS-AGREE`
+    // refuses a positions stream whose length differs from `recording.steps`, so on a subject
+    // that carries a positions sidecar the naive bump is caught by the CONTRACT: measured, rc
+    // 1, "hold 10 steps and the recording declares 11". A control built on it would have
+    // proved the opposite of what it claimed.
+    //
+    // What the checks here actually cover is stated in their own `why`: a producer that
+    // mis-measured its own recording AND DERIVED EVERY SIDECAR FROM THE MIS-MEASUREMENT is
+    // conformant in every direction. So the mutation moves the claim and brings every derived
+    // file with it. That tree is internally consistent, conformance is green over it, and the
+    // container is the only thing left that disagrees — which is the whole argument.
+    const CONSISTENTLY = {
+      'recording.steps': (s) => {
+        const t = s.transactions[0];
+        t.recording.steps += 1;
+        t.recording.stepsUnpositioned += 1;
+        t.instructionsExecuted += 1;
+      },
+      // `callsOpened` has no derived file in this subject: it names no call trace, so nothing
+      // in the tree is keyed to it and the bump alone leaves a conformant tree.
+      'recording.callsOpened': (s) => { s.transactions[0].recording.callsOpened += 1; },
+      // `events` is read by nothing in this repository at all — no rule, no reader, no sidecar.
+      'recording.events': (s) => { s.transactions[0].recording.events += 1; },
+    };
+    /** The positions sidecar lengthened to match a step count that moved. */
+    const growPositions = (d, by) => {
+      const p = join(d, posRelEarly);
+      const s = JSON.parse(readFileSync(p, 'utf8'));
+      s.steps += by;
+      for (const col of ['pathId', 'line', 'column']) {
+        for (let i = 0; i < by; i++) s[col].push(null);
+      }
+      writeFileSync(p, JSON.stringify(s, null, 2) + '\n');
+    };
+    for (const a of AG) {
+      const member = a.claim.replace(/^recording\./, '');
+      const d = copyTree(CONSISTENTLY[a.claim]);
+      if (a.claim === 'recording.steps') growPositions(d, 1);
+      const m = one(d, { readerArgv: R });
+      const f = m.findings.find((x) => x.check === a.id);
+      bite(`mutation: ${a.claim} incremented by one raises ${a.id}`, f !== undefined);
+      bite(`mutation: …and the finding names BOTH figures and the member the claim came from`,
+           f.claimMember === a.claim && f.claimed === rec[member] + 1
+           && f.held === rec[member] + (a.containerEqualsClaimPlus ?? 0)
+           && new RegExp(`row claims ${f.claimed}`).test(f.says)
+           && new RegExp(`count is ${f.held}`).test(f.says));
+      bite(`mutation: …and no OTHER agreement fires on it, so the finding is about ${a.claim} `
+         + `and not about the row`,
+           m.findings.filter((x) => AG.some((b) => b.id === x.check)).length === 1);
+      // ── THE CONTROL THAT PROVES THIS ADDS COVERAGE RATHER THAN DUPLICATING IT ──────
+      //
+      // The whole argument for these checks is that the contract cannot reach them. An
+      // assertion that the health sweep goes red is only half of it; the other half is that
+      // `just conformance` over THE SAME MUTATED TREE stays green. If it did not, this would
+      // be a second copy of an `S5-*` rule, which is what the disjointness arm in §1 refuses
+      // at the level of ids and this refuses at the level of behaviour.
+      if (CONFORMANCE_BUILT) {
+        const conf = spawnSync(CONFORMANCE, ['--snapshot', d],
+                               { encoding: 'utf8', timeout: 300_000 });
+        bite(`control: \`conformance\` over the SAME mutated tree stays GREEN — so ${a.id} is `
+           + `coverage the contract does not have, not a second copy of an S5 rule`,
+             conf.status === 0 && /this tree conforms/.test(`${conf.stdout}`));
+      } else {
+        ck(`(the conformance binary is not built, so the "conformance stays green" control for `
+           + `${a.id} did not run — recorded rather than assumed)`, true);
+      }
+    }
+
+    // ── §10: THE SOURCE SIDE ────────────────────────────────────────────────────────
+    console.error('\n§10 — the bundle, the positions and the container, against each other');
+    ck('control: the source-side checks all RAN over the unmutated subject and raised nothing',
+       ['H-PATHS-NOT-IN-BUNDLE', 'H-BUNDLE-LANGUAGE-SKEW', 'H-POSITIONS-VALUE-SKEW']
+         .every((id) => base.checkStatus[id].ran === true && base.checkStatus[id].raised === 0));
+    ck('control: …and the container really did state its interned paths, so the comparisons '
+       + 'above were not two empty sets agreeing',
+       base.rows[0].containerStream.available === true
+       && base.rows[0].containerStream.paths.length >= 2
+       && base.rows[0].containerStream.steps.length >= 10);
+
+    /** A copy of the subject with one sidecar rewritten. */
+    const copyWithSidecar = (rel, edit) => {
+      const d = join(tmp, `subj${treeN++}`);
+      cpSync(SUBJECT, d, { recursive: true });
+      const p = join(d, rel);
+      const s = JSON.parse(readFileSync(p, 'utf8'));
+      edit(s);
+      writeFileSync(p, JSON.stringify(s, null, 2) + '\n');
+      return d;
+    };
+    const bundleRel = subjectRow.sourceBundles;
+    const posRel = subjectRow.positions;
+
+    // H-PATHS-NOT-IN-BUNDLE: drop one file from the bundle. Everything else is untouched —
+    // the bundle is still present, still declares source level, still has files — so the
+    // finding is about the MISSING PATH and not about a stripped bundle.
+    {
+      const d = copyWithSidecar(bundleRel, (b) => {
+        const keys = Object.keys(b.bundles[0].files);
+        delete b.bundles[0].files[keys[keys.length - 1]];
+      });
+      const m = one(d, { readerArgv: R });
+      const f = m.findings.find((x) => x.check === 'H-PATHS-NOT-IN-BUNDLE');
+      bite('mutation: a bundle missing ONE of the container\'s interned paths raises '
+         + 'H-PATHS-NOT-IN-BUNDLE', f !== undefined);
+      bite('mutation: …and the finding names the missing path and both totals, so a reader '
+         + 'knows which file has no text rather than that one does',
+           f.missing.length === 1 && /\.py$/.test(f.missing[0])
+           && f.internedPaths === 2 && f.publishedFiles === 1);
+      bite('mutation: …and the OTHER source checks do not fire on it — the bundle still '
+         + 'declares its language and the positions are untouched',
+           !has(m, 'H-BUNDLE-LANGUAGE-SKEW') && !has(m, 'H-POSITIONS-VALUE-SKEW'));
+    }
+
+    // H-BUNDLE-LANGUAGE-SKEW, axis 1: the declared language changed to another the table
+    // knows, so the files are now the wrong extension for it.
+    {
+      const d = copyWithSidecar(bundleRel, (b) => { b.bundles[0].language = 'noir'; });
+      const m = one(d, { readerArgv: R });
+      const fs2 = m.findings.filter((x) => x.check === 'H-BUNDLE-LANGUAGE-SKEW');
+      bite('mutation: a bundle declaring a language its own files are not written in raises '
+         + 'H-BUNDLE-LANGUAGE-SKEW on the bundle-files axis',
+           fs2.some((f) => f.axis === 'bundle-files' && f.language === 'noir'
+                        && f.outside.includes('.py')));
+      bite('mutation: …and on the positions-paths axis too, separately, because the steps are '
+         + 'being positioned in files the declared language does not write',
+           fs2.some((f) => f.axis === 'positions-paths' && f.outside.includes('.py')));
+      bite('mutation: …and the two axes are separate findings rather than one, so a bundle '
+         + 'that is wrong in one way and right in the other can be told apart',
+           new Set(fs2.map((f) => f.axis)).size === 2);
+    }
+
+    // H-BUNDLE-LANGUAGE-SKEW, axis 3: a positions schema token nothing defines. This is the
+    // gap `S5-POSITIONS-SCHEMA` leaves — it refuses an ABSENT token and republishes whatever
+    // it is handed — so the mutation keeps a token and makes it one nobody declares.
+    {
+      const d = copyWithSidecar(posRel, (p) => { p.schema = 'avm-source-positions/99'; });
+      const m = one(d, { readerArgv: R });
+      const f = m.findings.find((x) => x.check === 'H-BUNDLE-LANGUAGE-SKEW'
+                                    && x.axis === 'positions-schema');
+      bite('mutation: a positions stream stating a schema token nothing defines is refused by '
+         + 'name, with the defined set printed', f !== undefined
+           && f.schema === 'avm-source-positions/99' && f.defined.length > 0);
+      bite('mutation: …and the value skew does NOT fire on it, because the coordinates are '
+         + 'unchanged — the schema axis is about the token and nothing else',
+           !has(m, 'H-POSITIONS-VALUE-SKEW'));
+    }
+
+    // H-POSITIONS-VALUE-SKEW: the columns are the RIGHT LENGTH and the values are wrong. That
+    // is the whole point — `S5-POSITIONS-AGREE` and `S5-POSITIONS-COLUMNS` are both about
+    // length, so a stream mutated this way passes every existing rule.
+    {
+      const d = copyWithSidecar(posRel, (p) => {
+        // Every step re-pointed at the other interned file. Same column length, same step
+        // count, same paths array — only the index each step carries has moved, which is
+        // exactly what an off-by-one in a path remap produces.
+        p.pathId = p.pathId.map((v) => (v === 0 ? 1 : 0));
+      });
+      const m = one(d, { readerArgv: R });
+      const f = m.findings.find((x) => x.check === 'H-POSITIONS-VALUE-SKEW');
+      bite('mutation: a positions sidecar of the RIGHT LENGTH whose every step points at the '
+         + 'wrong file raises H-POSITIONS-VALUE-SKEW', f !== undefined);
+      bite('mutation: …and it publishes how many steps were COMPARED beside how many '
+         + 'disagreed, so a comparison over nothing cannot look like a pass',
+           f.stepsCompared >= 10 && f.stepsDisagreeing >= 10
+           && f.stepsDisagreeing <= f.stepsCompared);
+      bite('mutation: …and it carries the FIRST disagreement, both sides, because a count of '
+         + 'wrong steps is not something anybody can act on',
+           f.firstDisagreement.sidecar.path !== f.firstDisagreement.container.path
+           && typeof f.firstDisagreement.step === 'number');
+      // THE CONTROL THAT MAKES IT A VALUE CHECK AND NOT A LENGTH CHECK.
+      if (CONFORMANCE_BUILT) {
+        const conf = spawnSync(CONFORMANCE, ['--snapshot', d],
+                               { encoding: 'utf8', timeout: 300_000 });
+        bite('control: `conformance` over that same tree stays GREEN — every column is the '
+           + 'right length, which is all any existing rule asks',
+             conf.status === 0 && /this tree conforms/.test(`${conf.stdout}`));
+      } else {
+        ck('(the conformance binary is not built, so the value-versus-length control did not '
+           + 'run — recorded rather than assumed)', true);
+      }
+      // A LINE-ONLY MUTATION, so the finding is not only reachable through the path index.
+      const d2 = copyWithSidecar(posRel, (p) => { p.line = p.line.map((v) => (v === null ? null : v + 1)); });
+      const m2 = one(d2, { readerArgv: R });
+      bite('mutation: the same sidecar with every LINE one higher — the shape of the defect '
+         + 'the reader refuses version 3 to avoid — also raises the finding',
+           has(m2, 'H-POSITIONS-VALUE-SKEW'));
+    }
+    readerArms = false;
+  }
+
+  // ── THE LANGUAGE TABLE'S OWN SHAPE AND ITS GAPS ────────────────────────────────────
+  //
+  // Asserted whether or not the reader is present: it is a table, not a measurement.
+  const LT = REG.bundleLanguages.languages;
+  ck(`the language table is not empty — [${LT.map((l) => l.language).join(', ')}]`,
+     LT.length >= 2);
+  ck('every language names a non-empty extension set, who states it and why',
+     LT.every((l) => Array.isArray(l.extensions) && l.extensions.length > 0
+       && l.extensions.every((e) => /^\.[a-z0-9]+$/.test(e))
+       && (l.statedBy ?? '').length > 30 && (l.justification ?? '').length > 60));
+  ck('no two languages claim the same extension, or the table could not tell them apart',
+     new Set(LT.flatMap((l) => l.extensions)).size === LT.flatMap((l) => l.extensions).length);
+  ck(`the position-stream schema set is closed and non-empty — `
+     + `[${REG.bundleLanguages.positionStreamSchemas.map((s) => s.schema).join(', ')}]`,
+     REG.bundleLanguages.positionStreamSchemas.length >= 1
+     && REG.bundleLanguages.positionStreamSchemas.every((s) => (s.statedBy ?? '').length > 30));
+  // AND IT IS THE PRODUCER'S TOKEN, not a second declaration of it. A set typed here would be
+  // a fifth place for the token to drift; it must contain what the producer single-sources.
+  ck('…and it contains the token the producers single-source, so this set is not a second '
+     + 'declaration of it',
+     REG.bundleLanguages.positionStreamSchemas.some((s) => s.schema === POSITION_STREAM_SCHEMA));
+
+  // ── AN UNKNOWN LANGUAGE IS COUNTED, NEVER PASSED ───────────────────────────────────
+  //
+  // The shipped conformance template declares `example-lang` deliberately. A known-language
+  // table that treated an unknown language as agreeing would be satisfiable by inventing a
+  // name, so the honest output is a census — and the template is the standing subject for it.
+  const kit = one(join(REPO_ROOT, 'conformance-kit', 'template', 'complete'));
+  ck('control: the shipped template declares a language the table does not know, and it is '
+     + 'COUNTED rather than flagged or passed',
+     kit.summary.bundleLanguagesUnknown['example-lang'] === 1);
+  ck('control: …and no language finding is raised over it, because an unknown language is not '
+     + 'a disagreement — it is an unanswered question',
+     !kit.findings.some((f) => f.check === 'H-BUNDLE-LANGUAGE-SKEW'
+                            && f.axis !== 'positions-schema'));
+
+  // ── THE REAL CORPUS: H-BUNDLE-LANGUAGE-SKEW IS THE ONE THAT NEEDS NO CONTAINER ─────
+  //
+  // Its three subjects are the bundle's own files, the positions stream's own paths and that
+  // stream's own token — all in the tree. So it has a population over the committed corpus
+  // where its siblings have none, and this is where that population is floored.
+  const real = sweep(corpusSnapshotDirs(), { registry: REG });
+  const ranIn = real.corpus.checkCoverage['H-BUNDLE-LANGUAGE-SKEW'].ranIn;
+  ck(`H-BUNDLE-LANGUAGE-SKEW needs no container, so it runs over the committed corpus — `
+     + `${ranIn} of ${real.corpus.snapshots} tree(s)`,
+     REG.checks['H-BUNDLE-LANGUAGE-SKEW'].needsContainer === false && ranIn >= 3);
+  ck('…and it raises nothing there, over a population that is not empty',
+     !real.findings.some((f) => f.check === 'H-BUNDLE-LANGUAGE-SKEW'));
+  ck(`…and every other source-side and claim-side check reports NOT RUN with a reader-shaped `
+     + `reason rather than a clean pass`,
+     Object.keys(REG.checks).filter((id) => REG.checks[id].needsOpenedContainer === true)
+       .every((id) => real.corpus.totals.checksNotRun.includes(id)));
+}
+
 cleanup();
 console.error('');
-if (asserted !== 131) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 131 — a case was added, removed or skipped.`);
+// THE HOST-INDEPENDENT TOTAL. This is the one the `chain-selftest` header, the recipe body and
+// the CI step comments cross-check, and it is the same on every host by construction.
+if (asserted !== 153) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 153 — a case was added, removed or skipped.`);
   failed++;
 } else {
-  console.error(`assertion count: ${asserted} (as declared: 131)`);
+  console.error(`assertion count: ${asserted} (as declared: 153)`);
+}
+// AND THE READER-DEPENDENT ONES, DECLARED AND EITHER ASSERTED OR REPORTED UNRUN. A block of arms
+// that quietly contributes nothing on the host where it matters is how a suite comes to be green
+// everywhere and load-bearing nowhere.
+const READER_ARMS = 30;
+if (assertedWithReader === 0) {
+  console.error(`NOT RUN: ${READER_ARMS} arm(s) need the container reader `
+    + `(../codetracer-trace-format-nim/ct-print) and it is not on this host. They are not `
+    + `counted as passed. Build it with \`nimble buildCtPrint\` in that checkout's own devshell.`);
+} else if (assertedWithReader !== READER_ARMS) {
+  console.error(`READER-ARM COUNT IS ${assertedWithReader}, EXPECTED ${READER_ARMS} — an arm `
+    + `in the reader-dependent block was added, removed or skipped.`);
+  failed++;
+} else {
+  console.error(`reader-dependent arms: ${assertedWithReader} (as declared: ${READER_ARMS})`);
 }
 if (failed) { console.error(`FAIL — ${failed} problem(s)`); process.exit(1); }
 console.error('PASS — every finding has a twin it must not fire on and a mutation it must');

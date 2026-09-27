@@ -135,7 +135,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 131 + 83 = 1021 counted assertions —
+# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 153 + 83 = 1043 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -458,6 +458,45 @@ chain-selftest:
 # pinned by sha256 in `client/hydrate/engine-pin.txt` — accepts [3]. So the same
 # corpus is unreadable to one and readable to the other, and picking which one
 # matters is not a decision a sweep gets to make.
+#
+# ── WHAT AN OPENED CONTAINER IS COMPARED AGAINST ───────────────────────────
+#
+# Five more questions are answered once a recording opens, and every one of them
+# is in the hole the contract cannot reach. `snapshot-contract.json`'s member
+# census declares the container OPAQUE — its entry has zero members — so every
+# `S5-*-AGREE` rule compares a DERIVED FILE to the producer's claim and takes the
+# claim as the truth. A producer that mis-measured its own recording and derived
+# every sidecar from the mis-measurement conforms in every direction.
+#
+# Three compare the container's own counts to the row's claim, one finding per
+# claim member so a drifting second copy of a number can be told from the first:
+# the step count, the call count (where the container holds the claim PLUS the
+# synthetic top-level frame — a relation two producers here state, not an
+# arithmetic convenience), and `recording.events`, which is measurably a second
+# copy of the step count: 42 of 42 committed rows carrying both have them equal.
+#
+# Two compare the container to what is published beside it: every source path the
+# recording INTERNED must be a file in the bundle (`S5-BUNDLE-REQUIRED` asks for a
+# bundle to be present and says nothing about what is in it), and the positions
+# sidecar's coordinates must be the container's VALUE BY VALUE. Only the counts
+# are checked anywhere else — `S5-POSITIONS-AGREE` and `S5-POSITIONS-COLUMNS` are
+# both about length — and a full-length stream with the wrong values puts the
+# caret on lines the execution never touched exactly as badly as a short one.
+# That is also the likeliest way to get it wrong: one producer here deliberately
+# re-indexes the container's path ids, and an off-by-one in that remap produces a
+# correctly-counted stream in which every step points at the wrong file.
+#
+# One needs no container at all, which is why it has a population over the real
+# corpus where its siblings do not: a bundle's declared `language` against the
+# extensions of its own files, against the extensions the positions stream names,
+# and that stream's schema token against the closed set of tokens this repository
+# writes. `S5-POSITIONS-SCHEMA` refuses a stream that states NO token and
+# republishes whatever it is handed, so a token nothing defines passes it.
+#
+# THE ONE SUBJECT THESE HAVE is `fixtures/chain-health/readable-container` — the
+# only recording here a current reader can open. Its MAKING.md states what it is,
+# what it is NOT, and every command that produced it. Read that before quoting
+# anything these five checks report.
 #
 # THE EXIT CODE IS THE VERDICT AND THE CORPUS RECIPE CURRENTLY EXITS 1, which is
 # the tool working rather than the recipe failing: 0 is nothing found, 1 is at

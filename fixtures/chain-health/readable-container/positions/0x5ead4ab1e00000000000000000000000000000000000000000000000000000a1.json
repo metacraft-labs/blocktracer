@@ -1,0 +1,48 @@
+{
+ "schema": "avm-source-positions/1",
+ "tx": "0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1",
+ "steps": 10,
+ "positioned": 10,
+ "measuredPostHoc": false,
+ "measuredBy": "read out of the container with ct-print --events; see MAKING.md",
+ "paths": [
+  "/workspace/demo/main.py",
+  "/workspace/demo/util.py"
+ ],
+ "pathId": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  0
+ ],
+ "line": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  1,
+  2,
+  3,
+  7
+ ],
+ "column": [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null
+ ]
+}

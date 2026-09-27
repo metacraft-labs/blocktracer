@@ -708,7 +708,7 @@ jobs:
         run: node tools/chain/snapshot-contract-selftest.mjs
 
       - name: Are the recordings a prepared tree publishes in a state worth publishing?
-        # 131 assertions. `chain-health.mjs` reports figures about trees that are
+        # 153 assertions. `chain-health.mjs` reports figures about trees that are
         # ALREADY conformant, so nothing else here can contradict it: there is no
         # second opinion on "1 of 45 traced rows declares source level" and no gate
         # that goes red when the number is wrong. That is the gap it fills and it is
@@ -751,6 +751,24 @@ jobs:
         # that write them rather than typed, and the corpus is the evidence: all 925
         # in-scope committed rows must carry an admissible pair. A table written from
         # the outcomes' names instead would redden 912 correct ones.
+        #
+        #   * The container-versus-claim and source-versus-container arms need the
+        #     REAL reader, because their subject is whether a container's own
+        #     measurements match a row's claim about them — drive that with a
+        #     stand-in and the check asserts that the stub agrees with the stub.
+        #     `ct-print` is not a dependency of this repository and is not built
+        #     here, so those 30 arms have their OWN declared count and the suite
+        #     prints how many did not run. They are never counted as passed, and
+        #     the 153 above is host-independent by construction: a declared total
+        #     that changed with the host would make all three cross-check sites
+        #     name whichever machine ran last.
+        #   * Their load-bearing control is that `blocktracer-conformance` stays
+        #     GREEN over the same mutated tree the sweep reddens on. The mutation
+        #     is a CONSISTENT mis-measurement — the claim moves and every derived
+        #     file moves with it — because the naive bump of `recording.steps`
+        #     alone is caught by the CONTRACT (`S5-POSITIONS-AGREE`, measured
+        #     rc 1). A control built on the naive bump would have proved the
+        #     opposite of what it claimed.
         #
         # Offline and toolchain-free like the ten above it: temporary trees, `node`,
         # and files already in this repository.

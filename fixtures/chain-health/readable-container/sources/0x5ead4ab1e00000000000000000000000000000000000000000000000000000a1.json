@@ -1,0 +1,22 @@
+{
+  "txHash": "0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1",
+  "sourceLevel": true,
+  "bundles": [
+    {
+      "codeHash": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "artifactHash": "0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "origin": "written beside the container by MAKING.md, not fetched from any distributor",
+      "shape": "snake_case",
+      "corroboration": "single-distributor",
+      "agreeingDistributors": [
+        "none — this bundle was written from the container itself"
+      ],
+      "debugDigest": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+      "language": "python",
+      "files": {
+        "/workspace/demo/main.py": "# /workspace/demo/main.py\n# stand-in source text; see MAKING.md\n",
+        "/workspace/demo/util.py": "# /workspace/demo/util.py\n# stand-in source text; see MAKING.md\n"
+      }
+    }
+  ]
+}

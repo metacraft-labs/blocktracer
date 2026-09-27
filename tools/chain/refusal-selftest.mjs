@@ -112,8 +112,20 @@ const OWN_CAPTURE_SNAPSHOTS = Object.freeze([
   'tests/fixtures/chain-snapshots/aztec-mainnet-live/snapshot.json',
 ]);
 
+/** The one tree whose recording a CURRENT reader can open.
+ *
+ *  Not a capture and not a template. Every other container in this repository declares
+ *  `meta.dat` schema version 3, which every current reader refuses by name, so the checks that
+ *  compare a container's own measurements against the row's claim about it had no subject at
+ *  all. This tree is that subject — a vendored v4 container in a conformant snapshot around it.
+ *  `fixtures/chain-health/readable-container/MAKING.md` states what it is, what it is NOT, and
+ *  every command that produced it. */
+const READABLE_CONTAINER_SNAPSHOTS = Object.freeze([
+  'fixtures/chain-health/readable-container/snapshot.json',
+]);
+
 const ALL_COMMITTED_SNAPSHOTS = Object.freeze([
-  ...OWN_CAPTURE_SNAPSHOTS, ...KIT_TEMPLATE_SNAPSHOTS,
+  ...OWN_CAPTURE_SNAPSHOTS, ...KIT_TEMPLATE_SNAPSHOTS, ...READABLE_CONTAINER_SNAPSHOTS,
 ]);
 
 /** The three of those the migration tool must not promote. See the hold-out test below. */
@@ -1001,29 +1013,36 @@ test('no committed row claims a permanent body loss the store was never asked ab
   const root = new URL('../../', import.meta.url).pathname;
   const all = ALL_COMMITTED_SNAPSHOTS.map((p) => join(root, p));
   ck(`the corpus is the whole tree's — ${all.length} snapshot(s), and every one exists`,
-     all.length === 8 && all.every((p) => existsSync(p)));
+     all.length === 9 && all.every((p) => existsSync(p)));
 
   // ── AND IT IS A PARTITION, STATED, SO THE SCOPED RULE BELOW CANNOT WIDEN BACK ──────
   //
   // One rule in this file — the `counts.captureSessions` sweep — ranges over the CAPTURES
   // rather than over every committed snapshot, because that member is producer-internal
   // and §5 does not name it. A scope is only a scope if it cannot move quietly, so: the
-  // two lists partition this one, the exempt half is exactly the kit's template trees
-  // (derived from the path, not from membership of a list), and both sizes are asserted.
-  // Dropping a capture into `conformance-kit/` to dodge a rule moves both numbers.
+  // three lists partition this one, each exempt class is derived from the PATH rather than
+  // from membership of a list, and every size is asserted. Dropping a capture into
+  // `conformance-kit/` or `fixtures/chain-health/` to dodge a rule moves two numbers.
   const kitPrefix = 'conformance-kit/';
+  const readablePrefix = 'fixtures/chain-health/';
   ck(`the corpus splits into ${OWN_CAPTURE_SNAPSHOTS.length} capture(s) this repository's `
-     + `own producers wrote and ${KIT_TEMPLATE_SNAPSHOTS.length} hand-authored kit `
-     + `template(s), and the two make up the whole of it`,
+     + `own producers wrote, ${KIT_TEMPLATE_SNAPSHOTS.length} hand-authored kit template(s) `
+     + `and ${READABLE_CONTAINER_SNAPSHOTS.length} readable-container fixture(s), and the `
+     + `three make up the whole of it`,
      OWN_CAPTURE_SNAPSHOTS.length === 6 && KIT_TEMPLATE_SNAPSHOTS.length === 2
+     && READABLE_CONTAINER_SNAPSHOTS.length === 1
      && OWN_CAPTURE_SNAPSHOTS.length + KIT_TEMPLATE_SNAPSHOTS.length
-        === ALL_COMMITTED_SNAPSHOTS.length);
-  ck('…and the exempt half is exactly what lives under conformance-kit/, so the exemption '
-     + 'is a PATH rule rather than a membership list somebody can add a capture to',
+        + READABLE_CONTAINER_SNAPSHOTS.length === ALL_COMMITTED_SNAPSHOTS.length);
+  ck('…and each exempt class is exactly what lives under its own directory, so the '
+     + 'exemption is a PATH rule rather than a membership list somebody can add a capture to',
      KIT_TEMPLATE_SNAPSHOTS.every((p) => p.startsWith(kitPrefix))
-     && OWN_CAPTURE_SNAPSHOTS.every((p) => !p.startsWith(kitPrefix))
+     && READABLE_CONTAINER_SNAPSHOTS.every((p) => p.startsWith(readablePrefix))
+     && OWN_CAPTURE_SNAPSHOTS.every((p) => !p.startsWith(kitPrefix)
+                                       && !p.startsWith(readablePrefix))
      && ALL_COMMITTED_SNAPSHOTS.filter((p) => p.startsWith(kitPrefix)).length
-        === KIT_TEMPLATE_SNAPSHOTS.length);
+        === KIT_TEMPLATE_SNAPSHOTS.length
+     && ALL_COMMITTED_SNAPSHOTS.filter((p) => p.startsWith(readablePrefix)).length
+        === READABLE_CONTAINER_SNAPSHOTS.length);
 
   // ── AND THE LIST IS THE WHOLE TREE'S, WHICH THE `existsSync` ARM CANNOT SAY ────────
   //

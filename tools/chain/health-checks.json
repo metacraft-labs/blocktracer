@@ -92,7 +92,7 @@
     {
       "id": "corpus-predates-the-line-index-correction",
       "measuredOn": "2026-09-18",
-      "note": "All 52 real containers in this repository declare `meta.dat` schema version 3, and every current reader refuses that version BY NAME. A version-3 writer packed a line-only step position as `prefixSum[path_id] + line`; a current writer packs `prefixSum[path_id] + (line - 1)`. Both land inside the trace's address space, so a version-3 step read under the current decode comes back ONE LINE HIGH rather than failing - which is why the schema version is the only possible discriminator and why readers refuse instead of decoding. The Nim reader accepts [4, 5]; the two Rust readers are at META_DAT_VERSION = 4 with SUPPORTED_VERSIONS = [4, META_DAT_VERSION_EXTENDED_FLAGS]. THEY AGREE. So the corpus is readable by nothing current, and the remedy is to re-record it rather than to reconcile readers. The committed instructions/, positions/ and calltrace/ sidecars were derived by a reader build that accepted version 3, and nothing in the tree records which one. CORRECTED 2026-09-18, same day: this entry first said the readers supported DISJOINT sets with Rust pinned at 3. That was read from a checkout of the sibling repository standing 199 commits behind its mainline; the Rust readers had already moved to 4. A claim about another repository's constant is only as current as the checkout it was read from.",
+      "note": "All 52 real containers in this repository declare `meta.dat` schema version 3, and every current reader refuses that version BY NAME. A version-3 writer packed a line-only step position as `prefixSum[path_id] + line`; a current writer packs `prefixSum[path_id] + (line - 1)`. Both land inside the trace's address space, so a version-3 step read under the current decode comes back ONE LINE HIGH rather than failing - which is why the schema version is the only possible discriminator and why readers refuse instead of decoding. The Nim reader accepts [4, 5]; the two Rust readers are at META_DAT_VERSION = 4 with SUPPORTED_VERSIONS = [4, META_DAT_VERSION_EXTENDED_FLAGS]. THEY AGREE. So the corpus is readable by nothing current, and the remedy is to re-record it rather than to reconcile readers. The committed instructions/, positions/ and calltrace/ sidecars were derived by a reader build that accepted version 3, and nothing in the tree records which one. CORRECTED 2026-09-18, same day: this entry first said the readers supported DISJOINT sets with Rust pinned at 3. That was read from a checkout of the sibling repository standing 199 commits behind its mainline; the Rust readers had already moved to 4. A claim about another repository's constant is only as current as the checkout it was read from. RE-MEASURED 2026-09-28, AND THE SENTENCE `THEY AGREE` DOES NOT HOLD AT THE CHECKOUTS IN THIS WORKSPACE: the Nim reader accepts [4, 5] and BOTH Rust readers state 3 - `SUPPORTED_VERSIONS = &[3]` and `SUPPORTED_META_DAT_VERSIONS = &[3]` - so the sets are disjoint again, as this entry originally said. Which of the two readings is current depends on which checkout each was read from, and that is the whole lesson: the reading above names no revision, so it cannot be told apart from a stale one. The third entry in this list carries the re-measurement WITH the revision of each checkout beside it, and `containerSchema.consumers` is where the accepted sets are recorded for the tool to use. Neither reading is deleted here. The consequence for this corpus is unchanged either way: the reader this repository's derivations run refuses all 52.",
       "bounds": "every check marked needsContainer"
     },
     {
@@ -200,7 +200,185 @@
         "containerSchemaCensus"
       ],
       "reportsNote": "The census is published whether or not the finding fires, for the same reason H-SOURCE-ABSENT publishes its rates: the finding is a threshold and the census is what tells an operator which way the corpus is moving."
+    },
+    "H-STEPS-DISAGREE": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against.",
+      "question": "Does the recording's own step count agree with what the row claims about it?",
+      "healthy": "Every opened container's step count is the one its row declares.",
+      "fires": "an opened container's step count differs from `recording.steps`",
+      "why": "`S5-POSITIONS-AGREE` and `S5-POSITIONS-COLUMNS` compare a SIDECAR's length to `recording.steps`, and `S5-CALLTRACE-AGREE` compares a call trace's frame count to `recording.callsOpened`. Every one of them takes the producer's claim as the truth and asks whether the derived file agrees with it. Nothing asks whether the claim agrees with the BYTES - the contract's member census declares the container opaque, with zero members - so a producer that mis-measured its own recording and derived every sidecar from the mis-measurement is conformant in every direction.",
+      "scope": "rows whose container opened and that declare the claim member",
+      "agreement": "H-STEPS-DISAGREE"
+    },
+    "H-CALLS-DISAGREE": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against.",
+      "question": "Does the recording's own call count agree with the row's `callsOpened`, under the offset the producers state?",
+      "healthy": "Every opened container's call count is its row's `callsOpened` plus the synthetic top-level frame.",
+      "fires": "an opened container's call count is not `recording.callsOpened` + the declared offset",
+      "why": "Same hole as the step count, reached through the other member. This one additionally has an OFFSET, and the offset is the reason the check is worth having separately: `+ 1` is a fact about how the recorder counts rather than an arithmetic convenience, it is stated by two producers in this repository, and a check that assumed equality would redden every correct row while a check that ignored the relation entirely would accept any number at all.",
+      "scope": "rows whose container opened and that declare the claim member",
+      "agreement": "H-CALLS-DISAGREE"
+    },
+    "H-EVENTS-DISAGREE": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against.",
+      "question": "Does the producer's SECOND copy of its step count still agree with the recording?",
+      "healthy": "Every opened container's step count is its row's `recording.events`.",
+      "fires": "an opened container's step count differs from `recording.events`",
+      "why": "MEASURED, NOT ARGUED: 42 of 42 committed rows carrying both `recording.events` and `recording.steps` have them EQUAL, and none differs. So `events` is a second copy of the step count under another name, and a second copy is the thing that drifts. H-STEPS-DISAGREE cannot see it drift - it compares the container to `steps`, and `events` could be any number at all while that stayed green. Two claim members, two findings: an arm covers the site whose figure it names and no other.",
+      "scope": "rows whose container opened and that declare the claim member",
+      "agreement": "H-EVENTS-DISAGREE"
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "needsStreamProbe": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle.",
+      "question": "Is every source file the recording INTERNED present in the bundle published beside it?",
+      "healthy": "Every path an opened container interned is a key of some bundle's `files`.",
+      "fires": "an interned path is in no bundle's `files`",
+      "why": "`S5-BUNDLE-REQUIRED` requires a bundle beside a source-level recording and says nothing about what is IN it, so a bundle carrying one file satisfies it for a recording that stepped through forty. This is the operator's first symptom read from the other end: the page offers source, the debugger stops on a line, and the file that line is in was never published - so the caret lands nowhere and nothing anywhere reported a defect.",
+      "scope": "rows whose container opened, that name a source bundle, and whose container interned at least one path"
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+      "kind": "unhealthy",
+      "needsContainer": false,
+      "implemented": true,
+      "question": "Does a bundle's declared language agree with the files it carries, with the positions stream beside it, and does that stream name a schema anything defines?",
+      "healthy": "The bundle's language admits the extension of every file it carries and of every path the positions stream names, and the stream's schema token is one this repository defines.",
+      "fires": "one finding per axis: a bundle file whose extension the declared language does not admit; a positions-stream path whose extension it does not admit; a positions stream whose schema token nothing defines",
+      "why": "`S5-POSITIONS-SCHEMA` requires the stream to STATE a token and republishes it verbatim - deliberately, because the token is the producer's statement and not the reader's - so a token nothing defines passes it perfectly. And nothing at all relates the bundle's `language` to the bundle's own contents or to the paths the positions stream names. A bundle declaring one language while carrying another's files is the second operator symptom in its purest form: the source shown and the execution recorded are not the same artefact, and every surface reports success.",
+      "scope": "rows that name a source bundle; the second axis additionally needs a positions sidecar",
+      "axisNote": [
+        "THE SCHEMA AXIS IS A KNOWN-TOKEN TEST AND NOT A LANGUAGE PAIRING, and the difference is",
+        "worth stating because the pairing is what the design first asked for. This repository",
+        "defines exactly ONE position-stream schema token - `POSITION_STREAM_SCHEMA` in",
+        "`tools/chain/lib/producer-facts.mjs` - so a rule pairing language to schema would have",
+        "one admissible pair and could not discriminate between anything. It would be a rule that",
+        "passes for free. The token being a DEFINED one is a real test with a real population, and",
+        "it is the gap `S5-POSITIONS-SCHEMA` leaves: that rule refuses an ABSENT token and",
+        "republishes whatever it is handed."
+      ]
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "needsStreamProbe": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against.",
+      "question": "Do the sidecar's per-step coordinates hold the coordinates the RECORDING holds - value by value, and not only column by column?",
+      "healthy": "For every step, the file the sidecar names and the line it gives are the ones the container wrote.",
+      "fires": "a step's (path, line) in the sidecar is not the (path, line) the container wrote for that step",
+      "why": "ONLY A COUNT COMPARISON EXISTS TODAY. `S5-POSITIONS-AGREE` refuses a stream whose step count differs from the recording's and `S5-POSITIONS-COLUMNS` refuses a column shorter than that count - both are about LENGTH, and both were written because a stream of the wrong length puts a source line against the wrong step. A stream of the RIGHT length with the wrong values does the same damage and is invisible to both. It is also the likeliest way to get it wrong: the sidecar's path indices are re-derived from the container's, and one producer here re-indexes them deliberately (it drops a synthetic pseudo-path at index 0), so an off-by-one in that remap produces a full-length, correctly-counted stream in which every step points at the wrong file.",
+      "scope": "rows whose container opened and that name a positions sidecar",
+      "reports": [
+        "stepsCompared",
+        "stepsDisagreeing",
+        "firstDisagreement"
+      ],
+      "reportsNote": "The number of steps COMPARED is published beside the number disagreeing, because a comparison over zero steps is the one input under which a value check reports success having measured nothing. The first disagreement travels with the finding: a count of wrong steps is not something anybody can act on."
     }
+  },
+  "containerClaimAgreements": {
+    "_comment": [
+      "WHICH FIGURE THE CONTAINER STATES, WHICH MEMBER THE ROW CLAIMS, AND THE RELATION BETWEEN",
+      "THEM. One entry per finding, so a finding covers exactly one claim member: two members",
+      "checked by one finding cannot be told apart in a log, and a producer's second copy of a",
+      "number is precisely the copy that drifts.",
+      "",
+      "`containerEqualsClaimPlus` IS A FACT ABOUT HOW THE RECORDER COUNTS, NOT AN ARITHMETIC",
+      "CONVENIENCE, which is why it is data with a `statedBy` rather than a constant in the tool.",
+      "A relation written as equality where the truth is +1 reddens every correct row; a check",
+      "with no relation at all accepts any number.",
+      "",
+      "`containerCount` names a key of the `counts` probe's payload. A claim member the row does",
+      "not carry puts the row out of scope - it is an absent measurement rather than a",
+      "disagreement - and the scope size is published so a zero is readable."
+    ],
+    "agreements": [
+      {
+        "id": "H-STEPS-DISAGREE",
+        "claim": "recording.steps",
+        "containerCount": "steps",
+        "containerEqualsClaimPlus": 0,
+        "statedBy": "src/blocktracer/chain/ingest.nim reads `recording.steps` as the recording's step count and refuses a positions stream of a different length; tools/chain/derive-positions.mjs reads the container's Step events as the same measurement and calls the row's count `the oracle`",
+        "justification": "The two are one measurement read twice - the driver counted the steps it recorded and the container holds them - so the relation is equality and there is nothing to offset."
+      },
+      {
+        "id": "H-CALLS-DISAGREE",
+        "claim": "recording.callsOpened",
+        "containerCount": "calls",
+        "containerEqualsClaimPlus": 1,
+        "statedBy": "src/blocktracer/chain/ingest.nim refuses a call trace unless `frames == callsOpened + 1`; tools/chain/derive-calltrace.mjs states the same relation and gives the two measurements it rests on",
+        "justification": "THE OFFSET IS THE SYNTHETIC TOP-LEVEL FRAME, which `callsOpened` does not count and the container does. Measured on two containers by the producer that states it: 2 Call records beside `callsOpened: 1`, and 46 beside `callsOpened: 45`. Writing this relation as equality would redden every correct row, and writing no relation would accept any count at all."
+      },
+      {
+        "id": "H-EVENTS-DISAGREE",
+        "claim": "recording.events",
+        "containerCount": "steps",
+        "containerEqualsClaimPlus": 0,
+        "statedBy": "measured over the committed corpus rather than stated by a producer: `recording.events` is written by the external replay driver and read by nothing in this repository",
+        "justification": "MEASURED 2026-09-28: 42 of 42 committed rows that carry both `recording.events` and `recording.steps` have them EQUAL, none differs. So `events` is a second copy of the step count and the container's step count is what it must agree with. The relation is derived from the corpus rather than from a producer because this member's producer is not in this repository - which is also why a second finding is worth having: an external producer's second copy of a number is the copy nothing here can see drift.",
+        "residual": "`recording.logEvents` (42 rows) is the member whose NAME suggests the container's `counts.io_events`, and no mapping to it is declared. It is written by nobody in this repository and read by nobody - `grep -rn logEvents` outside the committed snapshots returns zero hits - so there is no producer to derive the relation from and guessing one would be a figure nobody measured. Recorded here rather than assumed."
+      }
+    ]
+  },
+  "bundleLanguages": {
+    "_comment": [
+      "WHICH FILE EXTENSIONS A DECLARED BUNDLE LANGUAGE ADMITS.",
+      "",
+      "The table is narrow on purpose and its gaps are NOT passes: a bundle declaring a language",
+      "this table does not know is reported NOT RUN for the extension axes, with the language",
+      "named, and never as agreeing. A known-language list that treated an unknown language as",
+      "fine would be a rule anybody could satisfy by inventing a language name - and the shipped",
+      "conformance template declares `example-lang` deliberately, so that case is not theoretical.",
+      "",
+      "`positionStreamSchemas` is the closed set of tokens a positions stream may state. It has",
+      "one member because this repository defines one - `POSITION_STREAM_SCHEMA` in",
+      "`tools/chain/lib/producer-facts.mjs` - and the axis is a KNOWN-TOKEN test rather than a",
+      "language pairing for exactly that reason: a pairing with one admissible pair discriminates",
+      "between nothing."
+    ],
+    "languages": [
+      {
+        "language": "noir",
+        "extensions": [".nr"],
+        "statedBy": "tools/chain/snapshot-contract.json's vocabulary lists `noir` as a language term; every committed bundle declaring it carries `.nr` files and nothing else",
+        "justification": "Measured over the three committed noir bundles: the extension set of their `files` keys is exactly {.nr}, and the positions streams beside them name `.nr` paths. Noir's own source extension is `.nr`."
+      },
+      {
+        "language": "python",
+        "extensions": [".py"],
+        "statedBy": "fixtures/chain-health/readable-container/MAKING.md - the only bundle declaring it, whose container was written by a generator whose paths and program name are Python's",
+        "justification": "The one readable container in this repository interns `/workspace/demo/main.py` and `/workspace/demo/util.py`. Its bundle declares `python` because that is what those paths are, and the pair is what gives the extension axes a subject they can be shown to pass AND to fail on."
+      }
+    ],
+    "positionStreamSchemas": [
+      {
+        "schema": "avm-source-positions/1",
+        "statedBy": "tools/chain/lib/producer-facts.mjs POSITION_STREAM_SCHEMA - the single-sourced token every producer of a stream in this tree writes and `ingest.nim` republishes verbatim",
+        "justification": "`S5-POSITIONS-SCHEMA` refuses a stream that states NO token and republishes whatever it is handed, deliberately: the token is a statement about the stream's columns, so the producer that wrote the columns states it. The consequence is that a token nothing defines passes that rule perfectly, and this closed set is where that is refused."
+      },
+      {
+        "schema": "example-positions/1",
+        "statedBy": "conformance-kit/template/complete/coords/ - the shipped template's own positions stream",
+        "justification": "THE TEMPLATE'S DELIBERATE PLACEHOLDER, and it is listed rather than exempted by path. The kit's complete template names a fictional token in every field it can - `example-chain`, `example-recorder`, `example-lang`, `example-positions/1` - because its job is to show a recorder team the SHAPE of a conformant tree without asserting any real ecosystem's values. So the token is one this repository writes, which is what this set is: every token a producer here states. Exempting `conformance-kit/` by path would have worked too and is worse, because a path exemption silently covers every token the template ever grows, where a listed token is one line in a diff. Measured: without this entry the sweep raises the finding over the shipped template, which is noise rather than a defect."
+      }
+    ]
   },
   "containerSchema": {
     "_comment": [
