@@ -1471,6 +1471,127 @@ suite "a PRODUCER declares how its chain writes identifiers, and the reader keys
     ck both == identifierEncodingIds().sorted()
     ck unshardableIdentifierEncodingList() == "base64"
 
+  proc declareAttempt(tag: string, decl: JsonNode):
+      tuple[msg: string, tree: string, objects: int] =
+    ## The producer's whole answer to one declaration: the message it refused
+    ## with (empty when it did not refuse), the tree it wrote into, and HOW MANY
+    ## objects are in that tree. The object count is the load-bearing part —
+    ## "refused" and "refused before anything was written" are different claims,
+    ## and only the second one is worth having.
+    let snapDir = tmpDir(tag & "-snap")
+    copyDir(LiveMainnet, snapDir)
+    var snap = parseJson(readFile(snapDir / "snapshot.json"))
+    snap["provenance"]["identifierEncoding"] = decl
+    writeFile(snapDir / "snapshot.json", snap.pretty & "\n")
+    let tree = tmpDir(tag)
+    var msg = ""
+    try:
+      discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: snapDir))
+    except CatchableError as e:
+      msg = e.msg
+    removeDir snapDir
+    result = (msg, tree, relFiles(tree).len)
+
+  test "EVERY member of the closed set is decided before a byte is written":
+    # ── THE RULE, AND WHY IT IS A RULE RATHER THAN A SNAPSHOT ───────────────
+    #
+    # A chain publishes under the encoding it DECLARES, and the publisher's
+    # answer to a declaration is decided before anything is written. There are
+    # exactly two answers and there is no third: either the declaration is
+    # REFUSED, by name, and the tree is EMPTY; or it is ACCEPTED and a complete
+    # tree is published whose registry row states that member and whose sharded
+    # paths derive from it.
+    #
+    # The middle case is the one this arm exists to forbid — accepted at the top
+    # and then failing from inside a path builder, halfway through a tree, with
+    # objects already on disk. That is what an unshardable member did before the
+    # declaration was checked up front, and a tree half-written under a key
+    # layout nothing can recompute is worse than a refusal in exactly the way
+    # that matters: the refusal is recoverable and the half-tree is published.
+    #
+    # ── IT IS ASSERTED OVER THE WHOLE POPULATION, which is what makes it a rule.
+    #
+    # The members are `identifierEncodingIds()`, read out of the shared closed
+    # set at compile time, so a NINTH member added to
+    # `tools/chain/identifier-encodings.json` is exercised here the moment it
+    # exists. The arms above cover `hex`, `base64url` and `base64` one at a
+    # time, and a list of three cannot see a fourth: this is the same shape as
+    # a source scan whose subject list is written down, which cannot see a new
+    # file in the directory it claims to cover.
+    #
+    # ── AND THE PARTITION IS THE DATA'S, NOT THIS TEST'S ───────────────────
+    #
+    # Which half a member falls in is `isShardableIdentifierEncoding` — a
+    # question asked of the shared file, not answered here. So this arm says
+    # NOTHING about which chains are currently able to publish; that moves as
+    # the seam closes, and an arm naming today's blocked set would be a snapshot
+    # with an expiry date on it rather than a check. What it says is that the
+    # publisher's refusal set is EXACTLY the set the data declares unshardable,
+    # in both directions.
+    #
+    # THE CONTROL IS IN THE SAME RUN, and it is the accepted half. A refusal is
+    # only attributable to the declared encoding if some other declaration
+    # publishes in the same loop over the same capture — otherwise "it refused"
+    # is equally consistent with a producer that cannot publish at all.
+    let members = identifierEncodingIds()
+    # ANTI-VACUITY: an empty population satisfies every `for` below.
+    ck members.len >= 6
+    var refused, accepted: seq[string]
+    for enc in members:
+      let decl = %*{"block": enc, "transaction": enc, "address": enc}
+      let got = declareAttempt("closed-" & enc, decl)
+      if got.msg.len > 0:
+        refused.add enc
+        # REFUSED BEFORE ANYTHING WAS WRITTEN, which is the whole claim.
+        if got.objects != 0:
+          checkpoint("declaring '" & enc & "' refused with " & $got.objects &
+                     " object(s) already written: " & got.msg)
+        ck got.objects == 0
+        # …naming the member and the rule, so the refusal is a diagnosis.
+        ck got.msg.contains("'" & enc & "'")
+        ck got.msg.contains("S5-IDENTIFIER-ENCODING-SHARDABLE")
+      else:
+        accepted.add enc
+        # PUBLISHED, and the registry says what it was keyed with.
+        ck got.objects >= 20
+        let reg = rawRegistry(got.tree)
+        let slug = onlySlug(reg)
+        for kind in [KindBlock, KindTransaction, KindAddress]:
+          ck reg["chains"][slug]["identifierEncoding"][kind].getStr == enc
+        # …and a sharded object is at the address that declaration implies,
+        # recomputed here from the token rather than read back from the tree.
+        var found = 0
+        for p in relFiles(got.tree):
+          if not (p.startsWith("d/" & slug & "/tx/") and p.endsWith(".json")):
+            continue
+          let txHash = p.splitFile.name
+          if fileExists(got.tree / txFactsPath(slug, txHash,
+                        chainIdentifierEncoding({"transaction": enc}))):
+            inc found
+        ck found >= 1
+      removeDir got.tree
+    refused.sort()
+    accepted.sort()
+    # ── the two halves are the DATA's halves, in both directions ────────────
+    var wantRefused, wantAccepted: seq[string]
+    for enc in members:
+      if isShardableIdentifierEncoding(enc): wantAccepted.add enc
+      else: wantRefused.add enc
+    wantRefused.sort()
+    wantAccepted.sort()
+    if refused != wantRefused or accepted != wantAccepted:
+      checkpoint("refused " & refused.join(",") & " (declared unshardable: " &
+                 wantRefused.join(",") & "); published " & accepted.join(",") &
+                 " (declared shardable: " & wantAccepted.join(",") & ")")
+    ck refused == wantRefused
+    ck accepted == wantAccepted
+    # …and both halves are non-empty, so neither direction is vacuous and the
+    # accepted half is the control the refused half is attributable against.
+    ck refused.len >= 1
+    ck accepted.len >= 1
+    # Every member is in exactly one half, which is the partition itself.
+    ck refused.len + accepted.len == members.len
+
   test "a token outside the closed set is refused naming the set, not read as hex":
     let msg = refusedBy("decl-bad-token", %*{"block": "hex",
                                              "transaction": "base32",
@@ -2070,4 +2191,4 @@ suite "the boundary: who knows about each half of the seam":
       inc comparedTops
     ck comparedTops == 3
 
-expectCount(733)
+expectCount(777)
