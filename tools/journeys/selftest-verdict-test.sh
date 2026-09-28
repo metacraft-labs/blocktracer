@@ -266,12 +266,30 @@ echo "=== probe 6: --combine REFUSES a broken partition ==="
 # demands it refuse for THAT reason.
 #
 # Synthetic journals, built from the real shard lists, so no arm is executed.
+#
+# EVERY ARM `killed` EXCEPT THE ONES IN `known-survivors.json`, WHICH ARE
+# `survived`. The register fails in both directions — a registered arm that is
+# KILLED fails the combine by name, demanding its entry be deleted — so a
+# synthetic journal that marked every arm killed would make the CONTROL below
+# refuse for a reason that has nothing to do with the partition it is testing,
+# and every refusal after it would be unattributable. The journals have to
+# describe the run the register expects, which is exactly what a real shard
+# would write.
+#
+# It is read from the file rather than hard-coded here, so adding or closing a
+# register entry does not silently break this probe: the two cannot disagree.
 mkjournals() { # mkjournals <dir-tag> ; writes $SH journals from $LOGS/shard-i
   for i in $(seq 1 $SH); do
     python3 - "$LOGS/shard-$i" "$i" "$SH" "tools/journeys/.selftest-journal.shard-${i}of${SH}.json" <<'PY'
-import json, sys
+import json, sys, os
 src, i, of, dest = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 ids = [l.strip() for l in open(src) if l.strip()]
+reg = {}
+try:
+    with open(os.path.join("tools", "journeys", "known-survivors.json")) as f:
+        reg = json.load(f).get("known_survivors", {})
+except OSError:
+    pass
 json.dump({
     "startedAt": "2026-01-01T00:00:00.000Z",
     "finishedAt": "2026-01-01T00:10:00.000Z",
@@ -279,7 +297,8 @@ json.dump({
     "planned": len(ids),
     "armFilter": None,
     "shard": {"i": i, "of": of},
-    "arms": [{"id": a, "verdict": "killed", "ms": 1000} for a in ids],
+    "arms": [{"id": a, "verdict": ("survived" if a in reg else "killed"), "ms": 1000}
+             for a in ids],
     "lastArmStarted": None,
 }, open(dest, "w"))
 PY
@@ -359,12 +378,28 @@ ck "6d/exits 2 (did-not-run), not 0 and not 1 (got $rc)" $?
 
 # 6e — the arms are all present but one SURVIVED. The partition is fine and the
 # suite is not: this must be FAILED, distinct from every DID NOT RUN above.
+#
+# THE SURVIVOR IS PLANTED ON AN ARM THAT IS NOT IN `known-survivors.json`, and
+# it has to be chosen rather than taken: a registered arm's survival is EXCUSED
+# by design, so planting one there would make this probe assert the opposite of
+# what its name says and it would pass for the wrong reason the day the
+# register's contents and shard 1's first arm happened to coincide. Chosen by
+# reading the register, not by hard-coding an index, so the two cannot drift.
 mkjournals
 python3 - "tools/journeys/.selftest-journal.shard-1of${SH}.json" <<'PY'
-import json, sys
+import json, sys, os
 p = sys.argv[1]
 j = json.load(open(p))
-j["arms"][0]["verdict"] = "survived"
+reg = {}
+try:
+    with open(os.path.join("tools", "journeys", "known-survivors.json")) as f:
+        reg = json.load(f).get("known_survivors", {})
+except OSError:
+    pass
+victim = next((a for a in j["arms"] if a["id"] not in reg), None)
+if victim is None:
+    raise SystemExit("6e: every arm in shard 1 is registered — no unexcused survivor to plant")
+victim["verdict"] = "survived"
 json.dump(j, open(p, "w"))
 PY
 node tools/journeys/selftest.mjs --combine $SH > "$LOGS/c5" 2>&1
