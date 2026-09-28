@@ -385,7 +385,20 @@ const ARMS = [
       " assertion in this file: the fixture was standing in for a dead live path and" +
       " nothing compared the two. The arm's target is the control that now does — a" +
       " hydrated row count equal to the served one is the signature, and it is the" +
-      " thing a reader would never notice by looking at the pane.",
+      " thing a reader would never notice by looking at the pane." +
+      " THIS ARM SURVIVED, AND THE ARITHMETIC IS WHY — the mutation is unchanged" +
+      " and the assertion it names is what moved. The control read the UNION" +
+      " `.ctrow,.evrow` against the served union, and a sum cannot say which" +
+      " addend moved. Measured across this mutation, on this arm's own subject:" +
+      " the CALL TRACE falls back to exactly the twelve rows the exporter wrote" +
+      " (12 against 12, the defect stated as an equality) while the EVENT LOG does" +
+      " not move at all — 20 rows against 8 served, mutated and unmutated alike," +
+      " because dropping BlockTracer's own feed does not stop the pinned store" +
+      " applying `ct/updated-events` for itself. Union: 32 against 20," +
+      " 'different', GREEN —" +
+      " with the call trace showing the exporter's rows. The control now asks each" +
+      " region against its OWN served baseline and requires BOTH, which is the" +
+      " same repair arm M's reading forced on the real assertion one screen down.",
     file: join(CLIENT, "hydrate", "live_navigation.nim"),
     find: `  if feed == nil or event == nil or event.kind != JObject: return`,
     replace: `  if true: return`,
@@ -991,12 +1004,55 @@ proc noteFor*`,
       " journey exists to exclude, made real: 'the row does not paint a path' is" +
       " still true — truer than before — and the pane has quietly stopped being able" +
       " to say where any frame is. It is also the live defect, because" +
-      " `hydrate.rowsOf` resolves a `src:` deep link against this attribute.",
+      " `hydrate.rowsOf` resolves a `src:` deep link against this attribute." +
+      " THIS ARM WAS DEAD FOR 24 DAYS AND SAID SO EVERY RUN, WHICH IS THE ONLY" +
+      " REASON IT IS RECOVERABLE. `f388cdf` (2026-09-04, the folding pane) split" +
+      " one row renderer into three — a `<summary>` for a folded parent, an `<a>`" +
+      " for a linked row, a `<div>` for the rest — and re-indented the third by" +
+      " four columns. The `find` still carried the OLD indentation, so it matched" +
+      " zero times and `selftest.mjs` reported NEVER RAN rather than a verdict." +
+      " That commit edited this file and did not move this arm, which is how a" +
+      " renderer split can take an arm with it." +
+      " IT NOW NAMES ALL THREE RENDERERS, and that is not tidiness. Mutating only" +
+      " the `<div>` arm would leave the `<summary>` and `<a>` rows still carrying" +
+      " `data-module`, and the assertion is a floor (`counted 40, needs at least" +
+      " 1`) — so a one-renderer mutation would SURVIVE while the title went on" +
+      " claiming the path had left the row. 'Stop stating the path as data on the" +
+      " row' is a claim about the row, and the row has three spellings.",
     file: join(CLIENT, "src", "components", "debugger.nim"),
-    find: `            tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
-                 title = tip, \`data-module\` = f.module):`,
-    replace: `            tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
-                 title = tip, \`data-module\` = ""):`,
+    // THE WHOLE THREE-WAY BRANCH, because `\`data-module\` = f.module` occurs
+    // three times and `find` demands exactly one occurrence. Spanning the
+    // branch is also what makes the mutation honest: see the note above.
+    find: `      ui:
+        summary(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+                title = tip, \`data-module\` = f.module):
+          raw frameCells(f)
+    elif f.href.len > 0:
+      ui:
+        a(class = cls, href = f.href, \`data-step\` = $f.step,
+          \`data-anchor\` = f.anchor, title = tip,
+          \`data-module\` = f.module):
+          raw frameCells(f)
+    else:
+      ui:
+        tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+             title = tip, \`data-module\` = f.module):
+          raw frameCells(f)`,
+    replace: `      ui:
+        summary(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+                title = tip, \`data-module\` = ""):
+          raw frameCells(f)
+    elif f.href.len > 0:
+      ui:
+        a(class = cls, href = f.href, \`data-step\` = $f.step,
+          \`data-anchor\` = f.anchor, title = tip,
+          \`data-module\` = ""):
+          raw frameCells(f)
+    else:
+      ui:
+        tdiv(class = cls, \`data-step\` = $f.step, \`data-anchor\` = f.anchor,
+             title = tip, \`data-module\` = ""):
+          raw frameCells(f)`,
     journey: "call-trace-names-its-frames-in-full",
     assertion: "SERVED: rows carry their path as data",
   },
