@@ -764,10 +764,25 @@ jobs:
             nim c -r --hints:off src/blocktracer_validate.nim demo-site'
 
       - name: Determinism — regenerate and diff
+        # BOTH HALVES INSIDE THE SHELL, and the `diff` is why this step is being
+        # touched at all. It sat on its own line, outside the `nix develop`, and
+        # the self-hosted NixOS runner has no `diff` in its ambient PATH — so
+        # every run of this job since the toolchain moved into the flake ended
+        # `line 3: diff: command not found`, exit 127. The generator ran twice
+        # and nothing compared the two trees: a step named for a comparison it
+        # was not making, failing for a reason that says nothing about
+        # determinism.
+        #
+        # `pkgs.mkShell`'s stdenv puts `diffutils` on PATH, which is where every
+        # other shell gate in this file gets the `diff` it uses
+        # (`ci/test/ct-styles-vendor.sh`, `client-sdk-boundary-test.sh`), and it
+        # is the same one-command-per-step shape the rest of the job already
+        # has. The `&&` keeps the comparison from running against a tree the
+        # second generate did not finish writing.
         run: |
           nix develop .#ci --command bash -c '
-            nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2'
-          diff -r demo-site demo-site-2
+            nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2 &&
+            diff -r demo-site demo-site-2'
 
       - name: Does the conformance kit reach a verdict with no toolchain, no checkout and no network?
         # 10 checks. A recorder for a chain nobody here has run answers "does my
