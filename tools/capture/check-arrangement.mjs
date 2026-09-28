@@ -121,14 +121,71 @@ async function measure(page, origin, route) {
   if (!res) fail(`${route} returned no response in one of the trees`);
   if (res.status() >= 500) fail(`${route} answered ${res.status()} in one of the trees`);
   // Fonts decide line boxes, and a box measured before they load is a
-  // measurement of the fallback stack.
+  // measurement of the fallback stack. Awaiting `document.fonts.ready` ONCE is
+  // not enough and this is not theoretical: an early run of this check, on a
+  // loaded machine, reported a handful of differing boxes comparing a tree
+  // against ITSELF, and five later runs of the same comparison were clean. A
+  // check that can report a move that did not happen is worth nothing, because
+  // the response to a flaky guard is always to stop believing it.
+  //
+  // Same remedy `lib/determinism.mjs` uses for the captures, and for the same
+  // reason: the promise settles when the fonts KNOWN AT THAT MOMENT have
+  // loaded, so a face requested by a rule that had not been applied yet is not
+  // covered by it. Await, let the page settle, await again, and let two frames
+  // pass so any layout the second load invalidated has actually been redone.
   await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(250);
+  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(() => new Promise((r) =>
+    requestAnimationFrame(() => requestAnimationFrame(r))));
+  // WAIT FOR THE SCROLL POSITION TO STOP MOVING.
+  //
+  // The home page autofocuses its resolver field — the review brief requires
+  // the focus ring to be rendered on load — and focusing an element scrolls it
+  // into view. With `html{scroll-behavior:smooth}`, also declared by the sheet
+  // under test, that scroll is ANIMATED, so the page is still drifting a few
+  // pixels when the load event and the font promises have all settled.
+  //
+  // This is not a hypothetical either. Three self-comparisons of one tree
+  // against itself produced `.nav[0]: 0,3,1920,64 -> 0,4,1920,64` on `/` — a
+  // one-pixel difference in a check whose entire output is exact equality,
+  // i.e. a false report that the top bar had moved. `measureBoxes` below makes
+  // that impossible by construction; this loop additionally stops the
+  // measurement landing mid-animation.
+  await page.evaluate(async () => {
+    let last = -1;
+    for (let i = 0; i < 40 && last !== window.scrollY; i++) {
+      last = window.scrollY;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+  });
   return page.evaluate((sels) => {
     const out = {};
     for (const sel of sels) {
       out[sel] = [...document.querySelectorAll(sel)].map((n) => {
         const r = n.getBoundingClientRect();
-        return [r.x + scrollX, r.y + scrollY, r.width, r.height].map(Math.round).join(",");
+        // A page-absolute box is `rect + scroll` for anything in flow, and that
+        // sum is scroll-INVARIANT: scroll the page and both terms move by the
+        // same amount in opposite directions. For an element anchored to the
+        // VIEWPORT the rect is already final — it does not move when the page
+        // scrolls — so adding the scroll offset makes its recorded box depend
+        // on where the page happened to be sitting when it was measured.
+        //
+        // The test walks ANCESTORS and not just the element. `.nav` is
+        // `position:fixed`; `.nav .inner`, `.brand`, `.nav form`, `.nav input`
+        // and `.nav .links` are all `static` children of it and are carried by
+        // it, so they are viewport-anchored too while reporting a position
+        // that says otherwise. Testing only the element itself fixed `.nav`
+        // and left its five children reading `y = 576` on a page the browser
+        // had scrolled — which is every part of the top bar, the one thing the
+        // operator's constraint names first.
+        let anchored = false;
+        for (let a = n; a; a = a.parentElement) {
+          if (getComputedStyle(a).position === "fixed") { anchored = true; break; }
+        }
+        const x = anchored ? r.x : r.x + scrollX;
+        const y = anchored ? r.y : r.y + scrollY;
+        return [x, y, r.width, r.height].map(Math.round).join(",");
       });
     }
     // Not geometry: the document's own shape. A rule cannot change this, so a

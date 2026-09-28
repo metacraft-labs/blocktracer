@@ -816,11 +816,33 @@ table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
    is the whole of what "tab bars look like CodeTracer's" can mean in a product
    that has one tab strip per register.
 
-   The mappings, each one a role and not a colour: `border-primary` is
-   `--bt-border-default`, `border-contrast` is `--bt-border-strong`,
+   The mappings, each one a role and not a colour: `text-primary-body` is
+   `--bt-text-strong`, `border-primary` is `--bt-border-default`,
+   `border-contrast` is `--bt-border-strong`,
    `surface-primary-secondary-hover` is `--bt-surface-hover`, the `0.125em`
    rail is `--bt-stroke-thick` and the `0.375em` corner is `--bt-radius-xs`,
    which is the chip rung both registers share after EXPLORER-TINT.md T-1.
+
+   FIVE OF THOSE SIX ARE CONFIRMED AGAINST AN INDEPENDENT DERIVATION, and one
+   of them was wrong until it was. The branch porting CodeTracer's component
+   layer into the DEBUGGER register carries a `Bridge` table that maps
+   CodeTracer's role names onto `--bt-*` roles by reading both products'
+   generated token layers, and it agrees with this rule on `border-primary`,
+   `border-action`, `surface-primary-secondary-hover` and the status borders.
+   It disagreed on the tab's RESTING colour, and it was right: `.ct-tab` rests
+   at `colors-ui-text-primary-body`, which resolves to `--bt-text-strong`, and
+   this rule had `--bt-text-muted`. That is `text-primary-body-subtle` — and
+   `.ct-tab[data-disabled="true"]` is muted text over a `border-primary` rail,
+   so every resting tab was wearing very nearly the component's DISABLED
+   appearance: a strip of four files, none of them looking reachable, on the
+   page whose whole subject is the source.
+
+   So the tab rests at full strength and hover changes no colour at all, which
+   is `.ct-tab` exactly — the state is the rail and the fill and nothing else.
+   `border-contrast` is the one role that table does not carry, because
+   `tab.styl` is not among the files it vendors; `--bt-border-strong` is where
+   its sibling `border-primary-hover` lands, which is the same
+   one-rung-up-on-hover move.
 
    NO SELECTED STATE, AND THAT IS NOT AN OMISSION. Every file in the bundle is
    rendered, stacked, on this one page; the strip jumps to them rather than
@@ -832,8 +854,8 @@ table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
    The padding, the gap and the wrap are unchanged, so the strip occupies the
    same box it did. */
 .filetree{display:flex;gap:var(--bt-space-sm);flex-wrap:wrap;margin-bottom:var(--bt-rhythm-stack)}
-.filetree a{border:0;border-bottom:var(--bt-stroke-thick) solid var(--bt-border-default);border-radius:var(--bt-radius-xs);padding:var(--bt-space-3xs) var(--bt-space-xs);color:var(--bt-text-muted);background:none;font-size:var(--bt-type-caption-size);transition:background var(--bt-motion-fast) var(--bt-motion-ease),border-color var(--bt-motion-fast) var(--bt-motion-ease),color var(--bt-motion-fast) var(--bt-motion-ease)}
-.filetree a:hover{background:var(--bt-surface-hover);border-bottom-color:var(--bt-border-strong);color:var(--bt-text-strong)}
+.filetree a{border:0;border-bottom:var(--bt-stroke-thick) solid var(--bt-border-default);border-radius:var(--bt-radius-xs);padding:var(--bt-space-3xs) var(--bt-space-xs);color:var(--bt-text-strong);background:none;font-size:var(--bt-type-caption-size);transition:background var(--bt-motion-fast) var(--bt-motion-ease),border-color var(--bt-motion-fast) var(--bt-motion-ease)}
+.filetree a:hover{background:var(--bt-surface-hover);border-bottom-color:var(--bt-border-strong)}
 
 /* ── a source file is a PANE ────────────────────────────────────────────────
    `.codefile` + `.codehead` + `.codeview` is a pane, a pane header and a pane
