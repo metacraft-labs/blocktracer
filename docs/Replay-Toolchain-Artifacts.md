@@ -197,3 +197,60 @@ two runtimes rather than a measurement of either.
 
 **Freeze the runtime before launching a corpus**, and record its commit in the run's
 own ledger rather than only per row.
+
+---
+
+# A defect class this codebase keeps producing: right at one level, wrong at another
+
+Four defects found in one week share a shape, and naming it is worth more than
+any one of the fixes. In each case a component is **correct in the context it was
+written for** and wrong when a second consumer arrives at a different scale or
+cardinality. None is a bug in the usual sense; every one of them passed its own
+reasoning.
+
+| # | component | correct for | wrong for |
+|---|---|---|---|
+| 1 | `ingest.nim`'s registry merge | merging **within one tree** | two chains ingested into two trees; the second publish overwrote the first |
+| 2 | `chainInfo` caching | `buildGlobalHashIndex`, which caches it and says why | the render loop, which does the thing that comment forbids |
+| 3 | `renderRoute`'s generation pin (PR #31) | one navigation — fixed the **double** open | an export — the **per-route** open remained |
+| 4 | `blockRefsNewestFirst` | a client fetching **one page at a time** | an exporter calling it 288,046 times |
+
+The tell is always the same: a comment states the correct reasoning **for its own
+level**, and that reasoning is then read as covering a level it never addressed.
+#2 is the sharpest — the hazard is described accurately, in this repository, one
+function away from where it is live.
+
+## Its most common form: measured the count, missed the cost
+
+Three of this week's measurements were true and answered a different question
+than the one being asked.
+
+* **`newDataRoot`'s test** asserts "constant per-page cost … as counts of reads".
+  The read *count* is constant and the test is sound. Three of those reads are
+  whole-chain singletons whose *bytes* grow with the chain — 421 KB at 10k blocks,
+  6.8 MB at 102k. The property holds on fixtures and is blind to the real cost.
+* **`blockRefsNewestFirst`'s own header**: "ordering a chain's blocks costs
+  O(epochs) **reads** instead of O(blocks)". True about reads. The function still
+  materialises O(blocks) in memory, and dedups with `if h in seen` over a `seq`,
+  which is O(blocks²) inside one call.
+* **My own reading** of the exporter: chain data was present in `dist` after a
+  run, which I took as evidence the exporter was additive. It was evidence the
+  exporter had *regenerated its fixture*. The observation was real and answered a
+  different question.
+
+**When a metric is cheap to reach, check that it is the one that discriminates.**
+Reads are easy to count; bytes are what cost. Presence is easy to check;
+provenance is what mattered.
+
+## And a rule for investigating these
+
+Four mechanisms were proposed for one super-linear curve. Three were refuted —
+directory-insert cost (measured at **0.1%** of per-page time), "linear and
+enormous" (refuted by a third data point), and re-parsing `root.json` (fixed; the
+curve barely moved, ~23%). **All three fit the curve.** A mechanism that is real
+and a curve that fits are not evidence that the mechanism causes the curve.
+
+Prefer the candidate whose cost you can **derive from the code's shape** over the
+one that merely fits — and where a cheap counter can settle it, count before you
+build. Two of these cost a build-and-measure cycle each and a counter would have
+cost minutes.
