@@ -151,3 +151,49 @@ pruning only `ct/` preserves the union the maps need, but does not fix the
 whose object is already published.** That is its own piece of work and it is not
 optional — it is what stands between "one tree that fits on disk" and "a corpus
 that does not".
+
+## 4. `static_export` CLEARS its output directory, and the evidence that says otherwise is lying
+
+`dataOrigin` and the output directory **must be different directories**.
+
+Pointing the exporter's output at the assembled data tree — to avoid copying 12 GB —
+took it from **496,850 objects to 577**. The exporter clears `dist` before writing.
+
+The trap is not the clearing; it is the earlier observation that seemed to rule it
+out. Running the default exporter over a `dist` that already held chain data left
+chain data there afterwards, which read as "the exporter is additive". It was not:
+the exporter had **regenerated its own demo fixture**, and what survived was its
+output rather than the input. *The observation was real and it answered a different
+question.* `aztec` going from 50 blocks to 170 is the tell — 170 is exactly what the
+demo fixture carries, and exactly what production serves today, so the wrong result
+looks like a plausible one.
+
+Two consequences worth keeping:
+
+* **A plain `just export` must never be used to build the go-live tree.** It
+  regenerates the fixture and overwrites real chain data with it. The go-live build
+  is `-d:dataOrigin=<assembled-tree> -d:noDemoChain`, with the output somewhere else.
+* The exporter enumerates `client/fixtures/chain/` (`static_export.nim:600`) and
+  aborts if the data origin lacks any chain it finds there — so the assembled tree
+  must carry `aztec-testnet-frames` as well, and `-d:noDemoChain` is what excuses the
+  `demo` chain.
+
+Recovery cost was 79 seconds, and only because every source snapshot survived. The
+rule that made that true is worth stating on its own: **the assembled tree is a
+rendering, never the only copy.**
+
+## 5. Do not edit the runtime while a corpus is running
+
+The testnet corpus was recorded by **two different runtime builds** — 3,530
+transactions under `231bc72` and 16,122 under `de635c3` — because the driver is
+spawned per transaction and re-reads its sources every time, so commits landed
+mid-run and later chunks silently picked them up.
+
+Nothing is corrupt: every row records its own `recordedBy`, which is how this was
+found at all. But the aggregate blends two behaviours, and the difference is not
+small — divergence was **6.1%** under the earlier build and **12.1%** under the
+later one. Any yield figure quoted over the whole corpus is a weighted average of
+two runtimes rather than a measurement of either.
+
+**Freeze the runtime before launching a corpus**, and record its commit in the run's
+own ledger rather than only per row.
