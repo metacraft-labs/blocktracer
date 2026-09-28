@@ -102,6 +102,43 @@ treatment, and it is the fade", stated at `.src` in `debugger_css.nim`.
 
 ---
 
+## 1a. Why this does not consume `bt/ct-components`'s layer
+
+That branch ports the same CodeTracer component stylesheets into the
+**debugger** register, by a better mechanism than this one: it vendors the
+`.styl` bytes and transpiles them (`design_system/ct_styl.nim`,
+`components/ct_components_css.nim`), so the rules are CodeTracer's own and not
+a transcription. The obvious question is why this branch does not simply
+consume it.
+
+**Because that layer is scoped out of the explorer on purpose, and its own
+header says so:**
+
+> The port carries bare element selectors — `button`, `input`, `tr`, `td`,
+> `table` — so unscoped it would restyle the whole explorer, **which a
+> different branch owns**. Every selector is therefore prefixed with
+> `[data-register="debugger"]`.
+
+Un-scoping it to reach the explorer is the one thing it must not do. Those bare
+selectors carry the desktop application's density — `button{flex: 0 0 1.75em}`,
+`input{font-size: 0.875rem; padding: 0.25em 0.75em}` — and Design-System.md §2
+makes density the property the two registers do **not** share. Importing them
+wholesale is precisely what §3 of the review brief calls a regression dressed
+as a win.
+
+So the two branches are disjoint by construction, and the file lists confirm
+it: the only file both touch is the `Justfile`, and each adds its own recipe.
+What the explorer needs is the *declarations* re-decided per rule against a
+light canvas and a web-register density — which is a judgement per rule, which
+is why each one below carries its reasoning and six were declined outright.
+
+**What this branch did take from it is the arithmetic.** Its `Bridge` table
+derives CodeTracer-role → `--bt-*` mappings by reading both products' generated
+token layers, rather than by hand. Checked against it, five of this pass's six
+mappings agree exactly; the sixth was wrong, and `.filetree a` rested in very
+nearly `.ct-tab`'s *disabled* appearance until that cross-check caught it. The
+correction is its own commit.
+
 ## 2. Declined, with the reason
 
 ### D-C1 — Do not adopt CodeTracer's inset focus ring
@@ -208,9 +245,16 @@ footer, and the full tag-plus-class sequence of the document.
 node tools/capture/check-arrangement.mjs <before-dist> <after-dist>
 ```
 
-Run on 2026-09-25 over `/`, `/chains`, `/demo`, `/demo/txs`, the transaction
-page, the contract-source page and the 404. **1083 boxes compared, 7 routes**, of
-which 282 are unchanged and 801 differ — 784 of those in y or height only.
+**The baseline is `bt/ct-components`, not `dev`.** This branch is rebased onto
+the debugger register's own port of the same CodeTracer component layer, so
+comparing against `dev` would attribute that branch's changes to this one. The
+before-tree is a `git archive` of `origin/bt/ct-components` built with the same
+exporter, which makes every difference below one of this branch's three
+commits.
+
+Run on 2026-09-28 over `/`, `/chains`, `/demo`, `/demo/txs`, the transaction
+page, the contract-source page and the 404. **1064 boxes compared, 7 routes**,
+of which 273 are unchanged and 791 differ — 774 of those in y or height only.
 
 | Claim | Measured |
 | --- | --- |
@@ -218,11 +262,11 @@ which 282 are unchanged and 801 differ — 784 of those in y or height only.
 | **The transaction details panel is where it was** | `.dl` on the transaction page: `504,779` before and after, width `912` before and after. **Its x and its width never change on any route.** Its height changed by 1px, and one `dd` moved down 1px |
 | **Nothing was added, removed, renamed or reordered** | the tag-plus-class sequence of `body *` is **identical** on all seven routes — 0 document-shape changes, 0 element-count changes |
 | **No page was restructured** | `.pagebody`, `section.sec` and `section.sec > .inner` hold their x and their width everywhere; only their heights move, by 1–16px |
-| **The embedded product-register session is untouched** | `.livedemo` keeps its size exactly — 912×523 before and after. Its 28 internal boxes — `.pane`, `.panehead`, `.stacktabs`, `.srctab`, `.srcline` and the rest — differ by exactly `(dx 0, dy −1, dw 0, dh 0)`, all 28 of them: the whole embed slid one pixel because a badge above it on the home page got a pixel shorter. Nothing in it was redrawn |
-| **The debugger route is untouched** | `/…/debug` — **57 boxes, 0 differing**, including `.pane`, `.panehead`, `.stacktabs`, `.srctabs`, `.mddl` and `pre.raw`. This matters because `components/styles.nim` is inlined into every page, so this branch's changes to `.badge`, `.btn` and `.notice` DO reach a surface another branch owns |
+| **The embedded product-register session is untouched** | `.livedemo` keeps its size exactly — 912×523 before and after. Its 19 internal boxes — `.pane`, `.panehead`, `.stacktabs`, `.srctab`, `.srcline` and the rest — differ by exactly `(dx 0, dy −1, dw 0, dh 0)`, all 19 of them: the whole embed slid one pixel because a badge above it on the home page got a pixel shorter. Nothing in it was redrawn |
+| **The debugger route is untouched** | `/…/debug` — **47 boxes, 0 differing**, including `.pane`, `.panehead`, `.stacktabs`, `.srctabs`, `.mddl` and `pre.raw`. This matters because `components/styles.nim` is inlined into every page, so this branch's changes to `.badge`, `.btn` and `.notice` DO reach a surface another branch owns |
 
 **The whole class of difference that is never "finish" — x or width — is 17
-boxes out of 1083, and there are exactly two causes:**
+boxes out of 1064, and there are exactly two causes:**
 
 | element | dx | dwidth | count | cause |
 | --- | --- | --- | --- | --- |
@@ -234,7 +278,7 @@ boxes out of 1083, and there are exactly two causes:**
 
 **Nothing outside a `.notice` or the tab strip changed its x or its width
 anywhere in the corpus**, and both are elements this pass deliberately
-re-drew. The remaining 784 differences are y and height, from four causes:
+re-drew. The remaining 774 differences are y and height, from four causes:
 
 1. **1px down-shifts of badges and the rows containing them**, on every page
    with a `.badge`. `vertical-align:middle` changes where the chip sits on its
@@ -246,7 +290,7 @@ re-drew. The remaining 784 differences are y and height, from four causes:
    `--bt-density-cell-y`. The panes keep their x and their width; the tab strip
    above them keeps its own left edge and its own top.
 4. **The home page's embedded session, sliding 1px as one rigid block** — the
-   28 boxes described in the table above.
+   19 boxes described in the table above.
 
 ### 3a. The check decides — the negative control
 
