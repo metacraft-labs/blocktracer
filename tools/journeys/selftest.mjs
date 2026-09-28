@@ -2059,6 +2059,86 @@ process.on("exit", () => {
   logSync(`RESULT: DID NOT RUN — the run ended without a verdict ${progressSoFar()}.`);
 });
 
+// ── the known-survivor register ────────────────────────────────────────────
+//
+// `known-survivors.json` names arms whose mutation IS applied and whose named
+// assertion does not see it, because the SUBJECT that would see it does not
+// exist in the corpus the journeys drive. It is the same idiom, and the same
+// trade, as `ledger.json` beside it and `ci/test/ci-coverage.known-dark.txt`
+// one directory over: the debt is visible and dated rather than silently green.
+//
+// IT FAILS IN BOTH DIRECTIONS, and the second direction is the point. A
+// registered arm that survives is reported and does not fail the run; a
+// registered arm that is KILLED fails the run by name, so an entry cannot
+// outlive the gap it records. A one-directional register is how a suite comes
+// to describe a product that no longer exists — which is the sentence
+// `ledger.json` already carries, applied one layer down.
+//
+// ONLY A SURVIVAL IS EXCUSED. A registered arm reporting NEVER RAN still fails.
+// An entry claims "the mutation reaches the artefact and the assertion is green
+// with the defect in place"; a `find` that stopped matching, an assertion that
+// was renamed and a tree that did not come back are none of them that claim,
+// and an entry that swallowed them would be the exemption list this is not.
+const SURVIVOR_FIELDS = ["reason", "cause", "subject", "closed_by", "evidence", "recorded"];
+
+function loadKnownSurvivors() {
+  try {
+    const parsed = JSON.parse(readFileSync(join(HERE, "known-survivors.json"), "utf8"));
+    return parsed.known_survivors ?? {};
+  } catch {
+    // A register that cannot be read is an EMPTY one, deliberately: the failure
+    // mode of "could not parse, so excuse nothing" is a red run that names the
+    // arm, which is loud. The opposite default excuses everything, quietly.
+    return {};
+  }
+}
+
+const KNOWN_SURVIVORS = loadKnownSurvivors();
+
+const isRegistered = (id) => Object.prototype.hasOwnProperty.call(KNOWN_SURVIVORS, id);
+
+/**
+ * What is WRONG WITH THE REGISTER ITSELF, as a list of sentences.
+ *
+ * Checked before anything is spent, in `main` and in `combine`, because both of
+ * the faults below are global facts about the file and neither depends on which
+ * arms were exercised. A register that can accrue names nobody checks is a
+ * register that will one day excuse an arm that came back.
+ */
+function registerProblems() {
+  const out = [];
+  for (const [id, entry] of Object.entries(KNOWN_SURVIVORS)) {
+    if (!ARMS.some((a) => a.id === id)) {
+      out.push(`AN ARM NO LONGER IN THIS FILE  ${id}  (known-survivors.json is stale)`);
+      continue;
+    }
+    const missing = SURVIVOR_FIELDS.filter((f) => !String(entry?.[f] ?? "").trim());
+    if (missing.length > 0) {
+      out.push(
+        `INCOMPLETE REGISTER ENTRY  ${id}  — missing ${missing.join(", ")}.` +
+          " An entry without all six says a gap exists and nothing about what would close it.",
+      );
+    }
+  }
+  return out;
+}
+
+/** The register's own cost, printed wherever a run is about to say OK. */
+function printRegister(excusedIds) {
+  if (excusedIds.length === 0) return;
+  log("");
+  log(`  ${excusedIds.length} registered survivor(s) — recorded, not excused away:`);
+  for (const id of excusedIds) {
+    const e = KNOWN_SURVIVORS[id];
+    log(`    ${id}   (recorded ${e.recorded})`);
+    log(`      needs a subject: ${e.subject.split(". ")[0]}.`);
+    log(`      closed by: ${e.closed_by.split(". ")[0]}.`);
+  }
+  log("  A registered arm is one whose mutation REACHES the artefact and whose");
+  log("  assertion is green with the defect in place. This run is green because that");
+  log("  debt is written down with what would close it, NOT because it is closed.");
+}
+
 /** What the PREVIOUS run's journal says, or `null` if there is none. */
 function previousRun() {
   try {
@@ -2099,6 +2179,26 @@ function timingTable(arms) {
 function combine(n) {
   log("=== journey selftest — combining shards ===");
   log("");
+  // THE REGISTER IS CHECKED BEFORE ANYTHING IS SPENT, and it refuses rather
+  // than failing. A stale or incomplete `known-survivors.json` is not a fact
+  // about the product — it is a run that cannot respect its own register, and
+  // discovering that after forty minutes of arms would be the same waste
+  // `--list-shard` exists to avoid one layer up. Exit 2, so it reads as the
+  // refusal it is and not as a verdict about an arm.
+  {
+    const problems = registerProblems();
+    if (problems.length > 0) {
+      for (const line of problems) log(`  ${line}`);
+      finish(
+        "did-not-run",
+        "RESULT: DID NOT RUN — known-survivors.json does not describe this arm list, so no\n" +
+          "        verdict here could respect it. Fix the register, then re-run.",
+        2,
+      );
+      return;
+    }
+  }
+
   const shards = [];
   const missing = [];
   for (let i = 1; i <= n; i += 1) {
@@ -2165,12 +2265,40 @@ function combine(n) {
   for (const a of notKilled) {
     log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}  [shard ${a.shard}]`);
   }
-  if (notKilled.length > 0) {
-    finish("failed", "RESULT: FAILED — every arm must be killed by the assertion written for it", 1);
+
+  // THE REGISTER IS APPLIED HERE TOO, and this is the place it most has to be:
+  // `--combine` is where "the full set" is claimed, so a rule the shards apply
+  // and the combine does not would make the suite's own headline verdict
+  // disagree with every leg of it.
+  const excused = all.filter((a) => a.verdict === "survived" && isRegistered(a.id));
+  const revived = all.filter((a) => a.verdict === "killed" && isRegistered(a.id));
+  const unexcused = notKilled.filter((a) => !(a.verdict === "survived" && isRegistered(a.id)));
+  for (const a of unexcused.filter((x) => isRegistered(x.id))) {
+    log(`  ${a.id} IS IN known-survivors.json, AND THAT DOES NOT COVER A ${a.verdict.toUpperCase()}.`);
+  }
+  for (const a of revived) {
+    log(`  REGISTERED BUT KILLED  ${a.id}  [shard ${a.shard}] — the gap is closed; DELETE THE ENTRY.`);
+  }
+
+  if (unexcused.length > 0 || revived.length > 0) {
+    finish(
+      "failed",
+      "RESULT: FAILED — every arm must be killed by the assertion written for it," +
+        " or be in known-survivors.json with what would close it",
+      1,
+    );
     return;
   }
   log("  Each journey reddens on the defect it exists to catch, and only then.");
-  finish("ok", "RESULT: OK", 0);
+  printRegister(excused.map((a) => a.id));
+  finish(
+    "ok",
+    excused.length > 0
+      ? `RESULT: OK\n        ${excused.length} arm(s) were NOT killed and are in` +
+          " known-survivors.json, with what would close each."
+      : "RESULT: OK",
+    0,
+  );
 }
 
 /**
@@ -2618,6 +2746,25 @@ async function strandedMutations() {
 }
 
 async function main() {
+  // THE REGISTER IS CHECKED BEFORE ANYTHING IS SPENT, and it refuses rather
+  // than failing. A stale or incomplete `known-survivors.json` is not a fact
+  // about the product — it is a run that cannot respect its own register, and
+  // discovering that after forty minutes of arms would be the same waste
+  // `--list-shard` exists to avoid one layer up. Exit 2, so it reads as the
+  // refusal it is and not as a verdict about an arm.
+  {
+    const problems = registerProblems();
+    if (problems.length > 0) {
+      for (const line of problems) log(`  ${line}`);
+      finish(
+        "did-not-run",
+        "RESULT: DID NOT RUN — known-survivors.json does not describe this arm list, so no\n" +
+          "        verdict here could respect it. Fix the register, then re-run.",
+        2,
+      );
+      return;
+    }
+  }
   const combineIdx = process.argv.indexOf("--combine");
   if (combineIdx >= 0) {
     const n = Number(process.argv[combineIdx + 1]);
@@ -2982,39 +3129,79 @@ async function main() {
   // it: the suite's own numbers decide whether one journey's arms dominate.
   timingTable(journal.arms);
 
-  log(`${arms.length} arm(s): ${killed} killed, ${survived} survived, ${neverRan} never ran`);
+  // THE REGISTER, BOTH DIRECTIONS. `excused` is what it tolerates, `revived` is
+  // what it refuses. What is wrong with the FILE was refused at the top of `main`.
+  const excused = journal.arms.filter((a) => a.verdict === "survived" && isRegistered(a.id));
+  const revived = journal.arms.filter((a) => a.verdict === "killed" && isRegistered(a.id));
+  const unexcused = journal.arms.filter(
+    (a) => a.verdict !== "killed" && !(a.verdict === "survived" && isRegistered(a.id)),
+  );
+
+  log(
+    `${arms.length} arm(s): ${killed} killed, ${survived} survived, ${neverRan} never ran` +
+      (excused.length > 0
+        ? ` (${excused.length} of the survival(s) are in known-survivors.json)`
+        : ""),
+  );
   if (armFilter || shard) log(`(partial run — ${ARMS.length - arms.length} arm(s) not exercised)`);
-  if (killed !== arms.length) {
+  if (unexcused.length > 0 || revived.length > 0) {
     // Named, not counted. "Some arm is not killed" sends the reader back
     // through the log; the arms that are not killed are known here, and a dead
     // arm is the finding this suite exists to produce.
-    for (const a of journal.arms.filter((x) => x.verdict !== "killed")) {
+    for (const a of unexcused) {
       log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}`);
+      if (isRegistered(a.id)) {
+        log(`               IT IS IN known-survivors.json, AND THAT DOES NOT COVER THIS.`);
+        log(`               The register excuses a SURVIVAL — the mutation reaching the`);
+        log(`               artefact and the assertion staying green. It does not excuse an`);
+        log(`               arm that could not be run.`);
+      }
+    }
+    for (const a of revived) {
+      log(`  REGISTERED BUT KILLED  ${a.id}`);
+      log(`               known-survivors.json says this arm's assertion cannot see its`);
+      log(`               mutation, and it just did. The gap is closed; DELETE THE ENTRY.`);
+      log(`               (recorded ${KNOWN_SURVIVORS[a.id].recorded} — it needed: ` +
+          `${KNOWN_SURVIVORS[a.id].subject.split(". ")[0]}.)`);
     }
     finish(
       "failed",
       armFilter || shard
         ? "RESULT: FAILED — over this subset only; the full set is still this suite's claim"
-        : "RESULT: FAILED — every arm must be killed by the assertion written for it",
+        : "RESULT: FAILED — every arm must be killed by the assertion written for it," +
+            " or be in known-survivors.json with what would close it",
       1,
     );
     return;
   }
   log("  Each journey reddens on the defect it exists to catch, and only then.");
+  printRegister(excused.map((a) => a.id));
   // A partial run still exits 0 — `--arm` is the supported way to land one arm
   // without re-proving sixty-one others, and a shard is one leg of a run that
   // does not fit in one box — but neither gets to print the same word as a full
   // run. The suite's claim is the full set, and "OK" over a subset is the
   // sentence someone quotes later.
+  // "OK" MAY NOT READ AS "EVERY ARM BITES" WHEN SOME ARE REGISTERED. The
+  // RESULT line is the sentence that gets quoted out of this log, so it carries
+  // the register's count or the register is invisible at exactly the moment it
+  // matters — the same argument that stops a shard or a filtered run printing
+  // the bare word.
+  const withRegister = (verdict) =>
+    excused.length > 0
+      ? `${verdict}\n        ${excused.length} arm(s) were NOT killed and are in` +
+          " known-survivors.json, with what would close each."
+      : verdict;
   finish(
     "ok",
-    shard
-      ? `RESULT: OK OVER SHARD ${shard.i}/${shard.of} (${arms.length} of ${ARMS.length} arms).` +
-          ` The suite's claim needs \`--combine ${shard.of}\`.`
-      : armFilter
-        ? `RESULT: OK OVER ${arms.length} OF ${ARMS.length} ARMS — a filtered run. The full set is` +
-            " this suite's claim, and it has NOT been made here."
-        : "RESULT: OK",
+    withRegister(
+      shard
+        ? `RESULT: OK OVER SHARD ${shard.i}/${shard.of} (${arms.length} of ${ARMS.length} arms).` +
+            ` The suite's claim needs \`--combine ${shard.of}\`.`
+        : armFilter
+          ? `RESULT: OK OVER ${arms.length} OF ${ARMS.length} ARMS — a filtered run. The full set is` +
+              " this suite's claim, and it has NOT been made here."
+          : "RESULT: OK",
+    ),
     0,
   );
 }

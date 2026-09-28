@@ -1,0 +1,61 @@
+{
+  "_comment": [
+    "Mutation arms whose mutation IS applied and whose named assertion does not see it, with",
+    "the reason, the SUBJECT that would see it, and who can produce that subject.",
+    "",
+    "THIS FILE FAILS IN BOTH DIRECTIONS, like `ledger.json` beside it and",
+    "`ci/test/ci-coverage.known-dark.txt` one directory over. A registered arm that SURVIVES is",
+    "reported, counted, and does not fail the run. A registered arm that is KILLED fails the run",
+    "by name, demanding the entry be deleted \u2014 so an entry cannot outlive the gap it records, and",
+    "nobody has to remember to clean up after closing one.",
+    "",
+    "ONLY A SURVIVAL IS EXCUSED. A registered arm that reports NEVER RAN still fails, and that is",
+    "the whole difference between this register and an exemption list. An entry says: this",
+    "mutation reaches the artefact, the assertion named below is green with the defect in place,",
+    "and here is the subject that would make it red. It does not say the arm may be broken \u2014 a",
+    "`find` that stopped matching, an assertion that was renamed, a tree that did not come back",
+    "are all still failures under an entry, because none of them is the claim the entry makes.",
+    "",
+    "AN ENTRY IS ONLY LEGITIMATE WITH ALL SIX FIELDS, and `selftest.mjs` refuses the register",
+    "otherwise rather than reading around a missing one:",
+    "  reason    \u2014 what the arm asserts and what is green with the mutation in place",
+    "  cause     \u2014 WHY it survives, from readings and not from inference",
+    "  subject   \u2014 the subject that would kill it, concretely enough to go and build",
+    "  closed_by \u2014 who can produce that subject, and where the work lives",
+    "  evidence  \u2014 what was measured, when, and on what tree",
+    "  recorded  \u2014 the date this entry was written, so the debt is dated and not merely present",
+    "",
+    "NOT LEGITIMATE, and the reason the bar is written down while this file is one entry long:",
+    "an arm that survives because the ASSERTION is weak does not belong here \u2014 strengthen the",
+    "assertion. An arm that survives because its mutated reading was taken from a session that",
+    "never came up does not belong here either \u2014 that is an instrument that did not run, and it",
+    "is reported as a stall, not as a survival. Both of those were live questions on the day this",
+    "file was written (`O/the-export-answers-for-the-live-path` was the first, fixed by making",
+    "the assertion per-region; `O2/a-control-on-every-row` is the second, still open), and both",
+    "were kept OUT of this file on purpose. A register whose bar is set once it is already long",
+    "gets the bar its longest-serving entries deserve.",
+    "",
+    "COUNT THE KEYS IN `known_survivors`; do not trust a sentence here saying how many there are.",
+    "`ledger.json` records that its own summary line has been wrong four times, which is the one",
+    "error a register cannot afford, so this file does not carry that sentence at all."
+  ],
+  "known_survivors": {
+    "P4/no-frame-is-current-on-a-live-session": {
+      "reason": "The arm removes `session_view.selectionDetail`'s position fallback \u2014 the loop that picks a frame by comparing `f.step` against `v.controls.step` when nothing has been marked `current` \u2014 and its named assertion, \"LIVE: exactly one frame is current on arrival, before anything is clicked\", stays GREEN. The mutation is applied, reaches the hydration bundle, and changes nothing observable on any surface a journey can drive.",
+      "cause": "THREE WRITERS MARK A FRAME BEFORE `selectionDetail` EVER CONSULTS THE FALLBACK, and that was established by three readings rather than argued. (1) `selectCalltraceFrame` writes `CalltraceVM.selectedEntry` on a row click \u2014 the arm survived the post-click assertion at `clicked=\"calculate_damage\" panel=\"calculate_damage\"`, because the click writes the selection itself. (2) `selectLandingFrame` writes it on the landing \u2014 so the arm survived a newly added ARRIVAL assertion too, which is the reading the fallback would have to be load-bearing for. (3) Behind that, the recovery ANCHOR: re-aiming the mutation at `selectLandingFrame`'s own position walk (`if lines.len == 0: return false` forced true, so the walk never runs) ALSO survived, at \"counted 1, the claim says 1\", because `selectLandingFrame` tries `s.selectCalltraceFrame(anchor)` first and returns before the walk. With any of the three having marked a frame, `selectionDetail`'s first loop always sets `chosen` and the branch beneath it is unreachable.",
+      "subject": "A LIVE session with NO recovery anchor whose `visibleLines` are empty at seed time. That is the one state in which all three writers decline and `selectionDetail` reaches the fallback: no anchor for `selectLandingFrame` to resolve, nothing for its position walk to walk, and no click yet. The corpus the journeys drive has no such recording \u2014 every subject either carries an anchor or seeds visible lines \u2014 so the arm's assertion is correct and simply has nothing to be correct ABOUT. Killing this arm needs that subject, not a stronger assertion.",
+      "closed_by": "Whoever adds such a recording to the corpus the journeys drive, in THIS repository \u2014 `tools/journeys/lib/corpus.mjs` selects subjects from the served markup, so the work is a published recording that seeds no anchor and no visible lines, plus the subject filter that selects it. Then re-run `node tools/journeys/selftest.mjs --arm P4/` and delete this entry; the run will demand the deletion by name.",
+      "evidence": "Measured 2026-09-28 in worktree `blocktracer-ci-green-env`, branched from `origin/dev`, over `client/dist` built by `just export-hydrated` against the three pinned sibling trees (codetracer af70456c, isonim 03f83497, nim-everywhere b2ce1c6b). CI run 35389764236 on ef24db5, `journeys-bite (5)`: SURVIVED in 65s, the only non-killed arm in that shard, and the arm's `why` records the same verdict from its author's own earlier readings. The 65s is itself part of the evidence \u2014 this is a survival from a session that came up, not from one that stalled.",
+      "recorded": "2026-09-28"
+    },
+    "O/the-export-answers-for-the-live-path": {
+      "reason": "PLANTED FOR THE BOTH-DIRECTIONS PROOF \u2014 this arm kills.",
+      "cause": "planted",
+      "subject": "planted",
+      "closed_by": "planted",
+      "evidence": "planted",
+      "recorded": "2026-09-28"
+    }
+  },
+  "_closed": {}
+}
