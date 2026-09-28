@@ -98,7 +98,7 @@ export const needsEngine = true;
  *   * `.srcpos` — `renderPositionHead`'s sentence, "The session is stopped at
  *     step N of M", which the product already draws on a pane with no line to
  *     mark. This is the weaker answer and it counts.
- *   * `.srcnone .panenote` — the reason a pane with no rows shows instead.
+ *   * `.srcnone .empty-overlay` — the reason a pane with no rows shows instead.
  *
  * Read with `checkVisibility` throughout, for the reason `probe.mjs` gives at
  * length: the source pane holds every document at once and hides all but one,
@@ -111,7 +111,7 @@ const READ_WHERE = () => {
     e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
   const cur = document.querySelector(".srcline.cur");
   const head = document.querySelector(".srcpos");
-  const none = document.querySelector(".srcnone .panenote");
+  const none = document.querySelector(".srcnone .empty-overlay");
   const text = (e) => (shown(e) ? (e.innerText ?? "").trim() : "");
   return {
     marked: [...document.querySelectorAll(".srcline.cur")].filter(shown).length,

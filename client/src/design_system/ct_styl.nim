@@ -366,13 +366,20 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
       # Stylus tolerates a trailing `;`; several vendored rules carry one.
       value = value.strip(leading = false, chars = {';', ' '})
       var subbed = substitute(value, env, port.bridge)
-      for spelling, replacement in port.literalAliases.pairs:
-        if spelling in subbed: subbed = subbed.replace(spelling, replacement)
+      # The residue check runs BEFORE the aliases, and the order is load-bearing.
+      # `residualToken` looks for an identifier that was MEANT to resolve, and
+      # one of its shapes is SCREAMING_CASE — which a replacement's own text can
+      # accidentally be. An alias produces FINAL CSS, not a stylus identifier, so
+      # it must not be re-examined: measured on a probe whose replacement was the
+      # literal `MONO`, which the check then read as an unresolved constant and
+      # dropped the whole declaration.
       let residue = residualToken(subbed)
       if residue.len > 0:
         rep.unresolved.add src.origin & ":" & $n.line & "  " & prop & ": " &
           value & "  (" & residue & ")"
         continue
+      for spelling, replacement in port.literalAliases.pairs:
+        if spelling in subbed: subbed = subbed.replace(spelling, replacement)
       decls.add prop & ":" & subbed & ";"
       inc rep.declarations
       continue

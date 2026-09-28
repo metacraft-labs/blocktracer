@@ -122,7 +122,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-searchboot
+test: test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-searchboot
 
 # The browser's half of search, run without a browser: `nim js -r`, which is how
 # `searchboot.nim` can be tested at all. Its `importjs` boundary procs make the
@@ -172,6 +172,20 @@ test-viewmodels:
 # §7.0's availability-decides-the-landing rule, and the crawl-surface baseline.
 # Hermetic: no debugger on the Nim path. The half that DOES need one is
 # `just debug-panes` in the repository root's Justfile.
+# The CodeTracer component port: the rules the debugger is DRAWN by.
+#
+# `ci/test/ct-styles-vendor.sh` proves the INPUT is still upstream's bytes.
+# This proves the OUTPUT is still a port of them, which is a different failure
+# and neither catches the other — a transpiler that silently stopped emitting
+# half the rules would leave the vendor manifest perfectly green.
+#
+# It is FIRST in the aggregate and it takes seconds. Everything below it
+# renders markup; if the stylesheet that markup is written for has stopped
+# being CodeTracer's, that is the thing to learn before spending nine minutes
+# on the router.
+test-ct-components-css:
+    nim c -r --mm:orc --hints:off tests/test_ct_components_css.nim
+
 test-debug-route:
     nim c -r --mm:orc --hints:off tests/test_debug_route.nim
 

@@ -452,10 +452,15 @@ a.lm_title{display:block;line-height:inherit}
    (`.lm_header` and `.lm_items`), which no sibling combinator crosses. `:has()`
    also removed the reason `renderStack` used to emit its panels in reverse. */
 /* `flex-direction:column` on the hidden rule as well as the shown ones, so the
-   axis is stated once. A panel stacks its rows; the old `.panebody` was a
-   block and got that for nothing, and a bare `display:flex` laid every panel's
+   axis is stated once. A panel stacks its rows; the block element this
+   replaced got that for nothing, and a bare `display:flex` laid every panel's
    contents out in a ROW — measured: the source listing and the loop rail side
-   by side, the transaction pane's rows running off the right edge. */
+   by side, the transaction pane's rows running off the right edge.
+
+   (The retired element is not named here. This stylesheet is inlined into
+   every served page, so a comment spelling a dead selector puts its text back
+   into the bytes — which `test_ct_components_css` asserts against, and which
+   this comment failed when it was first written.) */
 .lm_stack > .lm_items > .lm_content{display:none;flex-direction:column}
 .lm_stack:not(:has(> .lm_items > .lm_content:target))
   > .lm_items > .lm_content.btdefault{display:flex}

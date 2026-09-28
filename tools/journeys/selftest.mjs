@@ -739,7 +739,7 @@ proc noteFor*`,
     id: "T/a-hand-on-a-heading",
     why:
       "THE INVERSE DIRECTION OF §13, AIMED AT THE PAGE-WIDE RULE RATHER THAN AT ONE" +
-      " PANE. Leak `cursor:pointer` onto `.panetitle` — a heading, inside no anchor and" +
+      " PANE. Leak `cursor:pointer` onto `.lm_title` — a heading, inside no anchor and" +
       " carrying no role, which Front-End-Architecture §7 guarantees cannot be a" +
       " hand-rolled control either. Every surface this journey names stays green," +
       " because none of them is a pane title; what reddens is the set-equality sweep," +
@@ -748,7 +748,7 @@ proc noteFor*`,
       " and reporting zero violations forever.",
     file: join(CLIENT, "src", "components", "styles.nim"),
     find: `button{cursor:pointer}`,
-    replace: `button,.panetitle{cursor:pointer}`,
+    replace: `button,.lm_title{cursor:pointer}`,
     journey: "a-clickable-surface-shows-the-hand",
     assertion:
       "nothing that is not an anchor, a button or an interactive role shows the hand",

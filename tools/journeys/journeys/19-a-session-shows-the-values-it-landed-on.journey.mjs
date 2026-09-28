@@ -123,7 +123,7 @@ const READ = () => {
       value: r.querySelector(".stval")?.textContent?.trim() ?? "",
       type: r.querySelector(".sttype")?.textContent?.trim() ?? "",
     })),
-    note: document.querySelector("#pane-state .panenote")?.textContent?.trim() ?? "",
+    note: document.querySelector("#pane-state .empty-overlay")?.textContent?.trim() ?? "",
   };
 };
 
