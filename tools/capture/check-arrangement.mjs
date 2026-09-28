@@ -98,6 +98,18 @@ const SELECTORS = [
   ".foot", ".foot .inner", ".footlinks", ".footcredit",
   // the product-register embed, which an explorer change must not disturb
   ".livedemo",
+  // THE DEBUGGER'S OWN CHROME. These match nothing on an explorer route, which
+  // costs nothing — two empty lists compare equal. They are here because
+  // `components/styles.nim` is inlined into EVERY page including the debug
+  // route, so a rule an explorer change adds to a shared component (`.badge`,
+  // `.btn`, `.notice`) reaches a surface that branch does not own. Without
+  // these selectors the check would report the debug route as twelve
+  // unchanged boxes and call that a proof.
+  ".dbgmain", ".dbgbar", ".dbgblock", ".dbgctl", ".dbgacts", ".dbgid",
+  ".ln", ".col", ".pane", ".panehead", ".panetitle", ".panebody", ".panenote",
+  ".stacktabs", ".stacktab", ".stackpanel",
+  ".srcstrip", ".srctabs", ".srctab", ".srcwrap", ".src", ".srcline",
+  ".mddl", ".mddl dt", ".mddl dd", "pre.raw",
 ];
 
 function fail(msg) { console.error(msg); process.exit(2); }

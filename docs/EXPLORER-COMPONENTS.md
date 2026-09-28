@@ -209,7 +209,8 @@ node tools/capture/check-arrangement.mjs <before-dist> <after-dist>
 ```
 
 Run on 2026-09-25 over `/`, `/chains`, `/demo`, `/demo/txs`, the transaction
-page, the contract-source page and the 404. **1026 boxes compared, 7 routes.**
+page, the contract-source page and the 404. **1083 boxes compared, 7 routes**, of
+which 282 are unchanged and 801 differ — 784 of those in y or height only.
 
 | Claim | Measured |
 | --- | --- |
@@ -217,10 +218,11 @@ page, the contract-source page and the 404. **1026 boxes compared, 7 routes.**
 | **The transaction details panel is where it was** | `.dl` on the transaction page: `504,779` before and after, width `912` before and after. **Its x and its width never change on any route.** Its height changed by 1px, and one `dd` moved down 1px |
 | **Nothing was added, removed, renamed or reordered** | the tag-plus-class sequence of `body *` is **identical** on all seven routes — 0 document-shape changes, 0 element-count changes |
 | **No page was restructured** | `.pagebody`, `section.sec` and `section.sec > .inner` hold their x and their width everywhere; only their heights move, by 1–16px |
-| **The embedded product-register session is untouched** | `.livedemo` keeps its size exactly — 912×523 before and after — and moves 1px with the badge above it |
+| **The embedded product-register session is untouched** | `.livedemo` keeps its size exactly — 912×523 before and after. Its 28 internal boxes — `.pane`, `.panehead`, `.stacktabs`, `.srctab`, `.srcline` and the rest — differ by exactly `(dx 0, dy −1, dw 0, dh 0)`, all 28 of them: the whole embed slid one pixel because a badge above it on the home page got a pixel shorter. Nothing in it was redrawn |
+| **The debugger route is untouched** | `/…/debug` — **57 boxes, 0 differing**, including `.pane`, `.panehead`, `.stacktabs`, `.srctabs`, `.mddl` and `pre.raw`. This matters because `components/styles.nim` is inlined into every page, so this branch's changes to `.badge`, `.btn` and `.notice` DO reach a surface another branch owns |
 
 **The whole class of difference that is never "finish" — x or width — is 17
-boxes out of 1026, and there are exactly two causes:**
+boxes out of 1083, and there are exactly two causes:**
 
 | element | dx | dwidth | count | cause |
 | --- | --- | --- | --- | --- |
@@ -232,7 +234,7 @@ boxes out of 1026, and there are exactly two causes:**
 
 **Nothing outside a `.notice` or the tab strip changed its x or its width
 anywhere in the corpus**, and both are elements this pass deliberately
-re-drew. The remaining 756 differences are y and height, from three causes:
+re-drew. The remaining 784 differences are y and height, from four causes:
 
 1. **1px down-shifts of badges and the rows containing them**, on every page
    with a `.badge`. `vertical-align:middle` changes where the chip sits on its
@@ -243,6 +245,8 @@ re-drew. The remaining 756 differences are y and height, from three causes:
    pane headers each lost 4px moving from `--bt-space-xs` to the register's own
    `--bt-density-cell-y`. The panes keep their x and their width; the tab strip
    above them keeps its own left edge and its own top.
+4. **The home page's embedded session, sliding 1px as one rigid block** — the
+   28 boxes described in the table above.
 
 ### 3a. The check decides — the negative control
 
@@ -302,14 +306,16 @@ raw report — which is the only reason it is in this document.
 
 ## 4. The states a still capture cannot show, asserted
 
-Four of the nine adoptions are states no screenshot of a static page can
-contain. They are verified by computed style rather than by eye, before and
-after:
+Several of these adoptions are states no screenshot of a static page can
+contain — a filled field, a hovered tab, a jumped-to pane. Those are verified
+by reading the computed style out of the two built trees rather than by eye.
+Measured values, before and after:
 
 | | before | after |
 | --- | --- | --- |
 | `.codefile` that is `:target`, `border-color` | `#a2a2a2` (same as its neighbours) | `#818181`, neighbours unchanged at `#a2a2a2` |
-| `.filetree a`, bottom border / fill / colour | `1px #a2a2a2` all round / `#dddddd` / link indigo | `2px #a2a2a2` bottom only / transparent / `#484848` |
+| `.filetree a` — border / fill / colour | `1px #a2a2a2` on all four sides / `#dddddd` / link indigo | **rail only**: `2px #a2a2a2` bottom, `0` left, transparent fill, `#101010` text — `.ct-tab`'s resting appearance, and see the commit that corrected it from `#484848` |
+| `.codehead` — separator / padding | `#a2a2a2` / `8px` | `#c8c8c8` (`--bt-border-subtle`) / `6px` (`--bt-density-cell-y`) |
 | `.nav input` with a value, border / colour | `#a2a2a2` / `#242424` — identical to empty | `#4f46e5` / `#101010` |
 | `.search input` with a value | identical to empty | `#4f46e5` / `#101010` |
 | `.notice` tone | top `#a2a2a2`, left `#dc2626` at 2px | all four `#dc2626` at 1px |
@@ -319,23 +325,45 @@ after:
 
 ## 5. Verification
 
+Run on 2026-09-28 against the tree this document describes.
+
 | Step | Result |
 | --- | --- |
 | `cd client && just export` | **348 pages** |
-| `node tools/design/check-tokens.mjs` | **PASS 17/17**, register unchanged at 247 / 188 `bkToken` / 59 `bkLiteral` / 12 rows |
-| `node tools/design/check-tokens-selftest.mjs` | pass |
-| `client && just test` | see below |
-| `node tools/capture/capture.mjs --view … --theme light,dark` | 14 images, all 14 differ from the pre-pass set |
-| `node tools/capture/check-arrangement.mjs` | §3 |
+| `just design-check` (`--require-built`) | **PASS 17/17**; register unchanged at 247 bindings / 188 `bkToken` / 59 `bkLiteral` / 12 rows |
+| `just design-selftest` | **PASS 138/138** |
+| `just review-check-brief` | **PASS**, 85/85 named views have an expectation block |
+| `client && just test-export` | 25 assertions, 0 failures |
+| `client && just test-viewmodels` | 112 assertions, 0 failures |
+| `client && just test-debug-route` | **181 assertions, 0 failures** — the suite that reads the served debug document |
+| `client && just test-chain-provenance`, `test-instruction-listing`, `test-searchboot` | 0 failures |
+| `just capture` over 7 explorer views × 2 themes | 14 images, all 14 differ from the pre-pass set |
+| `tools/capture/check-arrangement.mjs` | §3, and its own negative control in §3a |
 
-**One suite is red and it is red on `dev` as well.**
-`test_explorer_breadth`'s *"the pointer was read once per navigation, not once
-per session"* fails with `pointerReads == 4` where it expects 2. It was run on
-`origin/dev` @ `ef24db5` with this branch's only file stashed and it fails
-identically there, so it is not this pass's. It is a reader-caching assertion
-and touches no stylesheet.
+### The two red suites, and why neither is this branch's
 
-**No golden images exist**, so nothing in CI catches a visual regression on this
-axis — the same gap EXPLORER-TINT.md §5 records. That is why §3 is a mechanical
-geometry diff rather than "I compared them by eye", and why §4 asserts computed
-values rather than describing them.
+Both were re-run on a **pristine copy of the base commit** — `git archive
+ef24db5 | tar -x` into a clean directory, so nothing of this branch is present
+— and both fail there identically:
+
+| suite | failure | on `ef24db5` |
+| --- | --- | --- |
+| `client && just test-explorer-breadth` | *"the pointer was read once per navigation, not once per session"*, `pointerReads == 2` got `4`. 28 other assertions pass | **fails identically** |
+| `ci/test/untrusted-text.sh` | exit 2, `ingest.nim:857` refusing a hostile `prestateStrategy` in `fixtures/chain/.hostile-gate` | **fails identically, same message** |
+
+Neither touches a stylesheet: the first is a reader-caching assertion, the
+second a data-contract refusal on a fixture.
+
+### What is NOT verified, and the reason
+
+**`just capture-coverage` does not pass, and it is not expected to.** It checks
+that the image set covers all 51 `ready` views; this pass captured 7 views
+targeted, because a full regeneration is ~300 images and `screenshots/` is
+gitignored. A full run is the right thing before a review round, not before a
+finish diff.
+
+**No golden images exist**, so nothing in CI catches a visual regression on
+this axis — the same gap EXPLORER-TINT.md §5 records, and `git ls-files
+'*.png'` still returns nothing. That is why §3 is a mechanical geometry diff
+rather than "I compared them by eye", why §3a shows the diff can fail, and why
+§4 asserts computed values rather than describing them.
