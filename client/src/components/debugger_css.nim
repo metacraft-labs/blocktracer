@@ -60,6 +60,7 @@
 
 import std/strutils
 import ../debugger/session_view
+import ./ct_components_css
 
 const debugRouteBaseCss = """
 /* ── the shell ──────────────────────────────────────────────────────────── */
@@ -242,10 +243,21 @@ html[data-register="debugger"],
   font-size:var(--bt-type-label-size);word-break:break-all}
 
 /* ── the pane region ────────────────────────────────────────────────────── */
+/* `gap` IS GONE FROM BOTH, and its absence is the point. A CSS gap is empty
+   canvas between two boxes; CodeTracer separates panels with a drawn element,
+   `.lm_splitter`, and `renderLayout` now emits one between every pair. Keeping
+   the gap as well would have put 4px of canvas either side of a 4px separator
+   and made the frame read as three lines where CodeTracer draws one. */
+/* The surface is `.lm_goldenlayout`'s now, not this rule's: `pages/debug.nim`
+   puts that class on this element and the port binds it to
+   `--bt-surface-raised`, which is the frame CodeTracer's panels float in. It
+   is a LIGHTER surface than the panels sit on in BlockTracer's old drawing and
+   a DARKER one than the panels themselves, and that inversion — panel lighter
+   than frame — is the single most recognisable thing about a CodeTracer
+   window. No background is declared here, so there is only one rule to read. */
 .dbgmain{flex:1 1 0;display:flex;min-height:0;min-width:0;
-  gap:var(--bt-space-2xs);padding:var(--bt-space-2xs);
-  background:var(--bt-surface-canvas)}
-.ln{display:flex;min-width:0;min-height:0;gap:var(--bt-space-2xs)}
+  padding:var(--bt-space-2xs)}
+.ln{display:flex;min-width:0;min-height:0}
 .ln.row{flex-direction:row}
 .ln.col{flex-direction:column}
 
@@ -263,25 +275,111 @@ html[data-register="debugger"],
 .w11{flex:11 1 0;min-width:0;min-height:0}
 .w12{flex:12 1 0;min-width:0;min-height:0}
 
-/* ── one pane ───────────────────────────────────────────────────────────── */
-.pane{display:flex;flex-direction:column;min-width:0;min-height:0;
-  border:var(--bt-stroke-hairline) solid var(--bt-border-default);
-  border-radius:var(--bt-radius-md);background:var(--bt-surface-raised);
-  overflow:hidden}
-.panehead{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
-  gap:var(--bt-space-xs);
-  padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
-  background:var(--bt-surface-sunken);
-  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
-.panetitle{font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);
-  line-height:var(--bt-type-label-line);letter-spacing:var(--bt-type-label-tracking);
-  text-transform:uppercase;color:var(--bt-text-muted)}
-/* The pane-header dismiss rule is GONE, with the control it styled — see
-   `pages/debug.nim` for why that control could not be honoured. A rule kept
-   for an element that no longer exists is a standing invitation to re-add it.
-   Note also that this stylesheet is INLINED into the page, so a selector, or
-   even a comment, naming a removed affordance keeps its name in the served
-   bytes; `test_debug_route` asserts over those bytes. */
+/* ── one pane: CodeTracer's chrome, and the four rules it does not carry ─── */
+/*
+   EVERY HAND-WRITTEN PANE RULE THAT HAD A CODETRACER COUNTERPART IS GONE, and
+   this comment is the record of what replaced it. The rules that draw a pane
+   now arrive from `components/ct_components_css`, compiled out of the `.styl`
+   sources vendored at `client/src/debugger/vendor/frontend/styles/components/`
+   and byte-identical to the CodeTracer commit `ci/embed-sdk-pin.env` pins.
+
+   The deleted class names are written below WITHOUT their leading dot, on
+   purpose and for the reason this file gives twice already: it is inlined into
+   every served page, so a comment spelling a retired selector puts that
+   selector's text back into the bytes `test_debug_route` asserts over. Written
+   this way, a `notin` assertion over the dotted spelling of any of them stays
+   true — and `test_debug_route` makes exactly that assertion.
+
+     deleted (no longer a selector anywhere)   replaced by
+     ───────────────────────────────────────   ──────────────────────────────
+     pane                                      .lm_stack + .lm_items
+                                                 + .lm_content
+     panehead                                  .lm_header
+     panetitle                                 .lm_title
+     panebody                                  .lm_content
+     panenote                                  .empty-overlay
+                                                 (empty_states.styl)
+     ln stack                                  .lm_stack
+     ln stack > pane                           .lm_content
+     ln stack > pane > panehead                (nothing: a stacked panel never
+                                                had a header of its own)
+     stacktabs                                 .lm_tabs
+     stacktab                                  .lm_tab + .lm_title
+     stacktab:first-child                      .lm_active
+     stackpanel def/alt                        .lm_content + the `:has()`
+                                                 block below
+
+   What survives below is the set with NO CodeTracer counterpart, and each one
+   says why it has none. Three of the four exist because this route has no
+   JavaScript and GoldenLayout's do not: GoldenLayout SIZES `.lm_stack`,
+   `.lm_content` and every splitter from script, on absolute coordinates, so
+   its stylesheet declares no layout for them at all. A static page has to
+   declare that layout itself, and flexbox is how.
+*/
+
+/* The weight ladder. `defaultReplayLayout()` uses 1, 2, 3 and 9.
+   No counterpart: GoldenLayout stores a weight in its own JSON model and
+   resolves it to pixels in JavaScript. */
+.w1{flex:1 1 0;min-width:0;min-height:0}
+.w2{flex:2 1 0;min-width:0;min-height:0}
+.w3{flex:3 1 0;min-width:0;min-height:0}
+.w4{flex:4 1 0;min-width:0;min-height:0}
+.w5{flex:5 1 0;min-width:0;min-height:0}
+.w6{flex:6 1 0;min-width:0;min-height:0}
+.w7{flex:7 1 0;min-width:0;min-height:0}
+.w8{flex:8 1 0;min-width:0;min-height:0}
+.w9{flex:9 1 0;min-width:0;min-height:0}
+.w10{flex:10 1 0;min-width:0;min-height:0}
+.w11{flex:11 1 0;min-width:0;min-height:0}
+.w12{flex:12 1 0;min-width:0;min-height:0}
+
+/* No counterpart: the flex geometry GoldenLayout does in script. The COLOURS,
+   radii, tab shape, splitter weight and panel edges are all upstream's; what
+   is declared here is only which box grows and which box scrolls. */
+/* ── what GoldenLayout's BASE stylesheet provides, and this site does not ── */
+/* `golden_layout.styl` is CodeTracer's THEME for GoldenLayout. It is loaded on
+   top of the library's own `goldenlayout-base.css`, and it assumes the
+   structural rules that file declares. golden-layout is not a dependency here —
+   there is no `package.json` entry for it and the two Nim modules that mention
+   it do so by name only — so the handful of base rules the theme actually
+   depends on are declared here instead, each with what it is standing in for.
+
+   `.lm_tab{position:relative}` is the load-bearing one and it is easy to miss.
+   The active tab's curved connectors are `::before`/`::after` boxes at
+   `position:absolute; left:-1.625em` / `right:-1.625em`, so they anchor to the
+   nearest positioned ancestor. Base CSS gives `.lm_tab` `position:absolute`;
+   without any positioning on the tab they would anchor to `.lm_header`
+   instead — which the theme DOES position — and both curves would pile up at
+   the left edge of the strip regardless of which tab is active. */
+.lm_tab{position:relative}
+.lm_tabs{position:relative}
+/* THE GAP UNDER THE TAB, which is load-bearing and which nothing upstream can
+   give us. CodeTracer sets the header to 32px from JavaScript (`headerHeight`,
+   `ui/layout.nim`) and the theme's geometry is tuned to it: the tab is
+   `1.5rem` tall with `0.25rem` above, so 32px leaves ~4px UNDER the tab, and
+   that is exactly where the active tab's bridge shadow and its `::before` /
+   `::after` connectors are aimed. A header left at content height has no gap
+   at all and the connectors float clear of the panel's edge.
+
+   Stated as PADDING on a token rung rather than as a height, for two reasons.
+   A height would be a raw length — `tools/design/check-tokens.mjs` A2 rejects
+   one in a view, and rightly, since 32px is CodeTracer's number and not a rung
+   of this product's scale. And padding states the thing that actually matters:
+   the gap. `--bt-space-2xs` is 4px, which is the gap CodeTracer's arithmetic
+   arrives at. */
+.lm_header{padding-bottom:var(--bt-space-2xs)}
+
+.lm_stack{display:flex;flex-direction:column;min-width:0;min-height:0}
+.lm_stack > .lm_header{flex:0 0 auto}
+.lm_stack > .lm_items{flex:1 1 0;display:flex;flex-direction:column;
+  min-height:0;min-width:0;overflow:hidden}
+.lm_tabs{list-style:none;margin:0;padding:0 0 0 var(--bt-space-3xs)}
+/* A tab's label is an `<a>` in a stack and a `<span>` alone, and `.lm_title`
+   already sizes and truncates both; this only makes the link fill the tab so
+   the whole tab is the hit target, which is what a GoldenLayout tab is. */
+a.lm_title{display:block;line-height:inherit}
+
+/* ── the one BlockTracer-only thing a pane body does ────────────────────── */
 /* THE FADE IS THE OVERFLOW TREATMENT ON BOTH AXES, NOT JUST THE HORIZONTAL ONE.
    `.src` and `pre.raw` carry a `to right` mask so a listing that runs past the
    pane's right edge says so instead of ending mid-glyph. The VERTICAL axis had
@@ -301,130 +399,104 @@ html[data-register="debugger"],
    edge treatment is indistinguishable in a still image from a hard clip, and a
    reader at the page has only slightly more to go on.
 
-   Same declaration as the horizontal one, turned ninety degrees, for the reason
-   that comment gives: one overflow treatment, and it is the fade. A mask rather
-   than an overlay because `.panebody` has no positioned ancestor to hang one
-   on; `currentColor` as the opaque stop because a mask reads ALPHA and the
-   colour is never painted.
+   NO CODETRACER COUNTERPART, and the reason is structural rather than an
+   oversight upstream: a GoldenLayout panel's scroller is the component inside
+   `.lm_content`, not `.lm_content` itself, so there is no one element upstream
+   could have hung this on. It stays, on `.lm_content`, which is this route's
+   scroller.
 
-   THE `mask-clip` SENTENCE THAT USED TO BE HERE WAS WRONG, and the correction
-   matters because a later round built a diagnosis on it. It said `.panebody`
-   "carries no background of its own … so unlike `.src` this needs no
-   `mask-clip`: the pane's own edge and fill stay solid and only the text under
-   them goes". Measured: every `.panebody` on both graded pages has
-   `padding:0` and `border-width:0`, so border box, padding box and content box
-   COINCIDE — `mask-clip` cannot do anything here, and `.src`'s own
-   `mask-clip:padding-box` is equally inert for the same reason. Setting
-   `mask-clip`/`mask-origin` to `content-box` or `padding-box` produces a
-   byte-identical page (sha256 over the raw pixel buffer, all four captures).
-
-   The pane's fill stays solid for a different reason than the one given: `.src`
-   paints `--bt-surface-raised`, which is the SAME colour as the `.pane` behind
-   it (255,255,255 light / 27,27,27 dark), so fading it toward the pane changes
-   nothing visible. `pre.raw` paints `--bt-surface-code`, which is NOT that
-   colour (236 / 0), and its surface is therefore destroyed by the same ramp —
-   measured all the way to 255, i.e. complete erasure, with its 1px hairline
-   bottom border going 3.66:1 -> 1.06:1 against the pane. A mask composites the
-   whole subtree at one alpha; it cannot fade ink and spare a background.
-
-   That also refutes vd9-r2's isolated "mechanism" — "the mask is anchored to
-   the pane BORDER rather than the content box, so it spends its first 9px
-   fading padding". There is no padding anywhere in this chain. All 24px of the
-   `lg` ramp fall on content.
-
-   A pane whose content does NOT reach the bottom is unaffected: the faded band
-   is over empty surface, and masking nothing changes nothing. THAT claim is
-   confirmed — 6 of the 8 panes measured do not overflow and their bands are
-   unchanged blank surface. What is NOT true is the converse: the ramp is
-   anchored to the scroll container, so it never switches off, and a pane
-   scrolled to its very end still fades its last line with nothing below it.
-
-   THE RAMP STAYS AT `lg` AND THE LENSES DISAGREE ABOUT WHETHER IT SHOULD.
-   It was briefly moved to `2xl` — the horizontal fade's rung — on the strength
-   of L2 and L4, who both read the treatment as correct and both measured the
-   vertical ramp at ~26px against the horizontal fade's ~48px in the same pane,
-   L4 putting it as "the last line is dim" rather than "there is more".
-
-   L3 then measured what the ramp COSTS, and the move was reverted the same hour.
-   At ~29px the band already exceeds the 23px line pitch, and it drives the last
-   fully-inside-the-box line to 2.19-2.22:1 and a coverage dot to 2.43:1 — under
-   the floor, on text that has not left the box. Lengthening the ramp makes a
-   measured contrast failure worse in order to make a legibility reading better,
-   and a ratio against a floor outranks a reading.
-
-   The two findings are both correct, which is the useful result: at this line
-   pitch there is no ramp length that both reads as continuation and keeps the
-   last line legible, so the next move is a different treatment rather than a
-   different number. `reviews/QUEUED-DECISIONS.md` Q11 carries the options,
-   including the second half of L3's finding — that masking the pane BODY also
-   fades the RAW block's own surface and erases its bottom boundary, which no
-   ramp length fixes. */
-.panebody{flex:1 1 0;min-height:0;overflow:auto;
+   `reviews/QUEUED-DECISIONS.md` Q11 carries what the ramp costs at this line
+   pitch: L3 measured the last fully-inside-the-box line at 2.19-2.22:1 against
+   the floor, so the ramp stays at `lg` rather than lengthening, and the next
+   move is a different treatment rather than a different number. */
+.lm_content{flex:1 1 0;min-height:0;overflow:auto;
   -webkit-mask-image:linear-gradient(to bottom,currentColor
     calc(100% - var(--bt-space-lg)),transparent);
   mask-image:linear-gradient(to bottom,currentColor
     calc(100% - var(--bt-space-lg)),transparent)}
-.panenote{padding:var(--bt-density-card-pad) var(--bt-density-cell-x);
+
+/* ── a note INSIDE a panel, which is not an empty panel ─────────────────── */
+/* NO CODETRACER COUNTERPART, and upstream says so itself. `empty_states.styl`
+   opens by stating its scope as panel-level messages and excluding "inline
+   'no rows yet' lines that sit *within* a list alongside real rows … the side
+   inset would indent them out of line with the rows around them". Three notes
+   on this route are that kind: the `.srcrung` caption above the instruction
+   listing, the decoded-input note beside the payload rows, and the no-session
+   prose, whose BLOCK is centred while the prose is deliberately left-aligned.
+   `.empty-overlay` centres its text and insets it 2.5rem a side, which is
+   right for "this panel is empty" and wrong for all three — measured on
+   `debugger--metadata-pane`, where the decoded-input paragraph came out
+   centred over four lines.
+
+   So they keep BlockTracer's own treatment, under a name that says whose it
+   is. This is the same treatment the retired pane-note class carried, and it
+   is unchanged. */
+.btnote{padding:var(--bt-density-card-pad) var(--bt-density-cell-x);
   color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);
   line-height:var(--bt-type-body-sm-line);max-width:var(--bt-measure-prose)}
 
-/* ── tabs (a stack) ─────────────────────────────────────────────────────── */
-/* `margin-top:0` is not decoration, it is a COLLISION FIX, and it is the whole
-   of round 5's "the three columns do not share a top edge"
-   (reviews/rounds/vd5-round5/debugger__laptop__light__L2.md,
-   reviews/rounds/vd5-round5/debugger__laptop__dark__L2.md,
-   reviews/rounds/vd5-round5/debugger__wide__light__L2.md — three reviewers,
-   three triples, one measurement). The explorer's vertical-rhythm
-   utility is spelled `.stack` and sets `margin-top:var(--bt-rhythm-stack)`;
-   this region's class list is `ln stack w3`, so it matched, and the tabbed
-   column opened exactly 24px — one rhythm-stack rung — below the Code and
-   Transaction panes, with bare canvas showing above the tab strip. Measured
-   before: `.ln.col` top y=68, `.ln.stack` top y=92, computed
-   `margin: 24px 0px 0px`. The two classes are different vocabularies that
-   happen to share a word; this rule is the boundary between them, and it is
-   here rather than in `styles.nim` because the explorer's utility is correct
-   for the explorer. */
-.ln.stack{display:flex;flex-direction:column;margin-top:0;
-  border:var(--bt-stroke-hairline) solid var(--bt-border-default);
-  border-radius:var(--bt-radius-md);background:var(--bt-surface-raised);
-  overflow:hidden}
-.ln.stack > .pane{border:0;border-radius:0;flex:1 1 0}
-.ln.stack > .pane > .panehead{display:none}
-.stacktabs{order:-1;flex:0 0 auto;display:flex;gap:0;
-  background:var(--bt-surface-sunken);
-  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
-.stacktab{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
-  font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);
-  letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;
-  color:var(--bt-text-subtle);
-  border-bottom:var(--bt-stroke-thick) solid transparent;
-  transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
-.stacktab:hover{color:var(--bt-text-default);background:var(--bt-surface-hover)}
-/* Default tab and default panel. */
-.stackpanel.alt{display:none}
-.stackpanel.def{display:flex}
-/* `--bt-mark-view` and not the accent. "This tab is the one on screen" is a
-   different question from "this is a link", "you are here in the trace" and
-   "this value changed", and all four were painted the same indigo — round 5
-   counted five meanings on the one token
-   (reviews/rounds/vd5-round5/debugger__laptop__dark__L3.md). The open view is
-   the one role that does not need a hue at all — it is carried by the
-   strongest neutral against the tab strip, which is also the only one of the
-   four that rises rather than falls in contrast. */
-.stacktabs > .stacktab:first-child{color:var(--bt-text-strong);
-  border-bottom-color:var(--bt-mark-view)}
-/* A targeted alternate takes over, and reaches forward to correct both the
-   default panel and the tab strip. */
-.stackpanel.alt:target{display:flex}
-.stackpanel.alt:target ~ .stackpanel.def{display:none}
-.stackpanel.alt:target ~ .stacktabs > .stacktab:first-child{
-  color:var(--bt-text-subtle);border-bottom-color:transparent}
-.stackpanel.alt:target ~ .stacktabs > .stacktab:last-child{
-  color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
+/* ── the splitter, without a drag ───────────────────────────────────────── */
+/* `golden_layout.styl` gives `.lm_splitter` its colour, its 4px weight, its
+   drag handle and a `col-resize` / `row-resize` cursor with a hover highlight.
+   All of that arrives; the last two are switched off HERE, because
+   GoldenLayout makes the element draggable from JavaScript and this route has
+   none. A resize cursor over something that cannot resize is the
+   affordance-that-lies defect the review brief names by that name, and it
+   would be a new one — the old `gap` promised nothing.
+
+   `flex:0 0 auto` is the same no-counterpart case as `.lm_stack` above:
+   upstream positions splitters absolutely from script. */
+.ln > .lm_splitter,.dbgmain > .lm_splitter{flex:0 0 auto}
+/* Both carry the register prefix because both ANSWER a ported rule, and the
+   port scopes every selector it emits with `[data-register="debugger"]`. An
+   unprefixed `.lm_splitter{cursor:default}` is one class against two and loses
+   on specificity — measured: `col-resize` still computed on the splitter. Rules
+   in this file that answer nothing upstream stay unprefixed, as the rest of the
+   file does. */
+[data-register="debugger"] .lm_splitter{cursor:default}
+[data-register="debugger"] .lm_splitter:hover{
+  background:var(--bt-surface-raised) !important}
+
+/* ── tabs without JavaScript ────────────────────────────────────────────── */
+/* The ONE mechanism in this file that CodeTracer has no counterpart for at
+   all, because upstream toggles `.lm_active` and shows one `.lm_content` from
+   JavaScript. Every DECLARATION for an active tab still comes from upstream:
+   `ct_components_css` re-emits its own `.lm_active` rules under the `:has()`
+   selectors below rather than anything being re-typed here, so the curved
+   connectors, the bridge shadow and the squared bottom corners are upstream's
+   bytes under a different selector. What is written here is only which panel
+   is SHOWN.
+
+   Why `:has()` and not the forward-sibling chain this file used to carry: the
+   tab strip and the panels are now in two different subtrees
+   (`.lm_header` and `.lm_items`), which no sibling combinator crosses. `:has()`
+   also removed the reason `renderStack` used to emit its panels in reverse. */
+/* `flex-direction:column` on the hidden rule as well as the shown ones, so the
+   axis is stated once. A panel stacks its rows; the block element this
+   replaced got that for nothing, and a bare `display:flex` laid every panel's
+   contents out in a ROW — measured: the source listing and the loop rail side
+   by side, the transaction pane's rows running off the right edge.
+
+   (The retired element is not named here. This stylesheet is inlined into
+   every served page, so a comment spelling a dead selector puts its text back
+   into the bytes — which `test_ct_components_css` asserts against, and which
+   this comment failed when it was first written.) */
+.lm_stack > .lm_items > .lm_content{display:none;flex-direction:column}
+.lm_stack:not(:has(> .lm_items > .lm_content:target))
+  > .lm_items > .lm_content.btdefault{display:flex}
+.lm_stack:has(> .lm_items > .lm_content:nth-child(1):target)
+  > .lm_items > .lm_content:nth-child(1){display:flex}
+.lm_stack:has(> .lm_items > .lm_content:nth-child(2):target)
+  > .lm_items > .lm_content:nth-child(2){display:flex}
+.lm_stack:has(> .lm_items > .lm_content:nth-child(3):target)
+  > .lm_items > .lm_content:nth-child(3){display:flex}
+.lm_stack:has(> .lm_items > .lm_content:nth-child(4):target)
+  > .lm_items > .lm_content:nth-child(4){display:flex}
+
 
 /* ── source pane ────────────────────────────────────────────────────────── */
 /* `height:100%` and not `flex:1` alone: `.srcwrap` is a BLOCK child of
-   `.panebody`, so it has no flex parent to grow into, and a chain of
+   `.lm_content`, so it has no flex parent to grow into, and a chain of
    `flex:1 1 0` items under an auto-height ancestor resolves to zero — which
    renders the pane empty rather than short. The explicit height gives the
    chain a definite one to divide. */
@@ -1621,10 +1693,16 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    divider through it rather than as two chips; and the distance BETWEEN pairs
    is `space-md`, a step the eye reads against the zero inside them. Proximity
    is doing the grouping the desktop app's toolbar does. */
+/* THE CAPSULE PAIRING IS GONE, and it is a deliberate loss rather than a
+   casualty. A `[reverse|forward]` pair drawn as one capsule with a divider is
+   BlockTracer's own invention; CodeTracer's toolbar rounds every icon button
+   individually, and `button.styl`'s `[class*="ct-button-image-"]` says so with
+   `border-radius: 0.375em !important` — which these four radius overrides
+   cannot win against and should not try to. What survives is the PROXIMITY
+   grouping the comment above is really about: zero gap inside a pair,
+   `space-md` between pairs. */
 .dcbtns{flex:0 0 auto;display:flex;gap:0}
-.dcbtn:nth-child(odd){margin-left:var(--bt-space-md);
-  border-start-end-radius:0;border-end-end-radius:0}
-.dcbtn:nth-child(even){border-start-start-radius:0;border-end-start-radius:0}
+.dcbtn:nth-child(odd){margin-left:var(--bt-space-md)}
 .dcbtn:first-child{margin-left:0}
 /* An ENABLED control is a chip with a body: the header band's surface, one
    perceptible step off the bar it sits in, and the ramp's top foreground.
@@ -1648,19 +1726,36 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    TRUE; the controls were the lie. Now: enabled 13.29:1 on a chip, inert
    5.47:1 (dark) / 7.34:1 (light) flat on the bar — legible AS a move, and
    unmistakable as one that cannot be made. */
+/* THE ENABLED CONTROL IS NOW CODETRACER'S SECONDARY ICON BUTTON, and none of
+   its surface, border, radius or size is declared here any more. The markup
+   carries `ct-button-image-md-secondary`, so the port's own
+   `[class*="-button-"][class*="-secondary"]` and `[class*="ct-button-image-md-"]`
+   rules draw it — the same treatment `golden_layout.styl` points its own
+   `.lm_controls > *` comment at, which is how CodeTracer's pane controls and
+   its toolbar come to be one button.
+
+   What stays here is only what the port has no counterpart for: the glyph
+   colour, and the INERT state below. */
 .dcbtn{display:inline-flex;align-items:center;justify-content:center;
-  min-width:var(--bt-space-lg);
-  padding:var(--bt-space-3xs) var(--bt-space-xs);
-  border:var(--bt-stroke-hairline) solid var(--bt-action-ghost-border);
-  border-radius:var(--bt-radius-sm);background:var(--bt-surface-sunken);
-  color:var(--bt-text-strong);
-  transition:background var(--bt-motion-fast) var(--bt-motion-ease)}
-.dcbtn:hover{background:var(--bt-surface-hover);
-  border-color:var(--bt-action-ghost-border-hover)}
-.dcbtn.off{background:var(--bt-surface-raised);
+  color:var(--bt-text-strong)}
+/* THE INERT STATE STAYS BLOCKTRACER'S, AND IT IS PREFIXED SO IT WINS.
+   CodeTracer expresses "cannot act" as `:disabled` with `opacity:0.5`, and
+   these controls are NOT disabled — they carry `aria-disabled` and a `title`
+   saying why, because the page ships no script and a real `disabled` attribute
+   would take them out of the tab order along with their explanation. More to
+   the point, the treatment below is a MEASURED one: round 5's adversarial lens
+   filed inert controls that "looked ACTIVE", and this is the fix — the inert
+   control loses its body to the bar's own surface and its glyph drops to the
+   muted rung, at 5.47:1 (dark) / 7.34:1 (light). Halving the opacity of a
+   5.47:1 glyph would reopen that finding.
+
+   The `[data-register="debugger"]` prefix is what makes it reachable at all:
+   the port's secondary-button rules are three compound selectors deep, and an
+   unprefixed `.dcbtn.off` loses to them. Same reason as the splitter above. */
+[data-register="debugger"] .dcbtn.off{background:var(--bt-surface-raised);
   color:var(--bt-text-subtle);border-color:var(--bt-border-subtle);
   cursor:not-allowed}
-.dcbtn.off:hover{background:var(--bt-surface-raised);
+[data-register="debugger"] .dcbtn.off:hover{background:var(--bt-surface-raised);
   border-color:var(--bt-border-subtle)}
 /* THE SAME RULE FOR THE REGISTER'S OTHER INERT CONTROLS, because a fix of mine
    broke it and three lenses of vd10-r2 measured the break independently.
@@ -1908,7 +2003,7 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 .mdsec{padding:var(--bt-density-cell-y) var(--bt-density-cell-x)}
 .mdsec .mddl{margin-top:var(--bt-space-2xs)}
 .mdsec .mddl dt,.mdsec .mddl dd{padding-left:0;padding-right:0}
-.mdsec .panenote{padding:var(--bt-space-2xs) 0 0}
+.mdsec .btnote{padding:var(--bt-space-2xs) 0 0}
 /* The right-edge fade is declared with `.src` above — one overflow treatment
    for every clipped code surface on the page. */
 .mdsec pre.raw{margin-top:var(--bt-space-2xs);
@@ -1934,19 +2029,19 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    where that stops being true.
 
    The prose itself stays left-aligned. What is centred is the BLOCK. */
-.nosession .panebody{display:flex}
+.nosession .lm_content{display:flex}
 .nostate{margin:auto;max-width:var(--bt-measure-prose);
   padding:var(--bt-density-card-pad) var(--bt-density-cell-x)}
-/* Both paragraphs already carry `.panenote`'s own padding, so the second needs
+/* Both paragraphs already carry `.empty-overlay`'s own padding, so the second needs
    none of its own; what it needs is to read as evidence UNDER the sentence
    rather than as a second statement beside it. One rung quieter, and its top
    padding removed so the pair sits as one block. Same relationship
    `.notice .reason` gives the explorer register. */
-.nostate .panenote.reason{padding-top:var(--bt-space-2xs);
+.nostate .btnote.reason{padding-top:var(--bt-space-2xs);
   color:var(--bt-text-muted)}
 .norow{display:flex;align-items:center;gap:var(--bt-space-md);flex-wrap:wrap;
   margin-top:var(--bt-rhythm-stack)}
-.norow .panenote{padding:0;flex:1 1 var(--bt-measure-narrow)}
+.norow .btnote{padding:0;flex:1 1 var(--bt-measure-narrow)}
 /* The phase rail sits in the identity bar now, beside the controls whose
    inertness it explains, so it has no vertical rhythm of its own and its
    chips carry one word rather than a sentence (`session_view.phaseShortLabel`).
@@ -2071,7 +2166,15 @@ a .copyable,button .copyable{cursor:pointer}
    word "sion" left of it. Clipping at the cap is what makes the embed a
    bounded preview instead of a squeezed session; the button under it is the
    way to the whole thing. */
-.livedemo .dbgmain{height:var(--bt-layout-code-max-height);overflow:hidden}
+/* `background` is here and not on the element's own class list because
+   `pages/home.nim` is the explorer chrome's file and not this branch's: the
+   debug route puts `.lm_goldenlayout` on its `.dbgmain` and gets the frame
+   surface from the port's own rule, and the embed is named by selector until
+   that page can carry the class too. It is the same token the port binds
+   `.lm_goldenlayout` to, and it is the one property restated anywhere in this
+   file. */
+.livedemo .dbgmain{height:var(--bt-layout-code-max-height);overflow:hidden;
+  background:var(--bt-surface-raised)}
 .livedemofoot{display:flex;align-items:center;justify-content:space-between;
   gap:var(--bt-space-md);flex-wrap:wrap;
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
@@ -2239,23 +2342,28 @@ a .copyable,button .copyable{cursor:pointer}
      base rule (it takes what the provenance banner leaves of the viewport), and
      `height:auto` does NOT neutralise a flex basis. Without this line the shell
      would keep dividing a fixed viewport at exactly the widths this block
-     exists to stop it — the same defect as `.dbgmain`, `.ln` and `.pane` on the
+     exists to stop it — the same defect as `.dbgmain`, `.ln` and `.lm_stack` on the
      lines below, which is why it takes the same declaration they do. */
   [data-register="debugger"] .dbg{flex:0 0 auto;height:auto;min-height:100%}
   .dbgmain{flex:0 0 auto;flex-direction:column;height:auto;overflow:visible}
   .ln{flex:0 0 auto;height:auto}
   .ln.row{flex-direction:column}
-  .pane,.ln.stack > .pane{flex:0 0 auto;height:auto}
-  .panebody{flex:0 0 auto;height:auto;
+  .lm_stack{flex:0 0 auto;height:auto}
+  .lm_stack > .lm_items{flex:0 0 auto;height:auto}
+  .lm_content{flex:0 0 auto;height:auto;
     max-height:var(--bt-layout-code-max-height);overflow:auto}
+  /* A stacked column no longer needs a splitter between its members at this
+     width — the panes run one under another and the separator would be a bar
+     across the page. The row splitters go with the row. */
+  .lm_splitter{display:none}
   /* …with ONE exception, and it is the pane §13 names first. `.srcwrap` is
      `height:100%` and `.src` inside it is `flex:1 1 0`, so an auto-height
-     `.panebody` gives the chain nothing to divide and the code renders at zero
+     `.lm_content` gives the chain nothing to divide and the code renders at zero
      height: the Code pane came out as an empty title bar at every narrow
      viewport, which is exactly the "reduced session that silently drops a
      pane" §13 forbids — except that it was not even announced, because the
      pane was still there. A definite height is all the chain needs. */
-  .p-source .panebody{height:var(--bt-layout-code-max-height)}
+  .lm_content.p-source{height:var(--bt-layout-code-max-height)}
   /* The identity bar's forced two-row wrap is a `wide`/`laptop` measure. Here
      the actions are hidden anyway, so the break would leave the language tag
      alone on a row of its own. */
@@ -2287,12 +2395,19 @@ a .copyable,button .copyable{cursor:pointer}
      alternate rules are answered here rather than left to win the cascade:
      the panel stays hidden, the Call Trace panel stays shown, and its tab
      stays marked. A `:target` that changes nothing is the correct behaviour
-     for a fragment naming a pane this viewport does not offer. */
-  .stacktab.t-pane-eventlog{display:none}
-  .stackpanel.p-eventlog:target{display:none}
-  .stackpanel.p-eventlog:target ~ .stackpanel.def{display:flex}
-  .stackpanel.p-eventlog:target ~ .stacktabs > .stacktab:first-child{
-    color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
+     for a fragment naming a pane this viewport does not offer.
+
+     `!important` AND the register prefix on the tab rule, because it is
+     ANSWERING a ported declaration rather than filling a gap:
+     `golden_layout.styl` sets `.lm_tab{display:flex !important}`, and an
+     unprefixed `display:none` loses to it twice over. Measured — the Event
+     Log tab was still on screen at `tablet` after the port landed, over a
+     panel this viewport does not offer, which is the dead control this
+     surface has now removed three times. */
+  [data-register="debugger"] .lm_tab.t-pane-eventlog{display:none !important}
+  .lm_stack > .lm_items > .lm_content.p-eventlog{display:none}
+  .lm_stack:has(> .lm_items > .lm_content.p-eventlog:target)
+    > .lm_items > .lm_content.p-calltrace{display:flex}
   /* The whole action GROUP, not the two buttons inside it: hiding the buttons
      left `.dbgacts` behind as a zero-width flex item that still claimed a gap
      on either side of itself. */
@@ -2526,6 +2641,24 @@ const shortcutsDialogCss = """
 .kbor{color:var(--bt-text-muted);font-size:var(--bt-type-caption-size)}
 """
 
-const debugRouteCss* = debugRouteBaseCss & shortcutsDialogCss & """
+const debugRouteCss* = codetracerComponentCss & activeTabCss() &
+  debugRouteBaseCss & shortcutsDialogCss & """
 /* ── the loop rail's target ladder (generated; see flowIterationLadder) ──── */
 """ & flowIterationLadder()
+  ## CODETRACER'S COMPONENT RULES COME FIRST, and the order is the whole of how
+  ## the two layers divide.
+  ##
+  ## Everything upstream declares — the tab shape, the connectors, the panel
+  ## surface, the splitter, the empty-state treatment, the button and input
+  ## treatments, the table rows — is emitted first, so BlockTracer's own rules
+  ## below can override any of it at equal specificity by being later. That is
+  ## the direction the override has to run: a BlockTracer rule exists only
+  ## where upstream has no counterpart, and each one says so in a comment right
+  ## above it. Nothing in this file re-states an upstream declaration; if a
+  ## rule here and a rule up there both set the same property, the comment says
+  ## which upstream rule it is answering and why.
+  ##
+  ## `activeTabCss()` sits between them because it is neither: its
+  ## DECLARATIONS are upstream's `.lm_active` bytes, re-emitted under the
+  ## `:target`-derived selectors a route with no JavaScript needs. See
+  ## `ct_components_css.activeTabCss`.

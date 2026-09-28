@@ -782,6 +782,33 @@ layout-vendor:
     ci/test/flow-layout-vendor.sh --require
     ci/test/flow-layout-vendor-test.sh
 
+# The vendored CodeTracer COMPONENT STYLESHEETS — the six `.styl` files that
+# draw a CodeTracer window, and the reason the debugger stopped looking like a
+# different product.
+#
+# A THIRD manifest over the same vendor tree, and it is here rather than in
+# `layout-vendor` because what it protects is different in kind. Those two
+# protect a COMPUTATION: where a pane goes, where a label goes. This protects
+# the RULES — the tab strip, the connectors, the panel surface, the splitters,
+# the buttons, the rows, the empty states. `client/src/design_system/
+# ct_styl.nim` compiles these bytes into the stylesheet the site serves, so a
+# local edit here is a fork of the product's appearance that no screenshot
+# review would attribute to the right cause.
+#
+# Part B is a BYTE comparison, unlike the two above, and the script's header
+# argues why at length: there is no observable short of the compiled CSS, the
+# comparison is against a FIXED commit rather than a moving checkout so it has
+# no false positive, and upstream's comments are where the reason for a rule
+# lives — a copy whose prose has drifted compiles the same and has stopped
+# being traceable, which was the whole point.
+#
+# The self-test drives all six failure paths plus the control, for the reason
+# every gate here has one: a check whose failure path has never run is a check
+# nobody has reason to believe.
+ct-styles-vendor:
+    ci/test/ct-styles-vendor.sh --require
+    ci/test/ct-styles-vendor-test.sh
+
 # ── The Noir corpus (fixtures/trace/tour) ───────────────────────────────────
 # Two sets: `programs` are recordable and are the capability tour the demo chain
 # publishes; `toolchainPrograms` exercise the toolchain and cannot produce a

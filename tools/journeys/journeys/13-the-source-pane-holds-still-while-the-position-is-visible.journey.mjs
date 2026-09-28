@@ -75,11 +75,11 @@
 // WHERE `scrollTop` IS READ FROM
 // ------------------------------
 // The scroller is FOUND by walking out from the marked line (`lib/probe.mjs`,
-// `sourceScroll`), not named. `#pane-editor .panebody` is the element the
+// `sourceScroll`), not named. `#pane-editor` is the element the
 // product's own code holds and it is not the source pane's scroller — `.src` is.
 // Measured: `.src` client 512 / scroll 886 on demo source, client 549 / scroll
-// 7975 on a chain listing, while `.panebody` on the demo pane does not scroll at
-// all (539 == 539). A journey that read `.panebody.scrollTop` would have read a
+// 7975 on a chain listing, while the panel on the demo pane does not scroll at
+// all (539 == 539). A journey that read the panel's `scrollTop` would have read a
 // constant 0 before the fix and 0 after, and a constant supports any assertion
 // its author wants.
 //

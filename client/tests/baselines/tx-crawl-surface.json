@@ -98,7 +98,7 @@
   "txSessionMustContain": [
     "<dl class=\"mddl\">",
     "id=\"pane-metadata\"",
-    "class=\"dbgmain\""
+    "class=\"dbgmain lm_goldenlayout\""
   ],
   "txPageMustContain": [
     "<dl class=\"dl\">",

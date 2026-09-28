@@ -616,7 +616,7 @@ export async function run({ browser, site, j }) {
     // the pane that holds the event rows, and the control whose fragment points
     // at it. A renamed pane moves this on its own.
     const opened = await page.evaluate(() => {
-      const pane = document.querySelector(".evrow")?.closest(".pane");
+      const pane = document.querySelector(".evrow")?.closest(".lm_content");
       if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
       const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
       if (!tab) return { ok: false, why: `no control targets #${pane.id}` };

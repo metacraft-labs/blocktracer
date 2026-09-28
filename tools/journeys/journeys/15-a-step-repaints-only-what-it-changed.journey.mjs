@@ -84,7 +84,7 @@ const PANES = ["pane-editor", "pane-calltrace", "pane-state", "pane-eventlog"];
  * Install the instrument.
  *
  * Three readings, on the elements the product actually writes. `writePane`
- * assigns to each pane's `.panebody`, so that is what is observed — an observer
+ * assigns to each pane's `.lm_content` panel, so that is what is observed — an observer
  * on the pane WRAPPER would still see the writes bubble up through `subtree`,
  * and would also see anything else the page did inside the wrapper, which is
  * how a mutation counter comes to measure something other than the thing it is
@@ -94,7 +94,7 @@ const install = (page) =>
   page.evaluate((paneIds) => {
     const bodies = {};
     for (const id of paneIds) {
-      const body = document.querySelector("#" + id + " .panebody");
+      const body = document.querySelector("#" + id);
       if (body) bodies[id] = body;
     }
     const hash = (s) => {

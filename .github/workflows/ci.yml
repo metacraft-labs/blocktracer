@@ -1423,6 +1423,23 @@ jobs:
             bash ci/test/flow-layout-vendor.sh &&
             bash ci/test/flow-layout-vendor-test.sh'
 
+      - name: The vendored CodeTracer stylesheets still agree with upstream
+        # THE SAME OMISSION AS THE STEP ABOVE, ONE PORT LATER. This branch
+        # vendors six of CodeTracer's component stylesheets byte-verbatim and
+        # wrote both gates for them — and wired neither, which is precisely
+        # what `ci-coverage.sh` exists to catch and did:
+        #
+        #   [FAILED] shell gate 'ci/test/ct-styles-vendor.sh' exists and NO CI job runs it
+        #   [FAILED] shell gate 'ci/test/ct-styles-vendor-test.sh' exists and NO CI job runs it
+        #
+        # A vendored copy with no check is a fork nobody has noticed yet, and
+        # the whole point of copying upstream's bytes rather than re-typing its
+        # rules is that a gate can prove they are still upstream's bytes.
+        run: |
+          nix develop .#ci --command bash -c '
+            bash ci/test/ct-styles-vendor.sh &&
+            bash ci/test/ct-styles-vendor-test.sh'
+
       # DOES `test_selection_detail.nim` BITE? The proof-of-bite for the one Nim
       # suite that exists BECAUSE a guard somewhere else was dead.
       #

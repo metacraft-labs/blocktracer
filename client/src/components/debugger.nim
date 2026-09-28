@@ -145,26 +145,91 @@ proc weightClass*(w: float): string =
   "w" & $n
 
 # ── pane chrome ────────────────────────────────────────────────────────────
+#
+# CODETRACER'S OWN CHROME, NOT A LOOKALIKE. The element names and class
+# vocabulary below are GoldenLayout's — `.lm_stack`, `.lm_header`, `.lm_tabs`,
+# `.lm_tab`, `.lm_title`, `.lm_items`, `.lm_content` — because the rules that
+# draw them are CodeTracer's, compiled from its own vendored `.styl` sources by
+# `components/ct_components_css`. BlockTracer's previous vocabulary (`.pane`,
+# `.panehead`, `.panetitle`, `.panebody`) was a second spelling of the same
+# ideas, which is exactly why no CodeTracer rule could reach this markup and why
+# the debugger read as a different product.
+#
+# EVERY PANE IS A STACK, including a pane that is alone. That is not padding:
+# in CodeTracer a panel's name is always a TAB, and `.lm_header`/`.lm_tabs` is
+# where the tab lives. A lone pane rendered with a plain header would be the one
+# surface on the page whose title did not look like a tab.
+#
+# The nesting is exact, because `golden_layout.styl` depends on it:
+# `.lm_stack > .lm_header > .lm_tabs > .lm_tab` and
+# `.lm_stack > .lm_items > .lm_content`. Its two `:has()` rules — the ones that
+# square the corner where a first or last tab meets its panel — are written
+# against those child combinators, so a different depth silently loses them.
+
+proc paneTab(title, targetId: string; linked, isDefault: bool): string =
+  ## One tab. `linked` renders the title as an `<a>` into the panel's fragment,
+  ## which is how a stack switches with no JavaScript; a lone pane has nothing
+  ## to switch to and renders a `<span>`, so the page has no link that does
+  ## nothing.
+  ##
+  ## `btdefault` marks the tab the region opens on. It is BlockTracer's own
+  ## class and spelled in BlockTracer's own vocabulary on purpose — it is NOT
+  ## part of GoldenLayout's, and an `lm_`-prefixed name would claim it was.
+  ## Upstream has no counterpart because upstream has script: it puts
+  ## `.lm_active` on whichever tab its model says, at render time. Here the
+  ## model's `activeIndex` has to survive into a STATIC selector, and this is
+  ## it — see `activeTabCss` in `ct_components_css`.
+  ui:
+    li(class = "lm_tab" & (if isDefault: " btdefault" else: "") &
+               " t-" & targetId):
+      if linked:
+        a(class = "lm_title", href = "#" & targetId): text title
+      else:
+        span(class = "lm_title"): text title
 
 proc paneChrome(title, id, cls, body: string; weight = 1.0): string =
-  ## One pane: a header carrying its name, and a scrolling body.
+  ## One pane: a one-tab stack, and a scrolling panel.
   ##
   ## Every pane gets the same chrome — including the metadata pane, which is
   ## what makes §7.1's "a pane … rather than a bespoke surface" true of the
   ## markup and not only of the prose.
+  ##
+  ## `id` lands on `.lm_content` and not on the stack, which is a change from
+  ## the `.pane` markup and a deliberate one. It is the panel that `:target`
+  ## has to be able to name — the tab strip's links, `?pane=`, a shared deep
+  ## link and the capture harness's `#pane-eventlog` all resolve to a PANEL —
+  ## and one id cannot be both the region and the panel inside it.
   ui:
-    section(class = "pane " & cls & " " & weightClass(weight), id = id):
-      header(class = "panehead"):
-        span(class = "panetitle"): text title
-      tdiv(class = "panebody"):
-        raw body
+    tdiv(class = "ln lm_stack " & weightClass(weight)):
+      tdiv(class = "lm_header"):
+        ul(class = "lm_tabs"):
+          raw paneTab(title, id, linked = false, isDefault = true)
+      tdiv(class = "lm_items"):
+        tdiv(class = "lm_content btdefault " & cls, id = id):
+          raw body
 
 proc paneNote(note: string): string =
   ## What a pane says when it has nothing to show. The review brief's
   ## anti-requirement is "Empty panes. A pane with nothing in it must say why,
   ## not sit blank", so there is no code path that renders an empty body.
+  ##
+  ## `.empty-overlay` is CodeTracer's own empty-state class — the first
+  ## selector in `empty_states.styl`'s shared group — so "this panel has
+  ## nothing to show" is drawn by the same rule in both products.
+  ##
+  ## IT IS NOT USED FOR EVERY NOTE, and the line is upstream's own. That
+  ## stylesheet's header states its scope as panel-level messages and
+  ## explicitly excludes "inline 'no rows yet' lines that sit *within* a list
+  ## alongside real rows … the side inset would indent them out of line with
+  ## the rows around them". Three notes on this route are exactly that — the
+  ## `.srcrung` caption above the listing, the decoded-input note beside the
+  ## payload rows, and the no-session prose, whose block is centred while the
+  ## prose itself is deliberately left-aligned. They carry `.btnote`, which is
+  ## BlockTracer's and says so. Applying the shared treatment to them was
+  ## measured and reverted: `empty_states.styl` centres its text, and the
+  ## decoded-input paragraph came out centred over four lines.
   ui:
-    p(class = "panenote"): text note
+    p(class = "empty-overlay"): text note
 
 # ── copying a value out (§13) ──────────────────────────────────────────────
 #
@@ -587,11 +652,11 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     # anonymous `div` that nothing asked for.
     let none = ui:
       tdiv(class = "srcnone"):
-        p(class = "panenote"):
+        p(class = "empty-overlay"):
           text (if p.reason.len > 0: p.reason
                 else: "No source is published for the code this transaction ran.")
         if p.availability == srcUnverified:
-          p(class = "panenote"):
+          p(class = "empty-overlay"):
             text "Stepping continues at instruction level."
           # A CONTROL THAT CANNOT ACT HAS TO SAY SO AS A CONTROL. This button
           # was a bare `<button class="btn ghost sm">` with no handler, href,
@@ -1201,7 +1266,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
       ui:
         tdiv(class = "srcrung" & (if listing: " atinstr" else: " atsource"),
              `aria-live` = "polite"):
-          p(class = "panenote"):
+          p(class = "btnote"):
             if listing:
               text "Instruction level here. This recording resolves source for "
               span(class = "num"): text $p.positionedSteps
@@ -1247,7 +1312,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   # no-documents state and this one say the same thing in the same markup.
   let why = ui:
     tdiv(class = "srcnone"):
-      p(class = "panenote"):
+      p(class = "empty-overlay"):
         text (if p.reason.len > 0: p.reason
               else: "No source is published for the code this transaction ran.")
       # The action, in the state it has always been in. See its long comment in
@@ -2030,7 +2095,17 @@ proc renderControls*(p: DebugControlsPane; km = keymapOf(kmNone)): string =
           # replaces is a hydration that had to identify a control by matching
           # its label text, which would make the toolbar's behaviour depend on
           # its wording.
-          button(class = "dcbtn" & (if b.enabled: "" else: " off"),
+          # `ct-button-image-md-secondary` is CodeTracer's own icon-button class,
+          # and it is what draws this control: `button.styl`'s
+          # `[class*="ct-button-image-md-"]` sizes it and
+          # `[class*="-button-"][class*="-secondary"]` gives it the surface,
+          # hairline and hover. `golden_layout.styl` points its `.lm_controls > *`
+          # rule at the same treatment, so a pane control and a toolbar control
+          # are one button in both products. `.dcbtn` survives beside it for the
+          # two things that are BlockTracer's: the pair spacing, and the inert
+          # state, whose contrast was measured and must not become `opacity:0.5`.
+          button(class = "dcbtn ct-button-image-md-secondary" &
+                         (if b.enabled: "" else: " off"),
                  `data-action` = $b.action,
                  title = why, `aria-label` = why,
                  `aria-disabled` = (if b.enabled: "false" else: "true")):
@@ -2223,7 +2298,7 @@ proc renderMetadata*(m: MetadataPane): string =
           span(class = "mdexectitle"): text "Decoded input"
           raw metaRows(m.payload, "mddl mdpayload")
           if m.payloadNote.len > 0:
-            p(class = "panenote"): text m.payloadNote
+            p(class = "btnote"): text m.payloadNote
       if m.native.len > 0:
         tdiv(class = "mdsec", id = "raw"):
           span(class = "mdexectitle"): text "Raw (chain-native)"
@@ -2263,7 +2338,7 @@ proc renderSelection*(d: SelectionDetail): string =
       if d.kind == selNone:
         # A stated absence, in the voice the replay panes already use. An
         # empty section would be indistinguishable from a broken one.
-        p(class = "panenote"): text d.note
+        p(class = "empty-overlay"): text d.note
       else:
         raw metaRows(d.facts, "mddl")
 
@@ -2312,38 +2387,52 @@ proc paneId*(kind: PaneKind): string =
 proc renderStack(node: LayoutNode; s: DebugSessionView): string =
   ## A tabbed region, switched by `:target`.
   ##
-  ## The panels are emitted in REVERSE order and put back visually by the
-  ## stylesheet, because CSS has only a forward sibling combinator: a targeted
-  ## alternate has to be able to hide the default, and it can only reach
-  ## siblings that come after it. The tab strip is emitted last and pulled to
-  ## the top for the same reason — it needs to be reachable from a targeted
-  ## panel so the active tab can be marked.
+  ## THE PANELS ARE NOW IN SOURCE ORDER, and the reversal this used to need is
+  ## gone with the sibling-combinator trick that forced it. The old markup put
+  ## the tab strip and the panels in ONE sibling list so a targeted panel could
+  ## reach forward to the strip; CodeTracer's nesting puts them in two subtrees
+  ## (`.lm_header` and `.lm_items`), which no sibling combinator crosses. The
+  ## switch is therefore expressed with `:has()` on the stack — see the
+  ## `lm_content`/`lm_tab` block in `debugger_css.nim` — and `:has()` does not
+  ## care about order. The whole session is still navigable with scripting off,
+  ## which is what the reversal was protecting.
+  ##
+  ## `activeIndex` is honoured through `btdefault` rather than through DOM
+  ## order — the tab and the panel the model names both carry the class, and
+  ## the stylesheet opens on it. A restored layout whose active child is its
+  ## second renders correctly, which the previous ordering-based mechanism
+  ## could not have done.
+  var tabs = ""
   var panels = ""
-  for i in countdown(node.children.len - 1, 0):
-    let child = node.children[i]
+  for i, child in node.children:
     let isDefault = i == node.activeIndex
+    tabs.addHtml paneTab(child.title, paneId(child.pane), linked = true,
+                         isDefault = isDefault)
     let panel = ui:
-      section(class = "pane stackpanel " & paneClass(child.pane) &
-                      (if isDefault: " def" else: " alt"),
-              id = paneId(child.pane)):
-        header(class = "panehead"):
-          span(class = "panetitle"): text child.title
-        tdiv(class = "panebody"):
-          raw paneBody(child.pane, s)
+      tdiv(class = "lm_content " & (if isDefault: "btdefault " else: "") &
+                   paneClass(child.pane),
+           id = paneId(child.pane)):
+        raw paneBody(child.pane, s)
     panels.addHtml panel
-  let tabs = ui:
-    nav(class = "stacktabs"):
-      for child in node.children:
-        a(class = "stacktab t-" & paneId(child.pane),
-          href = "#" & paneId(child.pane)):
-          text child.title
   ui:
-    tdiv(class = "ln stack " & weightClass(node.weight)):
-      raw panels
-      raw tabs
+    tdiv(class = "ln lm_stack " & weightClass(node.weight)):
+      tdiv(class = "lm_header"):
+        ul(class = "lm_tabs"):
+          raw tabs
+      tdiv(class = "lm_items"):
+        raw panels
 
 proc renderLayout*(node: LayoutNode; s: DebugSessionView): string =
   ## The walk. Total over `LayoutNodeKind`.
+  ##
+  ## A row or a column now interleaves `.lm_splitter` elements between its
+  ## children — CodeTracer's own panel separator, 4px, drawn by
+  ## `golden_layout.styl`. It is `aria-hidden` and inert: GoldenLayout makes
+  ## the same element draggable from JavaScript and this route has none, so
+  ## `debugger_css.nim` neutralises the resize cursor and the hover highlight
+  ## rather than offering a grip that cannot be taken. What it keeps is the
+  ## thing the operator asked for and the gap it replaces never was — a drawn
+  ## separator between panels, at CodeTracer's weight and colour.
   if node.isNil: return ""
   case node.kind
   of lnPane:
@@ -2352,8 +2441,14 @@ proc renderLayout*(node: LayoutNode; s: DebugSessionView): string =
   of lnStack:
     renderStack(node, s)
   of lnRow, lnColumn:
+    let axis = if node.kind == lnRow: "lm_horizontal" else: "lm_vertical"
     var kids = ""
-    for c in node.children: kids.addHtml renderLayout(c, s)
+    for i, c in node.children:
+      if i > 0:
+        let splitter = ui:
+          tdiv(class = "lm_splitter " & axis, `aria-hidden` = "true")
+        kids.addHtml splitter
+      kids.addHtml renderLayout(c, s)
     ui:
       tdiv(class = "ln " & (if node.kind == lnRow: "row" else: "col") & " " &
                    weightClass(node.weight)):

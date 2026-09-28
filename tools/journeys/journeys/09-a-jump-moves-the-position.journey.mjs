@@ -159,16 +159,16 @@ const pickTarget = (page, selector) =>
  */
 const readPaneHealth = (page) =>
   page.evaluate(() => {
-    const panes = [...document.querySelectorAll(".dbg .pane")];
+    const panes = [...document.querySelectorAll(".dbg .lm_stack")];
     const speaks = (p) =>
       p.querySelectorAll(".ctrow,.evrow,.strow,.srcline").length > 0 ||
-      [...p.querySelectorAll(".panenote")].some((n) => (n.textContent ?? "").trim().length > 0);
+      [...p.querySelectorAll(".empty-overlay")].some((n) => (n.textContent ?? "").trim().length > 0);
     return {
       panes: panes.length,
       mute: panes.filter((p) => !speaks(p)).length,
       muteTitles: panes
         .filter((p) => !speaks(p))
-        .map((p) => p.querySelector(".panetitle")?.textContent?.trim() || p.id || "(unnamed)"),
+        .map((p) => p.querySelector(".lm_title")?.textContent?.trim() || p.id || "(unnamed)"),
     };
   });
 
@@ -402,7 +402,7 @@ export async function run({ browser, site, j }) {
     // rows, and the control whose fragment points at that pane. A renamed pane
     // moves this on its own; a selector spelling "eventlog" would not.
     const opened = await page.evaluate(() => {
-      const pane = document.querySelector(".evrow")?.closest(".pane");
+      const pane = document.querySelector(".evrow")?.closest(".lm_content");
       if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
       const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
       if (!tab) return { ok: false, why: `no control targets #${pane.id}` };
@@ -710,7 +710,7 @@ async function realArm(browser, site, j, subject) {
     // taken, by the same property-not-name technique: the pane that holds the
     // event rows, and the control whose fragment points at it.
     const openedReal = await page.evaluate(() => {
-      const pane = document.querySelector(".evrow")?.closest(".pane");
+      const pane = document.querySelector(".evrow")?.closest(".lm_content");
       if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
       const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
       if (!tab) return { ok: false, why: `no control targets #${pane.id}` };
