@@ -132,6 +132,58 @@ What the explorer needs is the *declarations* re-decided per rule against a
 light canvas and a web-register density — which is a judgement per rule, which
 is why each one below carries its reasoning and six were declined outright.
 
+### Measured, not assumed
+
+Three questions were asked of the built tree rather than of the two headers.
+
+**1. Can any vendored rule reach an explorer surface?** No, and not
+conditionally. Every transpiled rule in the shipped stylesheet carries the
+prefix — `[data-register="debugger"] .status-notification.ct-notification{…}`,
+`[data-register="debugger"] .data-table{…}`. An explorer page is
+`<html data-register="explorer">`, so those rules cannot match whatever markup
+the explorer emits. The question "if the explorer emits table-shaped or
+banner-shaped markup, do those sheets reach it?" has a structural answer: no.
+
+**2. Which vendored sheets are live?** Scanning the MARKUP of all 349 served
+pages, with the stylesheet excluded so a selector cannot match its own text:
+
+| vendored sheet | its classes in served markup | live? |
+| --- | --- | --- |
+| `golden_layout.styl` | `lm_content`, `lm_title`, `lm_tab` — 55 pages | yes |
+| `empty_states.styl` | `.empty-overlay` — 42 pages | yes |
+| `button.styl` | `ct-button*` — **0 pages** | only via its bare `button` rule |
+| `input.styl` | `ct-input*` — **0 pages** | only via its bare `input` rule |
+| `notifications.styl` | `status-notification`, `ct-notification`, `notification-*` — **0 pages** | **no** |
+| `data_tables.styl` | `data-table`, `dt-empty`, `dataTables_empty`, `dt-container` — **0 pages** | **no** |
+
+Two of the six sheets are compiled into every page and style nothing, and two
+more contribute only their bare element rules. That is a finding for
+`bt/ct-components` rather than for this branch, and it is recorded here because
+it is the evidence for the next question.
+
+**3. Should the explorer adopt the two dead sheets, since nothing else uses
+them?** No, and the reason is that they are not the components the explorer
+has. CodeTracer's notification is a floating toast: the vendored rule opens
+`width: 29.125rem` — a fixed 466px — with an icon from `ct-images-*`, assets
+this site does not ship and which the port already lists among its drops. The
+explorer's `.notice` is an in-flow banner at the page column's full 912px, and
+the provenance form of it is full-bleed. Applying the vendored rule would
+resize the one element on a chain page that says whether the data is real to a
+desktop toast's width, which is an arrangement change and a bad one.
+`data_tables.styl` is the same shape of mismatch, and worse: it sets
+`thead{display:none}` and turns `table`/`tbody` into blocks, `tr` into a flex
+row and `td` into a grid, for DataTables' markup in a debugger pane. On
+`table.tbl` it would delete the column headers — §2's D-C3 and D-C4.
+
+**One consequence of the mechanism, stated because it is easy to miss.** The
+lint scans `client/src/{components,pages}`, so it reads the port's bridge table
+— which is all `var(--bt-*)` and passes — while the vendored `.styl` bytes sit
+outside those directories and are never seen. Raw lengths like `0.5rem` and
+`29.125rem` therefore reach the shipped CSS without A2 ever looking at them.
+That is inherent to vendoring and is the right trade for fidelity on the
+debugger route; it is noted here because it means "vendoring would pass the
+lint" is not on its own an argument for vendoring into the explorer.
+
 **What this branch did take from it is the arithmetic.** Its `Bridge` table
 derives CodeTracer-role → `--bt-*` mappings by reading both products' generated
 token layers, rather than by hand. Checked against it, five of this pass's six
