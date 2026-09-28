@@ -15,7 +15,7 @@
 ## pointer object cached across a navigation is the classic explorer bug §5.1
 ## names.
 
-import std/[algorithm, json, strutils]
+import std/[algorithm, json, sets, strutils]
 import ./store
 import ./paths
 import ./decode
@@ -76,7 +76,22 @@ proc blockRefsNewestFirst*(store: ObjectStore,
   ## object per epoch and states the height, so ordering a chain's blocks costs
   ## O(epochs) reads instead of O(blocks). A consumer that wants the details
   ## asks for the ones it will show.
-  var seen: seq[string]
+  # A `HashSet` AND NOT A `seq`, AND THE DIFFERENCE IS 1.05 TRILLION COMPARISONS.
+  #
+  # `if h in seen` over a `seq[string]` is a linear scan of everything already
+  # accepted, so deduping N blocks costs N²/2 comparisons INSIDE ONE CALL. The
+  # header above is right that this reads O(epochs) objects rather than
+  # O(blocks) — and that is a statement about READS, which is not where the cost
+  # was. Measured on a 10,000-block export: 21,266 calls, 210,947,112 `BlockRef`
+  # constructions, and 1,054,594,684,900 `seen` comparisons — 49.6 M per call,
+  # against the 50 M that N²/2 predicts for N = 10,000. That was 1,975 s of a
+  # 1,995 s run: 99.0% of the whole export.
+  #
+  # It is invisible to the consumer this was written for. A client renders one
+  # page and pays it once over the chain it is showing; an exporter renders
+  # 288,046 and pays it every time. Same function, same correctness, different
+  # consumer — see `docs/Replay-Toolchain-Artifacts.md` on that class.
+  var seen: HashSet[string]
   for rel in session.root.heightPaths:
     let r = store.getJson(rel)
     if not r.found or r.error.len > 0 or r.node.isNil: continue
@@ -87,7 +102,7 @@ proc blockRefsNewestFirst*(store: ObjectStore,
       if hashNode.kind != JString: continue
       let h = hashNode.getStr
       if h in seen: continue
-      seen.add h
+      seen.incl h
       var height = 0
       try: height = parseInt(heightStr)
       except ValueError: continue

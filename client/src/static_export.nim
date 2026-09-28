@@ -730,6 +730,10 @@ proc exportSite() =
   # resolved rather than leaving a reader to infer it from a flag.
   let root = resolveDataOrigins(newDataRoot(OutputDir))
   let routes = staticRoutes(root)
+  # See `store.nim`'s `enableSingletonJsonCache`: an export is one moment, so the
+  # whole-chain singletons it re-reads per page may be parsed once. Worth ~23%
+  # and NOT a fix for the export's cost curve — see that proc's header.
+  enableSingletonJsonCache()
   var rendered = 0
   for route in routes:
     let (status, body, _) = renderRoute(root, route)

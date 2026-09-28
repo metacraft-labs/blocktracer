@@ -30,7 +30,7 @@
 ## `availability: absent` degenerates into "a failed fetch"
 ## ([Static-Site-Architecture.md](../../../codetracer-specs/BlockTracer/Static-Site-Architecture.md) §2.3a).
 
-import std/[json, os, strutils]
+import std/[json, os, strutils, tables]
 
 type
   ObjectResponse* = object
@@ -90,13 +90,74 @@ type
     error*: string
     node*: JsonNode
 
+# ---------------------------------------------------------------------------
+# The whole-site-export JSON cache (§ opt-in, and off by default).
+# ---------------------------------------------------------------------------
+#
+# WHAT IT IS FOR, MEASURED. A page render reads a constant NUMBER of objects,
+# and `reader.nim`'s `newDataRoot(dir, store)` overload says a test checks
+# exactly that — "constant per-page cost … as counts of reads rather than
+# asserted in a comment". The count is constant and the test is sound. The cost
+# is not, because three of those reads are WHOLE-CHAIN SINGLETONS that grow with
+# the chain:
+#
+#     d/{chain}/g/{gen}/root.json      421 KB at 10k blocks, 6.8 MB at 102k
+#     d/{chain}/g/{gen}/height/0.json  819 KB at 10k blocks
+#     d/{chain}/g/{gen}/blocks/0.json  740 KB at 10k blocks
+#
+# `renderBlock` alone reaches the height map twice (`canonicalBlockAt`,
+# `nextBlockHash`) and the blocks map once (`hasBlock`). So a render parses
+# megabytes of JSON to answer three lookups, and an export over N pages parses
+# O(N) of them N times. Measured: 1.85 ms/page at 100 blocks, 3.02 at 1,000,
+# 114.54 at 10,000 — the export never finished at 10k in 1,800 s.
+#
+# The metric hid it. Reads-per-page is the right shape for "renders from
+# published files only" and the wrong one for cost, because it counts requests
+# and the thing that grows is bytes.
+#
+# WHAT IT DOES NOT DO, STATED HERE SO THE NEXT READER DOES NOT ASSUME IT. It does
+# NOT fix the export's cost curve. Measured at 10,000 blocks: 114.5 ms/page
+# before, ~88 ms/page after — about 23%, real and worth having, and nowhere near
+# the 1.85-3.02 ms/page the small origins show. The dominant term is elsewhere
+# and was still unidentified when this landed. Three mechanisms had been proposed
+# and refuted by then (a directory-insert cost, at 0.1% of the per-page time; a
+# merely-linear-and-large render; and this parse), each of which fit the measured
+# curve. Fitting the curve is not causing it.
+#
+# WHY IT CACHES THE PARSED NODE AND NOT THE BYTES. The bytes are already cheap —
+# the filesystem serves them from page cache. `parseJson` over 6.8 MB is the
+# cost, and a store-level byte cache would leave every page paying it.
+#
+# WHY IT IS OPT-IN AND WHY IT ONLY HOLDS SINGLETONS. A running client must
+# resolve `d/{chain}/current.json` once per NAVIGATION — `ssr.nim`'s
+# `renderRoute` explains why, and a mutation bite enforces it — so nothing may
+# cache across navigations by default. A static export is one moment and may.
+# And only the singletons are held: block and transaction objects are read once
+# each, so caching them would trade a bounded win for an unbounded resident set
+# over a tree measured in gigabytes.
+var jsonCache: TableRef[string, JsonResponse] = nil
+
+proc enableSingletonJsonCache*() =
+  ## Turn the cache on for THIS PROCESS. A whole-site export calls this; a
+  ## client must not.
+  jsonCache = newTable[string, JsonResponse]()
+
+func isWholeChainSingleton(path: string): bool =
+  ## The objects whose size grows with the chain and which every page re-reads.
+  path.contains("/g/") or path.endsWith("/current.json") or
+    path.startsWith("registry/")
+
 proc getJson*(store: ObjectStore, path: string): JsonResponse =
+  let cacheable = jsonCache != nil and isWholeChainSingleton(path)
+  let key = if cacheable: store.name & "\0" & path else: ""
+  if cacheable and jsonCache.hasKey(key): return jsonCache[key]
   let r = store.get(path)
   if not r.found: return JsonResponse(found: false)
   try:
-    JsonResponse(found: true, node: parseJson(r.body))
+    result = JsonResponse(found: true, node: parseJson(r.body))
   except CatchableError as e:
-    JsonResponse(found: true, error: path & ": " & e.msg)
+    result = JsonResponse(found: true, error: path & ": " & e.msg)
+  if cacheable: jsonCache[key] = result
 
 # ---------------------------------------------------------------------------
 # The filesystem implementation.

@@ -26,6 +26,7 @@ export TraceAvailability, OutcomeOverall, ExecutionEnding, BlockDetail, Role, Co
 # SDK's (Client-SDK.md §1.1), and a second one here would be a second seam for
 # an identity to be attached at.
 export ObjectStore, ObjectResponse, newObjectStore, localTree, get, getJson,
+  enableSingletonJsonCache,
        RequestLog, newRequestLog, recordingStore
 
 type
