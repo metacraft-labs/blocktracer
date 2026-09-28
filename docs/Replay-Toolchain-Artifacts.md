@@ -81,3 +81,73 @@ artefact store. A pinned release with a recorded hash is a source; a file in a
 sibling worktree is a guess. Read `git show origin/<mainline>:<path>` rather
 than the working tree — the shared checkouts on this machine produced wrong
 facts five separate times in one session.
+
+---
+
+# Assembly and publication: three traps, all measured
+
+Recorded here because each one produces a *confident wrong result* rather than an
+error, and none is visible from the symptom.
+
+## 1. Publishing chain B erases chain A from the registry
+
+Measured: publishing `aztec` then `aztec-testnet` into one bucket left the store's
+registry naming only `aztec-testnet`. All 102,689 of `aztec`'s blocks were still
+present and fetchable by hash — and invisible, because the registry is the only
+object that lists a chain.
+
+`registry/**` classifies as `ocPointer` → `stUnconditional`, "always (re)write",
+and the key carries no chain segment. `ingest.nim` **does** merge a registry and
+its own comment names this hazard, but it merges *within one tree*
+(`cfg.outDir/registry`). Two chains ingested into two trees each produce a
+registry holding one chain, and the second publish overwrites the first. The seam
+was right; it was at the wrong level.
+
+**So: ingest every chain into ONE shared tree, then publish that tree.** Verified —
+a shared tree yields `chains: aztec, aztec-testnet` and survives publication.
+
+`publishTree` now refuses both shapes before any write (§2.2a):
+`assertNoUnknownGlobalPointer` catches a *new* global unconditional key, and
+`assertRegistryKeepsKnownChains` catches a registry that drops a chain the store
+already holds. Latent members of that class today: `idx/**/meta.json` and
+`index.html` / `sitemap.xml` / `robots.txt` — global, unconditional, and already
+emitted by the demo generator, though not by a chain producer.
+
+## 2. `--probe-floor` on a re-merge silently does nothing
+
+`mergeSnapshots` takes the union's window from the range with the newest
+`provenance.capturedAt` — "the only moment any of it is true of". So passing
+`--probe-floor` to a run that *reuses* covered ranges changes no window at all:
+the flag is honoured, the probe runs, and the merged snapshot keeps whatever the
+newest existing range said. The tree then publishes `reach: windowed` with a
+tip-sized `historyFloor` over a genesis-to-tip corpus.
+
+**The fix is to add one new 1-block range at the tip with `--probe-floor`.** It
+becomes the newest snapshot and its window wins the merge. Verified: the merged
+window moved to `replayableFrom: 1, blocks: 99430`, and the registry row to
+`reach: floor, historyFloor.height: 1`.
+
+Do **not** reach for `--refetch` on an existing range to achieve this. Refetching
+rewrites that range's snapshot without replaying, so every row in it reverts to
+untraced and its containers are left unreferenced.
+
+## 3. Publish-then-prune breaks re-ingest, via the generation maps
+
+The obvious streaming shape — publish a range, delete its `ct/`, advance — does
+not work against this ingest, and the reason is two steps away from the symptom:
+
+* `ingest.nim:1792` reads each container with an **unguarded `readFile`**, so a
+  snapshot row naming a pruned container aborts the ingest.
+* the whole-chain generation maps (`d/{chain}/g/{gen}/**`) are **singletons
+  rebuilt from the union of covered ranges on every publish**.
+
+So pruning containers and then publishing another range rebuilds the maps from
+whatever survives — the `--no-merge` hole, self-inflicted, and silent: the objects
+stay in the store and stop being listed.
+
+Keeping the per-range **snapshots** (121 MB for all of mainnet's metadata) and
+pruning only `ct/` preserves the union the maps need, but does not fix the
+`readFile`. **Prerequisite for streaming: ingest must tolerate an absent container
+whose object is already published.** That is its own piece of work and it is not
+optional — it is what stands between "one tree that fits on disk" and "a corpus
+that does not".
