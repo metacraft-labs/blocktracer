@@ -1360,6 +1360,27 @@ design-citations:
 design-selftest:
     node tools/design/check-tokens-selftest.mjs
 
+# verify_the_arrangement_did_not_move — the element-geometry diff between two
+# BUILT TREES, for the operator's standing constraint on every finish pass:
+# "The special arrangement on the blockexplorer page stays (i.e. the top bar,
+# the transaction details panel, etc)."
+#
+# It looks at no pixels — a finish pass is allowed to change every one of them.
+# It compares the page-absolute box of every structural element, the count of
+# each, and the document's own tag-plus-class sequence, and prints what differs.
+#
+# It takes TWO trees, which is why it is not a CI gate and is not in
+# `design-verify`: CI has one. Build the comparison tree first —
+#
+#   git stash push -- client/src/components/styles.nim
+#   (cd client && just export) && cp -R client/dist /tmp/dist-before
+#   git stash pop && (cd client && just export)
+#   just design-arrangement /tmp/dist-before client/dist
+#
+# exit 0 nothing moved · 1 something did · 2 the check could not run.
+design-arrangement BEFORE AFTER="client/dist":
+    node tools/capture/check-arrangement.mjs {{BEFORE}} {{AFTER}}
+
 # verify_foundations_round_reaches_bar — the gate narrowed to the foundations
 # criteria, with the FULL gate reported alongside it and never in place of it.
 review-gate-foundations args="":
