@@ -274,7 +274,16 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
     if k.startsWith("src/"): return k.startsWith("src/" & chain & "/")
     if k.startsWith(chain & "/"): return true          # this chain's entry pages
     if k.startsWith("t/") or k.startsWith("idx/") or k.startsWith("assets/") or
+       k.startsWith("_a/") or
        k.startsWith("registry/") or k == "index.html" or k == "sitemap.xml" or
+       # `404.html` WAS MISSING AND THE SITE SHIPPED WITHOUT ONE. `classOf` sends it to
+       # `ocEntryPage` (it ends in `.html`) rather than to the pointer set, and no chain
+       # claimed it here, so every publish skipped it silently: the exporter wrote it,
+       # `enumerateTree` saw it, and it reached no store. Measured against minio — present
+       # in `dist/`, absent from the bucket. It matters more once the bucket is the origin,
+       # because then a miss is answered by R2's own XML error instead of the site's
+       # "not on this chain" page, and that is the response the cache rules are written for.
+       k == "404.html" or
        k == "robots.txt": return true
     # another chain's entry pages / data → not ours
     false
@@ -514,7 +523,32 @@ proc discoverChains(treeDir: string): seq[string] {.used.} =
 #      the generic rule cannot be: the registry is legitimately global and
 #      legitimately rewritten, and what makes a write wrong is that it loses a row.
 
-const knownGlobalPointers = ["registry/"]
+# WHOLE-SITE OBJECTS, AND WHY THEY ARE SAFE WHILE AN UNKNOWN ONE IS NOT.
+#
+# Once `blocktracer.org` is served from the bucket, the bucket is the origin for the
+# SITE and not only the data plane: the published tree carries `index.html`, the
+# sitemap, the 404 page, the fonts, and `idx/**` — the global hash index, which
+# `buildGlobalHashIndex` computes over EVERY chain at once. All of those are global
+# keys under unconditional rewrite, exactly like the registry.
+#
+# They are nonetheless safe, and the reason is not that they are on this list. It is
+# that `assertRegistryKeepsKnownChains` runs beside this check and refuses any tree
+# that does not already know every chain the store knows. A tree that passes THAT is
+# a whole-site tree by construction, so its whole-site objects were built over the
+# whole site and rewriting them loses nothing. A single-chain tree cannot reach this
+# point at all.
+#
+# So this list is not "objects we trust". It is "objects whose sharing we have
+# already reasoned about", and the check below exists for the one we have not: a new
+# global pointer added later inherits the registry bug for free and silently, and
+# should stop a publish until someone decides what merging it means.
+const knownGlobalPointers = [
+  "registry/",      # merged by ingest.nim within a tree; guarded semantically below
+  "src/",           # src/{chain}/{contentHash}/current.json — chain- AND content-scoped
+  "idx/",           # global hash index, built over every chain by buildGlobalHashIndex
+  "assets/", "_a/", # fonts and immutable client assets
+  "index.html", "sitemap.xml", "robots.txt", "404.html",
+]
 
 func isChainScoped(key: string): bool =
   ## `d/{chain}/…` — two chains never write the same key, so a rewrite is safe.
