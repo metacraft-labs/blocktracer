@@ -1,4 +1,12 @@
-# DEPLOY — an unexecuted plan for serving blocktracer.org from R2
+# DEPLOY — a plan for serving blocktracer.org from R2
+
+> **Corrected 2026-09-28 against a full-scale rehearsal.** Everything below was
+> written before any of it had been run. A dress rehearsal of the real tree
+> (**460,589 objects**, both chains, against a local S3) then found a data-loss
+> defect and three further corrections, all marked **CORRECTION (2026-09-28)**
+> in place. The step order also changed: **Step 2b now runs first.** Read the
+> corrections before executing a step; the surrounding prose is otherwise as
+> written and still accurate.
 
 > **None of this is production, and none of it has been done.** blocktracer.org is
 > served by the **`blocktracer` Cloudflare Pages project**, with the apex as a
@@ -73,6 +81,17 @@ plan drift is the gate (Deployment §6b.2). Add to `import-ids.json`:
 
 ## Step 2 — Bind `blocktracer.org` to the bucket (R2 custom domain)
 
+> **CORRECTION (2026-09-28) — run Step 2b (cache rules) BEFORE this step.**
+> The `no-store` that trace 404s carry today is **Cloudflare Pages' default, not
+> configuration**, and it disappears the moment R2 becomes the origin. Binding R2
+> first therefore opens a window in which 404s under `/t/` are cached for
+> Cloudflare's default **three minutes** — which is exactly the go-live defect the
+> cache rules exist to prevent, arriving in the gap between two steps of this
+> runbook. Landing the rules first puts the contract in force at the instant the
+> origin changes. See `infra` PR #1626, which measured every rule against the live
+> Pages site before recommending this order.
+
+
 The zone `blocktracer.org` already exists in the root. What remains is to serve the
 bucket at the apex and turn on the CDN.
 
@@ -114,6 +133,13 @@ curl -sI https://blocktracer.org/     # 200 once Step 4 has published index.html
 
 ## Step 3 — Create the publisher credential and store it as repo secrets
 
+> **CORRECTION (2026-09-28) — a Step 3b is missing from this runbook.**
+> **R2 bucket CORS must be configured before any artifact is published**
+> (`Trace-Artifacts.md` §5.3, which also specifies `Cross-Origin-Resource-Policy`). Without it the debugger
+> cannot fetch trace containers cross-origin, and the symptom appears in the
+> browser at first use rather than at publish time.
+
+
 Per Deployment §6b.3 the **publisher's credential is not the release-deploy
 credential** and **must not be able to sign**: it needs write to *one* R2 bucket and
 nothing else — no zone rights.
@@ -140,7 +166,48 @@ nothing else — no zone rights.
 
 ---
 
-## Step 4 — Publish the fake-data tree (CI, or a one-off operator run)
+## Step 4 — Publish the tree (CI, or a one-off operator run)
+
+> **CORRECTION (2026-09-28) — this step as written publishes the DEMO tree, and
+> three things about a real publish are not in it.**
+>
+> `(cd client && just export)` renders the fake-data demo tree into `client/dist`.
+> That is the right thing for proving the pipeline, and it is **not** the chain
+> history. A real publish points `--tree` at an assembled chain tree instead. The
+> three requirements below were each established by measurement, and the first is
+> a data-loss defect:
+>
+> **(a) ALL CHAINS MUST BE INGESTED INTO ONE SHARED TREE.** `registry/**`
+> classifies as `ocPointer` and pointers are `stUnconditional` — *always rewrite*.
+> Each chain ingested into its own `--out` produces a tree whose registry holds
+> only that chain, so **publishing the second chain erases the first from the
+> registry**: its blocks stay in the bucket, fetchable by hash, and invisible.
+> Measured at full scale on 2026-09-28. `ingest.nim`'s merge guard names this
+> hazard in its own comment but merges *within* a tree, which is the wrong seam.
+> A guard now refuses a registry that drops a chain the store already holds, and
+> refuses any unknown global `stUnconditional` key.
+>
+> **(b) THE FINAL ASSEMBLY MUST CARRY `--probe-floor`.** Without it the published
+> registry advertises `reach=windowed` with a floor a few dozen blocks below tip,
+> over a store holding the whole chain — the data is present and the pointer lies.
+> Note `--probe-floor` on a **re-merge silently does nothing**: `mergeSnapshots`
+> takes the window from the range with the newest `capturedAt`, so a run that
+> reuses covered ranges honours the flag, runs the probe, and keeps the old
+> window. The fix is to add one additive 1-block range at the tip carrying the
+> flag, so its snapshot is newest and its window wins. Do **not** use `--refetch`
+> on an existing range for this: it strips that range's containers.
+>
+> **(c) PUBLISH-THEN-PRUNE IS NOT YET SAFE.** `ingest.nim`'s unguarded `readFile`
+> of each container means a pruned range breaks any later re-ingest, and the
+> whole-chain generation maps are rebuilt from the union on every publish — so
+> pruning produces maps that quietly stop naming pruned ranges. Streaming needs
+> ingest to tolerate an absent container whose object is already published first.
+>
+> **Measured throughput**, for planning: 460,589 objects published in ~15 minutes
+> (~500 objects/sec), peak RSS 300–450 MB, the per-chain lease surviving the whole
+> run, and a second run reporting `content uploaded: 0` in 40 s — the idempotency
+> contract holding at scale, not just on a sample.
+
 
 The publisher is idempotent and resumable, so it is safe to run repeatedly and safe
 to interrupt. It uploads only the delta and flips `current.json` last.
