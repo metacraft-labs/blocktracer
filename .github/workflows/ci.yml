@@ -708,7 +708,7 @@ jobs:
         run: node tools/chain/snapshot-contract-selftest.mjs
 
       - name: Are the recordings a prepared tree publishes in a state worth publishing?
-        # 187 assertions. `chain-health.mjs` reports figures about trees that are
+        # 206 assertions. `chain-health.mjs` reports figures about trees that are
         # ALREADY conformant, so nothing else here can contradict it: there is no
         # second opinion on "1 of 45 traced rows declares source level" and no gate
         # that goes red when the number is wrong. That is the gap it fills and it is

@@ -1384,6 +1384,28 @@ console.error('\n§11 — the committed reading, and the ratchet H-SOURCE-ABSENT
      && withdrew.corpus.checkCoverage['H-SOURCE-RATCHET'].chainsWithdrawn
           .includes('gone-chain'));
 
+  // ── THE REGISTRY'S OWN FLAGS ARE READ BY THE TOOL, AND THAT IS ASSERTED ───────────
+  //
+  // Four flags decide what a check needs — a reader, an OPENED recording, the expensive stream
+  // probe, a baseline. A flag the registry states and the tool never reads is decoration that
+  // looks like a rule, which is the shape this file exists to refuse. `needsBaseline` WAS that:
+  // declared on H-SOURCE-RATCHET and consumed by nothing until this arm was written.
+  ck('H-SOURCE-RATCHET declares that it needs a baseline, and the tool reads that flag rather '
+     + 'than assuming it',
+     REG.checks['H-SOURCE-RATCHET'].needsBaseline === true);
+  const streamIds = Object.keys(REG.checks).filter((id) => REG.checks[id].needsStreamProbe === true);
+  ck(`the expensive stream probe is declared needed by ${streamIds.length} check(s) and by no `
+     + `more than that, so a sweep that wants only counts does not pay for a full decode — `
+     + `[${streamIds.join(', ')}]`,
+     streamIds.length >= 2 && streamIds.length < Object.keys(REG.checks).length);
+  ck('…and every check needing the stream probe also needs an OPENED container, because a '
+     + 'refused one has no streams to decode',
+     streamIds.every((id) => REG.checks[id].needsOpenedContainer === true));
+  ck('…and every check needing an OPENED container needs a container at all, so the flags '
+     + 'cannot contradict each other',
+     Object.keys(REG.checks).filter((id) => REG.checks[id].needsOpenedContainer === true)
+       .every((id) => REG.checks[id].needsContainer === true));
+
   // ── `--expect`: THE ROLL-UP AGAINST THE COMMITTED READING ──────────────────────────
   const SPEC = REG.committedReading;
   ck('the reading comparison declares its equal keys, its floor keys, its reader-dependent '
@@ -1469,6 +1491,136 @@ console.error('\n§11 — the committed reading, and the ratchet H-SOURCE-ABSENT
   bite('…and IS compared when both ran the same way — otherwise the skip would be a hole',
        !compareToReading(live, bump(SPEC.reader[0], 1), REG).ok);
 
+  // ── THE SCHEMA AXIS DOES NOT NEED A BUNDLE, AND THE CORPUS COULD NOT SHOW THAT ────
+  //
+  // The axis's subject is the positions stream. It used to sit inside the bundle-language block,
+  // so a row carrying a positions sidecar and NO source bundle never had its token checked.
+  // Measured over the committed corpus: ZERO rows are in that shape — 2 carry both members, 3
+  // carry only a bundle — so no amount of running would have found it. The subject is planted.
+  {
+    const d = join(tmp, `schemaonly${treeN++}`);
+    mkdirSync(join(d, 'positions'), { recursive: true });
+    mkdirSync(join(d, 'ct'), { recursive: true });
+    writeFileSync(join(d, 'ct', '0xp1.ct'),
+                  Buffer.from([0xC0, 0xDE, 0x72, 0xAC, 0xE2, 3, 0, 0]));
+    writeFileSync(join(d, 'positions', '0xp1.json'), JSON.stringify({
+      schema: 'a-token-nothing-defines/7', tx: '0xp1', steps: 1, positioned: 1,
+      measuredPostHoc: false, paths: ['/x/a.nr'], pathId: [0], line: [1], column: [null],
+    }));
+    writeFileSync(join(d, 'snapshot.json'), JSON.stringify({
+      format: 'blocktracer/chain-snapshot@2',
+      provenance: { chain: 'schema-only', runtimeCommit: 'a'.repeat(40) },
+      transactions: [{ txHash: '0xp1', blockNumber: 1, txIndexInBlock: 0, outcome: 'replayed',
+                       container: 'ct/0xp1.ct', containerBytes: 8,
+                       recording: { steps: 1, stepsPositioned: 1 },
+                       positions: 'positions/0xp1.json' }],
+    }));
+    const m = one(d);
+    const f = m.findings.find((x) => x.check === 'H-BUNDLE-LANGUAGE-SKEW'
+                                  && x.axis === 'positions-schema');
+    bite('a row with a positions sidecar and NO source bundle still has its schema token '
+       + 'checked — the axis\'s subject is the stream, not the bundle', f !== undefined
+         && f.schema === 'a-token-nothing-defines/7');
+    ck('…and the check reports having RUN over it rather than reporting an empty scope',
+       m.checkStatus['H-BUNDLE-LANGUAGE-SKEW'].ran === true
+       && m.checkStatus['H-BUNDLE-LANGUAGE-SKEW'].scope >= 1);
+    ck('premise: the committed corpus has NO row in that shape, which is why running could '
+       + 'not have found this — the subject had to be planted',
+       corpusSnapshotDirs().every((dir) => {
+         const snap = JSON.parse(readFileSync(join(dir, 'snapshot.json'), 'utf8'));
+         return (snap.transactions ?? []).every((t) =>
+           typeof t.positions !== 'string' || typeof t.sourceBundles === 'string');
+       }));
+  }
+
+  // ── THE REFRESH MUST NOT LOWER THE FLOOR IT JUST RATCHETED AGAINST ────────────────
+  //
+  // The recipe that refreshes the committed reading reads it as the ratchet's baseline and
+  // then overwrites it. A run in which a chain slipped would report the slip and move the
+  // floor down behind it, which is a record of drift where a check against drift was.
+  {
+    const baseFile = join(tmp, `slipbase${treeN++}.json`);
+    const real = JSON.parse(readFileSync(COMMITTED_READING_PATH, 'utf8'));
+    // One chain claimed to have had more source-level rows than it has, so the ratchet fires.
+    const chain = Object.keys(real.corpus.sourceCensusByChain)
+      .find((c) => real.corpus.sourceCensusByChain[c].tracedRows > 0);
+    ck(`control: the committed reading records a chain with traced rows to plant against — `
+       + `${chain}`, typeof chain === 'string');
+    real.corpus.sourceCensusByChain[chain].sourceLevelRows += 99;
+    writeFileSync(baseFile, JSON.stringify(real));
+    const refuse = run(['--corpus', '--quiet', '--baseline', baseFile, '--out', baseFile]);
+    bite('--out pointed at the reading a ratchet finding fired against is REFUSED, naming the '
+       + 'chain and both figures',
+         refuse.rc === 5 && /REFUSING to overwrite/.test(refuse.err)
+         && new RegExp(`${chain} sourceLevelRows`).test(refuse.err)
+         && /turns a check against drift into a record of it/.test(refuse.err));
+    const before = readFileSync(baseFile, 'utf8');
+    bite('…and the file is UNTOUCHED, so the refusal is a refusal and not a warning',
+         JSON.parse(before).corpus.sourceCensusByChain[chain].sourceLevelRows
+           === real.corpus.sourceCensusByChain[chain].sourceLevelRows);
+    // A BARE ACKNOWLEDGEMENT IS NOT ENOUGH. A flag with no argument is a flag somebody adds
+    // to a recipe once and never removes, and then the ratchet is gone with no trace of when.
+    const bare = run(['--corpus', '--quiet', '--baseline', baseFile, '--out', baseFile,
+                      '--accept-ratchet-slip', 'oops']);
+    bite('…and a bare or one-word acknowledgement is refused too — lowering a floor is allowed '
+       + 'and doing it without saying why is not',
+         bare.rc === 2 && /needs a REASON of at least 20 characters/.test(bare.err));
+    bite('…and that refusal leaves the file untouched as well',
+         JSON.parse(readFileSync(baseFile, 'utf8')).corpus.sourceCensusByChain[chain]
+           .sourceLevelRows === real.corpus.sourceCensusByChain[chain].sourceLevelRows);
+
+    const REASON = 'the chain withdrew a snapshot deliberately and this reading records it';
+    const accepted = run(['--corpus', '--quiet', '--baseline', baseFile, '--out', baseFile,
+                          '--accept-ratchet-slip', REASON]);
+    bite('…and a REASON lets the write through, so a deliberate lowering is possible and a '
+       + 'silent one is not',
+         accepted.rc !== 5 && accepted.rc !== 2);
+    const lowered = JSON.parse(readFileSync(baseFile, 'utf8'));
+    bite('…and the written reading CARRIES the reason and every figure it lowered, so the '
+       + 'lowered floor justifies itself in the reviewable diff rather than in a shell history',
+         lowered.ratchetSlipAccepted?.reason === REASON
+         && lowered.ratchetSlipAccepted.lowered.some((l) => l.chain === chain
+              && l.figure === 'sourceLevelRows' && l.from > l.to));
+    bite('…and the floor it wrote is the one the tree actually has, not the one it slipped from',
+         lowered.corpus.sourceCensusByChain[chain].sourceLevelRows
+           < real.corpus.sourceCensusByChain[chain].sourceLevelRows);
+
+    // ── AND THE OTHER DIRECTION: A GENUINE IMPROVEMENT MUST RAISE THE FLOOR ──────────
+    //
+    // A ratchet that refused every write would be a ratchet nobody could ever advance, which
+    // is the same uselessness from the other side. So a reading whose floors are BELOW the
+    // tree is rewritten freely, the new floors are HIGHER, and no acknowledgement is asked
+    // for — the premise being asserted in the same arm as the absence.
+    const low = join(tmp, `lowbase${treeN++}.json`);
+    const lowReading = JSON.parse(readFileSync(COMMITTED_READING_PATH, 'utf8'));
+    const floorWas = lowReading.corpus.sourceCensusByChain[chain].sourceLevelRows;
+    lowReading.corpus.sourceCensusByChain[chain].sourceLevelRows = 0;
+    lowReading.corpus.totals.sourceLevelRows = 0;
+    writeFileSync(low, JSON.stringify(lowReading));
+    const rose = run(['--corpus', '--quiet', '--baseline', low, '--out', low]);
+    // READ THE WRITTEN FILE, NOT THE CAPTURED STDOUT. `spawnSync`'s buffer truncates a
+    // corpus-sized artifact mid-string and the parse fails with `Unterminated string in JSON`
+    // — which looks exactly like a malformed artifact and is not one. The file is the artifact.
+    const raised = JSON.parse(readFileSync(low, 'utf8'));
+    ck('premise: a reading whose floor is BELOW the tree raises no ratchet finding, so the '
+       + 'write below is not being allowed by a broken ratchet',
+       rose.rc !== 5 && !raised.findings.some((f) => f.check === 'H-SOURCE-RATCHET'));
+    bite('a genuine improvement RAISES the floor, with no acknowledgement asked for — the '
+       + 'ratchet advances rather than only refusing',
+         raised.corpus.sourceCensusByChain[chain].sourceLevelRows === floorWas
+         && raised.corpus.totals.sourceLevelRows > 0);
+    ck('…and the raised reading carries NO slip record, because nothing was lowered',
+       raised.ratchetSlipAccepted === undefined);
+
+    // AND THE ORDINARY REFRESH, over a reading that already describes the tree.
+    const clean = join(tmp, `cleanbase${treeN++}.json`);
+    writeFileSync(clean, readFileSync(COMMITTED_READING_PATH, 'utf8'));
+    const wrote = run(['--corpus', '--quiet', '--baseline', clean, '--out', clean]);
+    ck('premise: with NO chain having slipped, the same invocation writes the refreshed reading '
+       + 'without an acknowledgement — so the refusal is about the slip and not about --out',
+       wrote.rc !== 5 && JSON.parse(readFileSync(clean, 'utf8')).ratchetSlipAccepted === undefined);
+  }
+
   // ── THE TWO CLI-LEVEL GUARDS, WHICH ONLY THE CLI CAN SHOW ─────────────────────────
   //
   // Everything above drives `compareToReading` and `sweep` directly, which is right — they are
@@ -1508,11 +1660,11 @@ cleanup();
 console.error('');
 // THE HOST-INDEPENDENT TOTAL. This is the one the `chain-selftest` header, the recipe body and
 // the CI step comments cross-check, and it is the same on every host by construction.
-if (asserted !== 187) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 187 — a case was added, removed or skipped.`);
+if (asserted !== 206) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 206 — a case was added, removed or skipped.`);
   failed++;
 } else {
-  console.error(`assertion count: ${asserted} (as declared: 187)`);
+  console.error(`assertion count: ${asserted} (as declared: 206)`);
 }
 // AND THE READER-DEPENDENT ONES, DECLARED AND EITHER ASSERTED OR REPORTED UNRUN. A block of arms
 // that quietly contributes nothing on the host where it matters is how a suite comes to be green

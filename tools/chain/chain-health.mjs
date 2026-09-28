@@ -686,8 +686,11 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
   }
 
   // ── THE CONTAINER AGAINST THE SOURCE BUNDLE AND THE POSITIONS ──────────────────────
+  // `H-BUNDLE-LANGUAGE-SKEW` has TWO subject populations — rows with a bundle, and rows with a
+  // positions stream — and a row may be in one without the other. Its scope is the union, so a
+  // tree carrying only positions sidecars is not reported as having nothing subject to it.
   const sourceScope = { 'H-PATHS-NOT-IN-BUNDLE': 0, 'H-BUNDLE-LANGUAGE-SKEW': 0,
-                        'H-POSITIONS-VALUE-SKEW': 0 };
+                        'H-BUNDLE-LANGUAGE-SKEW-SCHEMA': 0, 'H-POSITIONS-VALUE-SKEW': 0 };
   const langs = new Map((reg.bundleLanguages?.languages ?? []).map((l) => [l.language, l]));
   const schemas = new Set((reg.bundleLanguages?.positionStreamSchemas ?? []).map((s) => s.schema));
   for (const row of rows) {
@@ -771,7 +774,19 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
           sum.bundleLanguagesUnknown[lang] = (sum.bundleLanguagesUnknown[lang] ?? 0) + 1;
         }
       }
-      if (pos && typeof pos.schema === 'string' && !schemas.has(pos.schema)) {
+    }
+
+    // ── H-BUNDLE-LANGUAGE-SKEW, the schema axis — OUTSIDE the bundle gate ────────────
+    //
+    // ITS SUBJECT IS THE POSITIONS STREAM AND NOT THE BUNDLE, and it used to sit inside the
+    // block above, so a row carrying a positions sidecar and NO source bundle never had its
+    // token checked at all. Measured: the committed corpus has ZERO such rows — 2 rows carry
+    // both members and 3 carry only a bundle — which is precisely why the coupling would have
+    // survived any amount of running. A rule whose population is empty passes for free, and a
+    // rule accidentally scoped to a population that happens to be empty passes for free too.
+    if (want.includes('H-BUNDLE-LANGUAGE-SKEW') && pos && typeof pos.schema === 'string') {
+      sourceScope['H-BUNDLE-LANGUAGE-SKEW-SCHEMA']++;
+      if (!schemas.has(pos.schema)) {
         add('H-BUNDLE-LANGUAGE-SKEW', {
           txHash: row.txHash, axis: 'positions-schema', positions: posPath,
           schema: pos.schema, defined: [...schemas],
@@ -853,7 +868,10 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
     'H-CONTAINER-SCHEMA-SKEW': declaredVersions.length,
     ...agreeScope,
     ...sourceScope,
+    'H-BUNDLE-LANGUAGE-SKEW': sourceScope['H-BUNDLE-LANGUAGE-SKEW']
+                            + sourceScope['H-BUNDLE-LANGUAGE-SKEW-SCHEMA'],
   };
+  delete scope['H-BUNDLE-LANGUAGE-SKEW-SCHEMA'];
   const status = {};
   const notRun = [];
   for (const id of Object.keys(reg.checks)) {
@@ -1091,7 +1109,8 @@ export function sweep(dirs, { registry, requested, readerArgv, now, baseline } =
   if (!ratchetWanted) {
     ratchetStatus = { ranIn: 0, notRunIn: 1, reasons: ['not requested'],
                       scope: 'the sweep as a whole' };
-  } else if (!baseline || !baseline.corpus?.sourceCensusByChain) {
+  } else if (reg.checks['H-SOURCE-RATCHET']?.needsBaseline === true
+             && (!baseline || !baseline.corpus?.sourceCensusByChain)) {
     ratchetStatus = { ranIn: 0, notRunIn: 1, scope: 'the sweep as a whole',
                       reasons: [reg.checks['H-SOURCE-RATCHET']?.notRunReason
                                 ?? 'no committed reading was available'] };
@@ -1421,16 +1440,22 @@ const USAGE =
 + '  --baseline <file>         the reading H-SOURCE-RATCHET ratchets against; the committed\n'
 + '                            one by default, and a named file that cannot be read is refused\n'
 + '  --no-baseline             run without one; the ratchet then reports NOT RUN, with that\n'
-+ '                            as its reason\n'
++ '                            as its reason\n'+ '  --accept-ratchet-slip <reason>\n'
++ '                            allow --out to overwrite the reading the ratchet fired\n'
++ '                            against. Without it that write is REFUSED, because it would\n'
++ '                            move the floor down to where the tree slipped to. The reason\n'
++ '                            is required, is written into the reading, and must be a\n'
++ '                            sentence rather than a word\n'
 + '  --quiet                   the artifact on stdout, no verdict on stderr\n'
 + '\n'
 + 'exit 0 nothing found; 1 an unhealthy finding; 2 usage or IO; 3 only not-measured;\n'
-+ '     4 the committed reading no longer describes the tree (--expect)\n';
++ '     4 the committed reading no longer describes the tree (--expect);\n'
++ '     5 refusing to overwrite the reading a ratchet finding fired against\n';
 
 export function main(argv) {
   const dirs = [];
   let out = null, readerArgv = null, quiet = false, corpus = false;
-  let expectPath = null, baselinePath = null, noBaseline = false;
+  let expectPath = null, baselinePath = null, noBaseline = false, acceptSlip = null;
   const requested = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -1444,6 +1469,7 @@ export function main(argv) {
     else if (a === '--expect') expectPath = argv[++i];
     else if (a === '--baseline') baselinePath = argv[++i];
     else if (a === '--no-baseline') noBaseline = true;
+    else if (a === '--accept-ratchet-slip') acceptSlip = argv[++i] ?? '';
     else if (a === '--quiet') quiet = true;
     else if (a === '--help' || a === '-h') { process.stderr.write(USAGE); return 2; }
     else if (a.startsWith('--')) { process.stderr.write(`chain-health: unknown option ${a}\n${USAGE}`); return 2; }
@@ -1538,7 +1564,66 @@ export function main(argv) {
   const report = sweep(subjects, { registry: reg, requested: requested.length ? requested : undefined,
                                    readerArgv, baseline });
   const text = render(report) + '\n';
-  if (out) writeFileSync(out, text);
+
+  // ── THE REFRESH MUST NOT LOWER THE FLOOR IT JUST RATCHETED AGAINST ─────────────────
+  //
+  // `--out` pointed at the file `--baseline` was read from is the normal invocation: the
+  // recipe refreshes the committed reading. But the ratchet's baseline IS that file, so a
+  // run in which a chain went backwards would report the slip and then overwrite the
+  // position it slipped from — leaving a record of drift where a check against drift was.
+  // `client/hydrate/engine-pin.txt` exists because that exact substitution went unnoticed
+  // for as long as it existed.
+  //
+  // So the write is refused by name, and acknowledging it is a separate word on the command
+  // line. Lowering a floor deliberately is a legitimate act; doing it as a side effect of
+  // refreshing a measurement is not.
+  const slips = report.findings.filter((f) => f.check === 'H-SOURCE-RATCHET');
+  let textToWrite = text;
+  if (out && slips.length > 0) {
+    const bp = baselinePath ?? COMMITTED_READING_PATH;
+    if (resolve(out) === resolve(bp)) {
+      if (acceptSlip === null) {
+        process.stderr.write(`\nchain-health: REFUSING to overwrite ${out}. It is the reading `
+          + `H-SOURCE-RATCHET just ratcheted against, and ${slips.length} chain(s) went `
+          + `BACKWARDS against it:\n`);
+        for (const f of slips) {
+          process.stderr.write(`  ${f.chain} ${f.figure}: ${f.baseline} -> ${f.now}\n`);
+        }
+        process.stderr.write(`Writing the new reading would move the floor down to where the `
+          + `tree slipped to, which turns a check against drift into a record of it. Fix the `
+          + `regression, or say why it is right: `
+          + `--accept-ratchet-slip "<reason>".\n`);
+        return 5;
+      }
+      // THE REASON IS NOT OPTIONAL AND IS NOT A FLAG. A bare acknowledgement is a flag
+      // somebody adds to a recipe once and never takes off again, and then the ratchet is
+      // gone with no trace of when. The reason has to be long enough to be a sentence, and
+      // it is written INTO the reading, so the lowered floor carries its own justification
+      // into the reviewable diff rather than living in a shell history.
+      if (acceptSlip.trim().length < 20) {
+        process.stderr.write(`\nchain-health: --accept-ratchet-slip needs a REASON of at `
+          + `least 20 characters, and got ${JSON.stringify(acceptSlip)}. Lowering a floor is `
+          + `allowed and doing it without saying why is not: the reason is written into the `
+          + `reading, so the next reader of that file learns why it moved down from the file `
+          + `itself.\n`);
+        return 2;
+      }
+      const annotated = { ...report, ratchetSlipAccepted: {
+        acceptedOn: report.generatedAt,
+        reason: acceptSlip.trim(),
+        lowered: slips.map((f) => ({ chain: f.chain, figure: f.figure,
+                                     from: f.baseline, to: f.now })),
+        note: 'This reading was written with a floor LOWER than the one it was measured '
+            + 'against. The ratchet refused it until a reason was given; this is the reason. '
+            + 'A later reading that raises these figures again may drop this record.',
+      } };
+      textToWrite = render(annotated) + '\n';
+      process.stderr.write(`\nchain-health: the reading is being written with a LOWERED floor `
+        + `on ${slips.length} figure(s), and the reason travels in it: `
+        + `${acceptSlip.trim()}\n`);
+    }
+  }
+  if (out) writeFileSync(out, textToWrite);
   if (quiet) process.stdout.write(text);
   else {
     process.stdout.write(text);

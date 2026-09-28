@@ -135,7 +135,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 187 + 83 = 1077 counted assertions —
+# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 206 + 83 = 1096 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -535,6 +535,33 @@ chain-selftest:
 chain-health SNAPSHOT *ARGS:
     node tools/chain/chain-health.mjs {{SNAPSHOT}} {{ARGS}}
 
+# ── THE REFRESH CANNOT LOWER THE FLOOR IT JUST RATCHETED AGAINST ───────────
+#
+# This recipe writes the committed reading AND that same file is the default
+# baseline the source ratchet reads. So the sequence inside one command is: read
+# the old reading, ratchet against it, report any slip, overwrite the file. A run
+# in which a chain went BACKWARDS would therefore report the slip and then move
+# the floor down to where it slipped to, in the same command, with nothing to
+# stop it. That is a record of drift where a check against drift was — the exact
+# substitution `client/hydrate/engine-pin.txt` exists because of, and which that
+# file says went unnoticed "for as long as it existed".
+#
+# So the write is REFUSED BY NAME, exit 5, naming every chain and both figures.
+# Lowering a floor deliberately stays possible and costs a sentence:
+#
+#     just chain-health-corpus --accept-ratchet-slip "why this is right"
+#
+# The reason is required, is checked for being a sentence rather than a word, and
+# is WRITTEN INTO the reading under `ratchetSlipAccepted` together with every
+# figure it lowered. A bare flag would be a flag somebody adds to a recipe once
+# and never removes, and then the ratchet is gone with no trace of when; a reason
+# in the file justifies the lowered floor in the reviewable diff instead of in
+# somebody's shell history.
+#
+# A RISE NEEDS NOTHING. A reading whose floors are below the tree is rewritten
+# freely and the new floors are higher — a ratchet that refused every write would
+# be a ratchet nobody could advance, which is the same uselessness from the other
+# side.
 chain-health-corpus *ARGS:
     node tools/chain/chain-health.mjs --corpus \
       --out tools/chain/measurements/chain-health.json {{ARGS}}
