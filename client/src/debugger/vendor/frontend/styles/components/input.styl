@@ -1,0 +1,163 @@
+@import "../generated/index"
+
+// Input heights — the shared control scale (CONTROL_HEIGHT_*, button.styl), so a
+// field and the button beside it are the same height, and a field's height
+// says what kind of field it is:
+//
+//   extra large  34px  form fields on the welcome screens
+//   large        28px  the command prompt, the app's primary field
+//   medium       26px  every field inside a panel: search, filter, watch
+//   small        24px  `.ct-input-small`
+//   extra small  20px  compact inline fields, e.g. the event log's Rows
+//
+// Use these names rather than a literal: a field sized in `em` follows its own
+// text size and lands wherever that puts it (the Requests search was 24.5px),
+// and a literal repeated in several files drifts one file at a time.  `rem`
+// keeps each a whole pixel at the 16px root, wherever the field sits.
+INPUT_HEIGHT_XL = CONTROL_HEIGHT_XL
+INPUT_HEIGHT_LG = CONTROL_HEIGHT_LG
+INPUT_HEIGHT_MD = CONTROL_HEIGHT_MD
+INPUT_HEIGHT_SM = CONTROL_HEIGHT_SM
+INPUT_HEIGHT_XS = CONTROL_HEIGHT_XS
+
+input
+  font-family: "SpaceGrotesk" !important
+  font-size: 0.875rem !important
+  padding: 0.25em 0.75em 0.25em 0.75em
+  outline: none
+  color: colors-ui-text-primary-label !important
+
+  &:hover
+    color: colors-ui-text-primary-body !important
+
+  // Active — the field has focus.  The same state as the Event Log filter
+  // button while its menu is open (`#category-image.open`, button.styl): a
+  // 1px `border/action` border and nothing else, so the 2px inset ring this
+  // used to draw is gone.  `:focus` as well as `:focus-visible`, because a
+  // field is active however it was entered.  `!important` so hovering an
+  // active field keeps it indigo, as the button does: every field variant sets
+  // its hover grey at a higher specificity than this.
+  &:focus,
+  &:focus-visible
+    outline: none !important
+    box-shadow: none !important
+    border-color: colors-ui-border-action !important
+    color: colors-ui-text-primary-body !important
+
+  &:not(:placeholder-shown):not(:disabled)
+    border-color: colors-ui-border-action
+    background: colors-ui-surface-input-secondary
+    color: colors-ui-text-primary-body !important
+
+  // `colors-ui-text-primary-disabled` AND NOT `colors-ui-text-disabled-default`,
+  // which is what this said and which is not a token — so the declaration was
+  // dropped and a disabled input's text stayed at the enabled `#c8c8c8` set
+  // above, on the disabled background. Nothing marked it as disabled but the
+  // cursor.
+  //
+  // #727272 on #282828 is 3.06:1. Below the 4.5:1 of WCAG 1.4.3, and
+  // deliberately so: 1.4.3 exempts text that is part of an inactive component,
+  // and being visibly dimmer than live text is the whole signal here.
+  &:disabled
+    border: 0.0625rem solid colors-ui-border-disabled
+    background: colors-ui-surface-primary-disabled
+    color: colors-ui-text-primary-disabled !important
+    pointer-events: none
+    cursor: not-allowed
+
+  // `colors-ui-text-primary-label-subtle` — #919191, which is 4.68:1 on the
+  // lightest surface an empty input sits on (#282828, the form and command
+  // palette fields) and 5.79:1 on the darkest (#151515, the search fields).
+  // The name this rule carried, `colors-ui-text-default-placeholder`, resolved
+  // to nothing, so every placeholder in the app painted in the enabled input
+  // colour and read as typed text.
+  //
+  // The subtler `colors-ui-text-primary-caption-subtle` was the other
+  // candidate and is rejected on measurement: #727272 gives 3.06:1 on
+  // #282828, which is disabled-text contrast for text a user is meant to read.
+  &::placeholder
+    color: colors-ui-text-primary-label-subtle
+
+  &:hover::placeholder,
+  &:focus-visible::placeholder,
+  &:not(:placeholder-shown):not(:disabled)::placeholder
+    color: colors-ui-text-primary-body
+
+  &:disabled::placeholder
+    color: colors-ui-text-primary-disabled !important
+
+
+.ct-input-search-image
+  padding-left: 1.875em !important
+  background-image: ct-images-empty-search-icon !important
+  background-repeat: no-repeat !important
+  background-position: 0.5em center !important
+  background-size: 1em !important
+
+  &:hover,
+  &:focus-visible,
+  &:not(:placeholder-shown):not(:disabled)
+    background-image: ct-images-default-search-icon !important
+
+  &:disabled
+    background-image: ct-images-disabled-search-icon !important
+
+
+// Welcome-screen form fields: the extra-large input size (34px; was 36px, off
+// the scale).
+.ct-input-form
+  height: INPUT_HEIGHT_XL
+  max-height: INPUT_HEIGHT_XL
+  border-radius: 0.375rem
+  background: colors-ui-surface-primary-secondary
+  border: CONTROL_BORDER_WIDTH solid CONTROL_BORDER_COLOR
+
+  &:hover
+    border-color: colors-ui-border-primary-hover
+
+
+.ct-input-com-pal
+  height: INPUT_HEIGHT_LG
+  max-height: INPUT_HEIGHT_LG
+  width: -webkit-fill-available
+  max-width: -webkit-fill-available
+  border-radius: 0.375rem
+  border: CONTROL_BORDER_WIDTH solid CONTROL_BORDER_COLOR
+  background: colors-ui-surface-primary-secondary
+
+  &:hover
+    border-color: colors-ui-border-primary-hover
+    color: colors-ui-text-primary-body
+
+
+.ct-input-small
+.ct-input-panel
+  border-radius: 0.375rem
+  background: colors-ui-surface-input-secondary
+
+  &:hover
+    border: 0.0625rem solid colors-ui-surface-primary-default
+    border-color: colors-ui-border-primary-hover
+    color: colors-ui-text-primary-body
+
+
+// Field borders are 0.0625rem — 1px at the 16px root — not the 0.5px they used
+// to be, and `rem` so the resting width and the `:hover` width cannot disagree.
+//
+// 0.5px is exactly one device pixel at DPR 2, which is crisp only while the edge
+// it paints lands on the device grid. Golden Layout sizes stacks proportionally,
+// so a panel is routinely a fractional number of pixels wide; `.ct-input-panel`
+// is `width: -webkit-fill-available` and inherits that fraction, leaving its
+// right edge off-grid while the left stays on it. The border was then spread
+// across two device pixels at partial opacity and read as thinner on that side
+// alone. `SELECTED_PANEL_BORDER` in golden_layout.styl carries the same note.
+.ct-input-small
+  height: INPUT_HEIGHT_SM
+  max-height: INPUT_HEIGHT_SM
+  border: CONTROL_BORDER_WIDTH solid CONTROL_BORDER_COLOR
+
+.ct-input-panel
+  width: -webkit-fill-available
+  height: INPUT_HEIGHT_MD
+  max-height: INPUT_HEIGHT_MD
+  border: CONTROL_BORDER_WIDTH solid CONTROL_BORDER_COLOR

@@ -932,7 +932,14 @@ export const VIEWS = [
     // public half is ready, so the pane's execution list has the §7.1
     // private/public split to render rather than a single row.
     route: debugRoute(txWithSplitExecutions, { t: DEBUG_TIME_COORDINATE_MID }),
-    clip: "#pane-metadata",
+    // CLIPPED TO THE PANE'S STACK, NOT TO THE PANEL. The debugger's chrome is
+    // CodeTracer's now (`.lm_stack` / `.lm_header` / `.lm_tabs` / `.lm_content`),
+    // and `#pane-*` names the PANEL inside a stack rather than the whole pane —
+    // it has to, because the tab strip's links and a shared deep link resolve to
+    // a panel. `:has()` names the stack that holds a given panel, which is the
+    // box the `.pane` id used to name and the box these views mean to
+    // photograph: the panel WITH the tab that says what it is.
+    clip: '.lm_stack:has(> .lm_items > #pane-metadata)',
   },
   {
     id: "debugger--call-trace",
@@ -956,7 +963,14 @@ export const VIEWS = [
     // is now part of this pane's chrome, not decoration around it. There is
     // exactly one `.ln.stack` in the served markup and `test_debug_route`
     // asserts that count, so the selector is as stable as an id would be.
-    clip: ".ln.stack",
+    // The REGION, and it is named by the one thing that distinguishes it: it is
+    // the only stack on the page with a SECOND tab. `.ln.stack` is gone with the
+    // rest of BlockTracer's own pane vocabulary — the chrome is CodeTracer's
+    // `.lm_stack` now — and every pane is a stack in that vocabulary, including
+    // the ones that hold a single panel, so a bare `.lm_stack` would match four
+    // boxes. `test_debug_route` asserts this selector matches exactly one, so it
+    // is as stable as an id would be.
+    clip: '.lm_stack:has(> .lm_header .lm_tabs > .lm_tab:nth-child(2))',
   },
   {
     id: "debugger--event-log",
@@ -994,7 +1008,14 @@ export const VIEWS = [
     // The region, for the same reason as `debugger--call-trace` above: these
     // two views are the same region in its two states, and the strip that says
     // which state it is in has to be in both frames.
-    clip: ".ln.stack",
+    // The REGION, and it is named by the one thing that distinguishes it: it is
+    // the only stack on the page with a SECOND tab. `.ln.stack` is gone with the
+    // rest of BlockTracer's own pane vocabulary — the chrome is CodeTracer's
+    // `.lm_stack` now — and every pane is a stack in that vocabulary, including
+    // the ones that hold a single panel, so a bare `.lm_stack` would match four
+    // boxes. `test_debug_route` asserts this selector matches exactly one, so it
+    // is as stable as an id would be.
+    clip: '.lm_stack:has(> .lm_header .lm_tabs > .lm_tab:nth-child(2))',
   },
   {
     id: "debugger--values-pane",
@@ -1010,7 +1031,14 @@ export const VIEWS = [
     // which is a wire format shared with the Embed SDK. The pane's TITLE is
     // BlockTracer's and is now "Values"; renaming the enum would be a
     // cross-repo change to a serialisation. See `debugger/session_layout.nim`.
-    clip: "#pane-state",
+    // CLIPPED TO THE PANE'S STACK, NOT TO THE PANEL. The debugger's chrome is
+    // CodeTracer's now (`.lm_stack` / `.lm_header` / `.lm_tabs` / `.lm_content`),
+    // and `#pane-*` names the PANEL inside a stack rather than the whole pane —
+    // it has to, because the tab strip's links and a shared deep link resolve to
+    // a panel. `:has()` names the stack that holds a given panel, which is the
+    // box the `.pane` id used to name and the box these views mean to
+    // photograph: the panel WITH the tab that says what it is.
+    clip: '.lm_stack:has(> .lm_items > #pane-state)',
   },
   {
     id: "debugger--source-pane",
@@ -1023,7 +1051,14 @@ export const VIEWS = [
     route: debugRoute(readyTx, { t: DEBUG_TIME_COORDINATE_MID }),
     // Same enum-versus-label split as `debugger--values-pane` above: the pane
     // is titled "Code" and its id is still `pane-editor`.
-    clip: "#pane-editor",
+    // CLIPPED TO THE PANE'S STACK, NOT TO THE PANEL. The debugger's chrome is
+    // CodeTracer's now (`.lm_stack` / `.lm_header` / `.lm_tabs` / `.lm_content`),
+    // and `#pane-*` names the PANEL inside a stack rather than the whole pane —
+    // it has to, because the tab strip's links and a shared deep link resolve to
+    // a panel. `:has()` names the stack that holds a given panel, which is the
+    // box the `.pane` id used to name and the box these views mean to
+    // photograph: the panel WITH the tab that says what it is.
+    clip: '.lm_stack:has(> .lm_items > #pane-editor)',
   },
   {
     id: "debugger--omniscience",
@@ -1042,7 +1077,14 @@ export const VIEWS = [
     // block with fourteen must-shows is a block a reviewer reads once and
     // answers in aggregate, which is how the density findings in round 5 were
     // missed the round before.
-    clip: "#pane-editor",
+    // CLIPPED TO THE PANE'S STACK, NOT TO THE PANEL. The debugger's chrome is
+    // CodeTracer's now (`.lm_stack` / `.lm_header` / `.lm_tabs` / `.lm_content`),
+    // and `#pane-*` names the PANEL inside a stack rather than the whole pane —
+    // it has to, because the tab strip's links and a shared deep link resolve to
+    // a panel. `:has()` names the stack that holds a given panel, which is the
+    // box the `.pane` id used to name and the box these views mean to
+    // photograph: the panel WITH the tab that says what it is.
+    clip: '.lm_stack:has(> .lm_items > #pane-editor)',
   },
   {
     id: "debugger--omniscience-earlier-pass",
@@ -1067,7 +1109,14 @@ export const VIEWS = [
       t: DEBUG_TIME_COORDINATE_MID,
       extra: "#fit-0",
     }),
-    clip: "#pane-editor",
+    // CLIPPED TO THE PANE'S STACK, NOT TO THE PANEL. The debugger's chrome is
+    // CodeTracer's now (`.lm_stack` / `.lm_header` / `.lm_tabs` / `.lm_content`),
+    // and `#pane-*` names the PANEL inside a stack rather than the whole pane —
+    // it has to, because the tab strip's links and a shared deep link resolve to
+    // a panel. `:has()` names the stack that holds a given panel, which is the
+    // box the `.pane` id used to name and the box these views mean to
+    // photograph: the panel WITH the tab that says what it is.
+    clip: '.lm_stack:has(> .lm_items > #pane-editor)',
   },
   {
     id: "debugger--loading-phases",

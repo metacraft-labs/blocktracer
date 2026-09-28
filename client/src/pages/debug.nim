@@ -277,22 +277,30 @@ proc noSession(s: DebugSessionView): string =
   ## the reason and offer NOTHING — "no debugger, and no pretence of one".
   ui:
     tdiv(class = "ln col w4 nosession"):
-      section(class = "pane w1"):
-        header(class = "panehead"):
-          span(class = "panetitle"): text phaseLabel(s.phase)
-        tdiv(class = "panebody"):
-          tdiv(class = "nostate"):
-            p(class = "panenote measure"): text s.unavailableReason
-            # The pipeline's own words beneath ours, never merged into them.
-            # See `session_view.DebugSessionView.unavailableDetail`.
-            if s.unavailableDetail.len > 0:
-              p(class = "panenote measure reason"): text s.unavailableDetail
-            if s.phase == spAwaitingGeneration:
-              tdiv(class = "norow"):
-                button(class = "btn primary"): text "Generate trace"
-                span(class = "panenote"):
-                  text "Generating a trace costs us compute, so it needs a " &
-                       "signed-in account with quota remaining."
+      # The same chrome every pane on this route wears — CodeTracer's, via
+      # `.lm_*`. Hand-written here rather than through `paneChrome` because
+      # there is no `PaneKind` for "no session": this region stands in for the
+      # panes, it is not one of them, so it has no pane id.
+      tdiv(class = "ln lm_stack w1"):
+        tdiv(class = "lm_header"):
+          ul(class = "lm_tabs"):
+            li(class = "lm_tab"):
+              span(class = "lm_title"): text phaseLabel(s.phase)
+        tdiv(class = "lm_items"):
+          tdiv(class = "lm_content"):
+            tdiv(class = "nostate"):
+              p(class = "empty-overlay measure"): text s.unavailableReason
+              # The pipeline's own words beneath ours, never merged into them.
+              # See `session_view.DebugSessionView.unavailableDetail`.
+              if s.unavailableDetail.len > 0:
+                p(class = "empty-overlay measure reason"):
+                  text s.unavailableDetail
+              if s.phase == spAwaitingGeneration:
+                tdiv(class = "norow"):
+                  button(class = "btn primary"): text "Generate trace"
+                  span(class = "empty-overlay"):
+                    text "Generating a trace costs us compute, so it needs a " &
+                         "signed-in account with quota remaining."
 
 proc debugPage*(s: DebugSessionView): string =
   ## The whole route.
@@ -391,12 +399,21 @@ proc debugPage*(s: DebugSessionView): string =
         # panes were titled Editor, Call Trace and State — two of three wrong.
         text "Narrow session: Code, Call Trace and Values only, read-only. " &
              "The event log and stepping need a wider viewport."
-      tdiv(class = "dbgmain"):
+      # `.lm_goldenlayout` is the frame CodeTracer's panels float in, and it is
+      # the surface that makes the panel colour read as a panel: the port binds
+      # it to `--bt-surface-raised` and the panels above it to
+      # `--bt-surface-sunken`, which is the one relationship a token adoption
+      # could never have carried across, because it is a relationship between
+      # two rules and not a value in either.
+      tdiv(class = "dbgmain lm_goldenlayout"):
         tdiv(class = "ln row w4 replayregion"):
           raw replay
-        section(class = "pane p-metadata w1", id = "pane-metadata"):
-          header(class = "panehead"):
-            span(class = "panetitle"): text "Transaction"
+        tdiv(class = "lm_splitter lm_horizontal", `aria-hidden` = "true")
+        tdiv(class = "ln lm_stack w1"):
+          tdiv(class = "lm_header"):
+            ul(class = "lm_tabs"):
+              li(class = "lm_tab t-pane-metadata"):
+                span(class = "lm_title"): text "Transaction"
             # No dismiss control.
             #
             # It had one, and nothing was behind it: the page ships no
@@ -415,18 +432,19 @@ proc debugPage*(s: DebugSessionView): string =
             # to know what they are looking at". A control whose success would
             # violate the page's stated invariant is not a control that is
             # merely unimplemented.
-          tdiv(class = "panebody"):
-            raw renderMetadata(s.metadata)
-            # BELOW the transaction's facts, in the pane the visitor already
-            # reads to learn what they are looking at. The panes on the other
-            # side of `.dbgmain` are the ones with no room — the call trace
-            # truncated a name and a path at once, the event log clips its
-            # detail column and drops it entirely at 720px, and the
-            # instruction listing packs a program counter, an opcode and a gas
-            # reading into one text cell. This is the one place any of them can
-            # be read at full width, and it is one place rather than four
-            # escape hatches. See `session_view.selectionDetail`.
-            raw renderSelection(selectionDetail(s))
+          tdiv(class = "lm_items"):
+            tdiv(class = "lm_content p-metadata", id = "pane-metadata"):
+              raw renderMetadata(s.metadata)
+              # BELOW the transaction's facts, in the pane the visitor already
+              # reads to learn what they are looking at. The panes on the other
+              # side of `.dbgmain` are the ones with no room — the call trace
+              # truncated a name and a path at once, the event log clips its
+              # detail column and drops it entirely at 720px, and the
+              # instruction listing packs a program counter, an opcode and a gas
+              # reading into one text cell. This is the one place any of them
+              # can be read at full width, and it is one place rather than four
+              # escape hatches. See `session_view.selectionDetail`.
+              raw renderSelection(selectionDetail(s))
       # The source bundle, as DATA (§7.0's "data-inlined HTML").
       #
       # `type="application/json"` is not an executable script type: a browser
