@@ -415,6 +415,26 @@ a.lm_title{display:block;line-height:inherit}
   mask-image:linear-gradient(to bottom,currentColor
     calc(100% - var(--bt-space-lg)),transparent)}
 
+/* ── a note INSIDE a panel, which is not an empty panel ─────────────────── */
+/* NO CODETRACER COUNTERPART, and upstream says so itself. `empty_states.styl`
+   opens by stating its scope as panel-level messages and excluding "inline
+   'no rows yet' lines that sit *within* a list alongside real rows … the side
+   inset would indent them out of line with the rows around them". Three notes
+   on this route are that kind: the `.srcrung` caption above the instruction
+   listing, the decoded-input note beside the payload rows, and the no-session
+   prose, whose BLOCK is centred while the prose is deliberately left-aligned.
+   `.empty-overlay` centres its text and insets it 2.5rem a side, which is
+   right for "this panel is empty" and wrong for all three — measured on
+   `debugger--metadata-pane`, where the decoded-input paragraph came out
+   centred over four lines.
+
+   So they keep BlockTracer's own treatment, under a name that says whose it
+   is. This is the same treatment the retired pane-note class carried, and it
+   is unchanged. */
+.btnote{padding:var(--bt-density-card-pad) var(--bt-density-cell-x);
+  color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);
+  line-height:var(--bt-type-body-sm-line);max-width:var(--bt-measure-prose)}
+
 /* ── the splitter, without a drag ───────────────────────────────────────── */
 /* `golden_layout.styl` gives `.lm_splitter` its colour, its 4px weight, its
    drag handle and a `col-resize` / `row-resize` cursor with a hover highlight.
@@ -1983,7 +2003,7 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 .mdsec{padding:var(--bt-density-cell-y) var(--bt-density-cell-x)}
 .mdsec .mddl{margin-top:var(--bt-space-2xs)}
 .mdsec .mddl dt,.mdsec .mddl dd{padding-left:0;padding-right:0}
-.mdsec .empty-overlay{padding:var(--bt-space-2xs) 0 0}
+.mdsec .btnote{padding:var(--bt-space-2xs) 0 0}
 /* The right-edge fade is declared with `.src` above — one overflow treatment
    for every clipped code surface on the page. */
 .mdsec pre.raw{margin-top:var(--bt-space-2xs);
@@ -2017,11 +2037,11 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    rather than as a second statement beside it. One rung quieter, and its top
    padding removed so the pair sits as one block. Same relationship
    `.notice .reason` gives the explorer register. */
-.nostate .empty-overlay.reason{padding-top:var(--bt-space-2xs);
+.nostate .btnote.reason{padding-top:var(--bt-space-2xs);
   color:var(--bt-text-muted)}
 .norow{display:flex;align-items:center;gap:var(--bt-space-md);flex-wrap:wrap;
   margin-top:var(--bt-rhythm-stack)}
-.norow .empty-overlay{padding:0;flex:1 1 var(--bt-measure-narrow)}
+.norow .btnote{padding:0;flex:1 1 var(--bt-measure-narrow)}
 /* The phase rail sits in the identity bar now, beside the controls whose
    inertness it explains, so it has no vertical rhythm of its own and its
    chips carry one word rather than a sentence (`session_view.phaseShortLabel`).
@@ -2375,8 +2395,16 @@ a .copyable,button .copyable{cursor:pointer}
      alternate rules are answered here rather than left to win the cascade:
      the panel stays hidden, the Call Trace panel stays shown, and its tab
      stays marked. A `:target` that changes nothing is the correct behaviour
-     for a fragment naming a pane this viewport does not offer. */
-  .lm_tab.t-pane-eventlog{display:none}
+     for a fragment naming a pane this viewport does not offer.
+
+     `!important` AND the register prefix on the tab rule, because it is
+     ANSWERING a ported declaration rather than filling a gap:
+     `golden_layout.styl` sets `.lm_tab{display:flex !important}`, and an
+     unprefixed `display:none` loses to it twice over. Measured — the Event
+     Log tab was still on screen at `tablet` after the port landed, over a
+     panel this viewport does not offer, which is the dead control this
+     surface has now removed three times. */
+  [data-register="debugger"] .lm_tab.t-pane-eventlog{display:none !important}
   .lm_stack > .lm_items > .lm_content.p-eventlog{display:none}
   .lm_stack:has(> .lm_items > .lm_content.p-eventlog:target)
     > .lm_items > .lm_content.p-calltrace{display:flex}

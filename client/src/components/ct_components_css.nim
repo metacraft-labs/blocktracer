@@ -194,10 +194,11 @@ const Aliases*: seq[(string, string)] = @[
 const Dropped*: seq[(string, string)] = @[
   (".lm_splitter.lm_dragging",
    "there is no drag on a route with no JavaScript, so the class is never " &
-   "applied — and the rule carries the ONE raw hex upstream writes in these " &
-   "six files (#444444), which `test_static_export`'s shipped-rules scan " &
-   "rejects. Dropping a never-matched rule is how that stays true without " &
-   "editing upstream's bytes or weakening the gate"),
+   "applied — and it carries the ONE raw hex colour upstream writes in these " &
+   "six files, which `test_static_export`'s shipped-rules scan rejects (and " &
+   "which is not quoted here, because check-tokens.mjs A1 reads this file's " &
+   "own string literals). Dropping a rule nothing can match is how both stay " &
+   "true without editing upstream's bytes or weakening either gate"),
   (".lm_header .lm_tab .lm_close_tab",
    "a tab this route cannot close: the strip is `:target` links, there is no " &
    "JavaScript to remove a panel, and the rule calls the `tab-icon()` mixin " &

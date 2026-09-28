@@ -180,7 +180,8 @@ proc paneTab(title, targetId: string; linked, isDefault: bool): string =
   ## model's `activeIndex` has to survive into a STATIC selector, and this is
   ## it — see `activeTabCss` in `ct_components_css`.
   ui:
-    li(class = "lm_tab t-" & targetId & (if isDefault: " btdefault" else: "")):
+    li(class = "lm_tab" & (if isDefault: " btdefault" else: "") &
+               " t-" & targetId):
       if linked:
         a(class = "lm_title", href = "#" & targetId): text title
       else:
@@ -215,6 +216,18 @@ proc paneNote(note: string): string =
   ## `.empty-overlay` is CodeTracer's own empty-state class — the first
   ## selector in `empty_states.styl`'s shared group — so "this panel has
   ## nothing to show" is drawn by the same rule in both products.
+  ##
+  ## IT IS NOT USED FOR EVERY NOTE, and the line is upstream's own. That
+  ## stylesheet's header states its scope as panel-level messages and
+  ## explicitly excludes "inline 'no rows yet' lines that sit *within* a list
+  ## alongside real rows … the side inset would indent them out of line with
+  ## the rows around them". Three notes on this route are exactly that — the
+  ## `.srcrung` caption above the listing, the decoded-input note beside the
+  ## payload rows, and the no-session prose, whose block is centred while the
+  ## prose itself is deliberately left-aligned. They carry `.btnote`, which is
+  ## BlockTracer's and says so. Applying the shared treatment to them was
+  ## measured and reverted: `empty_states.styl` centres its text, and the
+  ## decoded-input paragraph came out centred over four lines.
   ui:
     p(class = "empty-overlay"): text note
 
@@ -1253,7 +1266,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
       ui:
         tdiv(class = "srcrung" & (if listing: " atinstr" else: " atsource"),
              `aria-live` = "polite"):
-          p(class = "empty-overlay"):
+          p(class = "btnote"):
             if listing:
               text "Instruction level here. This recording resolves source for "
               span(class = "num"): text $p.positionedSteps
@@ -2285,7 +2298,7 @@ proc renderMetadata*(m: MetadataPane): string =
           span(class = "mdexectitle"): text "Decoded input"
           raw metaRows(m.payload, "mddl mdpayload")
           if m.payloadNote.len > 0:
-            p(class = "empty-overlay"): text m.payloadNote
+            p(class = "btnote"): text m.payloadNote
       if m.native.len > 0:
         tdiv(class = "mdsec", id = "raw"):
           span(class = "mdexectitle"): text "Raw (chain-native)"

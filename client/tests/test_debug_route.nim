@@ -593,7 +593,9 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     # also the selector `tools/capture/views.mjs` clips these views to.
     check occurrences(markup, "class=\"ln lm_stack ") == 4
     check occurrences(markup, "class=\"lm_tabs\"") == 4
-    check occurrences(markup, "class=\"lm_tab t-") == 5
+    # `<li class="lm_tab`, with the element name: `class="lm_tab` alone also
+    # matches the `<ul class="lm_tabs">` that holds them, which counted nine.
+    check occurrences(markup, "<li class=\"lm_tab") == 5
     check "class=\"lm_content p-eventlog\"" in markup
     # Call Trace is the DEFAULT panel — `activeIndex = 0` — and the Event Log
     # is the alternate. Reversing that fails here.
@@ -605,7 +607,7 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     # marks active, so the FIRST tab has to be the default panel: an arrangement
     # whose active child is not its first would render a strip that marks the
     # wrong tab, which is the latent defect this ordering avoids.
-    check "class=\"lm_tab t-pane-calltrace btdefault\"" in markup
+    check "class=\"lm_tab btdefault t-pane-calltrace\"" in markup
     check "class=\"lm_title\" href=\"#pane-calltrace\"" in markup
     check "class=\"lm_tab t-pane-eventlog\"" in markup
     check "class=\"lm_title\" href=\"#pane-eventlog\"" in markup
@@ -632,14 +634,36 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     # is a `.lm_stack` with a tab now, so Values HAS a tab — what it must not
     # be is a tab of THIS strip. The strip runs from the region's `.lm_tabs` to
     # the `.lm_items` that closes it.
-    let regionAt = markup.find("class=\"lm_tab t-pane-calltrace")
+    let calltraceTabAt = markup.find("t-pane-calltrace")
+    check calltraceTabAt > 0
+    # From the `<ul>` that OPENS the strip, not from the tab inside it: starting
+    # mid-tag drops the first `<li>` from the count and the assertion passes for
+    # the wrong reason on a one-tab region.
+    let regionAt = markup.rfind("<ul class=\"lm_tabs\">", last = calltraceTabAt)
     check regionAt > 0
     let stripEnd = markup.find("class=\"lm_items\"", regionAt)
     check stripEnd > regionAt
     let strip = markup[regionAt ..< stripEnd]
     check "t-pane-state" notin strip
-    check occurrences(strip, "class=\"lm_tab t-") == 2
+    check occurrences(strip, "<li class=\"lm_tab") == 2
     check "class=\"lm_content btdefault p-state\"" in markup
+
+    # EVERY STACK ON THE PAGE OPENS ON EXACTLY ONE PANEL, and this is the
+    # assertion a capture had to make for me first. `debugger_css.nim` hides
+    # every `.lm_content` and shows the one carrying `btdefault`, so a panel
+    # that lost the class renders as a tab strip over an empty pane — which is
+    # what the hand-written Transaction pane in `pages/debug.nim` did, silently,
+    # with every Nim suite green, until `debugger--metadata-pane` was
+    # photographed at 4 KB instead of 85 KB.
+    #
+    # One `btdefault` panel per stack, and one `btdefault` tab per stack: both
+    # counts, because the panel decides what is SHOWN and the tab decides what
+    # looks OPEN, and a page that got one without the other would be right in
+    # one half and wrong in the other.
+    let stacks = occurrences(markup, "class=\"ln lm_stack ")
+    check stacks > 0
+    check occurrences(markup, "class=\"lm_content btdefault") == stacks
+    check occurrences(markup, "<li class=\"lm_tab btdefault") == stacks
 
     # Both panes still exist and are both addressable — a tab is a change of
     # ranking, not a removal. This is the half that stops "tabbed" from decaying
@@ -687,7 +711,12 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     ## control this surface has removed twice; the stylesheet has to name the
     ## tab, and it has to answer `:target` so a stale fragment cannot blank the
     ## region either.
-    check ".lm_tab.t-pane-eventlog{display:none}" in debugRouteCss
+    # `!important` and the register prefix: the tab rule is ANSWERING
+    # `golden_layout.styl`'s own `.lm_tab{display:flex !important}`, and an
+    # unprefixed `display:none` lost to it — the tab was still on screen at
+    # `tablet` and a capture is what noticed.
+    check "[data-register=\"debugger\"] .lm_tab.t-pane-eventlog" &
+          "{display:none !important}" in debugRouteCss
     check ".lm_stack > .lm_items > .lm_content.p-eventlog{display:none}" in
           debugRouteCss
     check ".lm_stack:has(> .lm_items > .lm_content.p-eventlog:target)\n" &
@@ -696,7 +725,7 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     # …inside the narrow media query and not at top level, where it would hide
     # the Event Log at every width.
     let narrow = debugRouteCss.split("@media (max-width:1100px){")[1]
-    check ".lm_tab.t-pane-eventlog{display:none}" in narrow
+    check ".lm_tab.t-pane-eventlog{display:none !important}" in narrow
     # The Code pane's narrow height fix is in the same block — the P1 where an
     # auto-height `.panebody` gave `.srcwrap`'s `height:100%` nothing to divide
     # and the pane rendered as an empty title bar.

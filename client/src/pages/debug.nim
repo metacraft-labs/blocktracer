@@ -284,21 +284,23 @@ proc noSession(s: DebugSessionView): string =
       tdiv(class = "ln lm_stack w1"):
         tdiv(class = "lm_header"):
           ul(class = "lm_tabs"):
-            li(class = "lm_tab"):
+            li(class = "lm_tab btdefault"):
               span(class = "lm_title"): text phaseLabel(s.phase)
         tdiv(class = "lm_items"):
-          tdiv(class = "lm_content"):
+          # `btdefault`, for the reason the metadata pane's own comment gives:
+          # a panel that is not the stack's default is hidden.
+          tdiv(class = "lm_content btdefault"):
             tdiv(class = "nostate"):
-              p(class = "empty-overlay measure"): text s.unavailableReason
+              p(class = "btnote measure"): text s.unavailableReason
               # The pipeline's own words beneath ours, never merged into them.
               # See `session_view.DebugSessionView.unavailableDetail`.
               if s.unavailableDetail.len > 0:
-                p(class = "empty-overlay measure reason"):
+                p(class = "btnote measure reason"):
                   text s.unavailableDetail
               if s.phase == spAwaitingGeneration:
                 tdiv(class = "norow"):
                   button(class = "btn primary"): text "Generate trace"
-                  span(class = "empty-overlay"):
+                  span(class = "btnote"):
                     text "Generating a trace costs us compute, so it needs a " &
                          "signed-in account with quota remaining."
 
@@ -412,7 +414,10 @@ proc debugPage*(s: DebugSessionView): string =
         tdiv(class = "ln lm_stack w1"):
           tdiv(class = "lm_header"):
             ul(class = "lm_tabs"):
-              li(class = "lm_tab t-pane-metadata"):
+              # `btdefault` here too: the tab strip's OPEN look is driven by
+              # `.lm_tab.btdefault` when no panel is targeted, so a lone tab
+              # without it renders as a back tab over its own panel.
+              li(class = "lm_tab btdefault t-pane-metadata"):
                 span(class = "lm_title"): text "Transaction"
             # No dismiss control.
             #
@@ -433,7 +438,12 @@ proc debugPage*(s: DebugSessionView): string =
             # violate the page's stated invariant is not a control that is
             # merely unimplemented.
           tdiv(class = "lm_items"):
-            tdiv(class = "lm_content p-metadata", id = "pane-metadata"):
+            # `btdefault` is not decoration here. `debugger_css.nim` hides
+            # every `.lm_content` and shows the one the model names, so a
+            # panel without the class renders as an EMPTY pane — which is
+            # exactly what this one did until a capture caught it: the
+            # Transaction pane came out as a tab strip over 1000px of nothing.
+            tdiv(class = "lm_content btdefault p-metadata", id = "pane-metadata"):
               raw renderMetadata(s.metadata)
               # BELOW the transaction's facts, in the pane the visitor already
               # reads to learn what they are looking at. The panes on the other
