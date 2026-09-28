@@ -810,6 +810,128 @@ console.error('\n§8 — the container opens, or it does not, and the reader is 
   bite('mutation: …and the by-name case says so instead', f3s.refusesByName === true
        && /refuses 3 BY NAME, so it will decline rather than mis-read/.test(f3s.says));
 
+  // ── A PARSER FAILURE IS NOT A CLOSED CONTAINER, AND NOTHING ASSERTED THAT ─────────
+  //
+  // Both probe helpers return `{ available: false, why }` rather than making the container
+  // count as refused, and the reason is stated in the registry and in each helper's header: a
+  // reader that exits 0 and prints something this tool cannot parse HAS opened the recording,
+  // and calling it refused would blame the container for the tool's parser. Nine code sites
+  // implement that distinction and a site census found every one of them unswept — covered by
+  // no named arm, so any of them could have been inverted silently.
+  //
+  // Each is driven with a stand-in reader whose output is wrong in exactly one way.
+  {
+    const probe = (body) => {
+      const f = join(tmp, `probe${treeN++}.mjs`);
+      writeFileSync(f, body);
+      return `${process.execPath} ${f}`;
+    };
+    const rowOne = {
+      txHash: '0xpp', blockNumber: 1, txIndexInBlock: 0, outcome: 'replayed',
+      container: 'ct/0xpp.ct', containerBytes: 8,
+      recording: { steps: 1, callsOpened: 0, events: 1, sourceLevel: true, stepsPositioned: 1 },
+    };
+    const dir = tree({ rows: [rowOne], containers: ['0xpp.ct'] });
+
+    // 1. NOT JSON AT ALL. The reader succeeded, so the container opened.
+    const NOT_JSON = probe('process.stdout.write("v4 trace, all good\\n");\n');
+    const a = one(dir, { readerArgv: NOT_JSON.split(' ') });
+    bite('a reader that exits 0 and prints NON-JSON leaves the container OPENED — the parser '
+       + 'failed, and the container is not blamed for it',
+         a.summary.containersOpened === 1 && a.summary.containersRefused === 0
+         && a.rows[0].containerRead === 'opened');
+    bite('…and the counts are reported UNAVAILABLE with the reason, never as zero',
+         a.rows[0].containerCounts.available === false
+         && /is not JSON/.test(a.rows[0].containerCounts.why)
+         && /the container itself opened/.test(a.rows[0].containerCounts.why));
+    bite('…and no container-versus-claim finding is raised on it, because nothing was measured '
+       + '— a zero count compared to a claim of 1 would be a fabricated disagreement',
+         !['H-STEPS-DISAGREE', 'H-CALLS-DISAGREE', 'H-EVENTS-DISAGREE']
+            .some((id) => has(a, id)));
+    bite('…and those checks report NOT RUN over it rather than passed',
+         ['H-STEPS-DISAGREE', 'H-CALLS-DISAGREE', 'H-EVENTS-DISAGREE']
+            .every((id) => a.checkStatus[id].ran === false));
+
+    // 2. JSON, BUT CARRYING NO `counts` OBJECT.
+    const NO_COUNTS = probe('process.stdout.write(JSON.stringify({metadata:{program:"p"}})'
+      + '+"\\n");\n');
+    const b = one(dir, { readerArgv: NO_COUNTS.split(' ') });
+    bite('a JSON payload with no `counts` object reports the counts unavailable, naming the '
+       + 'member it looked for',
+         b.summary.containersOpened === 1
+         && b.rows[0].containerCounts.available === false
+         && /carries no "counts" object/.test(b.rows[0].containerCounts.why));
+
+    // 3. THE STREAM PROBE: a first line that is not JSON.
+    const STREAM_BAD_HEAD = probe(
+      'const m = process.argv.includes("--events");'
+      + 'if (m) { process.stdout.write("not a header\\n"); }'
+      + 'else { process.stdout.write(JSON.stringify({counts:{steps:1,calls:1,io_events:0,'
+      + 'paths:1}})+"\\n"); }\n');
+    const c = one(dir, { readerArgv: STREAM_BAD_HEAD.split(' ') });
+    bite('a stream probe whose first line is not JSON reports the stream unavailable and leaves '
+       + 'the container OPENED',
+         c.summary.containersOpened === 1
+         && c.rows[0].containerStream.available === false
+         && /first line is not JSON/.test(c.rows[0].containerStream.why));
+    bite('…and the COUNTS probe is unaffected, so one probe failing does not take the other '
+       + 'down with it',
+         c.rows[0].containerCounts.available === true
+         && c.rows[0].containerCounts.steps === 1);
+
+    // 4. THE STREAM PROBE: JSON, but the header carries no `paths` array.
+    const STREAM_NO_PATHS = probe(
+      'const m = process.argv.includes("--events");'
+      + 'if (m) { process.stdout.write(JSON.stringify({counts:{}})+"\\n"); }'
+      + 'else { process.stdout.write(JSON.stringify({counts:{steps:1,calls:1,io_events:0,'
+      + 'paths:1}})+"\\n"); }\n');
+    const d = one(dir, { readerArgv: STREAM_NO_PATHS.split(' ') });
+    bite('a stream header with no `paths` array reports the stream unavailable, naming the '
+       + 'member',
+         d.rows[0].containerStream.available === false
+         && /no `paths` array/.test(d.rows[0].containerStream.why));
+
+    // 5. THE STREAM PROBE: nothing printed at all.
+    const STREAM_SILENT = probe(
+      'const m = process.argv.includes("--events");'
+      + 'if (!m) { process.stdout.write(JSON.stringify({counts:{steps:1,calls:1,io_events:0,'
+      + 'paths:1}})+"\\n"); }\n');
+    const e = one(dir, { readerArgv: STREAM_SILENT.split(' ') });
+    bite('a stream probe that prints NOTHING reports the stream unavailable rather than an '
+       + 'empty container', e.rows[0].containerStream.available === false
+         && /printed nothing/.test(e.rows[0].containerStream.why));
+
+    // 6. THE PREMISE FOR ALL FIVE: a reader whose payloads DO parse reaches the checks. Without
+    //    this the five arms above are satisfied by a seam that never runs at all.
+    const GOOD = probe(
+      'const m = process.argv.includes("--events");'
+      + 'if (m) { process.stdout.write(JSON.stringify({paths:["/x/a.py"]})+"\\n");'
+      + 'process.stdout.write(JSON.stringify({kind:"step",path_id:0,line:1,path:"/x/a.py"})'
+      + '+"\\n"); }'
+      + 'else { process.stdout.write(JSON.stringify({counts:{steps:1,calls:1,io_events:0,'
+      + 'paths:1}})+"\\n"); }\n');
+    const g = one(dir, { readerArgv: GOOD.split(' ') });
+    ck('premise: a reader whose payloads DO parse makes both probes available and the '
+       + 'container-versus-claim checks RUN, so the five arms above are about the parse and '
+       + 'not about a seam that never fires',
+       g.rows[0].containerCounts.available === true
+       && g.rows[0].containerStream.available === true
+       && ['H-STEPS-DISAGREE', 'H-CALLS-DISAGREE', 'H-EVENTS-DISAGREE']
+            .every((id) => g.checkStatus[id].ran === true && g.checkStatus[id].scope === 1));
+    ck('…and it raises none of them, because this row and its payload agree',
+       !['H-STEPS-DISAGREE', 'H-CALLS-DISAGREE', 'H-EVENTS-DISAGREE'].some((id) => has(g, id)));
+
+    // 7. AND THE READER THAT CANNOT BE RUN AT ALL — openContainer's third branch, also unswept.
+    const h = one(dir, { readerArgv: [join(tmp, 'no-such-program-at-all')] });
+    bite('a reader program that cannot be spawned is counted REFUSED with the spawn error as '
+       + 'its reason, not silently skipped',
+         h.summary.containersOpened === 0 && h.summary.containersRefused === 1
+         && /could not be run/.test(h.rows[0].containerRead === 'refused'
+              ? JSON.stringify(h.readerNotes) : ''));
+    bite('…and H-CONTAINER-UNREADABLE fires on it, saying only what the reader said',
+         has(h, 'H-CONTAINER-UNREADABLE'));
+  }
+
   // ── THREE REASONS REACH NOT RUN, AND EACH MUST SAY WHICH IT IS ──────────────────────
   //
   // A reader was NAMED here and the container was PROBED and REFUSED. So a check that needs
@@ -1660,11 +1782,11 @@ cleanup();
 console.error('');
 // THE HOST-INDEPENDENT TOTAL. This is the one the `chain-selftest` header, the recipe body and
 // the CI step comments cross-check, and it is the same on every host by construction.
-if (asserted !== 206) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 206 — a case was added, removed or skipped.`);
+if (asserted !== 219) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 219 — a case was added, removed or skipped.`);
   failed++;
 } else {
-  console.error(`assertion count: ${asserted} (as declared: 206)`);
+  console.error(`assertion count: ${asserted} (as declared: 219)`);
 }
 // AND THE READER-DEPENDENT ONES, DECLARED AND EITHER ASSERTED OR REPORTED UNRUN. A block of arms
 // that quietly contributes nothing on the host where it matters is how a suite comes to be green

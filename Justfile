@@ -135,7 +135,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 206 + 83 = 1096 counted assertions —
+# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 153 + 53 + 115 + 219 + 83 = 1109 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -439,10 +439,13 @@ chain-selftest:
 # a sibling checkout with `nimble buildCtPrint`, inside that repository's own
 # devshell: a plain `nim c` outside it fails on `zstd.h`.
 #
-# WHAT IT REPORTS OVER THIS REPOSITORY'S CORPUS IS THAT NOTHING OPENS, and that
-# is a true finding rather than a broken tool. Measured 2026-09-28 with a reader
-# built from a current checkout: 45 of 45 containers named by a committed
-# snapshot row are refused — 42 because they declare `meta.dat` schema version 3
+# WHAT IT REPORTS OVER THIS REPOSITORY'S CORPUS IS THAT ALMOST NOTHING OPENS, and
+# that is a true finding rather than a broken tool. Measured 2026-09-28 with a
+# reader built from a current checkout: of the 46 containers named by a committed
+# snapshot row, 45 are REFUSED and the one that opens is
+# `fixtures/chain-health/readable-container`, which this repository added for the
+# purpose because nothing else here could be opened at all. Of the 45: 42 because
+# they declare `meta.dat` schema version 3
 # and the reader accepts [4, 5], refusing 3 BY NAME rather than decoding it under
 # a rule that would put every source position one line high; and 3 because they
 # are the shipped conformance template's 229-byte ASCII placeholders, which carry
