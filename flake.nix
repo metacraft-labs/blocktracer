@@ -290,8 +290,35 @@
 
         # An interactive shell in the same environment, PLUS the Nim toolchain,
         # so `just capture` can rebuild client/dist and capture in one place.
+        #
+        # `python3` IS HERE FOR THE REASON IT IS IN `.#ci` ABOVE, one gate over,
+        # and the failure was the same shape: a gate that REFUSES rather than
+        # skips, run in a shell that could not give it what it needs.
+        # `tools/journeys/selftest-verdict-test.sh` — CI's "Does it say when it
+        # did NOT run — and does the sharding partition?" step, run as
+        # `nix develop .#capture --command vd0-capture-env bash …` — builds the
+        # synthetic shard journals that probe 6 hands to `--combine` with one
+        # thing wrong in each, and it builds them with a `python3` heredoc at
+        # five sites. The runner has no `python3` on its ambient PATH and this
+        # shell did not supply one, so every one of those sites printed
+        # `python3: command not found`, the journals were never written, and
+        # probes 6b, 6c and 6e failed against journals that did not exist.
+        #
+        # THAT IS NOT A FAILURE OF THE THING BEING MEASURED. Probe 6 exists
+        # because "a defence nobody has watched fail is indistinguishable from
+        # no defence", and for the whole time this has been red it has been
+        # exactly that: 6 of 36 probes reporting on a file the shell could not
+        # create. The step is also the `journeys` job's FIRST gate, so its exit
+        # 1 skipped both remaining steps — "Stage the deploy artefact" and "The
+        # journeys, over the deployed artefact". The journeys themselves have
+        # not run on `dev` since; the job's red X has been about a missing
+        # interpreter, not about the product.
+        #
+        # No pyyaml here — these five sites use `json` from the standard
+        # library and nothing else. It does not touch the capture pin: `envId`
+        # is `captureEnv`'s own, and this is the devshell around it.
         devShells.capture = pkgs.mkShell (srcEnv // {
-          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just followerNodejs ];
+          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just followerNodejs pkgs.python3 ];
           shellHook = ''
             echo "blocktracer VD.0 pinned capture environment"
             echo "  vd0-capture-env --print-pin                       — what is pinned, and its id"
