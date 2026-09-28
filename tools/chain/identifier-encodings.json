@@ -266,7 +266,7 @@
     "other two because §2 does not in fact supply its address half. §2's `0x` + 64 hex row is",
     "labelled `transaction hash · block hash` and lists Move among its families; it gives Move",
     "no ADDRESS row at all. So `Sui addresses are 0x + 64 hex` is the Move charter's statement",
-    "— Recorders/Recorder-Move.milestones.org, which says they `resolve under the existing",
+    "— the Move recorder's own planning record, which says they `resolve under the existing",
     "assumption` — and not row 2's. Reading an address claim out of a row labelled for hashes",
     "would be the same amendment-by-inference as filling the `aleo1…` row from this file, which",
     "is refused below. The consequence that charter draws is unaffected: a visitor can reach a",
