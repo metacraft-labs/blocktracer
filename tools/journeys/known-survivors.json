@@ -47,14 +47,6 @@
       "closed_by": "Whoever adds such a recording to the corpus the journeys drive, in THIS repository \u2014 `tools/journeys/lib/corpus.mjs` selects subjects from the served markup, so the work is a published recording that seeds no anchor and no visible lines, plus the subject filter that selects it. Then re-run `node tools/journeys/selftest.mjs --arm P4/` and delete this entry; the run will demand the deletion by name.",
       "evidence": "Measured 2026-09-28 in worktree `blocktracer-ci-green-env`, branched from `origin/dev`, over `client/dist` built by `just export-hydrated` against the three pinned sibling trees (codetracer af70456c, isonim 03f83497, nim-everywhere b2ce1c6b). CI run 35389764236 on ef24db5, `journeys-bite (5)`: SURVIVED in 65s, the only non-killed arm in that shard, and the arm's `why` records the same verdict from its author's own earlier readings. The 65s is itself part of the evidence \u2014 this is a survival from a session that came up, not from one that stalled.",
       "recorded": "2026-09-28"
-    },
-    "O/the-export-answers-for-the-live-path": {
-      "reason": "PLANTED FOR THE BOTH-DIRECTIONS PROOF \u2014 this arm kills.",
-      "cause": "planted",
-      "subject": "planted",
-      "closed_by": "planted",
-      "evidence": "planted",
-      "recorded": "2026-09-28"
     }
   },
   "_closed": {}
