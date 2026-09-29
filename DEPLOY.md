@@ -203,6 +203,40 @@ nothing else — no zone rights.
 > pruning produces maps that quietly stop naming pruned ranges. Streaming needs
 > ingest to tolerate an absent container whose object is already published first.
 >
+> **(d) THE DEPLOY MUST CARRY THE REPLAY ENGINE, OR THE DEBUGGER SHIPS BROKEN.**
+> `replay-engine/**` — the engine's worker and its ~18 MB wasm — is **not emitted
+> by `static_export`, by design**. `client/Justfile` says so: *"Not part of
+> `export`, and not committed: it is 18 MB of build output from another
+> repository, and a deploy decides for itself whether to carry it."*
+>
+> So a deploy must do one of two things, and the default does neither:
+>
+>   * run `just replay-engine` (in `client/`), which fetches the pinned engine
+>     into `dist/replay-engine/` — the **recommended** mode, because
+>     CodeTracer-Embed-SDK.md §5.1's `new Worker(scriptURL)` requires a
+>     **same-origin** script, which is also why `ReplayEngineBase` defaults to
+>     `/replay-engine/`; or
+>   * build with `-d:replayEngineBase=<origin>` pointing at a host that already
+>     serves it, accepting that same-origin constraint.
+>
+> Note the ordering hazard `client/Justfile` also records: the exporter **removes
+> `dist/` and rewrites it**, so an engine staged before the export is destroyed by
+> it. Stage the engine *after* exporting, before publishing.
+>
+> The symptom names nothing: every page renders, every data object resolves, the
+> publish exits 0, and **every debugger session fails to load its engine**.
+> Verified on 2026-09-29 — a full-corpus export contained no `replay-engine/`
+> directory at all.
+>
+> Check before publishing: the tree must contain `replay-engine/worker.js` and
+> `replay-engine/pkg/*.wasm`. A separate defect that *would* have dropped them
+> even when present — `belongs` admitting site-root objects by an allowlist of
+> three literal names — is fixed, and the publisher now refuses any object
+> belonging to no chain rather than skipping it at exit 0.
+>
+> (`-d:hydrationBundle` is a **different** input — it installs the single
+> `client/hydrate/hydrate.js` and has nothing to do with the engine assets.)
+>
 > **Measured throughput**, for planning: 460,589 objects published in ~15 minutes
 > (~500 objects/sec), peak RSS 300–450 MB, the per-chain lease surviving the whole
 > run, and a second run reporting `content uploaded: 0` in 40 s — the idempotency

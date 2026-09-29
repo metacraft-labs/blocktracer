@@ -26,6 +26,7 @@ export TraceAvailability, OutcomeOverall, ExecutionEnding, BlockDetail, Role, Co
 # SDK's (Client-SDK.md §1.1), and a second one here would be a second seam for
 # an identity to be attached at.
 export ObjectStore, ObjectResponse, newObjectStore, localTree, get, getJson,
+  enableSingletonJsonCache, enableBlockRefMemo, enableHeightIndexMemo,
        RequestLog, newRequestLog, recordingStore
 
 type
@@ -545,8 +546,7 @@ proc canonicalBlockAt*(r: DataRoot, info: ChainInfo, height: int): string =
   ## question a block page has to ask to know whether it is still canonical:
   ## the block object is correct either way, and being orphaned is a property
   ## of the generation that references it, not of the object.
-  for b in blockRefsNewestFirst(info.store, info.session):
-    if b.height == height: return b.hash
+  canonicalHashAtHeight(info.store, info.session, height)
 
 proc nextBlockHash*(r: DataRoot, info: ChainInfo, height: int): string =
   ## The canonical block one height above — §5.2's "next", absent at the head.
