@@ -92,6 +92,15 @@ func shardKeyFor*(encoding, identifier: string): string =
   ## here would be a fold that is right for hex and destroys four of the eight
   ## members, which is precisely the outcome the rule is data to prevent.
   ##
+  ## AND THE SEGMENT IS THEN FOLDED IF THE MEMBER SAYS SO, WHICH IS A DIFFERENT
+  ## QUESTION FROM THE ONE ABOVE. `identifierShardPayload` applies the declared
+  ## `shardKey.foldKey` after `identifierPayload`, because this segment is a
+  ## DIRECTORY NAME and a case-significant directory name is one directory on a
+  ## case-insensitive filesystem. The IDENTIFIER is untouched — the leaf segment
+  ## beside this one still carries `identifierKeyForm`, which preserves case for
+  ## every case-significant member — so only the bucket gets coarser and nothing
+  ## loses information. The two folds are two fields for exactly that reason.
+  ##
   ## FOLDING BEFORE SLICING IS WHAT MAKES A KEY RECOMPUTABLE. An EIP-55 address
   ## and its lowercase spelling are one account, and a client that arrived with
   ## either has to compute the one shard the producer wrote. The only hex
@@ -111,8 +120,18 @@ func shardKeyFor*(encoding, identifier: string): string =
       "choosing a path-safe re-encoding, which Search-And-Routing.md §2 and §5 " &
       "do not specify — see the shardKey notes in " &
       "tools/chain/identifier-encodings.json.")
-  var h = identifierPayload(encoding, identifier)
-  if h.len < ShardWidth: h = h & repeat(rule.pad[0], ShardWidth - h.len)
+  var h = identifierShardPayload(encoding, identifier)
+  if h.len < ShardWidth:
+    # THE PAD IS A NAME CHARACTER TOO, and this line is here because the obvious
+    # spelling of it was measured wrong. `pad` is declared in the ALPHABET's own
+    # spelling — `A` is base64's zero digit, not `a` — so a folded payload padded
+    # with an unfolded pad produces `eqAA`, a name that is NOT closed under case
+    # folding, which is exactly the property the fold exists to establish. The
+    # pad therefore passes through the member's own fold, like the payload did.
+    # It lands in the same bucket either way: with the segment folded, `A` and
+    # `a` are one bucket already.
+    let pad = if rule.foldKey: rule.pad.toLowerAscii else: rule.pad
+    h = h & repeat(pad[0], ShardWidth - h.len)
   h[0 ..< ShardWidth]
 
 func shardKeyFor*(enc: ChainIdentifierEncoding, kind, identifier: string): string =

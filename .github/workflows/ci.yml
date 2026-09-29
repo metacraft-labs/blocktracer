@@ -567,7 +567,7 @@ jobs:
         run: node tools/chain/coverage-contiguity-selftest.mjs
 
       - name: Do both halves of the identifier-encoding set read one file?
-        # 153 assertions. `tools/chain/identifier-encodings.json` is the closed
+        # 162 assertions. `tools/chain/identifier-encodings.json` is the closed
         # set of encodings a chain may DECLARE its identifiers in —
         # Configuration.md §2.1, §2.2, with every member traced to a row of
         # Search-And-Routing.md §2's shape table — and, per member, the two rules

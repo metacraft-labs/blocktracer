@@ -208,6 +208,13 @@ function problems(d) {
     // site as if its alphabet contained a separator; one that defaulted to true would
     // publish a path segment with a `/` in it.
     if (typeof sk.pathSafe !== 'boolean') out.push('encodings-no-pathsafe');
+    // `foldKey` — WHETHER THE SHARD SEGMENT AND THE §5 INDEX'S `.bin` NAME FOLD CASE, which
+    // is a narrower question than `case.keyForm` and has a different answer for four
+    // members. A shard name is a FILENAME: unfolded, `Ab.bin` and `aB.bin` are ONE file on a
+    // case-insensitive filesystem (macOS APFS and Windows NTFS at their defaults), the last
+    // writer wins, rc is 0, nothing warns, and the other shard's entries VANISH — the false
+    // absence Search-And-Routing.md §5.0a forbids. ABSENT IS NOT FALSE for that reason.
+    if (typeof sk.foldKey !== 'boolean') out.push('encodings-no-foldkey');
     for (const f of ['stripPrefix', 'payloadAfterLast']) {
       if (typeof sk[f] !== 'string') out.push('encodings-bad-payload-rule');
     }
@@ -252,6 +259,18 @@ function problems(d) {
         // An empty prefix matches everything, which an empty prefix LIST already says.
         out.push('encodings-shape-empty-prefix');
       }
+      // `suffixes` — ABSENT IS NOT EMPTY, for `pathSafe`'s reason one level down. It exists
+      // for exactly one distinction and the distinction is a DECODE LENGTH: 44 base64
+      // characters with one `=` are 32 bytes (a digest) and 44 unpadded are 33, and a length
+      // band cannot tell them apart. A row that forgot to answer would admit both.
+      if (!Array.isArray(sh?.suffixes)) out.push('encodings-shape-bad-suffixes');
+      else if (sh.suffixes.some((x) => typeof x !== 'string' || x.length === 0)) {
+        out.push('encodings-shape-empty-suffix');
+      } else if (sh.suffixes.some(
+          (x) => Number.isInteger(sh.maxPayload) && x.length > sh.maxPayload)) {
+        // A required suffix longer than the row's own maximum payload admits nothing.
+        out.push('encodings-shape-unsatisfiable-suffix');
+      }
     }
   }
   // ── THE CASE RULE, WHICH IS A DIFFERENT QUESTION FROM WHERE THE PAYLOAD STARTS ───────
@@ -285,16 +304,33 @@ function problems(d) {
       // "the display form is the key form" beside a key form that preserves says nothing.
       out.push('encodings-vacuous-displayform');
     }
+    // AND THE SHARD FOLD'S TWO-SIDED RULE, checked here because it needs `keyForm` and the
+    // ALPHABET together and a check written before its premises cannot fire. A member that
+    // has already folded must not declare a second fold (a field stating a decision with no
+    // effect leaves a reader unable to say which one holds the layout); and a member that
+    // preserves case must fold the BUCKET exactly when its alphabet contains some letter in
+    // both cases, which is precisely when two distinct identifiers can name one file.
+    const sk2 = row?.shardKey;
+    if (sk2 !== null && typeof sk2 === 'object' && typeof sk2.foldKey === 'boolean') {
+      if (cs.keyForm === 'lower' && sk2.foldKey) out.push('encodings-redundant-foldkey');
+      if (cs.keyForm === 'preserve' && typeof sk2.alphabet === 'string') {
+        const cased = [...sk2.alphabet].some(
+          (c) => /[a-z]/.test(c) && sk2.alphabet.includes(c.toUpperCase()));
+        if (cased && !sk2.foldKey) out.push('encodings-unfolded-case-significant-shard');
+        if (!cased && sk2.foldKey) out.push('encodings-pointless-foldkey');
+      }
+    }
   }
   return out;
 }
 const clone = () => JSON.parse(raw);
 /** A well-formed shardKey, so a mutation that adds a ROW tests one rule and not two. */
 const validRule = () => ({ stripPrefix: '', payloadAfterLast: '', pad: 'x',
-                           alphabet: 'xyz', pathSafe: true });
+                           alphabet: 'xyz', pathSafe: true, foldKey: false });
 /** …and a well-formed `shapes`, for `validCase`'s reason: a row added to test the SHAPE of
  *  the set must not also be missing a shape rule. */
-const validShapes = () => [{ row: 'a test row', prefixes: [], minPayload: 1, maxPayload: 8 }];
+const validShapes = () => [{ row: 'a test row', prefixes: [], suffixes: [],
+                             minPayload: 1, maxPayload: 8 }];
 /** …and a well-formed `case`, for the same reason: a row added to test the SHAPE of the set
  *  must not also be missing a case rule, or the mutation would report two problems and the
  *  `only()` comparison below could not say which rule refused. */
@@ -358,7 +394,7 @@ test('the Nim half and the JavaScript half agree about the file they read');
   // AND IT READS THE SHARD RULE FROM THIS FILE RATHER THAN ANSWERING FOR IT. The four field
   // names have to appear in the reader, because a reader that ignored one would leave that
   // field decoration while the derivation used a default nobody wrote down.
-  for (const f of ['stripPrefix', 'payloadAfterLast', 'pad', 'pathSafe']) {
+  for (const f of ['stripPrefix', 'payloadAfterLast', 'pad', 'pathSafe', 'foldKey']) {
     ck(`the Nim reader reads \`shardKey.${f}\``,
        new RegExp(`sk\\{"${f}"\\}`).test(nimSrc));
   }
@@ -399,13 +435,21 @@ test('the Nim half and the JavaScript half agree about the file they read');
      /cs\{"significant"\}\.getBool and keyForm != "preserve"/.test(nimSrc));
   ck('…and refuses a displayForm of `key` beside a keyForm that preserves',
      /displayForm == "key" and keyForm == "preserve"/.test(nimSrc));
-  // THE DERIVATION FOLDS THROUGH THE RULE AND NOWHERE ELSE. `shards.nim` has no
-  // `toLowerAscii` of its own: a fold written there would be right for hex and would
-  // destroy four of the eight members.
+  // THE DERIVATION FOLDS THROUGH THE RULE AND NOWHERE ELSE. The ban used to be "no
+  // `toLowerAscii` at all" and is now "none that is not DECLARED", because
+  // `shardKey.foldKey` gave `shards.nim` one legitimate fold: the PAD. `pad` is declared in
+  // the alphabet's own spelling (`A` is base64's zero digit), so a folded payload padded
+  // with the declared spelling yields `eqAA` — a name that is NOT closed under case
+  // folding, which is the property the fold exists to establish. The narrower ban is what
+  // the original protected: an UNCONDITIONAL fold is right for hex and destroys four of the
+  // eight members, so every fold here must be reached through the member's declaration.
   ck('shards.nim folds per encoding, through the shared rule',
-     /identifierPayload\(encoding, identifier\)/.test(shardsCode));
-  ck('…and holds no fold of its own',
-     !/toLowerAscii/.test(shardsCode) && !/toUpperAscii/.test(shardsCode));
+     /identifierShardPayload\(encoding, identifier\)/.test(shardsCode));
+  const shardFolds = shardsCode.split('\n').filter((l) => l.includes('toLowerAscii'));
+  // ANTI-VACUITY: a sweep that matched nothing would satisfy the `every` below.
+  ck('…and its ONE fold is the declared one', shardFolds.length === 1
+     && shardFolds.every((l) => l.includes('rule.foldKey')));
+  ck('…and it never folds upward', !/toUpperAscii/.test(shardsCode));
 }
 
 test('the members are the shape table\'s rows, each naming the row it came from');
@@ -670,8 +714,13 @@ test('the §5 index key is ONE derivation, reached from both sides');
   // structural claim that neither half holds a derivation of its own.
   const hs = codeOf(readFileSync(join(REPO, 'src', 'blocktracer', 'contract',
                                       'hashshard.nim'), 'utf8'));
-  ck('hashPrefix slices `identifierPayload` rather than the identifier',
-     /proc hashPrefix\*[\s\S]{0,400}?identifierPayload\(encoding, identifier\)/.test(hs));
+  // `identifierShardPayload` IS `identifierPayload` plus the declared `shardKey.foldKey`,
+  // and the fold is scoped to the two sites where a payload becomes a NAME. It is a second
+  // function rather than a widening because `identifierIndexKey`, `matchesShape` and
+  // `entryPayload` all ask "which identifier is this" and a folded answer there accepts a
+  // string base58's alphabet excludes (`O` folds to `o`, which IS a base58 digit).
+  ck('hashPrefix slices `identifierShardPayload` rather than the identifier',
+     /proc hashPrefix\*[\s\S]{0,2200}?identifierShardPayload\(encoding, identifier\)/.test(hs));
   ck('…and it takes the encoding as a PARAMETER, so it is not hex-shaped',
      /proc hashPrefix\*\(encoding, identifier: string, prefixLen: int\)/.test(hs));
   // THE REFUSAL, which is what replaced an unhandled `parseHexInt`. A codec that stored an
@@ -749,6 +798,16 @@ test('SEVERAL SHAPES CAN BE SEVERAL PAYLOADS — the overlap, re-derived in Java
             // there, which costs exactly as much reader time as missing one.
             if (rw.prefixes.length
                 && !rw.prefixes.some((q) => hrp.startsWith(q))) continue;
+            // AND `w`'s SUFFIX RULE HAS TO BE SATISFIABLE INSIDE `sp`'s ALPHABET, for the
+            // same reason and it showed the same way. The `base64url, 44 chars, = padded`
+            // row admits no prefix, so without this the solver reported
+            // `base64url`xbech32 and `base64url`xbech32m — neither of which exists: the
+            // string would have to END with `=`, that character is the TAIL of the string
+            // and therefore part of bech32's payload, and BIP-173's data charset does not
+            // contain it. Over-approximating reports a defect that is not there, which
+            // costs a reader exactly as much as missing one.
+            if (rw.suffixes.length
+                && !rw.suffixes.some((q) => subsetOf(sp.shardKey.alphabet, q))) continue;
             // A payload length of `sp` that makes the WHOLE string a valid `w`.
             const lo = Math.max(rs.minPayload, rw.minPayload - hrp.length);
             const hi = Math.min(rs.maxPayload, rw.maxPayload - hrp.length);
@@ -857,6 +916,16 @@ test('MUTATIONS: each structural rule refuses on its own');
     const p = problems(d);
     return p.length === 1 && p[0] === want;
   };
+  /** Exactly these problems and no others — for a mutation that legitimately violates more
+   *  than one rule, which `shardKey.foldKey` introduced: its correct value is a FUNCTION of
+   *  `case.keyForm`, so changing a member's key form necessarily leaves its fold declaration
+   *  wrong as well. Listing both is stronger than relaxing to "contains", which would stop
+   *  the arm noticing a third, unrelated finding. */
+  const onlyAll = (d, ...want) => {
+    const p = problems(d).slice().sort();
+    const w = want.slice().sort();
+    return p.length === w.length && p.every((x, i) => x === w[i]);
+  };
   let d = clone(); d.format = 'blocktracer/identifier-encodings@99';
   bite('a format token this build does not know is refused', only(d, 'format'));
 
@@ -940,6 +1009,34 @@ test('MUTATIONS: each structural rule refuses on its own');
        + 'the per-encoding pad was ADDED to prevent and nothing checked',
        only(d, 'encodings-pad-outside-alphabet'));
 
+  // ── AND THE SHARD FOLD, WHOSE ABSENCE DESTROYS DATA RATHER THAN FAILING ──────────────
+  //
+  // Three arms, because the field has one presence rule and two cross-field rules and the
+  // cross-field ones are what a member can get wrong while answering.
+  d = clone(); delete d.encodings[0].shardKey.foldKey;
+  bite('a member that does not say whether its SHARD KEY folds is refused — absent is not '
+       + 'false, and false leaves `Ab.bin` and `aB.bin` as one file on a case-insensitive '
+       + 'filesystem, at rc 0, with one shard\'s entries gone',
+       only(d, 'encodings-no-foldkey'));
+
+  d = clone(); d.encodings[0].shardKey.foldKey = true;   // `hex`, whose keyForm is `lower`
+  bite('a member that has already folded its key and declares a second fold is refused — '
+       + 'the no-op reads as a decision, and a later reader cannot say which field holds '
+       + 'the layout', only(d, 'encodings-redundant-foldkey'));
+
+  d = clone();
+  d.encodings.find((e) => e.id === 'base58').shardKey.foldKey = false;
+  bite('a case-PRESERVING member whose alphabet carries both cases and does NOT fold its '
+       + 'shard key is refused — that is the collision itself, and it is the arm this '
+       + 'whole field exists for',
+       only(d, 'encodings-unfolded-case-significant-shard'));
+
+  d = clone();
+  d.encodings.find((e) => e.id === 'decimal').shardKey.foldKey = true;
+  bite('a member with no letter in two cases that declares a fold is refused — the fold '
+       + 'can never do anything, which is the vacuous-rule defect the displayForm arm '
+       + 'below also refuses', only(d, 'encodings-pointless-foldkey'));
+
   // ── AND THE SHAPE RULE'S OWN ARMS ───────────────────────────────────────────────────
   //
   // §2's table became a DERIVATION SITE when the index started keying per shape, so its
@@ -967,6 +1064,28 @@ test('MUTATIONS: each structural rule refuses on its own');
        + 'prefix LIST already says, so it reads as a restriction while imposing none',
        only(d, 'encodings-shape-empty-prefix'));
 
+  // ── AND THE SUFFIX, WHICH IS §2's `44 chars` AMBIGUITY MADE CHECKABLE ────────────────
+  //
+  // 44 base64 characters with one `=` are 32 decoded bytes — a digest — and 44 unpadded are
+  // 33, which is not a digest of anything this tree routes. Both are 44 characters and both
+  // are writable in the alphabet, so the length band cannot tell them apart and the row was
+  // ambiguous for as long as it existed.
+  d = clone(); delete d.encodings[0].shapes[0].suffixes;
+  bite('a shape with no suffixes list is refused — ABSENT is not EMPTY, and a row that did '
+       + 'not answer admits whatever its length band admits, which is the ambiguity the '
+       + 'field closes', only(d, 'encodings-shape-bad-suffixes'));
+
+  d = clone(); d.encodings[0].shapes[0].suffixes = [''];
+  bite('an empty suffix inside a shape is refused — it matches everything, which an empty '
+       + 'suffix LIST already says, so it reads as a restriction while imposing none',
+       only(d, 'encodings-shape-empty-suffix'));
+
+  d = clone();
+  d.encodings[0].shapes[0].suffixes = ['='.repeat(d.encodings[0].shapes[0].maxPayload + 1)];
+  bite('a required suffix longer than the row\'s own maximum payload is refused — no '
+       + 'string can satisfy both, so the row admits nothing and is a §2 row this build '
+       + 'cannot recognise', only(d, 'encodings-shape-unsatisfiable-suffix'));
+
   // ── AND THE CASE RULE'S OWN ARMS ────────────────────────────────────────────────────
   //
   // Six, because the rule has three fields and two CROSS-FIELD constraints, and the
@@ -989,10 +1108,16 @@ test('MUTATIONS: each structural rule refuses on its own');
   bite('a displayForm outside {preserve, key} is refused',
        only(d, 'encodings-bad-displayform'));
 
+  // TWO findings from ONE mutation, and that is the cross-field rule working rather than a
+  // loosening: `base58` says its case is significant, so folding its key form is refused —
+  // AND its `shardKey.foldKey: true` becomes redundant the moment the key form folds, since
+  // the payload would already be lowercase. A member cannot change its key form without
+  // answering for its shard fold, which is exactly what the pair of rules is for.
   d = clone(); d.encodings[1].case.keyForm = 'lower';
   bite('a CASE-SIGNIFICANT member that folds is refused — base58 lowercased is not a '
        + 'normalised address, it is a different address that does not exist',
-       only(d, 'encodings-folds-a-significant-alphabet'));
+       onlyAll(d, 'encodings-folds-a-significant-alphabet',
+               'encodings-redundant-foldkey'));
 
   d = clone(); d.encodings[1].case.displayForm = 'key';
   bite('`displayForm: key` beside a keyForm that preserves is refused as a statement that '
@@ -1007,8 +1132,8 @@ test('MUTATIONS: each structural rule refuses on its own');
 }
 
 console.error('');
-if (asserted !== 153) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 153 — a case was added, removed or skipped.`);
+if (asserted !== 162) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 162 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

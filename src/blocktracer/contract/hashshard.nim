@@ -367,7 +367,20 @@ proc hashPrefix*(encoding, identifier: string, prefixLen: int): string =
   ## FOR `hex` THIS IS BYTE-FOR-BYTE WHAT IT HAS ALWAYS PRODUCED. The encoding
   ## arrived as a parameter where a constant used to be read; the expression it
   ## evaluates is unchanged.
-  let h = identifierPayload(encoding, identifier)
+  ##
+  ## **AND THE RESULT NAMES A FILE, WHICH IS WHY IT FOLDS WHEN THE MEMBER SAYS
+  ## SO.** `idx/hash/{version}/{prefix}.bin` — so with case preserved, two
+  ## case-differing base58 identifiers name `Ab.bin` and `aB.bin`, which are ONE
+  ## file on a case-insensitive filesystem: the last writer wins, rc 0, nothing
+  ## warns, and the other shard's entries vanish. §5.0a makes a prefix miss a
+  ## confident claim that NOTHING published begins with those digits, so that is a
+  ## FALSE ABSENCE rather than a visible break. `identifierShardPayload` applies
+  ## the declared `shardKey.foldKey`, which is the SAME derivation the object
+  ## tree's `shardKeyFor` slices — so a fix at one site cannot leave the other
+  ## colliding, which is how this defect was half-described for three waves.
+  ## Entries keep `identifierIndexKey`, which preserves case, so a folded bucket
+  ## is scanned with an exact comparison and no false PRESENCE is created either.
+  let h = identifierShardPayload(encoding, identifier)
   if h.len <= prefixLen: h else: h[0 ..< prefixLen]
 
 proc hexUnits(identifier: string): string =

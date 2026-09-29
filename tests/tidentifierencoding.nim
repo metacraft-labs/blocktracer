@@ -71,7 +71,7 @@
 ## publishing every committed capture before and after and diffing every object
 ## path and byte.
 
-import std/[unittest, os, json, strutils, algorithm, osproc, sets]
+import std/[unittest, os, json, strutils, algorithm, osproc, sets, tables]
 
 import ../src/blocktracer_client
 import ../src/blocktracer_client/paths
@@ -594,10 +594,18 @@ suite "shard derivation takes the encoding as data":
     # shouted; keying its `0X` as payload would put it in a shard of its own.
     ck shardKeyFor("hex", "0XABcd1234") == "abcd"
     ck oldHexShard("0XABcd1234") == "0XAB"
-    # NO OTHER MEMBER MOVED. The fold is per encoding, so the four
-    # case-significant members are exactly where they were.
+    # AND THE CASE-SIGNIFICANT MEMBERS FOLD THEIR SEGMENT TOO, which is a
+    # DIFFERENT statement from folding their identifier — see
+    # `shardKey.foldKey`. A shard segment is a DIRECTORY NAME and a `.bin` FILE
+    # NAME, and a case-significant one is a single entry on a case-insensitive
+    # filesystem: `Ab.bin` and `aB.bin` are one file, the last writer wins at
+    # rc 0, and the other shard's entries are gone. What is preserved is the
+    # identifier, asserted two arms below.
     for token in ["base58", "base64url", "ss58"]:
-      ck shardKeyFor(token, "AbCdEfGh") == "AbCd"
+      ck shardKeyFor(token, "AbCdEfGh") == "abcd"
+      # …and the IDENTIFIER is untouched, in the same iteration, so the fold is
+      # attributable to the bucket rather than to the member's key form.
+      ck identifierKeyForm(token, "AbCdEfGh") == "AbCdEfGh"
 
   test "every member of the closed set has a rule and derives one":
     # A member with no rule would be a token a producer could declare and a chain
@@ -637,13 +645,20 @@ suite "shard derivation takes the encoding as data":
       ck raised
 
   test "the non-hex encodings shard on their own alphabet, not on hex's":
-    # base58 (Solana) — whole string is payload, case preserved.
-    ck shardKeyFor("base58", "5KJvsngHeMpm884wtkJNzQGaCErckhHJBGFsvd3VyK5q") == "5KJv"
-    # base64url (TON) — `EQ`/`UQ` prefix is payload, not decoration.
+    # THE ALPHABET IS THEIR OWN AND THE SEGMENT IS FOLDED — two facts, and the
+    # second one is `shardKey.foldKey`: the payload comes from the member's
+    # alphabet rather than from hex's, and the resulting FILENAME folds so that
+    # two case-differing identifiers cannot name one file. The identifier itself
+    # is preserved, which the arm three below asserts on the same strings.
+    # base58 (Solana) — whole string is payload.
+    ck shardKeyFor("base58", "5KJvsngHeMpm884wtkJNzQGaCErckhHJBGFsvd3VyK5q") == "5kjv"
+    # base64url (TON) — `EQ`/`UQ` prefix is payload, not decoration, and the two
+    # prefixes still give two DIFFERENT segments: folding case does not merge
+    # them, which is what distinguishes a coarser bucket from a lost one.
     ck shardKeyFor("base64url", "EQCcrOCzgnZKgVSNNjjOQhRRsRWaiMEB-4hPl-PtLoL8Mh1x") ==
-       "EQCc"
+       "eqcc"
     ck shardKeyFor("base64url", "UQCcrOCzgnZKgVSNNjjOQhRRsRWaiMEB-4hPl-PtLoL8Mh1x") ==
-       "UQCc"
+       "uqcc"
     # bech32 / bech32m — the payload begins after the LAST `1`, so a whole chain
     # does not land in one bucket. THIS IS THE ARM THAT WOULD CATCH THE OBVIOUS
     # WRONG ANSWER: sharding the raw string gives `addr` and `fuel` for every
@@ -655,31 +670,60 @@ suite "shard derivation takes the encoding as data":
     ck not shardKeyFor("bech32", "addr1qx2fxv2umyhttkxyxp8").startsWith("addr")
     ck not shardKeyFor("bech32m", "fuel1q9k7yfcp4hmrmj3xkqn").startsWith("fuel")
     # ss58 (Substrate) — base58 alphabet, whole string is payload.
-    ck shardKeyFor("ss58", "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY") == "5Grw"
+    ck shardKeyFor("ss58", "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY") == "5grw"
     # decimal — a rule exists even though no sharded kind can be decimal today.
     ck shardKeyFor("decimal", "12345") == "1234"
     ck shardKeyFor("decimal", "7") == "7000"
     # And the pad is the ALPHABET's zero digit, not `0`, which is not a base58 or
     # a bech32 digit at all.
-    ck shardKeyFor("base58", "5K") == "5K11"
+    ck shardKeyFor("base58", "5K") == "5k11"
     ck shardKeyFor("bech32", "addr1q") == "qqqq"
-    ck shardKeyFor("base64url", "EQ") == "EQAA"
+    ck shardKeyFor("base64url", "EQ") == "eqaa"   # folded pad, see below
+    # …AND THE PAD ITSELF IS FOLDED, which was measured rather than assumed: the
+    # DECLARED pad is `A`, base64's zero digit, so padding a folded payload with
+    # the declared spelling gives `eqAA` — a segment that is not closed under
+    # case folding, i.e. the very property the fold is for, broken by the last
+    # four characters of the name. The declaration is unchanged and the fold is
+    # applied to it at the one site that uses it.
+    ck identifierEncodingRule("base64url").pad == "A"
+    ck shardKeyFor("base64url", "EQ") == shardKeyFor("base64url", "EQ").toLowerAscii
+    # CONTROL: a member that does NOT fold keeps its declared pad verbatim, so
+    # the line above is attributable to `foldKey` rather than to a pad that was
+    # lowercase all along. `bech32`'s `q` is already lowercase, so the control
+    # has to be a member whose pad is a DIGIT and whose fold is off — `decimal`.
+    ck not identifierEncodingRule("decimal").foldKey
+    ck shardKeyFor("decimal", "7") == "7000"
 
-  test "a case-significant identifier keeps its case through derivation":
-    # Lowercasing is right for a hex key and DESTROYS base58 and base64url, so
-    # the fold is PER ENCODING: these members declare `keyForm: preserve` and the
-    # derivation honours it. Two spellings are two identifiers here, and a
-    # derivation that mapped them together would resolve one of them to the
-    # other's object.
-    ck shardKeyFor("base58", "5KJvsngHeMpm884wtkJNzQGaCErckhHJBGFsvd3VyK5q") !=
-       shardKeyFor("base58", "5kjvsnghempm884wtkjnzqgacerckhhjbgfsvd3vyk5q")
-    ck shardKeyFor("base64url", "EQCcrOCz") == "EQCc"
+  test "a case-significant identifier keeps its case, and its BUCKET does not":
+    # ── THE TWO QUESTIONS, WHICH WERE ONE ASSERTION UNTIL `shardKey.foldKey` ───
+    #
+    # "Does this string name a different identifier?" and "does this string name
+    # a different FILE?" have different answers for base58, base64url and ss58,
+    # and conflating them is a data defect in whichever direction it is made.
+    # Fold the IDENTIFIER and `So111…112` resolves to an account that does not
+    # exist. Leave the BUCKET unfolded and `Ab.bin` and `aB.bin` are one file on
+    # a case-insensitive filesystem, at rc 0, with one shard's entries silently
+    # gone — §5.0a's false absence.
+    const mixed = "5KJvsngHeMpm884wtkJNzQGaCErckhHJBGFsvd3VyK5q"
+    const lowered = "5kjvsnghempm884wtkjnzqgacerckhhjbgfsvd3vyk5q"
+    # THE IDENTIFIER IS TWO IDENTIFIERS, and every form that names one says so.
+    ck identifierKeyForm("base58", mixed) != identifierKeyForm("base58", lowered)
+    ck identifierDisplayForm("base58", mixed) == mixed
+    ck identifierIndexKey("base58", mixed) != identifierIndexKey("base58", lowered)
+    # THE BUCKET IS ONE BUCKET, which is the whole of the fix.
+    ck shardKeyFor("base58", mixed) == shardKeyFor("base58", lowered)
+    ck hashPrefix("base58", mixed, HashShardPrefixLen) ==
+       hashPrefix("base58", lowered, HashShardPrefixLen)
+    ck shardKeyFor("base64url", "EQCcrOCz") == "eqcc"
     ck shardKeyFor("base64url", "eqccrocz") == "eqcc"
     # …and the CONTROL, in the same run: hex, which declares `keyForm: lower`,
-    # maps its two spellings together. So "the case survived" is attributable to
-    # the declared rule rather than to the derivation folding nothing at all,
-    # which is what it used to do.
+    # maps its two spellings together at BOTH levels — the identifier as well as
+    # the bucket. So the split above is attributable to the two declared fields
+    # rather than to one fold applied everywhere, which is what it used to be.
     ck shardKeyFor("hex", "0xABCDEF01") == shardKeyFor("hex", "0xabcdef01")
+    ck identifierKeyForm("hex", "0xABCDEF01") == identifierKeyForm("hex", "0xabcdef01")
+    ck identifierEncodingRule("base58").foldKey
+    ck not identifierEncodingRule("hex").foldKey
 
   test "traceShards is NOT encoding-parameterised, and the set says why":
     # A trace artifact id is content-addressed by THIS pipeline, so no chain's
@@ -820,16 +864,22 @@ suite "case handling is stated per encoding, not applied globally":
     ck identifierKeyForm("hex", identifierKeyForm("hex", eip55)) ==
        identifierKeyForm("hex", eip55)
 
-  test "base58 and base64url: the case survives derivation and keying":
-    # Case-significant, so NOTHING is folded — neither the key nor the display.
+  test "base58 and base64url: the case survives the KEY and the display form":
+    # Case-significant, so the IDENTIFIER is not folded — neither the key nor the
+    # display form. The SHARD SEGMENT is, and that is `shardKey.foldKey`: it is a
+    # filename rather than an identifier. The arm below asserts both halves on
+    # the same strings so neither can be read as the other.
     const solana = "5KJvsngHeMpm884wtkJNzQGaCErckhHJBGFsvd3VyK5q"
     const ton = "EQCcrOCzgnZKgVSNNjjOQhRRsRWaiMEB-4hPl-PtLoL8Mh1x"
     for (token, id) in [("base58", solana), ("base64url", ton),
                         ("ss58", "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")]:
       ck identifierKeyForm(token, id) == id
       ck identifierDisplayForm(token, id) == id
-      # …through the derivation as well, which is the form a path segment takes.
-      ck shardKeyFor(token, id) == id[0 ..< 4]
+      # …and the derivation's segment is that payload FOLDED, which is the form
+      # a path segment takes. Both statements on one identifier, so the
+      # preservation is about the identifier and the fold about the bucket.
+      ck shardKeyFor(token, id) == id[0 ..< 4].toLowerAscii
+      ck identifierIndexKey(token, id) == id
       # CONTROL — the defect, on the same identifier: the global fold changes it,
       # and changes it into a string that still LOOKS like an identifier. That is
       # the failure this is about — a confident wrong answer, not an error.
@@ -838,9 +888,16 @@ suite "case handling is stated per encoding, not applied globally":
     # And the corruption is not theoretical at the shard: TON's `EQ`/`UQ`/`kQ`
     # prefix is base64url of the address's real leading bits, so folding it maps
     # two genuinely different addresses onto one shard.
-    ck shardKeyFor("base64url", ton) == "EQCc"
+    # AND THE GLOBAL FOLD IS STILL THE DEFECT, MEASURED WHERE IT STILL SHOWS.
+    # The segment no longer distinguishes them — that is the point of the fold —
+    # so the assertion moves to the level where the two addresses really are two
+    # addresses: the key form, the index key and therefore the leaf file name.
+    ck shardKeyFor("base64url", ton) == "eqcc"
     ck shardKeyFor("base64url", globalFold(ton)) == "eqcc"
-    ck shardKeyFor("base64url", ton) != shardKeyFor("base64url", globalFold(ton))
+    ck identifierKeyForm("base64url", ton) !=
+       identifierKeyForm("base64url", globalFold(ton))
+    ck identifierIndexKey("base64url", ton) !=
+       identifierIndexKey("base64url", globalFold(ton))
 
   test "bech32 and bech32m: the identifier comes out UNIFORM, not arbitrary":
     # BIP-173 allows all-lowercase or all-uppercase and makes a MIXED-case string
@@ -925,6 +982,178 @@ suite "case handling is stated per encoding, not applied globally":
     # string, which is where a second implementation would have shown up.
     ck hashPrefix("bech32", "Addr1Qx2fZZ", 4) ==
        shardKeyFor("bech32", "Addr1Qx2fZZ")
+
+  test "a shard NAME can never collide on a case-insensitive filesystem":
+    # ── WHAT THIS ARM IS FOR, AND WHY IT MODELS THE FILESYSTEM RATHER THAN USING
+    # ONE ───────────────────────────────────────────────────────────────────────
+    #
+    # `shardKeyFor` names a DIRECTORY and `hashPrefix` names a FILE —
+    # `idx/hash/{version}/{prefix}.bin`. With case preserved in the segment, two
+    # case-differing base58 identifiers derived `Ab` and `aB`, so `Ab.bin` and
+    # `aB.bin` are ONE file on a case-insensitive filesystem: the last writer
+    # wins, rc is 0, nothing warns, and the other shard's entries VANISH.
+    # Search-And-Routing.md §5.0a makes a prefix miss "a confident claim that
+    # NOTHING published begins with those digits", so that loss is a FALSE
+    # ABSENCE — a page confidently wrong rather than visibly broken.
+    #
+    # THE INVARIANT IS ARITHMETIC AND HOLDS ON EVERY FILESYSTEM: the set of
+    # shard names the derivation emits is CLOSED UNDER CASE FOLDING, i.e. no two
+    # distinct emitted names fold equal. A host cannot then hold two of them as
+    # one, whatever its case behaviour, so the arm runs the same everywhere and
+    # needs no privileged mount, no FUSE and no image. `tools/chain/
+    # shard-name-case-repro.sh` is the out-of-tree DEMONSTRATION on a real
+    # case-insensitive filesystem model (a FAT image via mtools — a MODEL of
+    # macOS APFS and Windows NTFS at their defaults, NOT those filesystems);
+    # measured 2026-09-28, its three arms are positive control 2 files, the
+    # pre-fold pair collapsing to one at rc 0 in silence, and the post-fold names
+    # coexisting. It is not the gate; this is.
+    #
+    # THE CONTROL IS THE SECOND HALF AND IT IS LOAD-BEARING. The same model
+    # driven over the UNFOLDED derivation — `identifierPayload`, which is exactly
+    # what `shardKeyFor` and `hashPrefix` sliced before `shardKey.foldKey` — must
+    # LOSE entries. Without it a fold-closure assertion is satisfied by any
+    # population that happens to carry no case variation, which is every
+    # identifier this tree publishes today.
+    var caseSignificant: seq[string]
+    for e in IdentifierEncodings:
+      if e.caseRule.keyForm == "preserve" and e.shardKey.foldKey:
+        caseSignificant.add e.id
+    # ANTI-VACUITY: the arm is about the members that preserve case AND fold the
+    # bucket, and a population of none would satisfy every assertion below.
+    ck caseSignificant.len == 4          # base58, base64, base64url, ss58
+    for enc in caseSignificant:
+      let rule = identifierEncodingRule(enc)
+      # Two identifiers differing ONLY in case, built from the member's own
+      # alphabet so both are genuinely writable in it.
+      var lower, upper: string
+      for c in rule.alphabet:
+        if c in {'a' .. 'z'} and toUpperAscii(c) in rule.alphabet:
+          lower.add c
+          upper.add toUpperAscii(c)
+      ck lower.len >= ShardWidth        # enough characters to fill a segment
+      let a = lower & upper
+      let b = upper & lower
+      ck a != b
+      # ── THE PROPERTY ──────────────────────────────────────────────────────
+      # One directory, one `.bin`, and the two are the same derivation. The
+      # DIRECTORY half is asserted only for a pathSafe member, because
+      # `shardKeyFor` refuses `base64` outright — its alphabet contains `/` — and
+      # the index half is asserted for all four, because `hashPrefix` is where
+      # the FILE NAME comes from and that is the site that destroys data.
+      ck hashPrefix(enc, a, HashShardPrefixLen) ==
+         hashPrefix(enc, b, HashShardPrefixLen)
+      ck hashPrefix(enc, a, HashShardPrefixLen) ==
+         hashPrefix(enc, a, HashShardPrefixLen).toLowerAscii
+      if rule.pathSafe:
+        ck shardKeyFor(enc, a) == shardKeyFor(enc, b)
+        ck shardKeyFor(enc, a) == shardKeyFor(enc, a).toLowerAscii
+      else:
+        var refusedShard = false
+        try: discard shardKeyFor(enc, a)
+        except ValueError: refusedShard = true
+        ck refusedShard
+      # ── AND NOTHING LOST INFORMATION ──────────────────────────────────────
+      # The leaf, the display form and the index ENTRY still carry the
+      # case-significant identifier, so the two are two entities in one bucket
+      # rather than one entity. A fold applied to the identifier instead of the
+      # key is the data defect this scoping exists to avoid.
+      ck identifierKeyForm(enc, a) == a
+      ck identifierKeyForm(enc, b) == b
+      ck identifierDisplayForm(enc, a) == a
+      ck identifierIndexKey(enc, a) != identifierIndexKey(enc, b)
+      # ── THE CONTROL, IN THE SAME ITERATION ────────────────────────────────
+      # The pre-fold derivation is `identifierPayload` sliced, and on this pair
+      # it yields two names that fold equal — which a case-insensitive host
+      # holds as one. Asserting that it DID is what makes the four assertions
+      # above measurements of the fold rather than of the population.
+      let preA = identifierPayload(enc, a)[0 ..< HashShardPrefixLen]
+      let preB = identifierPayload(enc, b)[0 ..< HashShardPrefixLen]
+      ck preA != preB
+      ck preA.toLowerAscii == preB.toLowerAscii
+      # ── AND A CASE-INSENSITIVE STORE MODELLED, BOTH WAYS ──────────────────
+      # Writing both names into a store keyed by the FOLDED name is what a
+      # case-insensitive filesystem does. Pre-fold, two shards become one entry
+      # and one is destroyed; post-fold, there is only ever one name to write.
+      var insensitive = initTable[string, string]()
+      insensitive[preA.toLowerAscii] = "entries-of-" & preA
+      insensitive[preB.toLowerAscii] = "entries-of-" & preB
+      ck insensitive.len == 1                       # ONE file where two were written
+      ck insensitive[preA.toLowerAscii] == "entries-of-" & preB   # first one GONE
+      var folded = initTable[string, string]()
+      for id in [a, b]:
+        let n = hashPrefix(enc, id, HashShardPrefixLen)
+        folded.mgetOrPut(n.toLowerAscii, "") .add "entry-" & id & ";"
+      ck folded.len == 1                            # one shard, by DESIGN
+      for id in [a, b]:                             # and both entries are in it
+        ck folded[hashPrefix(enc, a, HashShardPrefixLen)].contains(id)
+
+  test "§2's `44 chars` row is a DECODE LENGTH, and the other side is refused by name":
+    # ── IT IS A ROUTING DECISION RATHER THAN AN ENCODING ONE ────────────────────
+    #
+    # `base64` is the one member whose `shardKey.pathSafe` is false, so
+    # `indexKeysOf` SKIPS it and a base64 digest derives ZERO index probes. The
+    # published route for a 32-byte digest is therefore the base64url spelling of
+    # the same bytes — lossless, `+`->`-` and `/`->`_` — and what blocked THAT was
+    # not the data but §2: base64url's only row was the 48-character TON ADDRESS,
+    # so a 44-character base64url string matched nothing.
+    #
+    # Two REAL toncenter transaction hashes, measured 2026-09-28, and their
+    # re-spellings. Both carry `+`; the second carries `/` as well, so it is
+    # unrepresentable as a shard segment under `base64` for the documented reason.
+    const TonA = "0EwlvoDba2xuNCUvJaAMHowfgLOQ7m8CAKCdYCJ+94Q="
+    const TonB = "2tqqN0+CBur1NDSydm125YOCf+V7GMmhsNs6I/+xn18="
+    proc urlOf(s: string): string = s.replace("+", "-").replace("/", "_")
+    # THE ROW EXISTS AND IT ROUTES.
+    for d in [TonA, TonB]:
+      ck identifierEncodingsMatching(urlOf(d)) == @["base64url"]
+      ck shardKeyFor("base64url", urlOf(d)).len == ShardWidth
+      ck identifierIndexKey("base64url", urlOf(d)) == urlOf(d)
+    # CONTROL ONE: the base64 spelling still matches base64 and is still refused
+    # at the shard, so the row was ADDED rather than the alphabet widened.
+    for d in [TonA, TonB]:
+      ck identifierEncodingsMatching(d) == @["base64"]
+      ck not identifierEncodingRule("base64").pathSafe
+      var raised = false
+      try: discard shardKeyFor("base64", d)
+      except ValueError as e:
+        raised = true
+        ck e.msg.contains("cannot be a shard path segment")
+      ck raised
+    # CONTROL TWO: the 48-character TON ADDRESS row is untouched — the new row is
+    # a second row on the same member, not a replacement of the first.
+    const TonAddr = "EQCcOxUE0Yc5t2RrNsnwJfN0Aq2KWt4UJx0Fx0Fx0Fx0Fx0F"
+    ck TonAddr.len == 48
+    ck identifierEncodingsMatching(TonAddr) == @["base64url"]
+    ck identifierIndexKey("base64url", TonAddr) == TonAddr
+    # ── THE AMBIGUITY, CLOSED ──────────────────────────────────────────────────
+    # 44 base64 characters with one `=` are 32 decoded bytes — a digest. 44
+    # UNPADDED characters are 33, which is not a digest of anything this tree
+    # routes, and the length band alone cannot tell them apart. The row declares
+    # the suffix; the client DECLINES the other (0 shapes, 0 probes) and the
+    # producer's key path REFUSES it BY NAME.
+    let unpadded = urlOf(TonA)[0 ..< 43] & "Q"
+    ck unpadded.len == 44
+    ck not unpadded.endsWith("=")
+    ck identifierEncodingsMatching(unpadded).len == 0
+    var refused = false
+    try: discard identifierIndexKey("base64url", unpadded)
+    except ValueError as e:
+      refused = true
+      ck e.msg.contains("DECODE LENGTH")
+      ck e.msg.contains("44")            # the length that was wrong
+      ck e.msg.contains("33")            # what it would have decoded to
+      ck e.msg.contains("32-byte digest")
+    ck refused
+    # CONTROL: the PADDED spelling passes in the same run, so the refusal is
+    # about the length and not about base64url.
+    ck identifierIndexKey("base64url", urlOf(TonA)) == urlOf(TonA)
+    # …and the same refusal reaches the `base64` spelling, because the narrowing
+    # is on the ROW and both members carry one.
+    var refusedStd = false
+    try: discard identifierIndexKey("base64", TonA[0 ..< 43] & "Q")
+    except ValueError: refusedStd = true
+    ck refusedStd
+    ck identifierIndexKey("base64", TonA) == TonA
 
   test "BOTH segments of a sharded path are the key form":
     # The shard and the object NAME. A builder that folded one and not the other
@@ -2134,11 +2363,27 @@ suite "the boundary: who knows about each half of the seam":
       if token == "hex": continue   # named in prose, as the published layout
       ck not sh.contains("\"" & token & "\"")
     # …and it folds through the shared rule rather than with a fold of its own.
-    # A `toLowerAscii` written here would be right for hex and would destroy the
-    # four case-significant members.
-    ck sh.contains("identifierPayload(encoding, identifier)")
-    ck not codeOf(sh).contains("toLowerAscii")
+    # THE BAN WAS "NO `toLowerAscii` AT ALL" AND IT IS NOW "NONE THAT IS NOT
+    # DECLARED", because `shardKey.foldKey` gave this module one legitimate fold:
+    # the PAD. `pad` is declared in the alphabet's own spelling (`A` is base64's
+    # zero digit), so a folded payload padded with the declared spelling yields
+    # `eqAA` — a name that is not closed under case folding, which is the property
+    # the fold exists to establish. The narrower ban is what the original was
+    # protecting: an UNCONDITIONAL fold is right for hex and destroys the four
+    # case-significant members, so every fold in this module must be reached only
+    # through the member's own declaration.
+    ck sh.contains("identifierShardPayload(encoding, identifier)")
     ck not codeOf(sh).contains("toUpperAscii")
+    let code = codeOf(sh)
+    var folds, declaredFolds = 0
+    for line in code.splitLines:
+      if line.contains("toLowerAscii"):
+        inc folds
+        if line.contains("rule.foldKey"): inc declaredFolds
+    # ANTI-VACUITY: a sweep that found no fold would satisfy the equality below
+    # by matching nothing, which is this repository's own first trap.
+    ck folds == 1
+    ck declaredFolds == folds
 
   test "THE TWO HALVES SWEPT THE SAME FILES, not merely by the same rule":
     # ── THE CHECK A SHARED RULE CANNOT MAKE ──────────────────────────────────
@@ -2191,4 +2436,4 @@ suite "the boundary: who knows about each half of the seam":
       inc comparedTops
     ck comparedTops == 3
 
-expectCount(777)
+expectCount(892)
