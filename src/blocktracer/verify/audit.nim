@@ -242,14 +242,21 @@ proc checkInstrument(src: Source, opts: AuditOptions): CheckResult =
       "known-present object to compare"
     return
   let (regJson, regErr) = tryJson(reg)
-  if regErr.len > 0 or regJson == nil or regJson{"chains"} == nil:
+  # BOUND ONCE, not subscripted twice. The guard below and the loop beneath it
+  # must be about the SAME object: `regJson{"chains"}` written twice is two
+  # evaluations, and a reader has to prove they agree before trusting the guard.
+  # It also keeps the loop off an optional member, which is what the §13 ban
+  # asks for — that ban carries no exemption list, deliberately, so the answer
+  # is to bind rather than to forgive the line.
+  let regChains = if regJson == nil: nil else: regJson{"chains"}
+  if regErr.len > 0 or regJson == nil or regChains == nil:
     result.state = csUnrunnable
     result.findings.add "the registry is served but " &
       (if regErr.len > 0: regErr else: "carries no `chains`") &
       ", so no second known-present object can be named"
     return
   var firstChain = ""
-  for name, _ in regJson{"chains"}.pairs:
+  for name, _ in regChains.pairs:
     if firstChain.len == 0 or name < firstChain: firstChain = name
   if firstChain.len == 0:
     result.state = csUnrunnable

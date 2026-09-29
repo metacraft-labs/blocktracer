@@ -108,8 +108,20 @@ proc loadCachePolicy*(): CachePolicy =
       "tools/verify/cache-policy.json declares format '" & j{"format"}.getStr &
       "' and this build reads '" & CachePolicyFormat & "'")
   result.sourceCommit = j{"source"}{"commit"}.getStr
-  for r in j{"rows"}: result.rows.add parseRow(r)
-  for r in j{"absent"}: result.absent.add parseRow(r)
+  # GUARDED THE WAY `orderSanity` BELOW ALREADY WAS. These two were bare while
+  # the third member four lines down tested `!= nil and kind == JArray` — the
+  # inconsistency is the tell, and iterating a nil JsonNode is a crash rather
+  # than an empty loop. A cache policy that lost its `rows` should be reported,
+  # not raise: this module's whole job is to tell someone what is wrong.
+  let rowsNode = j{"rows"}
+  if rowsNode == nil or rowsNode.kind != JArray:
+    raise newException(ValueError,
+      "tools/verify/cache-policy.json carries no `rows` array; a policy with no " &
+      "rows would silently verify nothing")
+  for r in rowsNode: result.rows.add parseRow(r)
+  let absentNode = j{"absent"}
+  if absentNode != nil and absentNode.kind == JArray:
+    for r in absentNode: result.absent.add parseRow(r)
   let os = j{"orderSanity"}
   if os != nil and os.kind == JArray:
     for pair in os:
