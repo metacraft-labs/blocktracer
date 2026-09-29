@@ -164,6 +164,23 @@ different ones (`tests/trehearse.nim`, "partial mode meets THE SAME cells").
    breakages `tools/deploy/check-assets.mjs` was written about*. Serving the
    site from the object store would reintroduce it.
 
+### What partial finds, and what it does not — measured, not assumed
+
+Run in **both** modes over the same 878-object tree:
+
+| | objects | cells met | registry clobber | unpublished objects |
+| --- | --- | --- | --- | --- |
+| `--mode partial` | 106 (12%) | 36/36 | found | **7 of 8** named |
+| `--mode full` | 878 (100%), 3.7 s | 36/36 | found | **8 of 8** named |
+
+Partial found the *defect* and enumerated seven of the eight objects; full
+enumerated all eight. That is the honest shape of the claim and the reason both
+modes exist: **partial is sufficient to decide whether to ship, and full is what
+you run to get the list.** A partial rehearsal that reported "7 objects" as if it
+were the total would be worse than no rehearsal, so the finding says "7 object(s)
+in the corpus", counted over what was rehearsed, and the selection percentage is
+printed directly above it.
+
 **Deliberately broken corpora it refuses**, each asserted by name in
 `tests/trehearse.nim`: two trees whose registries each name only their own chain;
 a tree carrying an object no cycle publishes; a corpus emitting no object of a
