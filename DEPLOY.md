@@ -203,6 +203,25 @@ nothing else — no zone rights.
 > pruning produces maps that quietly stop naming pruned ranges. Streaming needs
 > ingest to tolerate an absent container whose object is already published first.
 >
+> **(d) THE BUILD MUST SET `-d:hydrationBundle`, OR THE DEBUGGER SHIPS BROKEN.**
+> `installHydrationBundle` in `client/src/static_export.nim` returns early when
+> `HydrationBundle` is empty, so an export built without the flag **never emits
+> `replay-engine/**`** — the debugger's engine, its worker and its ~18 MB wasm.
+> This is not the publisher skipping them; they are not in the tree to publish.
+>
+> The symptom names nothing: every page renders, every data object resolves, the
+> publish exits 0, and **every debugger session fails to load its engine**. There
+> is no error at build or publish time and nothing in the store looks wrong,
+> because the store faithfully contains everything the tree had. Verified by
+> measurement on 2026-09-29 — a full-corpus export built without the flag
+> contained no `replay-engine/` directory at all.
+>
+> Check it before publishing: the tree must contain `replay-engine/worker.js` and
+> `replay-engine/pkg/*.wasm`. A separate defect that *would* have dropped them
+> even when present — `belongs` admitting site-root objects by an allowlist of
+> three literal names — is fixed, and the publisher now refuses any object
+> belonging to no chain rather than skipping it at exit 0.
+>
 > **Measured throughput**, for planning: 460,589 objects published in ~15 minutes
 > (~500 objects/sec), peak RSS 300–450 MB, the per-chain lease surviving the whole
 > run, and a second run reporting `content uploaded: 0` in 40 s — the idempotency
