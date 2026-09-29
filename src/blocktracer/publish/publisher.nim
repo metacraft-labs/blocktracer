@@ -255,6 +255,13 @@ proc traceContentHash(manifestJson: string): string =
 # The publishing cycle for one chain.
 # ---------------------------------------------------------------------------
 
+proc discoverChains(treeDir: string): seq[string] {.used.} =
+  let d = treeDir / "d"
+  if not dirExists(d): return
+  for entry in walkDir(d):
+    if entry.kind == pcDir: result.add extractFilename(entry.path)
+  result.sort()
+
 proc publishChain*(store: ObjectStore, treeDir, chain: string,
                    opts: PublishOptions): PublishResult =
   result.chain = chain
@@ -265,6 +272,28 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
   var keys = enumerateTree(treeDir)
   # Only keys belonging to this chain, plus the chain-agnostic layers (assets,
   # global hash index, registry, site home) that the tree also carries.
+  # ── AN ALLOWLIST DROPPED EIGHT OBJECTS SILENTLY, SO THE RULE IS INVERTED ──
+  #
+  # This used to admit site-root objects by three literal names — `index.html`,
+  # `sitemap.xml`, `robots.txt`. Everything else at the root belonged to no chain
+  # and was skipped at exit 0 with no warning. Found by a coverage rehearsal that
+  # subtracted a published store from the tree, not by anything in this file:
+  #
+  #   404.html  about/  chains/  search/  settings/
+  #   replay-engine/worker.js  replay-engine/pkg/db_backend.js  …_bg.wasm
+  #
+  # `replay-engine/**` is the one that breaks production. It is the debugger's
+  # engine, wasm included; serving from R2 without it means every page renders,
+  # the publish exits 0, and every debug session fails to load. `404.html` was
+  # fixed here by name and that fix was the same mistake one notch smaller — the
+  # NEXT root file reproduces it.
+  #
+  # So the question is no longer "is this key on the list" but "is this key
+  # SCOPED TO SOME CHAIN": `d/{chain}/`, `src/{chain}/`, or a first segment that
+  # names a chain. Anything else is site-level and belongs to every chain, so it
+  # is published once (content is skip-if-present, pointers are idempotent) and
+  # a new root file or directory is carried by default instead of vanishing.
+  let treeChains = discoverChains(treeDir)
   proc belongs(k: string): bool =
     if k.startsWith("d/"): return k.startsWith("d/" & chain & "/")
     # Source bundles are filed per chain under /src/{chain}/ (Source-Resolution
@@ -272,21 +301,9 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
     # while the bundle it names never is, and the debugger steps through code it
     # cannot display.
     if k.startsWith("src/"): return k.startsWith("src/" & chain & "/")
-    if k.startsWith(chain & "/"): return true          # this chain's entry pages
-    if k.startsWith("t/") or k.startsWith("idx/") or k.startsWith("assets/") or
-       k.startsWith("_a/") or
-       k.startsWith("registry/") or k == "index.html" or k == "sitemap.xml" or
-       # `404.html` WAS MISSING AND THE SITE SHIPPED WITHOUT ONE. `classOf` sends it to
-       # `ocEntryPage` (it ends in `.html`) rather than to the pointer set, and no chain
-       # claimed it here, so every publish skipped it silently: the exporter wrote it,
-       # `enumerateTree` saw it, and it reached no store. Measured against minio — present
-       # in `dist/`, absent from the bucket. It matters more once the bucket is the origin,
-       # because then a miss is answered by R2's own XML error instead of the site's
-       # "not on this chain" page, and that is the response the cache rules are written for.
-       k == "404.html" or
-       k == "robots.txt": return true
-    # another chain's entry pages / data → not ours
-    false
+    let seg = k.split('/')[0]
+    if seg in treeChains: return seg == chain          # some chain's entry pages
+    return true                                        # site-level: every chain carries it
   keys = keys.filterIt(belongs(it))
 
   keys.sort(proc(a, b: string): int =
@@ -484,13 +501,6 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
 
   result.publishedGeneration = readSyncState(store, chain).generation
 
-proc discoverChains(treeDir: string): seq[string] {.used.} =
-  let d = treeDir / "d"
-  if not dirExists(d): return
-  for entry in walkDir(d):
-    if entry.kind == pcDir: result.add extractFilename(entry.path)
-  result.sort()
-
 # ---------------------------------------------------------------------------
 # The global-pointer guard (§2.2a), and the bug it exists for.
 # ---------------------------------------------------------------------------
@@ -608,6 +618,45 @@ proc assertRegistryKeepsKnownChains(store: ObjectStore, treeDir: string) =
       "first. Ingest every chain into ONE shared tree — `ingest.nim` merges a registry within " &
       "a tree — and publish that.")
 
+proc assertEveryObjectIsClaimed(treeDir: string) =
+  ## No object in the tree may belong to no chain IN THE TREE.
+  ##
+  ## SKIPPING IS THE FAILURE MODE, NOT UPLOADING. `publishChain` filters the tree by
+  ## `belongs`, so an object no chain claims is not refused — it is silently absent from
+  ## the store while the publish exits 0. That shipped a site with no `404.html`, and a
+  ## coverage rehearsal later found seven more, including `replay-engine/**`: the
+  ## debugger's engine and its wasm, without which every page renders and every debug
+  ## session fails to load its engine.
+  ##
+  ## THE QUESTION IS ABOUT THE TREE, NOT ABOUT THIS RUN. Asking whether the chains being
+  ## published claim every key makes a single-chain publish refuse another chain's data,
+  ## which is normal and correct. The invariant is that the tree is self-consistent:
+  ## every object is scoped to some chain the tree contains, or is site-level.
+  ##
+  ## `belongs` is now scope-based rather than an allowlist, so nothing should reach this.
+  ## That is exactly why it is here: the previous rule also looked complete, and the cost
+  ## of being wrong is a defect invisible from the publisher's own output.
+  let treeChains = discoverChains(treeDir)
+  var orphans: seq[string]
+  for key in enumerateTree(treeDir):
+    var claimed = false
+    if key.startsWith("d/"):
+      for c in treeChains:
+        if key.startsWith("d/" & c & "/"): claimed = true; break
+    elif key.startsWith("src/"):
+      for c in treeChains:
+        if key.startsWith("src/" & c & "/"): claimed = true; break
+    else:
+      claimed = true                 # site-level, or a chain's entry pages
+    if not claimed: orphans.add key
+  if orphans.len > 0:
+    raise newException(PublishError,
+      "refusing to publish: " & $orphans.len & " object(s) in the tree belong to no chain " &
+      "the tree contains, and would be SKIPPED SILENTLY at exit 0, e.g. " &
+      orphans[0 ..< min(5, orphans.len)].join(", ") &
+      ". Either the owning chain is missing from d/, or the key is misfiled. Do not add " &
+      "them to an allowlist by name: that is what dropped `404.html` and `replay-engine/**`.")
+
 proc publishTree*(store: ObjectStore, treeDir: string,
                   opts = defaultOptions()): seq[PublishResult] =
   ## Publish every chain found in `treeDir` (or just `opts.chain`). Each chain is a
@@ -621,6 +670,7 @@ proc publishTree*(store: ObjectStore, treeDir: string,
   # same refusal after the first pointer lands has already lost a chain.
   assertNoUnknownGlobalPointer(treeDir)
   assertRegistryKeepsKnownChains(store, treeDir)
+  assertEveryObjectIsClaimed(treeDir)
   for chain in chains:
     if opts.takeLease and not acquireLease(store, chain, opts.writer):
       raise newException(PublishError,
