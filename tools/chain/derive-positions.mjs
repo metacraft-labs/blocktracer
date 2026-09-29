@@ -68,6 +68,32 @@ function findCtPrint() {
 }
 
 const ctPrint = findCtPrint();
+// ── READING A CONTAINER WHOSE VERSION STAMP PREDATES THE GLOBAL-LINE-INDEX
+//    CORRECTION ───────────────────────────────────────────────────────────────
+//
+// OFF BY DEFAULT. `ct-print` refuses such a container by name, because its
+// line-only step positions would come back ONE LINE HIGH under the current
+// decode — silently, with nothing in the bytes to tell the two packings apart.
+// That refusal is correct and this tool does not override it on its own
+// authority.
+//
+// `CT_PRINT_ACCEPT_SHIFTED_GLOBAL_INDEX=1` says the OPERATOR holds the evidence
+// that this corpus's writer already used the corrected packing. For the
+// containers in this repository that evidence exists and is recorded in
+// `codetracer-specs/BlockTracer/Recording-Readers.md` §3.2: the same bytes read
+// under both decodes give identical positions, and all 21 distinct (path, line)
+// pairs of `0x20ed5b91…` land on the one-line BODY of the function they name
+// rather than on the `fn` signature above it, checked against the container's
+// own corroborated Noir text. A one-line-high decode would move all 21.
+//
+// THE DERIVED FILE SAYS SO. `readWithAcceptShiftedGlobalIndex: true` is written
+// into the sidecar when and only when this was used, so a sidecar that rests on
+// an operator's argument is distinguishable afterwards from one the container
+// vouched for itself. The key is ABSENT rather than false on an ordinary read,
+// which is what keeps every already-published sidecar byte-identical.
+const ACCEPT_SHIFTED = process.env.CT_PRINT_ACCEPT_SHIFTED_GLOBAL_INDEX === '1';
+const CT_PRINT_FLAGS = ACCEPT_SHIFTED ? ['--accept-shifted-global-index'] : [];
+
 const snap = JSON.parse(readFileSync(join(dir, 'snapshot.json'), 'utf8'));
 const outDir = join(dir, 'positions');
 
@@ -90,7 +116,7 @@ for (const t of snap.transactions) {
   const declared = t.recording?.stepsPositioned ?? 0;
   if (declared <= 0) { skipped++; continue; }
 
-  const events = JSON.parse(execFileSync(ctPrint, ['--events', ct],
+  const events = JSON.parse(execFileSync(ctPrint, ['--events', ...CT_PRINT_FLAGS, ct],
     { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 }));
   const allPaths = events.filter((e) => e.type === 'Path').map((e) => e.name);
   const steps = events.filter((e) => e.type === 'Step');
@@ -151,6 +177,11 @@ for (const t of snap.transactions) {
     // executed a step; nothing here was reconstructed afterwards.
     measuredPostHoc: false,
     measuredBy: 'tools/chain/derive-positions.mjs (read from the container)',
+    // Present only when the read rested on the operator's evidence rather than
+    // on the container's own version stamp — see `ACCEPT_SHIFTED` above. Spread
+    // rather than written as `false`, so an ordinary derivation's bytes are
+    // unchanged and absence means "the container vouched for itself".
+    ...(ACCEPT_SHIFTED ? { readWithAcceptShiftedGlobalIndex: true } : {}),
     paths, pathId, line, column,
   };
   writeFileSync(join(outDir, `${t.txHash}.json`), JSON.stringify(out, null, 1) + '\n');

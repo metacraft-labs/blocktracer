@@ -1,5 +1,5 @@
 {
- "schema": "avm-call-frames/2",
+ "schema": "avm-call-frames/3",
  "tx": "0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592",
  "callsOpened": 46,
  "frames": 47,
@@ -26,6 +26,7 @@
    "path": null,
    "line": null,
    "args": [],
+   "contractAddress": null,
    "endStep": null,
    "foldedBy": null,
    "foldWhy": null,
@@ -38,12 +39,8 @@
    "step": 0,
    "path": null,
    "line": null,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 459,
    "foldedBy": null,
    "foldWhy": null,
@@ -56,12 +53,8 @@
    "step": 14,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/fee_juice_contract/src/main.nr",
    "line": 203,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 108,
    "foldedBy": null,
    "foldWhy": null,
@@ -74,12 +67,8 @@
    "step": 35,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
    "line": 85,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 42,
    "foldedBy": null,
    "foldWhy": null,
@@ -92,12 +81,8 @@
    "step": 42,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/serialization.nr",
    "line": 260,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 44,
    "foldedBy": null,
    "foldWhy": null,
@@ -110,12 +95,8 @@
    "step": 42,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/type_impls.nr",
    "line": 230,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 44,
    "foldedBy": null,
    "foldWhy": null,
@@ -128,12 +109,8 @@
    "step": 42,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/reader.nr",
    "line": 12,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 44,
    "foldedBy": null,
    "foldWhy": null,
@@ -146,12 +123,8 @@
    "step": 44,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/type_impls.nr",
    "line": 199,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 49,
    "foldedBy": null,
    "foldWhy": null,
@@ -164,12 +137,8 @@
    "step": 44,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/serde/src/reader.nr",
    "line": 12,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 46,
    "foldedBy": null,
    "foldWhy": null,
@@ -182,12 +151,8 @@
    "step": 49,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/fee_juice_contract/src/main.nr",
    "line": 149,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 100,
    "foldedBy": null,
    "foldWhy": null,
@@ -200,12 +165,8 @@
    "step": 49,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/public_context.nr",
    "line": 182,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 54,
    "foldedBy": null,
    "foldWhy": null,
@@ -218,12 +179,8 @@
    "step": 49,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
    "line": 12,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 50,
    "foldedBy": null,
    "foldWhy": null,
@@ -236,12 +193,8 @@
    "step": 50,
    "path": "std/cmp.nr",
    "line": 15,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 52,
    "foldedBy": null,
    "foldWhy": null,
@@ -254,12 +207,8 @@
    "step": 52,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
    "line": 12,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 54,
    "foldedBy": null,
    "foldWhy": null,
@@ -272,12 +221,8 @@
    "step": 54,
    "path": "std/option.nr",
    "line": 35,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 56,
    "foldedBy": null,
    "foldWhy": null,
@@ -290,12 +235,8 @@
    "step": 56,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/public_context.nr",
    "line": 175,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 57,
    "foldedBy": null,
    "foldWhy": null,
@@ -308,12 +249,8 @@
    "step": 56,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
    "line": 9,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 57,
    "foldedBy": null,
    "foldWhy": null,
@@ -326,12 +263,8 @@
    "step": 59,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/state_vars/map.nr",
    "line": 36,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 84,
    "foldedBy": null,
    "foldWhy": null,
@@ -344,12 +277,8 @@
    "step": 59,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/storage/map.nr",
    "line": 11,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 81,
    "foldedBy": null,
    "foldWhy": null,
@@ -362,12 +291,8 @@
    "step": 59,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/hash.nr",
    "line": 221,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 81,
    "foldedBy": null,
    "foldWhy": null,
@@ -380,12 +305,8 @@
    "step": 59,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/hash.nr",
    "line": 212,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 81,
    "foldedBy": null,
    "foldWhy": null,
@@ -398,12 +319,8 @@
    "step": 59,
    "path": "/home/aztec-dev/nargo/github.com/noir-lang/poseidon/v0.3.0/src/poseidon2.nr",
    "line": 16,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 81,
    "foldedBy": "vendored-crate",
    "foldWhy": "a third-party crate vendored in through nargo — poseidon2 is here, and it is the single largest consumer of steps in a typical Aztec public call",
@@ -416,12 +333,8 @@
    "step": 59,
    "path": "/home/aztec-dev/nargo/github.com/noir-lang/poseidon/v0.3.0/src/poseidon2.nr",
    "line": 68,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 81,
    "foldedBy": null,
    "foldWhy": null,
@@ -434,12 +347,8 @@
    "step": 72,
    "path": "std/hash/mod.nr",
    "line": 125,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 79,
    "foldedBy": null,
    "foldWhy": null,
@@ -452,12 +361,8 @@
    "step": 81,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/state_vars/public_mutable.nr",
    "line": 19,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 84,
    "foldedBy": null,
    "foldWhy": null,
@@ -470,12 +375,8 @@
    "step": 84,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/state_vars/public_mutable.nr",
    "line": 34,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 89,
    "foldedBy": null,
    "foldWhy": null,
@@ -488,12 +389,8 @@
    "step": 84,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/public_context.nr",
    "line": 302,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 89,
    "foldedBy": null,
    "foldWhy": null,
@@ -506,12 +403,8 @@
    "step": 84,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/public_context.nr",
    "line": 291,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 86,
    "foldedBy": null,
    "foldWhy": null,
@@ -524,12 +417,8 @@
    "step": 84,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/public_context.nr",
    "line": 175,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 85,
    "foldedBy": null,
    "foldWhy": null,
@@ -542,12 +431,8 @@
    "step": 84,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
    "line": 9,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 85,
    "foldedBy": null,
    "foldWhy": null,
@@ -560,12 +445,8 @@
    "step": 85,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
    "line": 114,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 86,
    "foldedBy": null,
    "foldWhy": null,
@@ -578,12 +459,8 @@
    "step": 86,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/type_packing.nr",
    "line": 103,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 89,
    "foldedBy": null,
    "foldWhy": null,
@@ -596,12 +473,8 @@
    "step": 89,
    "path": "std/ops/arith.nr",
    "line": 17,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 92,
    "foldedBy": null,
    "foldWhy": null,
@@ -614,12 +487,8 @@
    "step": 92,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/state_vars/map.nr",
    "line": 36,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 98,
    "foldedBy": null,
    "foldWhy": null,
@@ -632,12 +501,8 @@
    "step": 92,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/storage/map.nr",
    "line": 11,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 98,
    "foldedBy": null,
    "foldWhy": null,
@@ -650,12 +515,8 @@
    "step": 92,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/hash.nr",
    "line": 221,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 98,
    "foldedBy": null,
    "foldWhy": null,
@@ -668,12 +529,8 @@
    "step": 92,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/hash.nr",
    "line": 212,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 98,
    "foldedBy": null,
    "foldWhy": null,
@@ -686,12 +543,8 @@
    "step": 92,
    "path": "/home/aztec-dev/nargo/github.com/noir-lang/poseidon/v0.3.0/src/poseidon2.nr",
    "line": 16,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 98,
    "foldedBy": "vendored-crate",
    "foldWhy": "a third-party crate vendored in through nargo — poseidon2 is here, and it is the single largest consumer of steps in a typical Aztec public call",
@@ -704,12 +557,8 @@
    "step": 92,
    "path": "/home/aztec-dev/nargo/github.com/noir-lang/poseidon/v0.3.0/src/poseidon2.nr",
    "line": 68,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 98,
    "foldedBy": null,
    "foldWhy": null,
@@ -722,12 +571,8 @@
    "step": 95,
    "path": "std/hash/mod.nr",
    "line": 125,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 98,
    "foldedBy": null,
    "foldWhy": null,
@@ -740,12 +585,8 @@
    "step": 98,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/state_vars/public_mutable.nr",
    "line": 42,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 100,
    "foldedBy": null,
    "foldWhy": null,
@@ -758,12 +599,8 @@
    "step": 98,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/public_context.nr",
    "line": 318,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 100,
    "foldedBy": null,
    "foldWhy": null,
@@ -776,12 +613,8 @@
    "step": 98,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-protocol-circuits/crates/types/src/type_packing.nr",
    "line": 98,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 99,
    "foldedBy": null,
    "foldWhy": null,
@@ -794,12 +627,8 @@
    "step": 99,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/context/public_context.nr",
    "line": 309,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 100,
    "foldedBy": null,
    "foldWhy": null,
@@ -812,12 +641,8 @@
    "step": 99,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
    "line": 118,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 100,
    "foldedBy": null,
    "foldWhy": null,
@@ -830,12 +655,8 @@
    "step": 103,
    "path": "/home/aztec-dev/aztec-packages/noir-projects/noir-contracts/contracts/protocol/aztec_sublib/src/oracle/avm.nr",
    "line": 103,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x0000000000000000000000000000000000000000000000000000000000000003"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x0000000000000000000000000000000000000000000000000000000000000003",
    "endStep": 108,
    "foldedBy": null,
    "foldWhy": null,
@@ -848,12 +669,8 @@
    "step": 108,
    "path": null,
    "line": null,
-   "args": [
-    {
-     "name": "contractAddress",
-     "value": "0x2fcd3dd598380bd949f7d6cb9d57e0251e512bde7d05c36f7257bf8db6c3041f"
-    }
-   ],
+   "args": [],
+   "contractAddress": "0x2fcd3dd598380bd949f7d6cb9d57e0251e512bde7d05c36f7257bf8db6c3041f",
    "endStep": 459,
    "foldedBy": null,
    "foldWhy": null,
