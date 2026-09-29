@@ -341,6 +341,47 @@ type
     anchor*: string
     executed*: bool       ## the trace visited this line at least once
     current*: bool        ## the session's position is on this line
+    compilerAttributed*: bool
+      ## THE RECORDING PLACES STEPS ON THIS LINE AND THE PLACEMENT IS NOT
+      ## EVIDENCE THAT THIS LINE RAN.
+      ##
+      ## A source position in a chain recording comes from the contract's
+      ## compiled debug map, and a compiler is free to key one compiled
+      ## instruction sequence to any one of the source spans that produced it.
+      ## Two shapes of that reach this product's pages, both measured on
+      ## `aztec-testnet-frames/0x0a807e4e…`:
+      ##
+      ##   * **A `quote { … }` template body.** Noir's `comptime` derive
+      ##     machinery emits code from a template, and the map keys the emitted
+      ##     code to the template's own line — so a frame lands on
+      ##     `std/cmp.nr:15`, a closure inside `derive_eq`, and on
+      ##     `serde/src/serialization.nr:260`, inside `derive_deserialize`.
+      ##     `branch_regions.findQuoteBodies` locates these.
+      ##
+      ##   * **A position the recording's own step order contradicts.** Steps
+      ##     15–26 sit at `main.nr:223`, inside `if selector ==
+      ##     CHECK_BALANCE_SELECTOR`, and step 100 sits at `main.nr:214`, inside
+      ##     the `INCREASE_PUBLIC_BALANCE` arm above it — both inside ONE call of
+      ##     `FeeJuice::public_dispatch`, each visited in exactly one contiguous
+      ##     run, and the HIGHER line's run finishes 74 steps before the lower
+      ##     one's begins. Forward control flow through one invocation cannot do
+      ##     that, and a loop cannot produce it either: a loop revisits, which
+      ##     would give one of them a second run. So at least one of the two
+      ##     attributions is not a place the execution reached, and the
+      ##     recording does not say which — which is why BOTH are marked and
+      ##     neither is silently corrected.
+      ##
+      ## WHY THIS IS NOT FOLDED INTO `executed`. The step is real, the recording
+      ## really does carry it, and the line really is the map's answer — so
+      ## un-marking the gutter would delete a measurement. What is false is the
+      ## inference a reader draws, and that is a separate claim needing a
+      ## separate mark. `notTaken`/`ran` are also the wrong home: those are
+      ## claims about CONTROL FLOW derived from a branch chain's mutual
+      ## exclusion, and this is a claim about the DEBUG MAP.
+      ##
+      ## Empty is "nothing is claimed", as it is for `notTaken` — a line with no
+      ## mark is not asserted to be soundly attributed, only unexamined. The
+      ## producer is `demo_session.markCompilerAttributed` and it is the only one.
     breakpoint*: bool
       ## The visitor has marked this line, and Continue stops here.
       ##
@@ -479,6 +520,19 @@ type
       ## Empty on every source-level pane, and empty is how `renderSource` knows
       ## not to draw a caption strip at all. A pane at source level has a tab
       ## strip naming its files instead, which answers the same question.
+    attributionNote*: string
+      ## What the `?`-marked lines in this pane mean, when there are any.
+      ##
+      ## A FIELD OF ITS OWN AND NOT AN ADDITION TO `reason`, and the placement is
+      ## the point. `renderSource` reads `reason` only inside the INSTRUCTION
+      ## LISTING's chrome — correctly, because `reason` is "why this pane is not
+      ## at source level" — so a caveat about SOURCE lines appended there is
+      ## visible on the one document it is not about. This sentence belongs with
+      ## the rung header, above the documents, on both sides of the boundary.
+      ##
+      ## Empty is the ordinary state: it is set exactly when
+      ## `demo_session.markCompilerAttributed` marked at least one line, and the
+      ## count it quotes is that proc's return value rather than a second walk.
     documents*: seq[SourceDocument]
     activeIndex*: int         ## which document the pane shows
     currentLine*: int         ## 0 when the session is not positioned
@@ -1443,6 +1497,26 @@ type
       ## every chain.
     integrity*: SessionIntegrity
     integrityDetail*: string
+    scopeTitle*, scopeDetail*: string
+      ## THE NARROW CLAIM, SAID OUT LOUD — the undismissable qualifier above the
+      ## debugger that names what the replay was checked against and what it was
+      ## not.
+      ##
+      ## A SEPARATE PAIR FROM `integrity`/`integrityDetail`, and the separation
+      ## is the point. `integrity` is a VERDICT: divergent, truncated, validated
+      ## — one of them, and the banner it draws is that verdict. This is a
+      ## QUALIFICATION of a verdict that stands: the replay really did reproduce
+      ## every published effect, so `siDivergent` would be false, and the four
+      ## state-tree roots really do disagree with the block's, so silence would
+      ## be an overclaim. Folding this into the enum would have forced a choice
+      ## between two statements that are both true.
+      ##
+      ## Filled by `ssr.debugSessionFor` from `TxView.replay` and the manifest's
+      ## `validation.oracle`; empty on every session with nothing to qualify,
+      ## and `pages/debug.banner` draws nothing for an empty pair. Carried as
+      ## PROSE rather than as the numbers because the numbers already travel on
+      ## `TxView.replay` and this route is not their second producer — see the
+      ## composition site.
     reconstructed*: bool
       ## The trace was heuristically reconstructed rather than recorded.
       ##

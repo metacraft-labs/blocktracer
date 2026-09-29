@@ -253,22 +253,48 @@ proc identityBar(s: DebugSessionView): string =
               title = DownloadTraceLabel, `aria-label` = DownloadTraceLabel):
               raw downloadMark()
 
+proc scopeBanner(s: DebugSessionView): string =
+  ## THE QUALIFIER, in the banner region and with no dismiss control.
+  ##
+  ## Beside `banner` rather than inside its `case`, because it qualifies a
+  ## verdict instead of being one: a replay can reproduce every published effect
+  ## (so the verdict is the validated one, and `banner` correctly draws nothing)
+  ## and still rebuild state trees whose roots differ from the block's. Both
+  ## statements are true and the page owes a reader both.
+  ##
+  ## `role="status"` and not `role="alert"`, for `renderPositionNotice`'s reason:
+  ## nothing is wrong. A sparse replay's roots differing is the product working
+  ## as designed; what is wrong is not saying so. The DIVERGENCE banner is the
+  ## one that interrupts, and where both are due this one sits under it.
+  ##
+  ## Undismissable, like the divergence banner and for the same reason: what it
+  ## says stays true for as long as the page is open.
+  if s.scopeTitle.len == 0: return ""
+  ui:
+    tdiv(class = "dbgbanner info", role = "status"):
+      span(class = "bannertitle"): text s.scopeTitle
+      span(class = "bannertext"): text s.scopeDetail
+
 proc banner(s: DebugSessionView): string =
   ## Above the debugger, never inside it, and with no dismiss control.
-  case s.integrity
-  of siDivergent:
-    ui:
-      tdiv(class = "dbgbanner bad", role = "alert"):
-        span(class = "bannertitle"): text "Divergent trace"
-        span(class = "bannertext"): text s.integrityDetail
-  of siTruncated:
-    ui:
-      tdiv(class = "dbgbanner warn", role = "status"):
-        span(class = "bannertitle"): text "Truncated trace"
-        span(class = "bannertext"): text s.integrityDetail
-        button(class = "btn ghost sm"): text "Request a deeper profile"
-  of siValidated, siUnknown:
-    ""
+  let verdict =
+    case s.integrity
+    of siDivergent:
+      ui:
+        tdiv(class = "dbgbanner bad", role = "alert"):
+          span(class = "bannertitle"): text "Divergent trace"
+          span(class = "bannertext"): text s.integrityDetail
+    of siTruncated:
+      ui:
+        tdiv(class = "dbgbanner warn", role = "status"):
+          span(class = "bannertitle"): text "Truncated trace"
+          span(class = "bannertext"): text s.integrityDetail
+          button(class = "btn ghost sm"): text "Request a deeper profile"
+    of siValidated, siUnknown:
+      ""
+  # The verdict first, then the qualification of it. Concatenated here rather
+  # than at the two call sites so a page cannot acquire one without the other.
+  verdict & scopeBanner(s)
 
 proc noSession(s: DebugSessionView): string =
   ## §7.0's non-session rows, in the region the panes would have occupied.

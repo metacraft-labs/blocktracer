@@ -246,3 +246,62 @@ func findConditionals*(lines: openArray[string];
     let (conditional, consumed) = chainAt(tokens, i)
     for c in consumed: skip.add c
     if conditional.arms.len > 0: result.add conditional
+
+# ---------------------------------------------------------------------------
+# Macro-template bodies
+# ---------------------------------------------------------------------------
+
+type LineRange* = object
+  ## An inclusive span of lines. `firstLine > lastLine` never occurs: a
+  ## construct with no interior is refused rather than emitted inverted, on the
+  ## same rule `armAt`'s caller follows.
+  firstLine*, lastLine*: int
+
+func findQuoteBodies*(lines: openArray[string];
+                      profile: LanguageProfile): seq[LineRange] =
+  ## Every `quote { … }` body in a file — the TEMPLATE text a `comptime`
+  ## function emits, which is not code that runs where it is written.
+  ##
+  ## ## Why a page needs to know
+  ##
+  ## Noir's derive machinery is `comptime`: `std/cmp.nr`'s `derive_eq` builds an
+  ## `eq` implementation out of `quote { (_self.$name == _other.$name) }`, and
+  ## `serde/src/serialization.nr`'s `derive_deserialize` does the same for a
+  ## deserializer. The compiled code runs, and the compiler's debug map keys it
+  ## to the line the TEMPLATE is written on — so a recording reports a frame at
+  ## `std/cmp.nr:15`, a visitor jumps to source, and lands on a closure inside a
+  ## macro rather than on anything that executed. Two frames of
+  ## `0x0a807e4e…` are exactly that.
+  ##
+  ## The position is not wrong — it is where the compiler keyed the code — and it
+  ## is not where the execution was either. Marking it is the only honest option,
+  ## and this is the structural half of the mark: which lines are template.
+  ##
+  ## ## The interior INCLUDES the brace lines, unlike a branch arm's
+  ##
+  ## `armAt` excludes the header because evaluating a condition IS executing that
+  ## line. Nothing inside a `quote` is executed where it is written, braces
+  ## included, so the whole construct is the region. A step keyed to the `quote {`
+  ## line is as much a template position as one keyed three lines in.
+  ##
+  ## Refusal is the same first-class outcome it is above: an unknown language
+  ## yields nothing, and an unbalanced or brace-less `quote` yields nothing
+  ## rather than a region guessed at.
+  if not profile.isKnown: return
+  let tokens = flatten(highlightLines(lines, profile))
+  var i = 0
+  while i < tokens.len:
+    if not isWord(tokens[i], "quote"): inc i; continue
+    # The `{` must be the very next token. A `quote` followed by anything else
+    # is not a template body this module can locate — `quote` also appears as a
+    # TYPE in Noir metaprogramming signatures (`-> Quoted`), and scanning ahead
+    # for a brace would adopt whatever block came next.
+    if i + 1 >= tokens.len or not isPunct(tokens[i + 1], "{"): inc i; continue
+    let close = matchingBrace(tokens, i + 1)
+    if close < 0: inc i; continue
+    result.add LineRange(firstLine: tokens[i + 1].line,
+                         lastLine: tokens[close].line)
+    # Continue AFTER the body, so a nested `quote` inside a template is not
+    # emitted as a second, overlapping region: the outer one already covers it
+    # and two overlapping regions would mark the same line twice.
+    i = close + 1

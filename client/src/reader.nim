@@ -299,6 +299,51 @@ type
       ## `demo_session.withSourcePositions`. Both 0 on a recording older than
       ## the fields, which compares equal to nothing and so admits nothing.
 
+  EffectMismatch* = object
+    ## One published effect the replay did not reproduce, with both readings.
+    field*, published*, replayed*: string
+
+  ReplayScopeView* = object
+    ## WHAT THE REPLAY WAS CHECKED AGAINST, AND WHAT IT WAS NOT.
+    ##
+    ## THE DEFECT THIS EXISTS TO CLOSE. `native.replay` has carried
+    ## `rootsAnyAgree: false` and a four-entry `roots` array on every published
+    ## Aztec transaction since the chain was first ingested, and the manifest
+    ## beside it says `validation.status: "match"`. Both are true and they are
+    ## about different things — the oracle is `published-effects`, so "match"
+    ## means the replay reproduced the block's published effects, and says
+    ## nothing about state-tree roots. But the ONLY place a visitor could read
+    ## either was the collapsed "Raw (chain-native)" JSON: outside it the strings
+    ## "divergent" and "disagree" occurred three times per page and all three
+    ## were inside CSS comments in the inlined stylesheet. A page whose own data
+    ## records that four of four state roots differ, and which says so nowhere a
+    ## reader will look, is the overclaim this repository exists to prevent —
+    ## even though no individual sentence on it is false.
+    ##
+    ## So the fold is here, beside `sourceCoverage`, over the same `native` and
+    ## for the same §7.1 reason: the transaction page, the debugger's banner and
+    ## any list row that ever wants it read ONE derivation.
+    ##
+    ## `has` is false on a transaction with no replay record at all, which is
+    ## every untraced row. An absent record and a record saying nothing
+    ## disagreed must not read the same way.
+    has*: bool
+    effectsMatched*, effectsMismatched*: int
+    effectsReproduced*: bool
+    rootsTotal*, rootsAgreeing*: int
+      ## Counted from the array rather than read off `rootsAnyAgree`, which is
+      ## one bit and cannot say "one of four". `rootsAnyAgree` is still the
+      ## fallback where the array is absent — see the fold.
+    differingTrees*: seq[string]
+      ## The trees that do not agree, in published order, named so the banner
+      ## can say WHICH rather than only HOW MANY.
+    mismatches*: seq[EffectMismatch]
+      ## The effects that did not reproduce. Empty on a reproducing replay, and
+      ## also empty on a capture written before `ingest.nim` republished them —
+      ## which is why `effectsMismatched` is carried separately: a count with no
+      ## records is "we know two differed and not which", and that is a
+      ## different page from "none differed".
+
   TxRow* = object
     ## One row of the shared transactions table (block detail, tx list).
     hash*: string
@@ -369,6 +414,10 @@ type
     canonical*: bool
     finality*: string
     native*: JsonNode
+    replay*: ReplayScopeView
+      ## What the replay was checked against, and what it was not — the fold
+      ## `ReplayScopeView` documents. Over the same `native` as `sources` below
+      ## and for the same reason.
     sources*: SourceCoverageView
       ## The same fold as `TxRow.sources`, over the same `native`, produced by
       ## the same proc. §7.1's rule — the metadata is "rendered in two places …
@@ -702,6 +751,47 @@ proc sourceCoverage*(native: JsonNode): SourceCoverageView =
       if everyResolvedIsCorroborated: scCorroborated else: scSingleDistributor
     result.postHoc = everyResolvedIsPostHoc
 
+proc replayScope*(native: JsonNode): ReplayScopeView =
+  ## Fold `native.replay` into what the replay was and was not checked against.
+  ##
+  ## Total over the published record, and every branch is a distinction the TREE
+  ## makes: nothing here is inferred from a chain's name or from the manifest's
+  ## one-word `validation.status`.
+  ##
+  ## ## Why the roots are COUNTED and not read off `rootsAnyAgree`
+  ##
+  ## `rootsAnyAgree` is one bit. "None of four agree" and "one of four agrees"
+  ## are different pages — the first says the replay rebuilt a different world,
+  ## the second says it rebuilt part of the same one — and a bit cannot tell
+  ## them apart. The array is the evidence, `agrees` is per entry, and the count
+  ## is the fold. The bit is kept only as the FALLBACK for a capture written
+  ## before the array existed, and there it can say `rootsTotal = 0`, which
+  ## compares equal to nothing and so claims nothing.
+  if native.isNil or native.kind != JObject: return
+  let replay = native{"replay"}
+  if replay.isNil or replay.kind != JObject: return
+  result.has = true
+  result.effectsMatched = replay{"effectsMatched"}.getInt(0)
+  result.effectsMismatched = replay{"effectsMismatched"}.getInt(0)
+  result.effectsReproduced = replay{"effectsReproduced"}.getBool
+  let roots = replay{"roots"}
+  if roots != nil and roots.kind == JArray:
+    for e in roots:
+      if e.kind != JObject: continue
+      inc result.rootsTotal
+      if e{"agrees"}.getBool: inc result.rootsAgreeing
+      else:
+        let tree = e{"tree"}.getStr
+        if tree.len > 0: result.differingTrees.add tree
+  let mm = replay{"effectMismatches"}
+  if mm != nil and mm.kind == JArray:
+    for e in mm:
+      if e.kind != JObject: continue
+      let f = e{"field"}.getStr
+      if f.len == 0: continue
+      result.mismatches.add EffectMismatch(field: f,
+        published: e{"published"}.getStr, replayed: e{"replayed"}.getStr)
+
 proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   ## The transaction-detail projection. The SDK assembles the three data-plane
   ## layers; this maps them onto the fields the page shows.
@@ -724,6 +814,11 @@ proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   result.payloadTarget = v.facts.payloadTarget
   result.native = v.facts.native
   result.sources = sourceCoverage(v.facts.native)
+  # The same fold, over the same object, for the same §7.1 reason — see
+  # `ReplayScopeView`. Read here rather than by the page so the transaction
+  # page, the debugger's banner and any list row cannot come to disagree about
+  # what the replay was checked against.
+  result.replay = replayScope(v.facts.native)
   result.canonical = v.canonical
   result.finality = v.finality
   for e in v.execTraces:
@@ -815,6 +910,17 @@ type
       ## manifest does not say, which is every real-chain one today.
     languages*: seq[string]
     validationStatus*: string
+    validationOracle*: string
+      ## WHICH DIFFERENTIAL ORACLE PRODUCED `validationStatus`, published in the
+      ## manifest and until now read by nobody on the session path.
+      ##
+      ## It is the difference between "the replay was checked" and "the replay
+      ## was checked against THIS". `published-effects` means the replay's
+      ## effects were compared against the effects the block published — a
+      ## narrow, real claim — and it is the claim a page must show beside a
+      ## `match`, because a reader who is told only "match" will read it as the
+      ## broad one. The same manifest records four state-tree roots that do not
+      ## agree; both are true, and only one of them was reaching the page.
     sourceBundle*: JsonNode        ## the recommended bundle's raw node, or nil
     sourceBundleReason*: string    ## why there is none
     instructions*: JsonNode
@@ -845,7 +951,7 @@ type
       ## listing, a listing wins over a paragraph. Nil here is not a failure —
       ## it is every capture taken before an artifact could be resolved.
     callFrames*: JsonNode
-      ## The frames the recording opened (`avm-call-frames/1` or `/2`), or nil.
+      ## The frames the recording opened (`avm-call-frames/1`, `/2` or `/3`), or nil.
       ##
       ## `/2` adds the fold marks — `foldedBy`, `foldWhy`, `hiddenDescendants`,
       ## `hiddenSteps` — which say which subtrees the pane starts with CLOSED and
@@ -903,6 +1009,7 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
     elif t.kind == trkOnDemand: tvPending
     else: tvNone
   if t.hasValidation: result.validationStatus = $t.validation.status
+  if t.hasManifest: result.validationOracle = t.manifest.validationOracle
 
   # ONLY FOR A TRACE THERE IS SOMETHING TO OPEN. An `absent` or `on-demand`
   # resolution derives no artifact address, so asking would be a request built

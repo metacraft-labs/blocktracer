@@ -94,14 +94,35 @@ proc encodeSourceIsland*(p: EditorPane): string =
   var docs = newJArray()
   for d in p.documents:
     var executed = newJArray()
+    # THE ATTRIBUTION MARKS TRAVEL WITH THE EXECUTED SET, and they have to.
+    #
+    # `demo_session.markCompilerAttributed` marks the lines whose position is
+    # where the COMPILER keyed the code rather than somewhere the recording
+    # proves the execution reached, and it derives them from the per-step
+    # position stream and the call frames — `positions.json` and
+    # `calltrace.json`, neither of which is in the page. So a hydrated pane
+    # cannot re-derive them, exactly as it cannot re-derive `positionedSteps`
+    # one field down, and for the same consequence: the `?` marks and the
+    # sentence explaining them would appear on the SERVED page and vanish on the
+    # first step. One renderer, two artefacts, and the caveat missing from the
+    # half where a visitor actually moves — which is this module's own recorded
+    # defect, twice over, and would be a third time.
+    #
+    # A line-number list rather than a flag per line, for `executed`'s reason:
+    # it is sparse (4 lines of 288 KB of source on the recording that has any),
+    # and an island that predates the field decodes to an empty list, which is
+    # "nothing is claimed" and not "nothing is marked wrong".
+    var attributed = newJArray()
     for ln in d.lines:
       if ln.executed: executed.add newJInt(ln.number)
+      if ln.compilerAttributed: attributed.add newJInt(ln.number)
     docs.add %*{
       "path": d.path,
       "language": d.language,
       "firstLine": (if d.lines.len > 0: d.lines[0].number else: 1),
       "text": documentText(d),
       "executed": executed,
+      "compilerAttributed": attributed,
     }
   let payload = %*{
     "availability": $p.availability,
@@ -128,6 +149,11 @@ proc encodeSourceIsland*(p: EditorPane): string =
     # `positions.json` beside the container and is not in the page.
     "positionedSteps": p.positionedSteps,
     "positionedOf": p.positionedOf,
+    # The sentence the `?` marks are explained by. Carried for the same reason
+    # `listingCaption` is: it is derived, it cannot be recomputed without the two
+    # sidecars, and a pane that keeps the marks and loses the explanation is
+    # worse than one with neither.
+    "attributionNote": p.attributionNote,
     "activeIndex": p.activeIndex,
     "documents": docs,
   }
@@ -244,6 +270,7 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
   # island decodes to "nobody established this" rather than to a coverage claim.
   result.positionedSteps = payload{"positionedSteps"}.getInt(0)
   result.positionedOf = payload{"positionedOf"}.getInt(0)
+  result.attributionNote = payload{"attributionNote"}.getStr("")
   result.activeIndex = 0
   result.currentLine = currentLine
   let docs = payload{"documents"}
@@ -265,6 +292,10 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
     let ex = d{"executed"}
     if ex != nil and ex.kind == JArray:
       for n in ex: executed.add n.getInt(0)
+    var attributed: seq[int]
+    let at = d{"compilerAttributed"}
+    if at != nil and at.kind == JArray:
+      for n in at: attributed.add n.getInt(0)
     result.documents.add newSourceDocument(
       path, d{"language"}.getStr(""), d{"text"}.getStr(""),
       executed = executed,
@@ -292,6 +323,18 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
       # so renumbering them would shift every row by one and mark the wrong
       # instruction on every stop.
       firstLine = d{"firstLine"}.getInt(1))
+    # …AND THE ATTRIBUTION MARKS BACK ONTO THE REBUILT ROWS.
+    #
+    # `newSourceDocument` takes `executed` as a parameter and has no parameter
+    # for this, so it is applied here rather than threaded through a signature
+    # every other caller would have to learn. Applied to the document just
+    # added, by number, which is the same join the island uses for `executed`
+    # and the same one a step uses to resolve to a line.
+    if attributed.len > 0:
+      let di = result.documents.len - 1
+      for li in 0 ..< result.documents[di].lines.len:
+        if result.documents[di].lines[li].number in attributed:
+          result.documents[di].lines[li].compilerAttributed = true
     inc index
   if matched:
     result.activeIndex = positionIndex

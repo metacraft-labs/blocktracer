@@ -929,27 +929,54 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
        pane.documents[0].lines[0].number
 
   test "MUTATION BITE: a landing past the end of the recording is corrected":
-    # `entryStepWithin` lands a trace shorter than the fixture's step on `steps`
-    # itself, which under the session's zero-based numbering is one PAST the end.
-    # The listing is the only place that knows how long the recording is, so it
-    # is where the landing is resolved — and the session's own coordinate is
-    # corrected with it, because a page may not report a position outside its own
-    # recording.
+    # WHAT THIS ARM USED TO PROVE, AND WHY ITS SUBJECT IS GONE.
+    #
+    # `entryStepWithin` landed a trace shorter than the fixture's step on
+    # `steps` itself, which under the session's zero-based numbering is one PAST
+    # the end, and the clamp here corrected it. The arm's own premise was
+    # `found > 0` — "the capture HAS a recording short enough for the landing
+    # rule to overshoot".
+    #
+    # `chainEntryStep` removed the overshoot at its source: a chain recording
+    # now lands at the FRONT of its own stream and the producers move it forward
+    # to the first row they have, so no chain landing can be past the end and
+    # `found` would be 0 on every subject. Keeping `found > 0` would have turned
+    # a fixed defect into a red gate; deleting the arm would have dropped the
+    # invariant with the defect. So the invariant stays and the CLAMP is
+    # exercised directly, on a coordinate this route really can be handed — an
+    # explicit `?t=` past the end, which is a visitor's URL and not a landing
+    # rule and is still clamped here.
     ck subjects.len > 0
-    var found = 0
     for s in subjects:
       let session = debugSessionFor(root, s.chain, s.tx)
       ck session.controls.step < s.steps       # never past the end
       ck session.timeCoordinate == session.controls.step
-      if session.controls.step == s.steps - 1 and s.steps < 128: inc found
+      # …and it is the FRONT, which is what the landing rule now says.
+      ck session.controls.step == 0
       # …and the row it names exists and is marked.
       var marked: seq[int]
       for ln in session.editor.documents[0].lines:
         if ln.current: marked.add ln.number
       ck marked == @[session.controls.step]
-    # The capture HAS a recording short enough for the landing rule to overshoot,
-    # so this is not a rule with no subject.
-    ck found > 0
+    # THE CLAMP ITSELF, exercised on the shipped proc. A hydrated session, or a
+    # `?t=` a visitor typed, can still hand this route a tick outside the
+    # recording, and the correction has to stay — so the subject is a real
+    # session with its coordinate moved past the end and nothing else changed.
+    var clamped = 0
+    for s in subjects:
+      let info = chainInfo(root, s.chain)
+      let tv = traceView(root, info, s.tx)
+      var over = debugSessionFor(root, s.chain, s.tx)
+      # Back to the pre-listing state, then past the end.
+      over.editor = EditorPane(availability: srcUnverified)
+      over.controls.step = s.steps + 7
+      over.timeCoordinate = s.steps + 7
+      ck over.controls.step >= s.steps        # the input really is past the end
+      withInstructionListing(over, tv.instructions)
+      if over.controls.step == s.steps - 1 and over.timeCoordinate == s.steps - 1:
+        inc clamped
+    ck clamped == subjects.len
+    ck clamped > 0
 
   test "MUTATION BITE: a tick outside the recording marks nothing":
     # The join must not wrap, clamp or land on the last row. A hydrated session
@@ -971,7 +998,21 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
     ck marked == 1
 
   test "assertion count":
-    expectCount(880)
+    # 880 -> 943, and the whole growth is the rewritten landing arm, per subject
+    # over the 31 instruction-level recordings this tree publishes:
+    #
+    #   +31  `session.controls.step == 0` — the landing rule, asserted per page
+    #        rather than inferred from the absence of an overshoot
+    #   +31  `over.controls.step >= s.steps` — the clamp's input really is past
+    #        the end, which is the premise the old arm got from a short recording
+    #        and now has to plant
+    #    +2  `clamped == subjects.len` and `clamped > 0`
+    #    -1  the retired `found > 0`, whose premise the landing rule makes false
+    #
+    # 880 + 31 + 31 + 2 - 1 = 943. Stated as arithmetic rather than transcribed,
+    # because a count that moved by a number nobody can decompose is a count that
+    # will be "corrected" to whatever the next run prints.
+    expectCount(943)
 
 suite "7 — a recording at TWO fidelities says where it is at both of them":
   asserted = 0

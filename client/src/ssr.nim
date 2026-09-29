@@ -202,6 +202,38 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   # document — and `tools/journeys/lib/corpus.mjs`'s `hasSource` moved with it: a
   # page holding both kinds of document is not "no source".
   withListingBesideSource(result, t.instructions)
+  # ── AND WHICH OF THE MARKED LINES ARE THE COMPILER'S ANSWER RATHER THAN
+  #    EVIDENCE ────────────────────────────────────────────────────────────────
+  #
+  # `Source-Resolution.md` §7's last row asks for the boundary between what this
+  # recording can show and what it cannot to be "visible in the source pane
+  # rather than silent", and the rung boundary is not the only such boundary. A
+  # position also comes from a COMPILED DEBUG MAP, and a compiler may key one
+  # instruction sequence to any of the source spans that produced it: twelve
+  # steps of `0x0a807e4e…` sit on `main.nr:223`, inside a branch its own call
+  # tree shows was not taken, and two frames land inside `comptime quote { … }`
+  # templates. An unmarked wrong line is the one defect this product may not
+  # have, so the lines are marked and the pane says how many and why.
+  #
+  # AFTER the pane is final: it walks the pane's documents and its executed set,
+  # so it must run once nothing can still replace either.
+  let attributed = markCompilerAttributed(result, t.positions, t.callFrames)
+  if attributed > 0:
+    # APPENDED to whatever the rung boundary already said, never in place of it.
+    # Both sentences are about the same pane and both are true; the listing's own
+    # note explains the steps with NO source line, and this explains the ones
+    # whose source line is the map's answer.
+    result.editor.attributionNote =
+      $attributed & " line(s) in this pane are marked with a `?`: the position " &
+      "is where the compiler KEYED the compiled code, not somewhere the " &
+      "recording proves the execution reached. Either the line is inside a " &
+      "`comptime quote { … }` template — code emitted from there, not run there " &
+      "— or it is one of a pair of positions inside a single call whose step " &
+      "order this recording cannot have produced in that order, so at least one " &
+      "of the two is not where the execution was and the recording does not say " &
+      "which. Where a marked line disagrees with the Call Trace beside it, the " &
+      "call tree is the stronger evidence: it names the frames the recording " &
+      "actually opened."
   # THE CALL TRACE, AND IT IS NOT PART OF THAT CONTEST. The three calls above
   # compete for the CODE pane — a bundle beats positions beats a listing — and
   # this fills a different pane from a different object, so it runs outside the
@@ -214,6 +246,94 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
   # which is the two-producers-of-one-coordinate defect the listing's own
   # comment describes.
   withCallFrames(result, t.callFrames)
+  # THE EVENT LOG, FROM THE SAME OBJECT AND AFTER IT. Not a fifth rung and not a
+  # second reader of the sidecar's shape: it reads the frames' names, steps and
+  # positions — which `withCallFrames` has just proved decodable — and turns the
+  # ones that ARE events into events.
+  #
+  # AFTER `withCallFrames` because the row it marks `current` is resolved against
+  # `controls.step`, and the clamp that settles that coordinate runs inside the
+  # listing above. Running before it would mark a row for a step the page then
+  # corrects, which is the two-producers-of-one-coordinate defect the listing's
+  # own comment describes.
+  #
+  # The outcome is passed, not derived here: whether a transaction reverted is
+  # the transaction's own published fact and `demo_session.fixtureEventLog`
+  # already reads it from the same place with the same rule.
+  withEventLog(result, t.callFrames,
+               reverted = v.outcome in {ooReverted, ooFailedWithEffects})
+  # THE VALUES PANE, AND IT RUNS LAST OF THE PANE PRODUCERS. It reads the
+  # instruction stream's four parallel columns AT THE SESSION'S STEP, so it must
+  # run after everything that can still move that coordinate — the listing's
+  # clamp and the positions' landing rule both do. A column read at a step the
+  # page then corrects is a value belonging to another step, which is the whole
+  # class of defect this pane's own note exists to avoid.
+  withMachineColumns(result, t.instructions, t.callFrames)
+  # ── WHAT THE REPLAY WAS CHECKED AGAINST, ON THE PAGE ────────────────────────
+  #
+  # `Page-Descriptions.md` §8 and `Trace-Artifacts.md` §5 put the divergence
+  # banner above the debugger with no dismiss control, and this repository
+  # already draws it correctly for the one transaction whose effects did not
+  # reproduce. What it drew NOTHING for is the case where the verdict stands and
+  # is narrower than a reader will take it to be: every published Aztec
+  # transaction records `rootsAnyAgree: false` with a four-entry `roots` array,
+  # and the manifest beside it says `validation.status: "match"` with
+  # `validation.oracle: "published-effects"`. Both are true. Only one was
+  # visible, and the other was legible ONLY inside the collapsed Raw JSON —
+  # outside it, the words "divergent" and "disagree" appeared three times per
+  # page and every one of the three was inside a CSS comment.
+  #
+  # So this states the oracle and the roots in the same undismissable position,
+  # following the divergence banner's precedent rather than inventing a second
+  # treatment. It qualifies a verdict; it does not replace one, which is why it
+  # is a separate pair of fields and not a new `SessionIntegrity` member — see
+  # `session_view.DebugSessionView.scopeTitle`.
+  #
+  # THE NUMBERS ARE NOT RE-DERIVED HERE. `v.replay` is `reader.replayScope`'s
+  # fold over the same `native` the Raw block prints, so the banner and the JSON
+  # under it cannot disagree.
+  if v.replay.has and v.replay.rootsTotal > 0 and
+     v.replay.rootsAgreeing < v.replay.rootsTotal:
+    result.scopeTitle =
+      if v.replay.rootsAgreeing == 0: "State roots disagree"
+      else: "Some state roots disagree"
+    var d = ""
+    if t.validationOracle.len > 0 and result.integrity == siValidated:
+      # THE ORACLE'S OWN NAME, spelled as the narrow claim it is. Only where the
+      # verdict is the validated one: on a divergent trace the banner above this
+      # already says the replay disagreed, and repeating "the check passed" under
+      # it would be the page arguing with itself.
+      d = "This replay was checked against " &
+          (if t.validationOracle == "published-effects":
+             "the effects the block published, and it reproduced " &
+             $v.replay.effectsMatched & " of " &
+             $(v.replay.effectsMatched + v.replay.effectsMismatched) & " of them"
+           else: "the '" & t.validationOracle & "' oracle") & ". "
+    d.add "It was NOT checked against the block's state-tree roots, and " &
+          (if v.replay.rootsAgreeing == 0: "none of the "
+           else: $(v.replay.rootsTotal - v.replay.rootsAgreeing) & " of the ") &
+          $v.replay.rootsTotal & " roots the capture recorded agree with the " &
+          "chain's: " & v.replay.differingTrees.join(", ") & ". Replay hydrates " &
+          "only the leaves this execution touched, so the trees it rebuilds are " &
+          "sparse and their roots cannot equal a full block's — the surprising " &
+          "outcome would be a match. What that costs is narrow and worth " &
+          "stating: this recording is evidence about the execution, and not a " &
+          "proof of the block's resulting state."
+    result.scopeDetail = d
+  # …AND THE DIVERGENCE BANNER NAMES WHAT DIVERGED. It used to say a replay
+  # "disagreed with the chain's own result" and stop, on a transaction whose own
+  # published record names both disagreeing fields. The records are in
+  # `native.replay.effectMismatches`; where a capture predates them the count
+  # still reaches the sentence, so "two differed and the tree does not say which"
+  # is distinguishable from "none differed".
+  if result.integrity == siDivergent and v.replay.has:
+    var named: seq[string]
+    for m in v.replay.mismatches: named.add m.field
+    if named.len > 0:
+      result.integrityDetail.add " What differed: " & named.join(", ") & "."
+    elif v.replay.effectsMismatched > 0:
+      result.integrityDetail.add " " & $v.replay.effectsMismatched &
+        " published effect(s) differed; this capture does not record which."
 
 proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
   ## The home page's featured session: the first transaction in the tree whose

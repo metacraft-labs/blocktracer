@@ -199,6 +199,18 @@ html[data-register="debugger"],
 .dbgbanner.warn{background:var(--bt-status-warning-bg);color:var(--bt-status-warning-fg);
   border-bottom-color:var(--bt-status-warning-border);
   border-left-color:var(--bt-status-warning-border)}
+/* The QUALIFIER tone. It is a `.dbgbanner` — same position, same undismissable
+   shape, same rail — because it is the same kind of page-level statement about
+   the trace, which is the precedent the divergence banner sets and the reason a
+   second treatment was not invented for it. What differs is that nothing is
+   wrong: the replay reproduced every published effect and its sparse trees'
+   roots cannot equal a full block's. So it takes the INFORMATIONAL status
+   surface rather than danger or warning, and it reads as narrowing a claim
+   rather than as reporting a fault. Both channels move together — a reader with
+   colour removed still sees a distinct rail weight and a distinct title. */
+.dbgbanner.info{background:var(--bt-status-info-bg);color:var(--bt-status-info-fg);
+  border-bottom-color:var(--bt-status-info-border);
+  border-left-color:var(--bt-status-info-border)}
 .dbgbanner .bannertitle{font-weight:var(--bt-type-h3-weight);white-space:nowrap}
 .dbgbanner .bannertext{color:inherit;max-width:var(--bt-measure-prose)}
 
@@ -802,6 +814,47 @@ html[data-register="debugger"],
    position family — "you can stop here" is the same question as "you are here"
    asked one step quieter — instead of the accent it shared with hyperlinks. */
 .srcline.hit .m{color:var(--bt-mark-executable)}
+/* A POSITION THE COMPILER KEYED HERE, marked as a qualification of the gutter
+   dot rather than as a replacement for it — see
+   `session_view.SourceLine.compilerAttributed`.
+
+   TWO CHANNELS, NEITHER OF THEM COLOUR ALONE. A dotted underline on the line's
+   number cell, plus the `?` badge below — so the mark survives colour removal
+   and survives a theme, which is the rule every other mark on this row follows
+   (`.ntbar`/`.rnbar` are an edge, `.m`'s glyphs are shapes). It is deliberately
+   quiet: the step IS real and the line IS executable, so a loud treatment would
+   read as an error on a row that carries a correct measurement.
+
+   It does not touch `.m`, `.p`, `.ntbar` or `.rnbar`. Those four cells are
+   already contended for by the executable marker, the position and the two
+   branch rails — the contention `.p` was split out to end — and adding a fifth
+   claimant to any of them would reintroduce exactly that defect. The number
+   cell `.n` carries nothing but the ordinal and is free. */
+/* The pane-level sentence for the `?` marks. `.srcrung`'s position and weight —
+   it is the same kind of statement, one rung finer: that header says which
+   fidelity the position is at, this says how much to trust the position itself.
+   It is emitted on BOTH sides of the rung boundary and never replaces the rung
+   header, so a pane can carry both and they read as two facts rather than as one
+   contradicting the other. */
+.srcattr{flex:0 0 auto;
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  background:var(--bt-surface-sunken)}
+.srcattr .panenote{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  color:var(--bt-text-muted);font-size:var(--bt-type-label-size);
+  line-height:var(--bt-type-body-sm-line)}
+.srcline.cattr .n{text-decoration:underline dotted;
+  text-decoration-thickness:var(--bt-stroke-hairline);
+  text-underline-offset:var(--bt-space-3xs)}
+/* The `?` is its OWN element, emitted only on a marked row — see the renderer
+   for why it is not a `data-` attribute on every row. It sits in the rail column
+   beside `.ntbar`/`.rnbar` rather than in `.m`, `.p` or `.n`, so it contends
+   with no existing mark: `.m` already answers "what does the recording say about
+   this line", `.p` answers "are you here", and the two rails answer "which way
+   did it go". This answers a fourth question and gets a fourth channel. */
+.srcline .cattrmark{position:absolute;right:var(--bt-space-2xs);top:0;
+  font-size:var(--bt-type-label-size);line-height:var(--bt-type-body-sm-line);
+  font-weight:var(--bt-type-h3-weight);
+  color:var(--bt-status-warning-fg);pointer-events:none}
 /* The current line RAISES contrast. It used to lower it: the line number and
    the ▶ marker were accent-on-accent — the accent foreground on the accent's
    own tint — which measured 3.83:1 in dark and 5.10:1 in light against 6.61:1
@@ -1480,6 +1533,17 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 
 /* ── state ──────────────────────────────────────────────────────────────── */
 .st{font-size:var(--bt-density-data-size)}
+/* The caption above a POPULATED values pane — what kind of thing these rows are.
+   `.evcap`'s rules and `.instrcap`'s, for their reason. It matters more here than
+   in either of those: the rows a chain recording puts in this pane are the VM's
+   machine columns rather than program variables, and a pane that drew them
+   without saying so would be the mislabelling this campaign removed from
+   `calltrace.json`, reinstated one pane over. */
+.stcap{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  background:var(--bt-surface-sunken);
+  color:var(--bt-text-muted);font-size:var(--bt-type-label-size);
+  line-height:var(--bt-type-body-sm-line);overflow-wrap:anywhere}
 .strow{display:flex;align-items:baseline;gap:var(--bt-space-sm);
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
@@ -1561,6 +1625,19 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 
 /* ── event log: four kinds, distinguished by glyph, weight and rule ─────── */
 .ev{font-size:var(--bt-density-data-size)}
+/* The caption above a POPULATED log — what these rows are, and what the
+   recording carries that is not among them. `.instrcap`'s rules, for the same
+   reason they are `.instrcap`'s: it is a sentence rather than data, so it is not
+   monospace and it WRAPS, and it sits on the sunken surface with a hairline
+   under it so a reader learns that the strip above rows is a different kind of
+   thing from the rows. It is NOT `.panenote`: that class is the empty-state
+   paragraph, which is padded as a card because it is the whole of a pane's
+   body, and reusing it here would put card padding above a dense list. */
+.evcap{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  background:var(--bt-surface-sunken);
+  color:var(--bt-text-muted);font-size:var(--bt-type-label-size);
+  line-height:var(--bt-type-body-sm-line);overflow-wrap:anywhere}
 .evrow{display:flex;align-items:baseline;gap:var(--bt-space-sm);
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
