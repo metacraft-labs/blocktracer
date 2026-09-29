@@ -117,9 +117,9 @@ contract. Between them every member you **may leave out** appears present in one
 and absent in the other — which is how you learn, without reading §5.2b line by line,
 which those are. The **52** members the contract requires of every container appear in
 both, because a tree short of one of them is not a conforming tree and could not be
-shipped here as an example of one. (The census is 137 members: 52 required
+shipped here as an example of one. (The census is 138 members: 52 required
 everywhere, 6 required on some rows and not others — `container` on a traced row,
-`refusalReason` on an untraced one — and 79 optional. The 85 that are not required
+`refusalReason` on an untraced one — and 80 optional. The 86 that are not required
 everywhere are the ones shown both ways.)
 
 **`minimal/`** is the floor: one block, one untraced transaction, every member the

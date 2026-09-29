@@ -1669,6 +1669,23 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         "effectsMatched": orNull(t["effects"]{"matched"}),
         "effectsMismatched": orNull(t["effects"]{"mismatched"}),
         "effectsReproduced": orNull(t["effects"]{"reproduced"}),
+        # WHICH EFFECTS DIFFERED, not merely how many — republished verbatim as
+        # the capture wrote them, `{field, published, replayed, matches}` apiece.
+        #
+        # The COUNT was already here and the RECORDS were being dropped in
+        # transit, on the one transaction in the corpus that has any: the
+        # divergence banner told a reader the replay "disagreed with the chain's
+        # own result" while the capture beside it named `transactionFee` and
+        # `publicDataWrites[2].value` and gave both readings of each. A banner
+        # that cannot say what differed asks a reader to take the disagreement on
+        # trust, which is the opposite of what a differential oracle is for.
+        #
+        # ABSENT IS VALID and is not the same as empty. A capture written before
+        # this key still publishes `effectsMismatched`, so "two differed and this
+        # tree does not record which" stays distinguishable from "none differed"
+        # (`reader.replayScope`, `ssr.debugSessionFor`). `orNull` is what makes
+        # the absence a value rather than a nil dereference inside `pretty`.
+        "effectMismatches": orNull(t["effects"]{"mismatches"}),
         # THE ROOTS DELIBERATELY DO NOT AGREE, and the divergence travels into
         # the tree rather than being dropped in transit. Replay hydrates only the
         # leaves the execution touched, so the trees it rebuilds are sparse and
@@ -2285,8 +2302,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         recorder: txRRef, profile: pRef,
         # EMPTY IS THE HONEST ANSWER FOR A RUNG-3 RECORDING, and it is empty by
         # construction rather than by decision: `bundles` is only ever filled on
-        # the branch above, which cannot be taken unless the capture measured
-        # `sourceLevel` true AND a bundle file with contents was found for it.
+        # the branch above, which cannot be taken unless a bundle file with
+        # contents was found for a recording that either measured `sourceLevel`
+        # true or POSITIONED SOME OF ITS STEPS. (That comment said "measured
+        # `sourceLevel` true" alone and had gone stale: the third arm — a live
+        # capture that placed 86 of 108 steps — was added to the gate above and
+        # not to this sentence, which is why `languages` below was still keyed on
+        # the wrong one of the two.)
         sourceBundles: bundles,
         container: ContainerRef(file: "trace.ct", bytes: ctBytes.len,
                                 blockSize: 4096, hash: contentHashSha1(ctBytes)),
@@ -2302,9 +2324,30 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           # and the source pane is held on the instruction-level floor in every
           # other case.
           sourceLevel: measuredSourceLevel,
-          # The language is named only when there are positions to attach it to,
-          # and it is the language the BUNDLES state rather than one named here.
-          languages: (if measuredSourceLevel: bundleLanguages else: @[])),
+          # THE LANGUAGES THE BUNDLES THIS MANIFEST POINTS AT CARRY — exactly
+          # that set, which is what `Data-Contract.md` §5.3 requires of the
+          # field, and nothing else.
+          #
+          # It was `if measuredSourceLevel: bundleLanguages else: @[]`, and the
+          # gate was the wrong one. `measuredSourceLevel` is the capture's
+          # all-or-nothing bit — every executed step of every contract
+          # positioned — which no real chain capture sets; `bundleLanguages` is
+          # collected above as the bundles are WRITTEN, so it is non-empty
+          # exactly when this manifest names a bundle. The two came apart the
+          # moment a partly-positioned recording was allowed to publish its
+          # text: `sourceBundles` named a 32-file Noir bundle whose own
+          # `language` is `"noir"`, and the manifest three lines below it
+          # declared `languages: []`. A manifest that points at a bundle and
+          # denies knowing what language it is written in is the field saying
+          # the opposite of its own evidence.
+          #
+          # THE EMPTY DIRECTION IS UNCHANGED AND STILL REACHABLE, which is what
+          # keeps this from being a blanket claim: a recording with no bundle
+          # publishes `[]` because `bundleLanguages` is empty, and a bundle whose
+          # producer states no language contributes nothing to it (see
+          # `bundleLanguages` at its accumulation site). So "the reader names
+          # none" is still visible in the published object.
+          languages: bundleLanguages),
         validation: ValidationSummary(
           status: (if reproduced: vsMatch else: vsDivergent),
           strength: matched),

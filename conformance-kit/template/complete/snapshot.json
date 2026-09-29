@@ -83,7 +83,8 @@
       "effects": {
         "matched": 3,
         "mismatched": 0,
-        "reproduced": true
+        "reproduced": true,
+        "mismatches": []
       },
       "recording": {
         "steps": 4,
@@ -160,7 +161,8 @@
       "containerBytes": 229,
       "effects": {
         "matched": 1,
-        "mismatched": 0
+        "mismatched": 0,
+        "mismatches": []
       },
       "recording": {
         "steps": 1
@@ -187,7 +189,21 @@
       "containerBytes": 229,
       "effects": {
         "matched": 1,
-        "mismatched": 2
+        "mismatched": 2,
+        "mismatches": [
+          {
+            "field": "transactionFee",
+            "published": "0x0000000000000000000000000000000000000000000000000000000000000021",
+            "replayed": "0x0000000000000000000000000000000000000000000000000000000000000020",
+            "matches": false
+          },
+          {
+            "field": "publicDataWrites[0].value",
+            "published": "0x0000000000000000000000000000000000000000000000000000000000000031",
+            "replayed": "0x0000000000000000000000000000000000000000000000000000000000000030",
+            "matches": false
+          }
+        ]
       },
       "recording": {
         "steps": 2

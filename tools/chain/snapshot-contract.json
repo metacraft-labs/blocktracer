@@ -572,7 +572,9 @@
       "members": {
         "matched": {"required": true, "access": "required", "holds": "how many published effects the replay reproduced"},
         "mismatched": {"required": true, "access": "required", "holds": "how many it did not"},
-        "reproduced": {"required": false, "access": "optional", "holds": "the replay's own verdict, republished"}
+        "reproduced": {"required": false, "access": "optional", "holds": "the replay's own verdict, republished"},
+        "mismatches": {"required": false, "access": "optional",
+                       "holds": "WHICH published effects the replay did not reproduce, one record apiece with both readings. Republished verbatim under `native.replay.effectMismatches` so the divergence banner can name the fields that differed instead of asking a reader to take the disagreement on trust; a capture written before the reader read it still publishes `mismatched`, so a count with no records stays distinguishable from no disagreement"}
       }
     },
 
