@@ -351,15 +351,32 @@ suite "1 — a rung-3 recording never renders as source":
     # position: the first instruction this recording executed, with the listing
     # marking its row and this head stating it.
     #
-    # THE REPLACEMENT IS STRICTLY STRONGER, which is what makes this a correction
-    # rather than a relaxation. `> 0` said nothing about the upper end; the pair
-    # below forbids a position at OR past the end, which is the defect suite 10
-    # exists to catch, and it ties the step to this recording's own count rather
-    # than only to zero. The arm's substance is untouched and still passes: the
-    # head is drawn, the sentence is there, the numerator and denominator are in
-    # the markup, and exactly one listing row is marked at that tick. And the
-    # CONTROL immediately below — a page with no position draws no head — is what
-    # keeps `positioned` load-bearing.
+    # THE REPLACEMENT IS NOT STRICTLY STRONGER, AND SAYING SO WAS WRONG. This
+    # comment claimed it was. The two conditions are INCOMPARABLE: `step == 0`
+    # satisfies the pair below and fails `> 0`, and `step == totalSteps`
+    # satisfies `> 0` and fails the pair. So the lower bound was LOOSENED and
+    # the upper bound was added; neither implies the other, and a reviewer who
+    # took "strictly stronger" at face value would have waved through exactly
+    # the kind of edit this repository has been burned by.
+    #
+    # WHAT MAKES IT A CORRECTION ANYWAY, stated as the trade it is. The floor
+    # had to move: `chainEntryStep` makes tick 0 the ordinary landing, so `> 0`
+    # would now fail on eight published pages that are RIGHT. What `> 0` was
+    # really guarding — "somebody set a position" — is `positioned`, asserted on
+    # the line above, with the CONTROL immediately below (a page with no
+    # position draws no head) keeping it load-bearing. And the loosened floor is
+    # not left uncovered: suite 10's last arm asserts that a source-level
+    # session stands on a step that HAS a source position and has exactly one
+    # marked row for it, which is what a landing stuck at tick 0 would violate.
+    # MEASURED, NOT ARGUED. Planted: `withSourcePositions` still moves the marked
+    # row forward to the first positioned step but no longer moves the session's
+    # own coordinate with it, so the page reports tick 0 and shows line 203. Both
+    # source-level transactions are named red by that arm, while suite 10's four
+    # bounds arms — and this arm, including the two lines below — stay green.
+    #
+    # The arm's substance is untouched and still passes: the head is drawn, the
+    # sentence is there, the numerator and denominator are in the markup, and
+    # exactly one listing row is marked at that tick.
     check s.controls.step >= 0
     check s.controls.step < s.controls.totalSteps
     check s.controls.totalSteps == replayedSteps
@@ -2299,10 +2316,25 @@ suite "10 — a real recording's step count is its own, not the fixture's":
     # A TICK, NOT AN ORDINAL. The session counts 0 .. steps-1 — the instruction
     # listing's own caption says so ("459 recorded steps, 0–458 as the session
     # counts them") and `withInstructionListing` marks row `n` for tick `n`. So
-    # the floor is 0 and the ceiling is `totalSteps - 1`, which is STRICTLY
-    # STRONGER than the `>= 1` / `<= totalSteps` pair it replaces: that pair
-    # admitted `step == totalSteps`, one past the end, which is the very shape
-    # this suite exists to forbid.
+    # the floor is 0 and the ceiling is `totalSteps - 1`.
+    #
+    # THAT IS A TRADE, NOT A STRENGTHENING, and this comment used to claim it
+    # was "STRICTLY STRONGER" than the `>= 1` / `<= totalSteps` pair it
+    # replaces. It is not: `step == 0` satisfies the new pair and fails the old,
+    # so the FLOOR was loosened, and `step == totalSteps` satisfies the old pair
+    # and fails the new, so the CEILING was tightened. Neither implies the
+    # other. The floor had to move — tick 0 is the ordinary landing now — and
+    # what covers the loosening is this suite's last arm, which asks what each
+    # pane actually stands on rather than only where the number sits.
+    #
+    # AND THE TIGHTENED CEILING IS NOT REACHABLE FROM THE LANDING RULE, which is
+    # worth knowing before anyone treats it as this suite's guard: both
+    # `withSourcePositions` and `withInstructionListing` clamp the coordinate
+    # against the stream they are about to render, so a landing of `totalSteps`
+    # arrives here already corrected. Measured by planting one: the plant is
+    # caught by the last arm, not by the line below. `test_instruction_listing`
+    # suite 6 is where the clamp itself is exercised, on a coordinate handed in
+    # past the end.
     ck s.controls.step >= 0
     ck s.controls.step < s.controls.totalSteps
     # The URL coordinate and the toolbar's step are one derivation, not two.
@@ -2425,10 +2457,14 @@ suite "10 — a real recording's step count is its own, not the fixture's":
   test "assertion count":
     # 21 -> 24, and the growth is the three assertions of the arm above:
     # `chainSessions >= 10` (the floor), `offFixtureStep == chainSessions`, and
-    # `atFirstShowable == chainSessions`. The two bound corrections in "the
-    # session reports the manifest's count" replaced two `ck`s with two, and the
-    # universal's change is inside an `if` rather than an assertion, so neither
-    # moves the total. 21 + 3 = 24.
+    # `wrongLanding.len == 0`. (This last one was written down as
+    # `atFirstShowable == chainSessions` — the name the arm's FIRST version used,
+    # before it was rewritten to name the offender instead of counting. The
+    # arithmetic was right and the transcription was of a variable that no longer
+    # exists, which is the failure mode a decomposed count exists to prevent.)
+    # The two bound changes in "the session reports the manifest's count"
+    # replaced two `ck`s with two, and the universal's change is inside an `if`
+    # rather than an assertion, so neither moves the total. 21 + 3 = 24.
     expectCount(24)
 
 # ── 11 — THE BANNER DOES NOT NARRATE THE CAPTURE ────────────────────────────
