@@ -230,6 +230,10 @@
           {
             "path": "tools/chain/snapshot-contract-selftest.mjs",
             "why": "§5.2b's census check. It joined this set when §5.6's declaration became reachable: the member is now in the census, so this suite names it, and its §15 asserts the STRUCTURE of the reader's one binding — that `ingest.nim` builds one declaration, publishes that value and keys every path from it. That is a claim about the reader's source which no behavioural test can make, and it derives nothing"
+          },
+          {
+            "path": "tools/ci/hostile-chain-corpus.mjs",
+            "why": "EXEMPTS the member rather than reading it. The generator poisons every snapshot string it does not recognise as structural, and `provenance.identifierEncoding` is a closed-set enum spelling (Configuration.md §2.1) in the same category as `outcome`, `kind`, `refusalReason` and `prestateStrategy` beside it — no chain decides a byte of it, so there is no escaping question to ask of it, and poisoning it only makes the ingest refuse on the closed-set rule before a single page renders. It names the member to leave it alone; it derives nothing from the encoding. Joined this set on 2026-09-29 with the fix for that refusal (ci/test/untrusted-text.sh had been exiting 2 with 0 pages scanned, so the gate was measuring nothing)."
           }
         ]
       }
