@@ -93,10 +93,27 @@ proc blockDetail*(store: ObjectStore, session: ChainSession,
 # bound as generations advance.
 var blockRefMemo: TableRef[string, seq[BlockRef]] = nil
 
+# ── AND THE TRAVERSAL, NOT ONLY THE CONSTRUCTION ────────────────────────────
+#
+# The memo above stops the list being REBUILT per page. `canonicalBlockAt` then
+# scanned it linearly for a height — once for the block itself and once more via
+# `nextBlockHash` — so cost per page stayed proportional to the chain even with
+# the list cached: 0.84 ms/page at 1,000 blocks, 1.15 at 10,000, 4.18 at 50,000.
+# Construction fixed, traversal left. Same function, third time.
+#
+# So the height map gets an index, built once from the memoised list and keyed
+# the same way. Same soundness argument: a sealed generation cannot change, and
+# a new generation is a new key.
+var heightIndexMemo: TableRef[string, Table[int, string]] = nil
+
 const BlockRefMemoBound* = 64
   ## An export sees a handful of chains and one generation each. Anything past
   ## this is a long-lived process that enabled the memo, which is the misuse the
   ## header describes, and it grows without bound as generations advance.
+
+proc enableHeightIndexMemo*() =
+  ## Companion to `enableBlockRefMemo`, same bound and same gate.
+  heightIndexMemo = newTable[string, Table[int, string]]()
 
 proc enableBlockRefMemo*() =
   ## Turn the per-generation block-list memo on for THIS PROCESS. A whole-site
@@ -161,6 +178,31 @@ proc blockRefsNewestFirst*(store: ObjectStore,
         "An export sees one generation per chain. Do not raise the bound; stop enabling the " &
         "memo outside a whole-site export.")
     blockRefMemo[memoKey] = result
+
+proc canonicalHashAtHeight*(store: ObjectStore, session: ChainSession,
+                            height: int): string =
+  ## The hash this generation's height map gives for `height`, or `""`.
+  ##
+  ## O(1) when the index memo is on, and the same linear scan as before when it
+  ## is not — a client answers one page and must not hold an index across
+  ## navigations, for the reason `enableBlockRefMemo` gives.
+  if heightIndexMemo == nil:
+    for b in blockRefsNewestFirst(store, session):
+      if b.height == height: return b.hash
+    return ""
+  let key = store.name & "\0" & session.chain & "\0" & session.generation
+  if not heightIndexMemo.hasKey(key):
+    if heightIndexMemo.len >= BlockRefMemoBound:
+      raise newException(ValueError,
+        "height index memo exceeded " & $BlockRefMemoBound & " entries. It is keyed by " &
+        "store, chain and generation, so this many keys means a long-lived process enabled " &
+        "it and is accumulating generations. An export sees one generation per chain. Do " &
+        "not raise the bound; stop enabling the memo outside a whole-site export.")
+    var idx = initTable[int, string]()
+    for b in blockRefsNewestFirst(store, session):
+      if not idx.hasKey(b.height): idx[b.height] = b.hash
+    heightIndexMemo[key] = idx
+  heightIndexMemo[key].getOrDefault(height, "")
 
 proc transaction*(store: ObjectStore, session: ChainSession,
                   txHash: string): TransactionResult =

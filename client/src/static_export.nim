@@ -738,6 +738,7 @@ proc exportSite() =
   # see `entities.nim`'s `enableBlockRefMemo`. The HashSet fix removed the
   # quadratic INSIDE each call; this removes the one ACROSS calls.
   enableBlockRefMemo()
+  enableHeightIndexMemo()
 
   # ── THE STYLESHEET AS ONE ASSET, NOT 288,046 COPIES ───────────────────────
   # See `layout.nim`'s `useExternalCss`. Content-addressed so the year-long
