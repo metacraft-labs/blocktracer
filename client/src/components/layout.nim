@@ -33,7 +33,42 @@ import ./footer
 import ../design_system/tokens
 import ../debugger/replay_engine
 
-proc siteCss(): string =
+# ── SERVING THE STYLESHEET AS AN ASSET INSTEAD OF INLINING IT ───────────────
+#
+# Inlining is right for a small site and wrong for this one, and the number is
+# the argument. The stylesheet is 227,881 bytes and BYTE-IDENTICAL on every page
+# — same sha256 on the home page and a block page, measured against the live
+# site. A block page is 234,588 bytes total, so 97.1% of it is a copy of the
+# same asset and 6,707 bytes are the page.
+#
+# At 349 pages that is 80 MB and nobody notices. At the 288,046 pages a
+# full-history export produces it is 67.6 GB, against 1.93 GB if the stylesheet
+# is fetched once — 35x. That is not a size optimisation: it is the difference
+# between an export that can be written to this machine and one that cannot. It
+# already cost measurement fidelity, with the disk at 99% during a 50,000-block
+# run.
+#
+# WHAT IT COSTS, STATED RATHER THAN WAVED AWAY. One extra request on a cold
+# visit, and a window before it lands in which the page is unstyled. The
+# published cache policy makes that once per visitor per year (`/_a/*`,
+# `max-age=31536000, immutable`), and `_a/` already has an object class and a
+# publish route. The module header's reason for the inline block — that every
+# visual value traces back to the design system through `siteCss()` — is
+# untouched: the same bytes are assembled from the same three sources, and only
+# their delivery changes.
+#
+# OPT-IN, so the default build is byte-for-byte what it was. A whole-site export
+# calls `useExternalCss` with the content-addressed href it has written; every
+# other consumer keeps the inline block and its zero round-trips.
+var externalCssHref = ""
+
+proc useExternalCss*(href: string) =
+  ## Emit `<link rel=stylesheet href=...>` instead of an inline `<style>`.
+  externalCssHref = href
+
+proc externalCssInUse*(): bool = externalCssHref.len > 0
+
+proc siteCss*(): string =
   ## One stylesheet for both registers.
   ##
   ## `debugRouteCss` is inlined on EVERY page, not only on the debug route, for
@@ -105,8 +140,11 @@ proc pageLayout*(title, description, content: string,
             link(rel = "canonical", href = canonical)
           title:
             text title
-          style:
-            raw css
+          if externalCssHref.len > 0:
+            link(rel = "stylesheet", href = externalCssHref)
+          else:
+            style:
+              raw css
         body:
           raw siteNav()
           main(class = "pagebody"):
@@ -273,8 +311,11 @@ proc debugLayout*(title, description, content: string,
             link(rel = "canonical", href = canonical)
           title:
             text title
-          style:
-            raw css
+          if externalCssHref.len > 0:
+            link(rel = "stylesheet", href = externalCssHref)
+          else:
+            style:
+              raw css
         body:
           # FIRST IN THE SESSION SHELL, not omitted from it. This is the
           # register where a reader is most likely to forget which chain they

@@ -15,7 +15,7 @@
 ## pointer object cached across a navigation is the classic explorer bug §5.1
 ## names.
 
-import std/[algorithm, json, sets, strutils]
+import std/[algorithm, json, sets, strutils, tables]
 import ./store
 import ./paths
 import ./decode
@@ -68,6 +68,46 @@ proc blockDetail*(store: ObjectStore, session: ChainSession,
   except ContractDecodeError as e:
     BlockResult(outcome: roMalformed, reason: e.msg)
 
+# ---------------------------------------------------------------------------
+# The generation block-list memo (opt-in, off by default).
+# ---------------------------------------------------------------------------
+#
+# WHAT IS LEFT AFTER THE HashSet. Deduping with a set removed N^2/2 comparisons
+# per call, and the 10,000-block export went 1,995 s -> 70.8 s. The function still
+# BUILDS AND SORTS THE WHOLE LIST on every call, so cost per page stayed
+# proportional to the chain: 0.82 ms/page at 1,000 blocks against 3.93 at 10,000.
+# O(blocks) per call over O(pages) calls is still quadratic — a smaller constant
+# on the same shape.
+#
+# The list cannot change during an export. It is derived from a SEALED generation
+# root: `session.generation` names it, and a different generation is a different
+# key. So the memo is keyed by store name, chain and generation, and a reorg
+# publishing a new generation misses the memo by construction rather than by
+# invalidation.
+#
+# OFF BY DEFAULT, for the reason `store.nim`'s cache is: a client must resolve the
+# pointer once per navigation, and a memo that outlived a navigation would hand it
+# a list from a generation it has stopped pointing at. An export is one moment and
+# may. Nothing here caches across generations, so enabling it in a long-lived
+# process would still be wrong for a different reason — it would grow without
+# bound as generations advance.
+var blockRefMemo: TableRef[string, seq[BlockRef]] = nil
+
+const BlockRefMemoBound* = 64
+  ## An export sees a handful of chains and one generation each. Anything past
+  ## this is a long-lived process that enabled the memo, which is the misuse the
+  ## header describes, and it grows without bound as generations advance.
+
+proc enableBlockRefMemo*() =
+  ## Turn the per-generation block-list memo on for THIS PROCESS. A whole-site
+  ## export calls this; a client must not.
+  ##
+  ## THE BOUND IS A GATE AND NOT A COMMENT, which is the lesson of the four
+  ## locality-class defects this repository has produced: each had accurate
+  ## prose next to the defect and nothing that refused. A memo that silently
+  ## grew would be the fifth, so it raises instead.
+  blockRefMemo = newTable[string, seq[BlockRef]]()
+
 proc blockRefsNewestFirst*(store: ObjectStore,
                            session: ChainSession): seq[BlockRef] =
   ## The generation's blocks, newest first, from the sealed root's height map.
@@ -76,6 +116,10 @@ proc blockRefsNewestFirst*(store: ObjectStore,
   ## object per epoch and states the height, so ordering a chain's blocks costs
   ## O(epochs) reads instead of O(blocks). A consumer that wants the details
   ## asks for the ones it will show.
+  let memoKey =
+    if blockRefMemo != nil: store.name & "\0" & session.chain & "\0" & session.generation
+    else: ""
+  if memoKey.len > 0 and blockRefMemo.hasKey(memoKey): return blockRefMemo[memoKey]
   # A `HashSet` AND NOT A `seq`, AND THE DIFFERENCE IS 1.05 TRILLION COMPARISONS.
   #
   # `if h in seen` over a `seq[string]` is a linear scan of everything already
@@ -108,6 +152,15 @@ proc blockRefsNewestFirst*(store: ObjectStore,
       except ValueError: continue
       result.add BlockRef(height: height, hash: h)
   result.sort(proc(a, b: BlockRef): int = cmp(b.height, a.height))
+  if memoKey.len > 0:
+    if blockRefMemo.len >= BlockRefMemoBound:
+      raise newException(ValueError,
+        "blockRefsNewestFirst memo exceeded " & $BlockRefMemoBound & " entries. It is keyed " &
+        "by store, chain and generation, so this many distinct keys means a long-lived " &
+        "process enabled it and is accumulating generations — the misuse its header names. " &
+        "An export sees one generation per chain. Do not raise the bound; stop enabling the " &
+        "memo outside a whole-site export.")
+    blockRefMemo[memoKey] = result
 
 proc transaction*(store: ObjectStore, session: ChainSession,
                   txHash: string): TransactionResult =
