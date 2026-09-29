@@ -594,10 +594,32 @@ const ARMS = [
       " unmutated tree, a six-step walk paints that frame six or seven times. It is" +
       " the flicker the visitor actually reported, and it is invisible to every" +
       " reading this suite could take before per-frame sampling existed — the" +
-      " content guard alone does NOT fix it, which is why the two are separate arms.",
+      " content guard alone does NOT fix it, which is why the two are separate arms." +
+      " AND IT IS AIMED AT `renderAfterMove`, NOT AT `paintWhenSettled`, BECAUSE THE" +
+      " DIFFERENCE BETWEEN THEM IS THE WHOLE BITE." +
+      " The first spelling was `if false and h.session.locals.settlingPosition() and`," +
+      " and that does not paint the stop as soon as it is known \u2014 it paints it ONE" +
+      " ANIMATION FRAME later, because `paintWhenSettled` is already inside" +
+      " `onNextFrame` and all that mutation removes is the RE-ARMING. So the defect it" +
+      " plants is 16.7 ms, the locals round trip it has to beat is about 13 ms, and the" +
+      " arm kills only when a frame boundary happens to fall in a 3.7 ms gap. It was" +
+      " written with a margin \u2014 the note further down records 3, 4, 4, 4, 5, 5, 6 and 6" +
+      " blinks over eight runs \u2014 and the margin decayed to nothing. CI scored" +
+      " `counted 1` on ef24db5 and `counted 0` on fe201e81 over the SAME nine-arm shard:" +
+      " one coin, landing twice. Measured on one tree and one build: the old mutation" +
+      " blinks at 1 position of 7 through a direct `run.mjs`, and at 0 of 7 through this" +
+      " harness \u2014 which is a SURVIVED verdict decided by scheduling noise, not by the" +
+      " product." +
+      " This mutation takes `renderAfterMove`'s early-return branch for EVERY move" +
+      " instead of only the first, so the stop is painted synchronously and the" +
+      " scheduler is never reached \u2014 the sentence at the top of this note, as code." +
+      " Measured on the same tree: blinks at positions 1,2,3,4,5,6 of the 7 that settle" +
+      " with values, 8 frames of 736, with every other assertion in the journey still" +
+      " green. `h.everPainted = true` inside the branch is idempotent, so nothing else" +
+      " in the proc changes meaning.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `    if h.session.locals.settlingPosition() and`,
-    replace: `    if false and h.session.locals.settlingPosition() and`,
+    find: `  if not h.everPainted:`,
+    replace: `  if true:`,
     journey: "a-step-repaints-only-what-it-changed",
     assertion: "no painted frame showed an empty Values pane at a position that has values",
   },
