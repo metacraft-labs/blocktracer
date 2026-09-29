@@ -166,6 +166,37 @@ nothing else — no zone rights.
 
 ---
 
+## Step 3b — Rehearse the publish, against a coverage contract
+
+> **Added 2026-09-29.** The corrections in Step 4 below came out of a
+> **460,589-object** dress rehearsal. That does not scale — Aztec is the
+> smallest chain this project targets — and "run a smaller one" is not the fix
+> either: a **290-object** rehearsal of the demo tree passed on the same day,
+> and the difference was not the 460,299 objects. It was that the small one had
+> **one chain**, and one chain cannot overwrite another's registry row.
+
+`blocktracer-rehearse` runs the publish path against a **coverage contract** and
+**refuses** when a cell of it was never exercised, so a *partial* rehearsal can
+be sufficient and a *full* one can still be insufficient:
+
+```bash
+just rehearse                                 # the CI gate: demo corpus + register
+just rehearse-tree --tree client/dist         # the bytes about to be uploaded
+just rehearse-tree --tree a --tree b --mode full --no-derive
+```
+
+It reaches no network and takes no credential — every store it writes to is a
+directory it creates — so unlike the rest of this runbook it is safe for an
+agent to run. A 106-object partial rehearsal of the 878-object `client/dist`
+reproduces defect **(a)** below and finds one more: **eight objects of that
+tree, including `404.html` and all of `replay-engine/`, are published by no
+chain's cycle at all.**
+
+See [`docs/Publish-Rehearsal.md`](./docs/Publish-Rehearsal.md) for the contract,
+the selection argument and the measured evidence.
+
+---
+
 ## Step 4 — Publish the tree (CI, or a one-off operator run)
 
 > **CORRECTION (2026-09-28) — this step as written publishes the DEMO tree, and

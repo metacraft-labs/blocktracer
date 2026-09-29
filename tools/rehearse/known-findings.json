@@ -1,0 +1,56 @@
+{
+  "_comment": [
+    "Findings `blocktracer-rehearse` produces TODAY, against the corpus `just rehearse` gives it,",
+    "with the reason, the cause from readings, the subject that would close it, and who can build",
+    "that subject.",
+    "",
+    "THIS FILE FAILS IN BOTH DIRECTIONS, like `tools/journeys/known-survivors.json` beside it and",
+    "`ci/test/ci-coverage.known-dark.txt` one directory over. A registered finding that OCCURS is",
+    "reported and does not fail the run. A registered finding that does NOT occur fails the run by",
+    "name, demanding the entry be deleted — so an entry cannot outlive the defect it records, and",
+    "nobody has to remember to clean up after closing one. An UNREGISTERED finding fails.",
+    "",
+    "AN ENTRY IS ONLY LEGITIMATE WITH ALL SIX FIELDS, and `rehearse/register.nim` refuses the whole",
+    "register rather than reading around a missing one:",
+    "  reason    — what the rehearsal found, in its own terms",
+    "  cause     — WHY it happens, from readings and not from inference",
+    "  subject   — what would make it stop happening, concretely enough to go and build",
+    "  closed_by — who can produce that subject, and where the work lives",
+    "  evidence  — what was measured, when, and on what tree",
+    "  recorded  — the date this entry was written, so the debt is dated and not merely present",
+    "",
+    "THE REGISTER IS TIED TO A CORPUS. Every entry here is about the tree `just rehearse` runs over",
+    "— the demo generator's output. A rehearsal over a different corpus legitimately produces",
+    "different findings, and running one with this register will fail on the difference in both",
+    "directions, which is the correct answer and not a bug: a register is evidence about a specific",
+    "measurement, not a global list of things that are allowed to be wrong. `just rehearse-tree DIR`",
+    "takes no register for exactly that reason.",
+    "",
+    "NOT LEGITIMATE HERE: a finding that occurs because the rehearsal itself is wrong. Three such",
+    "were produced and fixed rather than registered while this tool was being written (a top-level",
+    "static directory read as a chain, an off-by-one in a generation path index, and a substring",
+    "test that could not tell `demo` from `demo-rehearsal-b`). A register whose bar is set after it",
+    "is already long gets the bar its longest-serving entries deserve.",
+    "",
+    "COUNT THE KEYS IN `known_findings`; do not trust a sentence here saying how many there are."
+  ],
+  "known_findings": {
+    "coverage/class/ocAsset": {
+      "reason": "`publisher.classOf` returns `ocAsset` for a key under `assets/` or `_a/`, and the demo generator emits no such key, so a rehearsal over its output never writes one. The asset class's upload path is therefore unexercised by this corpus, and the rehearsal refuses to call itself sufficient rather than reporting 35/36.",
+      "cause": "Measured, not inferred: `grep -rn 'assets/' src/blocktracer/` matches ONLY `publisher.nim`'s two lines — the `classOf` arm and the `belongs` arm. Nothing under `src/blocktracer/demo/` or `src/blocktracer/chain/` ever writes an `assets/**` key. The site's assets come from a different producer: `tools/deploy/check-assets.mjs` names `/assets/hydrate.js` as the hydration bundle's URL, and the built tree at `client/dist` carries `assets/hydrate.js` and `assets/fonts/*.woff2`. So the class is real and has a producer; that producer is the client export step, which `blocktracer-demo-gen` is not.",
+      "subject": "A corpus that includes the tree actually published. `just rehearse-tree client/dist` after `just export-hydrated` covers it — measured on 2026-09-29 over a built 878-object `client/dist`, where `class/ocAsset` is met by `assets/fonts/SpaceGrotesk-Bold.woff2` and the run reaches 36/36. The debt is that `just rehearse` cannot build that tree in the `contract` CI job, which has no client build.",
+      "closed_by": "Whoever moves the rehearsal into a lane that already holds a built site — `deploy-cloudflare-pages.yml` stages one at `site/` and runs `check-assets.mjs --dir site` against it — or adds an asset-bearing fixture to the demo generator. The first is preferable: it rehearses the bytes that are about to be uploaded, which is the same argument `check-assets.mjs` makes about itself.",
+      "evidence": "2026-09-29, worktree `blocktracer-rehearsal-modes` at `origin/dev` 81e1886. `blocktracer-rehearse --tree <demo-gen output> --mode partial`: 35/36 cells, `class/ocAsset` MISS. The same binary over a copy of `client/dist` (878 objects, 106 rehearsed): 36/36, `class/ocAsset` met with witness `A1: assets/fonts/SpaceGrotesk-Bold.woff2`.",
+      "recorded": "2026-09-29"
+    },
+    "invariant/global-pointer-no-chain-loss": {
+      "reason": "Publishing a second single-chain producer tree into a store that already holds another chain leaves `registry/chains.v1.json` naming only the second chain, while the first chain's objects remain in the store. The registry is the only object that lists a chain, so that chain becomes present and invisible to every reader. This is the 2026-09-28 data-loss defect, and it is still live on `dev`.",
+      "cause": "`registry/**` classifies as `ocPointer`, whose strategy is `stUnconditional` — always rewrite — and the key carries no chain segment, so every chain's cycle writes the same key. `ingest.nim` does merge a registry, but it merges WITHIN one tree; two chains ingested into two trees each produce a registry holding one chain and the second publish overwrites the first. Reproduced directly with the shipped CLI, not only through the rehearsal: publish the demo tree, then publish a tree re-keyed onto a second slug, and `registry/chains.v1.json` lists one chain while `d/` holds two directories.",
+      "subject": "Either a publisher that REFUSES a tree whose registry drops a chain the store already holds, or a pipeline that ingests every chain into one shared tree so `ingest.nim`'s merge sees them all. Both make this rehearsal green: the invariant is stated over the store's contents after the sequence, so a refusal satisfies it and a correct merge satisfies it, and only writing-and-losing does not.",
+      "closed_by": "The publish-path work in progress on `bt/full-history-backfill`, which adds `assertRegistryKeepsKnownChains` and `assertNoUnknownGlobalPointer` to `publishTree`. Those procs are NOT on `dev` at the time of writing — `git grep` finds them on that branch only. When they land, this entry must be deleted, and the rehearsal will demand the deletion by name on the first run after the merge.",
+      "evidence": "2026-09-29, worktree `blocktracer-rehearsal-modes` at `origin/dev` 81e1886, against a local object store. From a 54-object PARTIAL rehearsal of the 310-object demo tree, and again from a 106-object partial rehearsal of the 878-object `client/dist`. The full-scale rehearsal that first found it on 2026-09-28 used 460,589 objects; the defect needs cardinality 2, not scale.",
+      "recorded": "2026-09-29"
+    }
+  },
+  "_closed": {}
+}

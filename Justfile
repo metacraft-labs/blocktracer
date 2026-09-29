@@ -881,6 +881,55 @@ validate dir="demo-site":
 # Generate a demo tree and validate it (the M5c end-to-end check).
 demo: (demo-gen) (validate)
 
+# ── the publish rehearsal: coverage, not volume ─────────────────────────────
+#
+# `validate` above asks whether a tree is WELL FORMED and `client-conformance`
+# whether a consumer can READ it. Neither asks whether PUBLISHING it works,
+# which is a property of the tree and the store together, and which was until
+# now measured by publishing the whole thing and watching.
+#
+# That does not scale. Aztec is the first chain and a small one; a dress
+# rehearsal of a large chain's tree is not something anybody runs before a
+# deploy. And "run a smaller one" fails for a reason that was MEASURED on
+# 2026-09-28: a 290-object rehearsal passed and a 460,589-object one then found
+# a data-loss defect — because the small one had ONE CHAIN, and one chain cannot
+# overwrite another's registry row. The defect needed cardinality 2, not scale.
+#
+# So `--mode partial` and `--mode full` are both checked against the same
+# coverage contract, and BOTH can fail it. An unexercised object class, a
+# missing cardinality, a conditional reached on one side only, or an invariant
+# proven in the refusing direction but not the accepting one is a REFUSAL, not
+# a percentage.
+#
+# This recipe runs the gate over the demo tree with the known-findings register,
+# which fails in both directions (see `tools/rehearse/known-findings.json`).
+rehearse mode="partial": (demo-gen)
+    nim c --hints:off -d:release --path:src -o:blocktracer-rehearse src/blocktracer_rehearse.nim
+    ./blocktracer-rehearse --tree demo-site --mode {{mode}} \
+        --known-findings tools/rehearse/known-findings.json
+
+# The same drill over any corpus, with NO register — `--tree` is repeatable, and
+# two chains arriving as two producer trees is the shape the registry defect
+# needs, so a real two-tree corpus makes the cross-chain invariant non-vacuous
+# where a derived second chain leaves part of it vacuous (see
+# `src/blocktracer/rehearse/corpus.nim`).
+#
+#     just rehearse-tree --tree client/dist             # the bytes about to ship
+#     just rehearse-tree --tree a --tree b --mode full  # two real producer trees
+#
+# No register: an entry there is evidence about a specific measurement over a
+# specific corpus, and applying it to a different one would excuse a finding
+# nobody has looked at.
+rehearse-tree *ARGS:
+    nim c --hints:off -d:release --path:src -o:blocktracer-rehearse src/blocktracer_rehearse.nim
+    ./blocktracer-rehearse {{ARGS}}
+
+# Does the coverage gate BITE? Asserts both ends: a healthy corpus reaches every
+# cell (a gate that can never be green gets turned off) and each deliberately
+# broken corpus is refused by name.
+rehearse-selftest:
+    nim c -r --hints:off --path:src tests/trehearse.nim
+
 # Report what a CONSUMER could not do with a published tree (the other end of M5b's
 # seam). `validate` above asks whether the tree is well formed; this asks whether the
 # client SDK can render it end to end without knowing who produced it.
