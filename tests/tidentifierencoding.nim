@@ -1863,12 +1863,26 @@ suite "the boundary: who knows about each half of the seam":
     # back to reconstruct a format-1 entry's `0x`, which format 1 cannot store.
     ck expectedLen("declaration", "src") == 9
     ck expectedLen("declaration", "client") == 7
-    # 2 AND NOT 1: `tools/chain/snapshot-contract-selftest.mjs` joined when §5.6's
+    # 3 AND NOT 2: `tools/chain/snapshot-contract-selftest.mjs` joined when §5.6's
     # declaration became reachable. The member is in §5.2b's census now, so the
     # census check names it — and its §15 asserts the SHAPE of the reader's one
     # binding, which is a claim about `ingest.nim`'s source that no behavioural
     # test can make. It derives nothing; it reads a Nim file as text.
-    ck expectedLen("declaration", "tools") == 2
+    #
+    # `tools/ci/hostile-chain-corpus.mjs` joined on 2026-09-29, and it is the
+    # first member that names the declaration in order to LEAVE IT ALONE. That
+    # generator poisons every snapshot string it does not recognise as
+    # structural, and a closed-set enum spelling is not a byte any chain decides
+    # — poisoning it only makes `ingest` refuse on the closed-set rule before a
+    # page renders, which is how `ci/test/untrusted-text.sh` came to exit 2 with
+    # 0 pages scanned, measuring nothing while reporting a failure.
+    #
+    # The set therefore holds two KINDS of member now: readers that derive
+    # behaviour from the declaration, and exempters that name it to avoid
+    # corrupting it. The sweep asks who NAMES the member, so both belong — but
+    # only the first kind is a consumer, and a future reviewer counting
+    # "consumers" from this number would over-count by one.
+    ck expectedLen("declaration", "tools") == 3
     ck expectedLen("caseRule", "src") == 6
     ck expectedLen("caseRule", "client") == 3
     ck expectedLen("caseRule", "tools") == 1
