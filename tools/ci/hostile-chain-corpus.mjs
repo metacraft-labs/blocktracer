@@ -64,7 +64,33 @@ const STRUCTURAL_KEYS = new Set([
   // free text from a producer, it reaches the page verbatim, and it is exactly
   // the kind of string this corpus exists to push through the escaper.
   "refusalReason",
+  // §5.3's `provenance.prestateStrategy` is the third of these, and it is the
+  // same argument a third time. `S5-PRESTATE-CLOSED` refuses a value outside
+  // Chain-Support-Matrix.md §1.4's six tokens by design — "a producer emitting
+  // an unlisted strategy is a gap in the table rather than a producer using a
+  // free-text field" — so poisoning it does not make the fixture hostile, it
+  // makes the ingest abort before a single page is rendered and the gate
+  // measures nothing at all. That is exactly what it did: the member arrived
+  // with the chain-declares-its-own-facts work (3447225) and this gate has been
+  // dying on `ingest.nim:857` ever since, two steps before the escaper it
+  // exists to interrogate.
+  //
+  // Nothing is lost by exempting it. Its value can only ever be one of six
+  // fixed ASCII tokens that this repository writes, so there is no byte in it a
+  // chain decides and no escaping question to ask of it.
+  "prestateStrategy",
 ]);
+
+// Whole SUBTREES whose every leaf is an enum spelling, for the same reason and
+// with one difference that matters: `poison` keys off a value's OWN member
+// name, and §5.6's `provenance.identifierEncoding` is an object whose member
+// names are identifier KINDS (`txHash`, `blockHash`, …) and whose values are
+// encoding TOKENS. Neither half is nameable in STRUCTURAL_KEYS — the kinds are
+// not fixed and the tokens sit under them — and BOTH halves are refused
+// outside their closed set by `S5-IDENTIFIER-ENCODING-CLOSED`. No committed
+// capture declares the member yet, so this is not what is failing today; it is
+// the same landmine one fixture refresh away, and it costs one line to remove.
+const STRUCTURAL_SUBTREES = new Set(["identifierEncoding"]);
 
 const looksStructural = (s) =>
   /^0x[0-9a-fA-F]*$/.test(s) ||
@@ -77,6 +103,7 @@ function poison(v, key) {
     return STRUCTURAL_KEYS.has(key) || looksStructural(v) ? v : v + PAYLOAD;
   if (Array.isArray(v)) return v.map((x) => poison(x, key));
   if (v && typeof v === "object") {
+    if (STRUCTURAL_SUBTREES.has(key)) return v;
     const o = {};
     for (const k of Object.keys(v)) o[k] = poison(v[k], k);
     return o;
