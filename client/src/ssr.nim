@@ -108,14 +108,20 @@ proc isSitemapRoute*(route: string): bool =
 
 # ── per-route renderers ─────────────────────────────────────────────────────
 
-proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
+proc debugSessionFor*(r: DataRoot, info: ChainInfo, hash: string): DebugSessionView =
   ## The session one transaction's debug route renders.
   ##
   ## Assembled here rather than inside the page so that the transaction route
   ## and the debug route can build the SAME value — §7.0's "both addresses
   ## reach the same session; they differ in what the visitor asked for" — and
   ## so the source-bundle preference is applied in one place.
-  let info = chainInfo(r, chain)
+  ##
+  ## TAKES THE PIN rather than a slug. `renderTx` and `renderDebug` each want
+  ## both this session AND the chain's own facts, so a slug here meant THREE
+  ## `current.json` reads for one transaction page — the dispatcher's existence
+  ## check, the renderer's, and this one — and three chances for one page to
+  ## straddle a generation flip.
+  let chain = info.slug
   let v = txView(r, info, hash)
   let t = traceView(r, info, hash)
   result = demoSession(chain, v, info,
@@ -363,6 +369,11 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
       result.integrityDetail.add " " & $v.replay.effectsMismatched &
         " published effect(s) differed; this capture does not record which."
 
+proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
+  ## For a caller with no session in hand (a test, a tool, the home page's
+  ## featured-session walk). Opens the chain once.
+  debugSessionFor(r, chainInfo(r, chain), hash)
+
 proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
   ## The home page's featured session: the first transaction in the tree whose
   ## recording `canHeadline`.
@@ -388,7 +399,11 @@ proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
     let info = chainInfo(r, chain)
     for h in blockHashes(r, info):
       for txh in readBlockDetail(r, info, h).transactions:
-        var s = debugSessionFor(r, chain, txh)
+        # The pin this walk already opened, not a fresh `openChain` per
+        # transaction: the home page's featured-session search visits every
+        # transaction of every block, so a slug here re-read `current.json`
+        # once per candidate.
+        var s = debugSessionFor(r, info, txh)
         # `hasFrame`, not `phase == spReady`: the static route serves a
         # positioned frame with the replay engine still unfetched, and the
         # embed is that same frame. Gating on `spReady` would leave the home
@@ -576,8 +591,14 @@ proc renderTxList*(r: DataRoot, chain: string, fromHeight: int): string =
     canonical = SiteDomain & route,
     provenance = provenanceMarker(info))
 
-proc renderBlock*(r: DataRoot, chain, hash: string): string =
-  let info = chainInfo(r, chain)
+proc renderBlock*(r: DataRoot, info: ChainInfo, hash: string): string =
+  ## TAKES THE PIN, NEVER RE-RESOLVES IT. See `renderRoute`'s "one open per
+  ## navigation" note: the dispatcher has already opened this chain to answer
+  ## whether the block exists, and a second `chainInfo` here would re-read
+  ## `current.json` inside one render — which is both a wasted round trip and
+  ## the one way `ChainInfo`'s "one rendered page cannot mix generations" can
+  ## be broken (existence checked in generation N, page rendered from N+1).
+  let chain = info.slug
   let detail = readBlockDetail(r, info, hash)
   var txs: seq[TxRow]
   for h in detail.transactions:
@@ -607,15 +628,23 @@ proc renderBlock*(r: DataRoot, chain, hash: string): string =
     canonical = SiteDomain & "/" & chain & "/block/" & hash,
     provenance = provenanceMarker(info))
 
+proc renderBlock*(r: DataRoot, chain, hash: string): string =
+  ## For a caller with no session in hand (a test, a tool). Opens the chain
+  ## once and renders from that one pin.
+  renderBlock(r, chainInfo(r, chain), hash)
+
 proc addressCode(r: DataRoot, info: ChainInfo, address: string,
                  rows: seq[TxRow]): seq[SourceBundleView] =
   for h in codeHashesAt(r, info, address, rows):
     result.add sourceBundleAt(r, info.slug, h)
 
-proc renderAddress*(r: DataRoot, chain, address, segmentId: string): string =
+proc renderAddress*(r: DataRoot, info: ChainInfo, address, segmentId: string): string =
   ## §9. One block-range segment of an address's history, with Debug on every
   ## row — and the code bound to the address, where any is.
-  let info = chainInfo(r, chain)
+  ##
+  ## Takes the pin: see `renderBlock` above for why re-resolving it here would
+  ## be a second `current.json` read inside one render.
+  let chain = info.slug
   let v = addressView(r, info, address, segmentId)
   let rows = addressRows(r, info, v)
   var snapshot = chainSnapshot(r, info)
@@ -636,9 +665,14 @@ proc renderAddress*(r: DataRoot, chain, address, segmentId: string): string =
     canonical = SiteDomain & route,
     provenance = provenanceMarker(info))
 
-proc renderAddressCode*(r: DataRoot, chain, address: string): string =
-  ## §10. The verified-source browser for the code at an address.
-  let info = chainInfo(r, chain)
+proc renderAddress*(r: DataRoot, chain, address, segmentId: string): string =
+  ## For a caller with no session in hand (a test, a tool).
+  renderAddress(r, chainInfo(r, chain), address, segmentId)
+
+proc renderAddressCode*(r: DataRoot, info: ChainInfo, address: string): string =
+  ## §10. The verified-source browser for the code at an address. Takes the
+  ## pin, for `renderBlock`'s reason.
+  let chain = info.slug
   let v = addressView(r, info, address)
   let rows = addressRows(r, info, v)
   var snapshot = chainSnapshot(r, info)
@@ -660,7 +694,11 @@ proc renderAddressCode*(r: DataRoot, chain, address: string): string =
     canonical = SiteDomain & route,
     provenance = provenanceMarker(info))
 
-proc renderTx*(r: DataRoot, chain, hash: string): string =
+proc renderAddressCode*(r: DataRoot, chain, address: string): string =
+  ## For a caller with no session in hand (a test, a tool).
+  renderAddressCode(r, chainInfo(r, chain), address)
+
+proc renderTx*(r: DataRoot, info: ChainInfo, hash: string): string =
   ## `/{chain}/tx/{hash}` — Page-Descriptions §7.0, whose whole point is that
   ## **what this route serves depends on the trace, not on a click**:
   ##
@@ -693,13 +731,15 @@ proc renderTx*(r: DataRoot, chain, hash: string): string =
   ##     no JavaScript, so the frame served here is what every visitor sees,
   ##     and "no state renders less than the pre-hydration page" holds because
   ##     the pre-hydration page is all there is.
-  let info = chainInfo(r, chain)
+  ##
+  ## Takes the pin: see `renderBlock` for why.
+  let chain = info.slug
   let v = txView(r, info, hash)
   let short = hash[0 ..< min(10, hash.len)]
   let description = "Transaction on " & chain & " at block " & $v.height & "."
   let canonical = SiteDomain & "/" & chain & "/tx/" & hash
   let robots = $routeClass("/" & chain & "/tx/" & hash)
-  let s = debugSessionFor(r, chain, hash)
+  let s = debugSessionFor(r, info, hash)
   if s.hasFrame:
     debugLayout(
       "Transaction " & short & "… — " & chain & " — BlockTracer",
@@ -730,9 +770,14 @@ proc renderTx*(r: DataRoot, chain, hash: string): string =
       # the band rule objected to, wearing a smaller element.
       provenance = "")
 
-proc renderDebug*(r: DataRoot, chain, hash: string): string =
-  let s = debugSessionFor(r, chain, hash)
-  let info = chainInfo(r, chain)
+proc renderTx*(r: DataRoot, chain, hash: string): string =
+  ## For a caller with no session in hand (a test, a tool).
+  renderTx(r, chainInfo(r, chain), hash)
+
+proc renderDebug*(r: DataRoot, info: ChainInfo, hash: string): string =
+  ## Takes the pin: see `renderBlock` for why.
+  let chain = info.slug
+  let s = debugSessionFor(r, info, hash)
   debugLayout(
     "Debug " & truncHash(hash) & " — " & chain & " — BlockTracer",
     "Step through transaction " & hash & " on " & chain & ".",
@@ -745,6 +790,10 @@ proc renderDebug*(r: DataRoot, chain, hash: string): string =
     canonical = SiteDomain & "/" & chain & "/tx/" & hash,
     # See `renderTx` above: this shell's provenance is the metadata pane's row.
     provenance = "")
+
+proc renderDebug*(r: DataRoot, chain, hash: string): string =
+  ## For a caller with no session in hand (a test, a tool).
+  renderDebug(r, chainInfo(r, chain), hash)
 
 proc renderNotFound*(r: DataRoot): string =
   ## §14's "Object not found" row, at a real 404 (SEO §6 class G0).
@@ -917,27 +966,51 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
       return (200, renderBlockList(r, parts[0], -1), "text/html")
     if parts[1] == "txs":
       return (200, renderTxList(r, parts[0], -1), "text/html")
+  # ── ONE OPEN PER NAVIGATION, AND THE PIN IS HANDED DOWN ───────────────────
+  #
+  # Every entity branch below needs the chain opened TWICE over — once to decide
+  # whether the object exists (that is what makes the branch a 200 rather than a
+  # 404) and once to render from. Both used to call `chainInfo`, so one
+  # navigation read `d/{chain}/current.json` twice: MEASURED on
+  # `/reorgchain/block/{hash}` as 18 object reads of which 4 were the second
+  # `openChain`'s (`current.json`, `g/{gen}/root.json`, `g/{gen}/summary.json`,
+  # `registry/chains.v1.json`), and the transaction routes read it three times
+  # because `debugSessionFor` opened it again under the renderer.
+  #
+  # That is not only a wasted round trip. `ChainInfo`'s contract is "one rendered
+  # page cannot mix generations" (`reader.nim`), and `session.nim` names the way
+  # it breaks: "a second component resolving the chain again". A publish that
+  # flipped the pointer between the two opens would check existence in one
+  # generation and render the page from the next. So the branch opens once and
+  # passes the pin to the renderer, which no longer resolves one of its own.
   of 3:
     case parts[1]
     of "block":
-      if hasBlock(r, chainInfo(r, parts[0]), parts[2]):
-        return (200, renderBlock(r, parts[0], parts[2]), "text/html")
+      let info = chainInfo(r, parts[0])
+      if hasBlock(r, info, parts[2]):
+        return (200, renderBlock(r, info, parts[2]), "text/html")
     of "tx":
-      if hasTx(r, chainInfo(r, parts[0]), parts[2]):
-        return (200, renderTx(r, parts[0], parts[2]), "text/html")
+      let info = chainInfo(r, parts[0])
+      if hasTx(r, info, parts[2]):
+        return (200, renderTx(r, info, parts[2]), "text/html")
     of "address":
       let info = chainInfo(r, parts[0])
       if addressSegmentPaths(r, info, parts[2]).found:
-        return (200, renderAddress(r, parts[0], parts[2], ""), "text/html")
+        return (200, renderAddress(r, info, parts[2], ""), "text/html")
     else: discard
   of 4:
-    if parts[1] == "tx" and parts[3] == "debug" and
-       hasTx(r, chainInfo(r, parts[0]), parts[2]):
-      return (200, renderDebug(r, parts[0], parts[2]), "text/html")
+    if parts[1] == "tx" and parts[3] == "debug":
+      # Nested rather than one compound condition so the pin is opened once and
+      # is in scope for the renderer. A `tx/…/debug` path whose transaction is
+      # absent still falls through to the 404 below, exactly as it did: no `if`
+      # after this one matches `parts[1] == "tx"`.
+      let info = chainInfo(r, parts[0])
+      if hasTx(r, info, parts[2]):
+        return (200, renderDebug(r, info, parts[2]), "text/html")
     if parts[1] == "address" and parts[3] == "code":
       let info = chainInfo(r, parts[0])
       if addressSegmentPaths(r, info, parts[2]).found:
-        return (200, renderAddressCode(r, parts[0], parts[2]), "text/html")
+        return (200, renderAddressCode(r, info, parts[2]), "text/html")
     if parts[1] == "blocks" and parts[2] == "from":
       try:
         return (200, renderBlockList(r, parts[0], parseInt(parts[3])), "text/html")
@@ -951,6 +1024,6 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
       let info = chainInfo(r, parts[0])
       let v = addressView(r, info, parts[2], parts[4])
       if v.indexed:
-        return (200, renderAddress(r, parts[0], parts[2], parts[4]), "text/html")
+        return (200, renderAddress(r, info, parts[2], parts[4]), "text/html")
   else: discard
   (404, renderNotFound(r), "text/html")
