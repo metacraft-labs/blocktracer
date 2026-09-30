@@ -423,6 +423,27 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
    and not the content of any one page. */
 .dl dd{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);min-width:0;overflow-wrap:anywhere;font-size:var(--bt-type-body-sm-size);line-height:var(--bt-space-lg);font-variant-numeric:var(--bt-numeric-features)}
 .dl dd .identifier,.dl dd code{font-size:inherit;line-height:inherit}
+/* THE SAME DEFECT `debugger_css.nim` ALREADY FIXED, ONE SELECTOR OVER.
+   `.badge` is `white-space:nowrap` globally (line ~540), which is right for a
+   status word — `Yes`, `Safe`, `Pending` — and wrong for producer-supplied
+   text, which nothing bounds. In a `<dd>` the overflow is clipped by the cell
+   and the reader gets a phrase cut mid-word with no ellipsis saying so.
+
+   `debugger_css.nim` scoped `white-space:normal` to `.mddl dd .badge` after
+   `check-badge-legibility.mjs` found 22 clipped badges across three chains,
+   and recorded that none of it was found by reading CSS — it was found by
+   photographing a chain nobody had looked at. That fix stopped at the
+   debugger's metadata list. The explorer's `<dd>` renders the same badges from
+   the same data and was never covered, so the same gate caught the same two
+   rows here:
+
+     AGE      `No timestamp published`  overflows by 14px @laptop
+     SOURCES  `Instruction level`       overflows by 19px @laptop
+
+   `normal` PERMITS wrapping, it does not force it: the short status words have
+   room and still sit on one line. Scoped to `.dl dd .badge` so a `.muted`
+   suffix elsewhere keeps its nowrap — `mana (FeeJuice)` must not come apart. */
+.dl dd .badge{white-space:normal}
 .dl dt:last-of-type,.dl dd:last-of-type{border-bottom:0}
 .dl dd a{color:var(--bt-text-link);text-decoration:underline;text-underline-offset:var(--bt-space-3xs);transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 .dl dd a:hover{color:var(--bt-text-link-hover)}
