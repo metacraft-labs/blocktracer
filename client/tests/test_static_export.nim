@@ -301,10 +301,34 @@ suite "The foundations reached the SHIPPED page":
   let html = readFile(dist / "index.html")
   var style: array[1, string]
   let hasStyle = html.find(re"(?s)<style>(.*?)</style>", style) >= 0
-  let shipped = if hasStyle: style[0] else: ""
+  # THE STYLESHEET MOVED, AND `shipped` HAD TO FOLLOW IT — the alternative is
+  # silence. `static_export` now writes one content-addressed `/_a/<hash>.css`
+  # and links it, because inlining 227,881 bytes into each of 385,731 pages is
+  # 67.6 GB against 1.93 GB. When that landed `hasStyle` became false and
+  # `shipped` became "" — and three tests below assert OVER `shipped`.
+  #
+  # Only the first would have gone red. "every var(--bt-*) the page references
+  # is declared in the same page" iterates `shipped` for references AND for
+  # declarations, so over "" it finds neither and reports zero dangling: a
+  # VACUOUS PASS on the check that exists to catch a half-landed token rename.
+  # That is the failure this file keeps writing guards against, and it would
+  # have arrived silently the moment the stylesheet was externalised.
+  #
+  # So: follow the stylesheet wherever it is delivered, and assert the DELIVERY
+  # separately from the CONTENT.
+  var linkCap: array[1, string]
+  let hasLink = html.find(
+    re("<link[^>]+href=\"(/_a/[^\"]+\\.css)\""), linkCap) >= 0
+  let shipped =
+    if hasStyle: style[0]
+    elif hasLink: readFile(dist / linkCap[0].strip(chars = {'/'}))
+    else: ""
 
-  test "the page carries an inlined <style> block":
-    check hasStyle
+  test "the page ships a stylesheet, inlined or linked":
+    check hasStyle or hasLink
+    # NOT `> 0`: an empty or truncated stylesheet satisfies a presence test and
+    # makes every content assertion below vacuous. The floor is what gives them
+    # meaning.
     check shipped.len > 1000
 
   test "every var(--bt-*) the page references is declared in the same page":
