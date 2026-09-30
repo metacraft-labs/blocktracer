@@ -15,6 +15,11 @@ nimcache/
 # `blocktracer-rehearse` (namedBin; `just rehearse` builds it at the root).
 /blocktracer-rehearse
 /blocktracer_rehearse
+# `blocktracer-verify-published` (namedBin; `just verify-published` builds it at
+# the root with `-o:`, the same way `objectstore-probe` above does).
+/blocktracer-verify-published
+/blocktracer_verify_published
+/src/blocktracer_verify_published
 /.chain-state/
 # `nim c -r src/foo.nim` drops the compiled binary next to its source, under src/
 /src/blocktracer_demo_gen
@@ -41,6 +46,7 @@ nimcache/
 /tests/tidentifierencoding
 /tests/tchainprofile
 /tests/trehearse
+/tests/tverifypublished
 
 # Generated output trees. `demo-site-2` is the determinism check's second
 # tree (`just demo-gen out=demo-site-2` in CI), which the first .gitignore

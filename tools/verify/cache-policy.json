@@ -1,0 +1,197 @@
+{
+ "format": "blocktracer/cache-policy@1",
+ "_comment": [
+  "THE CACHE CONTRACT A PUBLISHED INSTANCE IS CHECKED AGAINST, AS DATA.",
+  "",
+  "WHAT IS NORMATIVE IS NOT HERE. Static-Site-Architecture.md §2.9 is the object-class",
+  "registry and says so about itself; Publishing-And-Caching.md §4 states that its own table",
+  "is GENERATED from §2.9 and that `where this table and the registry disagree, the registry",
+  "is normative and this one is stale`. This file is a THIRD copy, and it is the one a",
+  "program reads. That is a transcription, and a transcription that nobody can re-derive is",
+  "a number and not a check — so `source` below records the specs commit and the sha256 of",
+  "each section's exact text as transcribed, and `tools/verify/cache-policy-drift.mjs`",
+  "recomputes both against a `codetracer-specs` checkout.",
+  "",
+  "THE DRIFT GUARD CANNOT RUN IN CI AND THAT RESIDUAL IS RECORDED RATHER THAN PAPERED OVER.",
+  "`codetracer-specs` is not checked out by `.github/workflows/ci.yml` — `Justfile`'s",
+  "`snapshot-contract-tables` recipe records the same limitation for the same reason. So the",
+  "guard is an operator command (`just cache-policy-drift`), it REFUSES when it cannot find a",
+  "checkout rather than passing, and the CI step that exists is the one that can run offline:",
+  "that this file parses, that its rows are ordered specific-before-general, and that every",
+  "row is reachable by at least one key (an unreachable row is a rule that can never fire).",
+  "",
+  "ORDER IS PART OF THE DATA. `match` patterns are tried in order and the FIRST hit wins, so",
+  "`d/*/current.json` must precede `d/**` and `src/*/*/current.json` must precede `src/**`.",
+  "A registry whose order is wrong does not fail loudly — it silently applies the general",
+  "rule to the specific object, which for `current.json` means asserting a year of",
+  "immutability on the one hot mutable object per chain. `orderSanity` below is the list of",
+  "(key, expected row id) pairs that pins the order; the selftest drives every one.",
+  "",
+  "PATTERN LANGUAGE, deliberately tiny so it can be read as well as matched:",
+  "  `*`  matches exactly one path segment (no `/`)",
+  "  `**` matches the remainder, including `/`, and may only appear last",
+  "  everything else is literal. Keys are tree-relative with no leading slash, which is how",
+  "  `publisher.nim`'s `classOf` and `objectstore.nim`'s listings both spell them.",
+  "",
+  "THE CHAIN SLUG IN `orderSanity` IS `some-chain` AND NOT A REAL ONE, deliberately. These pins",
+  "are about PATTERN ORDER — `*` matches any one segment — and a real slug in them would read as",
+  "though the matcher knew something about that chain. Aztec is the first chain this runs",
+  "against and nothing here knows that.",
+  "",
+  "ONE §2.9 ROW IS DELIBERATELY ABSENT: `/ops/**`, whose Cache column reads `not public`. That",
+  "is not a cache rule — it is an exposure rule, and the right check is `this prefix must not be",
+  "served at all`, which belongs beside the INSTRUMENT control rather than in a table of",
+  "`Cache-Control` values. It is recorded here rather than left as a silent omission, because a",
+  "row missing from a transcription and a row that does not exist look the same in review.",
+  "",
+  "`expect` FIELDS ARE ASSERTIONS ABOUT DIRECTIVES, NOT ABOUT THE HEADER STRING. Two",
+  "byte-different `Cache-Control` values can state the same policy (order, spacing, a",
+  "`public` that some CDNs add). So each row states the directives that must be present with",
+  "the values they must have, and `forbid` names directives that must be ABSENT — which is",
+  "how `no-store` on a `/t/` 404 is distinguished from `no-store` plus a `max-age` nobody",
+  "meant."
+ ],
+ "source": {
+  "repo": "metacraft-labs/codetracer-specs",
+  "commit": "fa334d9f",
+  "branch": "latest",
+  "transcribedOn": "2026-09-29",
+  "sections": [
+   {
+    "path": "BlockTracer/Static-Site-Architecture.md",
+    "section": "## 2.9 The Object-Class Registry",
+    "endsBefore": "## 3. The Read Path",
+    "normative": true,
+    "sha256": "4ba880142a8c73a9c349d1016b64e3bfb58c59ce89240d387af28bbfa299c00a"
+   },
+   {
+    "path": "BlockTracer/Publishing-And-Caching.md",
+    "section": "## 4. Cache Policy",
+    "endsBefore": "## 5. Client Delivery",
+    "normative": false,
+    "note": "§4 states that it is generated from §2.9 and stale where the two disagree.",
+    "sha256": "730c3a0c3c5359f64c0e370619b75dac019012bc2b05474a429455ff58258dce"
+   }
+  ]
+ },
+ "rows": [
+  {
+   "id": "chain-current",
+   "match": "d/*/current.json",
+   "why": "The only hot mutable object per chain (§2.9: Mutable=yes, selects the generation).",
+   "expect": { "max-age": 0, "s-maxage": 5, "stale-while-revalidate": 60 },
+   "forbid": ["immutable", "no-store"]
+  },
+  {
+   "id": "source-bundle-pointer",
+   "match": "src/*/*/current.json",
+   "why": "Moves when a better source match lands (§2.9: Mutable=yes).",
+   "expect": { "max-age": 60, "stale-while-revalidate": 3600 },
+   "forbid": ["immutable"]
+  },
+  {
+   "id": "source-bundle",
+   "match": "src/**",
+   "why": "Content-addressed bundle bytes (§2.9: identity = bundle bytes, Mutable=no).",
+   "expect": { "max-age": 31536000, "immutable": true },
+   "forbid": ["no-store"]
+  },
+  {
+   "id": "labels",
+   "match": "d/*/labels/**",
+   "why": "Cosmetic, deliberately outside generations (§2.9: Mutable=yes).",
+   "expect": { "max-age": 300, "stale-while-revalidate": 86400 },
+   "forbid": ["immutable"]
+  },
+  {
+   "id": "generation",
+   "match": "d/*/g/**",
+   "why": "A sealed generation, root included (§2.9: Mutable=no, generation member).",
+   "expect": { "max-age": 31536000, "immutable": true },
+   "forbid": ["no-store"]
+  },
+  {
+   "id": "chain-immutable-facts",
+   "match": "d/**",
+   "why": "Immutable facts keyed by entity hash or by address+range — block, tx, ts, seg (§2.9).",
+   "expect": { "max-age": 31536000, "immutable": true },
+   "forbid": ["no-store"]
+  },
+  {
+   "id": "trace-artifacts",
+   "match": "t/**",
+   "why": "Permanent traces keyed by traceArtifactId (§2.9, §4). Windowed objects carry a different policy SET BY THE OBJECT, not by the path — see `windowedException`.",
+   "expect": { "max-age": 31536000, "immutable": true },
+   "forbid": ["no-store"],
+   "windowedException": { "max-age": 259200, "s-maxage": 2592000 }
+  },
+  {
+   "id": "hash-and-name-index",
+   "match": "idx/**",
+   "why": "Version in the path or in meta.json (§2.9: Mutable=no, while referenced).",
+   "expect": { "max-age": 31536000, "immutable": true },
+   "forbid": ["no-store"]
+  },
+  {
+   "id": "release-assets",
+   "match": "_a/**",
+   "why": "Content-hashed release assets (§2.9: identity = content hash, SRI).",
+   "expect": { "max-age": 31536000, "immutable": true },
+   "forbid": ["no-store"]
+  },
+  {
+   "id": "registry",
+   "match": "registry/**",
+   "why": "Version in the filename; short TTL for pointer freshness (§2.9: 300 s + SWR).",
+   "expect": { "max-age": 300, "stale-while-revalidate": 86400 },
+   "forbid": ["immutable"]
+  },
+  {
+   "id": "sitemaps",
+   "match": "sitemaps/**",
+   "why": "Generation member, crawler-facing (§2.9: 1y immutable, while referenced).",
+   "expect": { "max-age": 31536000, "immutable": true },
+   "forbid": ["no-store"]
+  },
+  {
+   "id": "entry-pages",
+   "match": "**.html",
+   "why": "Release visibility (§2.9 entry pages: route identity, 60 s + SWR).",
+   "expect": { "max-age": 60, "stale-while-revalidate": 600 },
+   "forbid": ["immutable"]
+  }
+ ],
+ "absent": [
+  {
+   "id": "trace-404",
+   "match": "t/**",
+   "why": "A cached 404 outlives the generation or renewal the client is polling for (Deployment §4.1). This is the single cache rule whose absence is a correctness defect rather than a tuning one, and it is Cloudflare's DEFAULT that is wrong: an unconfigured zone caches 404s for three minutes.",
+   "expect": { "no-store": true },
+   "forbid": ["immutable"]
+  },
+  {
+   "id": "other-404",
+   "match": "**",
+   "why": "Genuine absence (§4: `public, max-age=300`).",
+   "expect": { "max-age": 300 },
+   "forbid": ["immutable"]
+  }
+ ],
+ "orderSanity": [
+  ["d/some-chain/current.json", "chain-current"],
+  ["d/some-chain/g/7/root.json", "generation"],
+  ["d/some-chain/g/7/height/0.json", "generation"],
+  ["d/some-chain/block/0xabc.json", "chain-immutable-facts"],
+  ["d/some-chain/tx/0abc/0xabc.json", "chain-immutable-facts"],
+  ["d/some-chain/labels/0.json", "labels"],
+  ["src/some-chain/0xcode/current.json", "source-bundle-pointer"],
+  ["src/some-chain/0xcode/0xbundle.json", "source-bundle"],
+  ["registry/chains.v1.json", "registry"],
+  ["idx/hash/3/0a.json", "hash-and-name-index"],
+  ["t/0a/1b/0a1bdeadbeef/manifest.json", "trace-artifacts"],
+  ["_a/deadbeef.css", "release-assets"],
+  ["sitemaps/7/0.xml", "sitemaps"],
+  ["index.html", "entry-pages"],
+  ["some-chain/tx/0xabc.html", "entry-pages"]
+ ]
+}

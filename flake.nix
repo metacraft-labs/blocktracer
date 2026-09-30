@@ -210,12 +210,33 @@
           # `bwrap` it REFUSES rather than skipping, because a claim about three
           # absences that were never made is not a measurement. Pinned here so
           # the gate does not depend on a registry fetch at run time.
+          #
+          # It is LINUX-ONLY, and the guard below is not a convenience. The
+          # three absences the gate constructs are namespaces, which darwin
+          # does not have, so nixpkgs marks `bubblewrap` unsupported there and
+          # REFUSES TO EVALUATE it. Unguarded, that refusal is not confined to
+          # the gate: it is an evaluation error in `devShells.ci`, and
+          # `devShells.default` takes `inputsFrom = [ ci ]`, so BOTH shells
+          # stop instantiating and no macOS checkout can open either one.
+          # Measured on 2026-09-30 against `origin/dev`: a package one gate
+          # needs had taken the whole shell down on one platform. The gate
+          # itself is unaffected — it runs on linux in CI, and on darwin it
+          # refuses for absent `bwrap`, which is the honest answer, not a skip.
           buildInputs = (with pkgs; [
             nim
             nimble
             just
             (python3.withPackages (ps: [ ps.pyyaml ]))
             wrangler
+            # `blocktracer-verify-published`'s HTTP backend shells out to curl
+            # (verify/source.nim's header says why: TLS through `std/httpclient`
+            # needs `-d:ssl` and a dynamically-resolved libssl, which is how a
+            # tool comes to work only on the machine that built it). Its suite
+            # drives that backend against an in-process fixture, so the suite
+            # needs curl too — DECLARED rather than inherited from whatever the
+            # runner happens to have on PATH.
+            curl
+          ] ++ lib.optionals stdenv.hostPlatform.isLinux [
             bubblewrap
           ]) ++ [ followerNodejs ];
         });

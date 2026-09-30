@@ -415,6 +415,29 @@ jobs:
         # check that passed because it was looking at nothing.
         run: node tools/ci/check-runner-labels-selftest.mjs
 
+      # ── the production verifier's read-only boundary ────────────────────
+      #
+      # `blocktracer-verify-published` is the one tool here MEANT to be pointed
+      # at production, repeatedly. The operator who runs it holds a credential
+      # that can write, because reading a private bucket needs one — so the only
+      # thing between that credential and a production object is the code, and
+      # "we were careful" is not a boundary. `S3Source` privately holds an
+      # `S3ObjectStore` whose `put`/`del`/`putIfAbsent`/`putMany` are one field
+      # access away; holding it is deliberate (a second copy of the `aws`
+      # plumbing is where the `/dev/stdin` defect lived), and this is the cost.
+      - name: Can the production verifier write? (it must not — lexical, both directions)
+        run: bash ci/test/verify-published-readonly.sh
+
+      - name: Does the read-only guard bite?
+        # The guard strips comments and string literals before matching, and the
+        # files it scans are full of prose naming the exact methods it looks
+        # for — so an over-greedy strip would remove the CODE too and the guard
+        # would pass over anything. Eight arms: a real call planted for each of
+        # the four write methods, one on a line that also carries a trailing
+        # comment, prose that must NOT be a violation, an unmodified control,
+        # and an empty subject tree that must REFUSE rather than report zero.
+        run: bash ci/test/verify-published-readonly-test.sh
+
       # ── the chain capture tooling, for this job's own stated reason ──────
       #
       # Same hole, same shape. `tools/chain/`'s selftests were referenced by

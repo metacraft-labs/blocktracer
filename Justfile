@@ -640,6 +640,60 @@ objectstore-probe bucket endpoint prefix="":
     nim c --hints:off -d:release --path:src -o:objectstore-probe tools/dev/objectstore_probe.nim
     ./objectstore-probe {{bucket}} {{endpoint}} {{prefix}}
 
+# ── is all the data actually on the published instance ─────────────────────
+#
+# `blocktracer-validate` answers "is this TREE well-formed" about a directory on
+# the machine that produced it, and it walks every object. Nobody has ever asked
+# the question of PRODUCTION, and nobody could: the tree to walk is 882,639
+# objects. This asks it in a bounded number of requests, read-only, and exits
+# non-zero naming which of its eight checks found what.
+#
+# The design and the sampling argument are in
+# `src/blocktracer/verify/audit.nim`'s header. In one line: the pointers are
+# checked exhaustively, the RANGE LEDGER against the published height map is
+# exhaustive too and costs two objects, and only "does the store hold the object
+# this height names" is sampled — deterministically at every range boundary plus
+# the floor and the tip, then spread over the span, with the run printing the
+# omission rate that sample detects at 99% confidence.
+#
+# IT CANNOT WRITE. `verify/source.nim` has no write operation,
+# `tests/tverifypublished.nim` asserts `not compiles(s.put(…))`, and
+# `ci/test/verify-published-readonly.sh` refuses a write call being added.
+# Pointing it at production is an operator action with an operator credential
+# (DEPLOY.md §3) — but unlike `--backend s3` on the publisher, it is a safe one.
+#
+#     just verify-published --url https://blocktracer.org --tree ./tree \
+#       --ledger .chain-state/aztec-mainnet/coverage.json --allow-unrunnable CENSUS
+verify-published *ARGS:
+    nim c --hints:off -d:release --path:src -o:blocktracer-verify-published \
+      src/blocktracer_verify_published.nim
+    ./blocktracer-verify-published {{ARGS}}
+
+# The suite, including the nine deliberately-broken trees the verifier must
+# refuse. Runs offline: an in-process HTTP fixture on 127.0.0.1 provides the one
+# backend that can answer the cache-header question and impersonate a host that
+# answers 200 for every path.
+verify-published-selftest:
+    nim c -r --hints:off --path:src tests/tverifypublished.nim
+    bash ci/test/verify-published-readonly.sh
+    bash ci/test/verify-published-readonly-test.sh
+
+# ── has the transcribed cache contract drifted from the spec ───────────────
+#
+# `tools/verify/cache-policy.json` is a transcription of Static-Site-Architecture
+# §2.9 (normative) and Publishing-And-Caching §4. This recomputes the sha256 of
+# both sections against a `codetracer-specs` checkout and reports what moved.
+#
+# NOT A CI STEP, AND IT REFUSES RATHER THAN PASSING WHEN IT CANNOT LOOK: CI does
+# not check out `codetracer-specs` (the same limitation `snapshot-contract-tables`
+# above records), and a guard that exits 0 on an absent subject is the empty-set
+# pass in disguise. Absent checkout ⇒ exit 2.
+#
+#     just cache-policy-drift
+#     just cache-policy-drift --specs ../codetracer-specs --ref origin/latest
+cache-policy-drift *ARGS:
+    node tools/verify/cache-policy-drift.mjs {{ARGS}}
+
 # ── the chain captures' call frames ─────────────────────────────────────────
 #
 # Derive `calltrace/<tx>.json` beside a committed capture's containers: the

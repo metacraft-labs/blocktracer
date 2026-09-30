@@ -8,7 +8,8 @@ srcDir         = "src"
 installExt     = @["nim"]
 bin            = @["blocktracer_demo_gen", "blocktracer_validate", "blocktracer_publish",
                    "blocktracer_chain_ingest", "blocktracer_client_conformance",
-                   "blocktracer_conformance", "blocktracer_rehearse"]
+                   "blocktracer_conformance", "blocktracer_rehearse",
+                   "blocktracer_verify_published"]
 namedBin["blocktracer_demo_gen"] = "blocktracer-demo-gen"
 namedBin["blocktracer_validate"] = "blocktracer-validate"
 namedBin["blocktracer_publish"] = "blocktracer-publish"
@@ -36,6 +37,13 @@ namedBin["blocktracer_conformance"] = "blocktracer-conformance"
 # so a partial run can be sufficient and a full one can still be insufficient.
 namedBin["blocktracer_rehearse"] = "blocktracer-rehearse"
 
+# The PRODUCTION side of the same seam. `blocktracer-validate` answers "is this
+# tree well-formed" about a directory, by walking every object in it. That
+# question has never been asked of a published instance and could not be: the
+# tree is 882,639 objects. This asks it against a live URL, bucket or store
+# directory in a bounded number of requests, and it cannot write.
+namedBin["blocktracer_verify_published"] = "blocktracer-verify-published"
+
 # Requires
 
 requires "nim >= 2.0.0"
@@ -57,6 +65,11 @@ task test, "Run the conformance + publisher + Client SDK test suites":
   # that can never be green gets turned off) and that each deliberately broken
   # corpus is refused by name.
   exec "nim c -r --hints:off tests/trehearse.nim"
+  # The production verifier, and the nine deliberately-broken trees it must
+  # refuse. Offline: its HTTP cases run against an in-process fixture on
+  # 127.0.0.1, which is the only way to drive the cache-header check and the
+  # catch-all host without a network.
+  exec "nim c -r --hints:off tests/tverifypublished.nim"
 
 task demo, "Generate a demo tree into ./demo-site and validate it":
   exec "nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site"

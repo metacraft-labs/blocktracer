@@ -1861,7 +1861,10 @@ suite "the boundary: who knows about each half of the seam":
     # …and it is 9 AGAIN, for a different file: `contract/hashshard.nim` joined
     # when the index stopped being hex-only and started reading the shard rule
     # back to reconstruct a format-1 entry's `0x`, which format 1 cannot store.
-    ck expectedLen("declaration", "src") == 9
+    # 10 AND NOT 9: `verify/audit.nim` joined 2026-09-29 with the production
+    # verifier — it derives sampled object keys from identifiers, so it reads
+    # the chain's encoding from the registry row instead of assuming hex.
+    ck expectedLen("declaration", "src") == 10
     ck expectedLen("declaration", "client") == 7
     # 3 AND NOT 2: `tools/chain/snapshot-contract-selftest.mjs` joined when §5.6's
     # declaration became reachable. The member is in §5.2b's census now, so the
