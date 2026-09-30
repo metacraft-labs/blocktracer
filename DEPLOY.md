@@ -82,12 +82,20 @@ plan drift is the gate (Deployment §6b.2). Add to `import-ids.json`:
 ## Step 2 — Bind `blocktracer.org` to the bucket (R2 custom domain)
 
 > **CORRECTION (2026-09-30) — this step runs LAST, after Step 4 has published.**
-> Its number is its history, not its position. The apex is **already serving**:
-> `terraform/cloudflare/metacraft-prod/README.md` records that "`blocktracer.org`
-> is already served by its Pages project (apex `CNAME` + custom domain added
-> out-of-band)", and on 2026-09-30 it answered with a real registry and a real
-> generation — `aztec` 170 blocks / 2 transactions, `aztec-testnet` 9 blocks / 3
-> transactions.
+> Its number is its history, not its position. `infra`'s
+> `terraform/cloudflare/metacraft-prod/README.md` (lines 53-58 on `live`) already
+> states the rule for this exact binding:
+>
+> > "Binding it to the apex (DEPLOY.md Step 2, `cloudflare_r2_custom_domain` —
+> > **not** Terraform-manageable in provider v5, so an operator API call) creates
+> > the proxied apex record pointing at R2 and **Pages stops serving
+> > `blocktracer.org` the moment it lands**. The order is: create this bucket →
+> > publish the tree into it (Step 4) → only then bind the domain. **Binding an
+> > empty bucket takes the site down.**"
+>
+> The apex is indeed already serving: on 2026-09-30 it answered with a real
+> registry and real generations — `aztec` 170 blocks / 2 transactions,
+> `aztec-testnet` 9 blocks / 3 transactions.
 >
 > So this binding is not "turn the site on". It is **switching a live origin**,
 > and the switch is atomic while the upload is not. Bind before Step 4 and the
