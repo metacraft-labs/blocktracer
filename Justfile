@@ -37,7 +37,7 @@
 # `client/tests/test_chain_provenance.nim` carry the member, so the whole suite was
 # blind to it; the fixture here is the follower's own output, byte for byte.
 #
-# ── AND `test-searchboot`, WHICH IS THE ONLY GATE THE BROWSER'S RULES HAVE ─
+# ── `test-searchboot`, WHICH IS THE ONLY GATE THE BROWSER'S RULES HAVE ─────
 #
 # `client/searchboot/searchboot.nim` computes the object path a search fetches,
 # in a tab. It had NO test of any kind — the bundle-freshness gate checks that
@@ -46,56 +46,69 @@
 # `importjs` boundary makes it uncompilable on the C backend, so every suite here
 # had to skip it. `nim js -r` is how it is testable at all, and it takes seconds.
 #
-# It is in THIS recipe and not only under `client/` for the reason
-# `test-chain-provenance` is: Search-And-Routing.md §5's "two requests to resolve
-# any hash on any chain" is only true if the client recomputes the SAME object
-# path the producer wrote, and since that path is derived from the chain's
-# declared identifier encoding, a browser that could not read the declaration
-# would make §5 false for every non-hex chain — silently, and only in a tab.
+# It reaches this gate through the delegation below, for the reason
+# Search-And-Routing.md §5 gives: "two requests to resolve any hash on any chain"
+# is only true if the client recomputes the SAME object path the producer wrote,
+# and since that path is derived from the chain's declared identifier encoding, a
+# browser that could not read the declaration would make §5 false for every
+# non-hex chain — silently, and only in a tab.
 #
-# ── AND `test-debug-route`, WHICH IS THE ONLY GATE A STATUS CODE HAS ───────
+# ── AND EVERY CLIENT SUITE, BY DELEGATION AND NOT BY A SECOND LIST ─────────
 #
-# `client/src/ssr.nim`'s `renderRoute` is where a URL becomes a 200 or a 404,
-# and that is what a visitor experiences. Nothing above this line drives it:
-# the suites above grade the contract, the publisher, the reader and the
-# browser's derivation, and every one of them asks a function for a path rather
-# than asking the router for a status.
+# THE HOLE THIS CLOSES, AND IT IS THE HOLE THIS CAMPAIGN KEEPS FINDING. This
+# recipe used to name THREE client suites — `test-searchboot`,
+# `test-debug-route` and `test-chain-provenance` — out of the FIFTEEN that
+# `client/Justfile`'s `test:` aggregate runs. The twelve it left out included
+# `test-instruction-listing`, which carries the strongest landing assertions in
+# the repository: a planted `steps + 7` coordinate asserted CLAMPED across all 31
+# instruction-level recordings this tree publishes, per subject. A gate that omits
+# its own strongest assertions is worse than a gate that omits weak ones, because
+# what it certifies is precisely the part nobody checked.
 #
-# It is here for EXACTLY the reason `test-chain-provenance` is, one line down,
-# and it is the same gap: the suite is in `client/Justfile`'s `test:` aggregate
-# and CI's `debug-route` job runs that aggregate, so it was never dark — but it
-# was not in THIS recipe, the one the operator-mandated local gate is. When
-# `blockPath` began key-forming its identifier, the proof that `/{chain}/block/`,
-# `/{chain}/tx/` and `/{chain}/address/` now answer a mixed-case spelling
-# IDENTICALLY was written into that suite, and the repository's own stated
-# verdict command did not run it. ~9 minutes, compile included.
+# It had happened twice before by the same mechanism, and the two paragraphs this
+# replaces are the evidence: `test-debug-route` was added to this recipe with the
+# note "the suite is in `client/Justfile`'s `test:` aggregate and CI runs that
+# aggregate, so it was never dark — but it was not in THIS recipe", and
+# `test-chain-provenance` was added with the same sentence. Three times is not
+# three oversights; it is a membership list maintained in two places, which will
+# diverge again as surely as it diverged three times already.
 #
-# ── AND `test-chain-provenance`, WHICH TAKES ~37 MINUTES. LEAVE IT IN. ─────
+# SO THE LIST IS GONE. `cd client && just test` is ONE line that runs whatever
+# `client/Justfile` declares, in the order it declares it. A suite added there is
+# in the operator's gate the moment it is added, and this file cannot be the
+# reason it is dark. That is the only shape that makes "all of them" a property of
+# the gate rather than a fact about the last person who edited it.
 #
-# It is the LAST recipe here and it is the slow one on purpose: everything
-# above it fails fast, so a developer who broke the contract, the publisher or
-# the reader learns that in under a minute and never reaches this line.
+# WHAT THE ORDER COSTS, STATED. `just` runs a recipe's dependencies in the order
+# they are listed, and `client/Justfile`'s order puts `test-chain-provenance`
+# (~37 min) and `test-debug-route` (~9 min) in the middle rather than at the end,
+# so a failure in one of the cheap suites after them is learned late. That is a
+# real regression against the fail-fast property this recipe's own comments prize,
+# and it is accepted rather than fixed HERE, because fixing it here means
+# re-listing the fifteen and reintroducing the divergence this change exists to
+# remove. If the order is worth changing, change it in `client/Justfile`, where
+# the one list lives.
 #
-# WHY IT IS WORTH THE 37 MINUTES. 141 assertions driven through the REAL
-# producers — `generate` and `ingestSnapshot` — over the committed corpus. It
-# is the only end-to-end check in this repository that grades what the shipping
-# path actually publishes rather than a lookalike built by the test, and that
-# is not a theoretical advantage: it is what caught the `captures`
-# misattribution, and its suite-16 arm is what keeps a synthetic Noir program
-# from rendering under a real transaction's hash.
+# ── THE SLOW SUITES, WHICH ARE STILL IN. LEAVE THEM IN. ────────────────────
 #
-# WHY THIS LINE EXISTS WHEN THE SUITE WAS ALREADY RUN SOMEWHERE. It is in
-# `client/Justfile`'s `test:` aggregate and CI's `debug-route` job runs that
-# aggregate, so it was never dark. What it was not in is THIS recipe — the one
-# the operator-mandated local gate is, and the one `LOCAL-BASELINE.md` measures
-# — so the repository's own stated verdict command did not include the only
-# end-to-end check it has. A gate whose slowest member is reachable only from a
-# subdirectory is a gate people run without it.
+# `test-chain-provenance` takes ~37 minutes and is worth it: 141 assertions driven
+# through the REAL producers — `generate` and `ingestSnapshot` — over the committed
+# corpus. It is the only end-to-end check in this repository that grades what the
+# shipping path actually publishes rather than a lookalike built by the test, and
+# that is not a theoretical advantage: it is what caught the `captures`
+# misattribution, and its suite-16 arm is what keeps a synthetic Noir program from
+# rendering under a real transaction's hash.
 #
-# DO NOT REMOVE IT FOR SPEED. If this recipe needs to be fast for some new
-# purpose, add a `just test-quick` that stops above this line and leave this
-# one whole — the thing that makes a gate worth having is that nobody had to
-# decide to run the expensive part.
+# `test-explorer-breadth` is `-d:release` and walks a synthetic address with a
+# hundred thousand transactions from its first page to its last, so it is slow for
+# a reason nothing cheaper can replace.
+#
+# DO NOT REMOVE ANY OF THEM FOR SPEED, and do not re-list a subset here to get
+# one. If this recipe needs to be fast for some new purpose, add a `just
+# test-quick` that stops ABOVE the `cd client` line and leave this one whole — the
+# thing that makes a gate worth having is that nobody had to decide to run the
+# expensive part. A fast gate that OMITS the landing assertions is the defect
+# above with a friendlier name.
 test:
     # WHICH TOOLCHAIN THIS RAN ON, printed FIRST and on purpose. Every suite below
     # is `--hints:off`, so without this line a full log contains no evidence of the
@@ -129,9 +142,11 @@ test:
     nim c -r --hints:off tests/tchainprofile.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
-    cd client && just test-searchboot
-    cd client && just test-debug-route
-    cd client && just test-chain-provenance
+    # ALL FIFTEEN CLIENT SUITES, BY DELEGATION. See the block above this recipe
+    # for why this is one line and not fifteen: a membership list kept in two
+    # files diverged three separate times, and the third time it cost the gate
+    # the strongest landing assertions in the repository.
+    cd client && just test
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
