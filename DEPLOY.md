@@ -336,6 +336,62 @@ re-run of Step 4 publishes any new generation as a delta with a single atomic po
 flip. **This is the campaign's "fake-data site LIVE" bound** — reached the moment
 Step 4's first publish completes against the live bucket bound to the zone.
 
+### The curls above prove the site answers. They do not prove the data arrived.
+
+**Added 2026-09-30.** Four requests against a CDN cannot distinguish a complete
+tree from a truncated one — every path that is present returns `200` in both.
+The check that can tell the difference is `blocktracer-verify-published`, which
+is read-only by construction (it holds a `verify/source.Source`, which has no
+write operation) and therefore safe to run against production repeatedly.
+
+Run it **once per chain**, because `--ledger` takes one ledger and each ledger
+names one chain. Two runs is the whole of it:
+
+```bash
+# inside `nix develop`, from a checkout of this repo
+nimble build -d:release blocktracer-verify-published
+
+for c in aztec aztec-testnet; do
+  ./blocktracer-verify-published \
+    --url https://blocktracer.org \
+    --tree "$TREE" \
+    --expect-chain aztec --expect-chain aztec-testnet \
+    --expect-chain aztec-testnet-frames \
+    --ledger ".chain-state/$c/coverage.json"
+done
+```
+
+`$TREE` is the tree that was published — it supplies the expectation from
+*outside* the instance, which is the point: it is what makes `REGISTRY` and
+`CENSUS` run at all, and it compares sampled objects byte for byte.
+
+Exit codes: `0` clean, `1` a finding, `2` usage, `3` the instrument voided the
+run. **Do not read `UNRUNNABLE` as a pass** — it means the check did not
+happen, and each one prints why.
+
+Measured against the staged go-live tree on 2026-09-30, before any publish, so
+that the post-publish run has a known-good baseline rather than being its own
+first test:
+
+```
+PASS  CENSUS — store holds 882642 object(s); per class, local == store
+         ocEntryPage 385731 · ocContent 374374 · ocGenMap 86284
+         ocTraceContainer 18093 · ocTraceManifest 18093 · +6 classes
+PASS  LEDGER — chain 'aztec':         all 102690 heights — exhaustive
+PASS  LEDGER — chain 'aztec-testnet': all  99091 heights — exhaustive
+PASS  RANGE  — 865 heights matched by identity, all byte-identical
+```
+
+Two things only the **production** run can establish, because a local directory
+serves no response headers and `CACHE` reports `UNRUNNABLE` against one:
+
+- the cache contract of §4.1 / `Publishing-And-Caching.md` §4 actually in force;
+- range requests (`206`) surviving the chosen topology.
+
+Note for the `curl` block above: after the first full-history publish the
+generation ids are `raztec00001` and `rtestnet0001`, not `"1"` — `"1"` is what
+the pre-backfill site serves today.
+
 The credentialed apply list, in one line each:
 
 1. **R2 bucket** — `blocktracer` added to `data.json` `r2_buckets` (infra PR, merge-applied).
