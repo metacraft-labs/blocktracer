@@ -228,14 +228,40 @@ for (const t of snap.transactions) {
     // one of them stopped working.
     //
     // `/3` IS NOT ADDITIVE AND THAT IS WHY IT IS A VERSION. `/2` published the
-    // VM's machine columns inside every frame's `args`, so 45 of 47 frames of
-    // `0x0a807e4e…` claimed to take a `contractAddress` argument. `/3` keeps the
+    // VM's machine columns inside every frame's `args`, so 46 of the 47 frames of
+    // `0x0a807e4e…` claimed to take a `contractAddress` argument — every frame but
+    // the synthetic `<toplevel>`, which carried none. (45 of 47 carried the SAME
+    // one: the pre-migration file holds exactly three distinct `args` lists — the
+    // empty one, one address on 45 frames and a second address on 1. "45" is the
+    // count of identical lists, not the count of frames with an address, and this
+    // comment used to give it as both.) `/3` keeps the
     // value and moves it to `contractAddress` on the frame, and `args` is now the
     // function's own arguments or nothing — a `/2` reader looking for the address
     // in `args` finds an empty list, which is a CHANGE of meaning and not an
     // addition. Nothing in this repository read `args` (measured: zero consumers
     // across `client/`, `src/` and `tools/`), so the cost of the bump is zero
     // today and the version is what keeps it visible.
+    //
+    // THE MIGRATION OF THE 33 COMMITTED SIDECARS HAS FOUR LINE CLASSES, NOT THREE,
+    // and the fourth is the one an exhaustive-sounding summary drops. Classified
+    // over `git show e95e803 -U0 -- '*calltrace/*.json'`, added lines:
+    //
+    //     78  `"contractAddress": "0x…",`      the moved value
+    //     78  `"args": [],`                    the collapsed argument list
+    //     78  `"contractAddress": null,`       <- THE FOURTH CLASS
+    //     33  `"schema": "avm-call-frames/3",` the version bump
+    //
+    // So all 156 frames of the migrated corpus GAINED the field and exactly half
+    // of them declare it empty. Those 78 are not a move and not a collapse: they
+    // are frames that never had a `contractAddress` in `args` — the synthetic
+    // `<toplevel>` of each sidecar — and they acquire an explicit `null` so that
+    // "this frame ran in no contract context" is stated rather than inferred from
+    // an absent key. Removed lines are seven forms, not three: the six of the
+    // dismantled `args` block (`"args": [`, `{`, `"name": …`, `"value": …`, `}`,
+    // `],`) at 78 each, plus 33 `"schema": "avm-call-frames/2",`. The committed
+    // state agrees: 78 `"contractAddress": null` occurrences and 78 with a value,
+    // over 156 of the 203 frame rows in the 35 committed calltrace sidecars (the
+    // other 47 rows are the two files this migration did not touch).
     schema: 'avm-call-frames/3',
     tx: t.txHash,
     // Republished so the ingest can refuse a stream that disagrees with the

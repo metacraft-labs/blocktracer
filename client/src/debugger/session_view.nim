@@ -1047,9 +1047,18 @@ type
       ## parsing the right-hand side of a source assignment, so with no source
       ## there is nothing to parse and the honest answer is a sentence rather
       ## than a row of controls that would each answer "unknown". Every chain
-      ## capture this explorer publishes is in that state — `sourceBundles` is
-      ## empty and `execution.sourceLevel` is false on all eight — and saying
-      ## so is the correct product behaviour for them, not a degraded one.
+      ## capture this explorer publishes is in that state, and saying so is the
+      ## correct product behaviour for them, not a degraded one.
+      ##
+      ## RE-COUNTED OVER `client/dist`, BECAUSE THIS SENTENCE WAS ONE SHORT AND
+      ## OVER-GENERAL AT ONCE. It said "on all eight", and the corpus holds TEN
+      ## chain captures. `execution.sourceLevel` is false on all ten, so the
+      ## origin chain is genuinely unavailable on every one of them — but
+      ## `sourceBundles` is empty on only EIGHT. The other two declare a bundle,
+      ## because a partly-positioned recording may publish its text while still
+      ## refusing the all-or-nothing source-level claim. So two of the ten have
+      ## source text in the page and still no origin chain, which is the state
+      ## the old sentence said could not exist.
       ##
       ## Empty when the recording DID publish source, whether or not any
       ## individual value turned out to be classifiable.

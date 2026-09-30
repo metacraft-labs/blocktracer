@@ -1465,7 +1465,13 @@ proc withMachineColumns*(session: var DebugSessionView;
   ##
   ## Publishing the AVM's machine columns as though they were program locals is
   ## the defect `tools/chain/lib/calltrace_frames.mjs` was just corrected for —
-  ## 45 of 47 frames published `contractAddress` as a function ARGUMENT. The
+  ## 46 of the 47 frames of `0x0a807e4e…` published `contractAddress` as a
+  ## function ARGUMENT, which is every frame but the synthetic `<toplevel>`.
+  ## (This said "45 of 47". Measured on the pre-migration file: 45 frames share
+  ## the SAME one-entry `args` list and a 46th carries a different address, so 45
+  ## is the count of IDENTICAL LISTS and not the count of frames with an address.
+  ## A figure that is a denominator in one sentence and a population in the next
+  ## is the kind that survives review.) The
   ## difference is the label, and the label is the whole of it: these rows are
   ## headed as the VM's machine state, each one typed by what it is, and the
   ## pane's note keeps saying that no program local was recorded. A row saying

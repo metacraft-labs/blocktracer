@@ -893,8 +893,9 @@ proc projectState*(vm: StateVM; feed: LocalsFeed; ticks: uint64): StatePane =
   # for the recording that cannot rather than for the value that happened not
   # to be. The origin classifier parses the right-hand side of a source
   # assignment, so a recording that published no source has nothing for it to
-  # read; every chain capture this explorer publishes is in that state and
-  # will stay there. Stating it is the correct behaviour for those sessions,
+  # read; eight of the ten chain captures this explorer publishes are in that
+  # state and will stay there, and the other two publish text for a partly
+  # positioned recording. Stating it is the correct behaviour for those sessions,
   # and it is what the alternative — a row of controls that each answer
   # "unknown" — would have hidden.
   #

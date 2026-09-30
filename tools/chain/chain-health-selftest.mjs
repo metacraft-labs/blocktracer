@@ -731,9 +731,13 @@ console.error('\n§8 — the container opens, or it does not, and the reader is 
        /^[0-9a-f]{64}$/.test(f3.readerBuildId?.sha256 ?? ''));
   bite('mutation: …and states the version THE CONTAINER declared, out of the refusal',
        f3.declaredSchemaVersion === 3 && m3Rep.corpus.totals.containerSchemaCensus['3'] === 1);
-  // THE ARM THIS WHOLE FINDING EXISTS FOR. Over the real corpus the refusal is unanimous, so a
-  // sentence that blamed the reader would read as a broken tool once per row. The finding must
-  // name the CONTAINER'S property as the defect and the reader as the witness.
+  // THE ARM THIS WHOLE FINDING EXISTS FOR. Over the real corpus the refusal holds on 52 of the
+  // 53 containers — every one but the version-4 subject in `fixtures/chain-health/
+  // readable-container` — so a sentence that blamed the reader would read as a broken tool 52
+  // times over. ("Unanimous" is what this said, and it stopped being true the day the version-4
+  // subject was committed: the container that exists so this check has something to OPEN is
+  // precisely the one the refusal does not reach.) The finding must name the CONTAINER'S
+  // property as the defect and the reader as the witness.
   bite('mutation: …and its sentence names the CONTAINER as the defect, not the reader — it says '
      + 'the container declares a version the reader does not accept and refused BY NAME',
        /this container declares meta\.dat schema version 3/.test(f3.says)

@@ -357,6 +357,18 @@ generation time. The Noir sources are published as content-addressed **source
 bundles** at `/src/{chain}/{codeHash}/{bundleHash}.json` with a `current.json`
 pointer, and each manifest's `sourceBundles` names the bundle it recommends.
 
+**"Each manifest" is true of the demo tree and not of the published tree, and the split is
+measured rather than assumed.** Counted over `client/dist` (`just export`): **25 trace
+manifests exist and 17 of them declare a `sourceBundles` entry** — all 15 demo manifests,
+plus 2 of the 10 chain-capture manifests (one on `aztec-testnet`, one on
+`aztec-testnet-frames`; `aztec`'s two declare none). The remaining 8 declare an EMPTY
+`sourceBundles`, which is the honest answer for a recording whose contract class published
+no debug information, not a missing edge. The two directions the seam has to keep true both
+hold at that split: **0 dangling** — every one of the 17 entries resolves to a published
+`/src/{chain}/{codeHash}/{bundleHash}.json` — and **0 orphans** — all 17 bundle objects on
+disk are named by a manifest. A figure that said all 25 declare one would be reporting the
+demo subtree as the whole tree.
+
 **Why vendored rather than regenerated.** `nargo trace` is **not byte-deterministic**:
 two runs of the same program at the same commit differ in exactly 20 bytes, a UUIDv7
 recording id stamped into the container's `CTMD` (meta.dat) block. The rest of the

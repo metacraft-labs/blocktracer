@@ -3,8 +3,14 @@
 This tree exists for a single reason, and it is worth stating plainly before anything
 else, because the reason is a defect and not a feature:
 
-**Every other recording in this repository is unreadable by every current reader.** All
-52 real containers here declare `meta.dat` schema version 3. Every reader built from a
+**Every other recording in this repository is unreadable by every current reader.** The
+census, measured from the bytes rather than from the file names: this repository commits
+**56 `.ct` files**, of which **53 are containers** — the other three are the conformance
+kit's `template/complete/ct/*.ct`, 229-byte ASCII placeholders carrying no CTFS magic at
+all, so they are not containers and no schema version can be read off them. Of the 53,
+**52 declare `meta.dat` schema version 3 and exactly one declares version 4: the container
+in THIS tree.** That is the whole of the defect and the whole of the remedy in one line.
+Every reader built from a
 current checkout of `codetracer-trace-format-nim` accepts `[4, 5]` and refuses 3 **by
 name** — a version-3 writer packed a line-only step position as
 `prefixSum[path_id] + line` where a current writer packs `prefixSum[path_id] + (line - 1)`,
@@ -26,7 +32,8 @@ committed subject both of them need.
   reason the conformance template's is named `example-chain`.
 - **It is not a re-recording of anything here.** The obvious candidate,
   `fixtures/trace/noir_space_ship/zk_shields.ct`, is real and source-level and is one of
-  the 52 the reader refuses. Re-recording it needs `nargo trace`, which is not on this
+  the 52 version-3 containers the reader refuses — every container here but this one.
+  Re-recording it needs `nargo trace`, which is not on this
   host; converting it needs a reader that accepts version 3 and writes version 4, and no
   such reader exists — the only one that could read it refuses it by name.
 - **Its source text is a stand-in.** The bundle carries one file per interned path with a

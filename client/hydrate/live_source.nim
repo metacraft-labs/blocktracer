@@ -28,11 +28,16 @@
 ## source the engine needs is already in the document, and this module hands
 ## the same text to the engine that the pane is already drawing.
 ##
-## A recording that published no source (every chain capture — `sourceBundles`
-## is empty and `execution.sourceLevel` is false on all eight in the corpus)
-## has an empty island, and this module writes nothing. That is the honest
-## outcome: those recordings are rung 3, they carry neither source nor variable
-## names, and no amount of wiring makes a chain over them meaningful.
+## A recording that published no source has an empty island, and this module
+## writes nothing. Re-counted over `client/dist`: the corpus holds **ten** chain
+## captures, not eight, and `execution.sourceLevel` is false on all ten — but
+## `sourceBundles` is NOT empty on all ten. **Two of them declare a bundle** (one
+## on `aztec-testnet`, one on `aztec-testnet-frames`), because a partly-positioned
+## recording is allowed to publish its text while still refusing the
+## all-or-nothing source-level claim. So the emptiness is the rule here and not a
+## universal, and the island is empty for the eight that publish nothing. That is
+## the honest outcome for those eight: they are rung 3, they carry neither source
+## nor variable names, and no amount of wiring makes a chain over them meaningful.
 ##
 ## ## WHICH PATH, and why it is the RELATIVE one
 ##
