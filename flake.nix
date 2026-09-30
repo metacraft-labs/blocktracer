@@ -228,8 +228,6 @@
             just
             (python3.withPackages (ps: [ ps.pyyaml ]))
             wrangler
-          ] ++ lib.optionals stdenv.hostPlatform.isLinux [
-            bubblewrap
             # `blocktracer-verify-published`'s HTTP backend shells out to curl
             # (verify/source.nim's header says why: TLS through `std/httpclient`
             # needs `-d:ssl` and a dynamically-resolved libssl, which is how a
@@ -238,6 +236,8 @@
             # needs curl too — DECLARED rather than inherited from whatever the
             # runner happens to have on PATH.
             curl
+          ] ++ lib.optionals stdenv.hostPlatform.isLinux [
+            bubblewrap
           ]) ++ [ followerNodejs ];
         });
 
