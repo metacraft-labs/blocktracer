@@ -27,6 +27,14 @@
 #   scripts/go-live.sh --tree DIR                 # dry run: say what would happen
 #   scripts/go-live.sh --tree DIR --yes           # CORS + publish + verify
 #   scripts/go-live.sh --tree DIR --yes --bind    # …and bind the apex at the end
+#   scripts/go-live.sh --tree DIR --rehearse OUT  # the SAME sequence, local store
+#
+# REHEARSE exists because a dry run proves the ordering and nothing else: it
+# never executes a publish or a verification, so the apply path ships untested
+# and the first time it runs is against production. `--rehearse` runs every
+# step for real against a local directory — no credential, no network, no
+# bucket — so the code that will touch production has been executed before it
+# does. It refuses `--bind` by construction: there is no apex to move.
 #
 # Credentials, from the environment, never from argv:
 #   R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY   object read+write on this bucket
@@ -41,19 +49,23 @@ ENDPOINT="${R2_ENDPOINT:-https://${ACCOUNT_ID}.r2.cloudflarestorage.com}"
 ZONE_ID="${CF_ZONE_ID:-3e380c5c250ae708bfaf2b38ceed750a}"
 DOMAIN="${BLOCKTRACER_DOMAIN:-blocktracer.org}"
 
-TREE="" ; APPLY=0 ; BIND=0 ; MISSING=0 ; LEDGER_DIR="${LEDGER_DIR:-.chain-state}"
+TREE="" ; APPLY=0 ; BIND=0 ; MISSING=0 ; REHEARSE="" ; LEDGER_DIR="${LEDGER_DIR:-.chain-state}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tree)    TREE="${2:?--tree needs a directory}"; shift 2 ;;
     --ledgers) LEDGER_DIR="${2:?--ledgers needs a directory}"; shift 2 ;;
     --yes)     APPLY=1; shift ;;
+    --rehearse) REHEARSE="${2:?--rehearse needs an output directory}"; APPLY=1; shift 2 ;;
     --bind)    BIND=1; shift ;;
     -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 [[ -n "$TREE" ]] || { echo "go-live: --tree is required" >&2; exit 2; }
+if [[ -n "$REHEARSE" && "$BIND" -eq 1 ]]; then
+  echo "go-live: --rehearse cannot --bind; a rehearsal has no apex to move" >&2; exit 2
+fi
 
 say()  { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 ok()   { printf '   ok   %s\n' "$*"; }
@@ -71,7 +83,12 @@ say "Step 0 — is the tree publishable?"
 [[ -f "$TREE/index.html" ]]              || { no "$TREE has no index.html — this is a build dir, not a publishable tree"; exit 3; }
 [[ -f "$TREE/registry/chains.v1.json" ]] || { no "$TREE has no registry/chains.v1.json"; exit 3; }
 objects=$(find "$TREE" -type f | wc -l | tr -d ' ')
-[[ "$objects" -gt 1000 ]]                || { no "$TREE holds only $objects object(s); refusing to treat that as a full tree"; exit 3; }
+# The floor exists to stop a stub reaching PRODUCTION. A rehearsal writes to a
+# local directory, and refusing a small tree there would make the apply path
+# untestable without 14 GB of disk — which is how an apply path ships untested.
+if [[ -z "$REHEARSE" ]]; then
+  [[ "$objects" -gt 1000 ]] || { no "$TREE holds only $objects object(s); refusing to treat that as a full tree"; exit 3; }
+fi
 ok "$objects objects, index.html and registry present"
 
 chains=$(python3 -c 'import json,sys;print(" ".join(sorted(json.load(open(sys.argv[1]))["chains"])))' \
@@ -80,7 +97,9 @@ ok "chains in the registry: $chains"
 
 # ── Step 1. Credentials — presence only, never a value ──────────────────────
 say "Step 1 — credentials"
-if [[ -z "${R2_ACCESS_KEY_ID:-}" || -z "${R2_SECRET_ACCESS_KEY:-}" ]]; then
+if [[ -n "$REHEARSE" ]]; then
+  ok "rehearsal: no credential is used, and none is asked for"
+elif [[ -z "${R2_ACCESS_KEY_ID:-}" || -z "${R2_SECRET_ACCESS_KEY:-}" ]]; then
   if [[ "$APPLY" -eq 1 ]]; then
     read -r -p  "   R2 Access Key ID: " R2_ACCESS_KEY_ID
     read -r -s -p "   R2 Secret Access Key (not echoed): " R2_SECRET_ACCESS_KEY; echo
@@ -88,7 +107,7 @@ if [[ -z "${R2_ACCESS_KEY_ID:-}" || -z "${R2_SECRET_ACCESS_KEY:-}" ]]; then
     plan "prompt for R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY"
   fi
 fi
-if [[ "$APPLY" -eq 1 ]]; then
+if [[ "$APPLY" -eq 1 && -z "$REHEARSE" ]]; then
   [[ -n "${R2_ACCESS_KEY_ID:-}" && -n "${R2_SECRET_ACCESS_KEY:-}" ]] \
     || { no "empty credential. An empty key degrades into an anonymous request that 403s like a network fault"; exit 1; }
   ok "both credential fields are non-empty (values never printed)"
@@ -112,7 +131,9 @@ cat > "$cors_json" <<'JSON'
  "ExposeHeaders":["Content-Range","Content-Length","ETag"],
  "MaxAgeSeconds":86400}]}
 JSON
-if [[ "$APPLY" -eq 1 ]]; then
+if [[ -n "$REHEARSE" ]]; then
+  plan "rehearsal: CORS is a bucket property; a local store has none"
+elif [[ "$APPLY" -eq 1 ]]; then
   aws s3api put-bucket-cors --bucket "$BUCKET" --endpoint-url "$ENDPOINT" \
       --cors-configuration "file://$cors_json" \
     || { no "could not set CORS on $BUCKET"; exit 1; }
@@ -133,7 +154,12 @@ if [[ ! -x "$publisher" ]]; then
   if [[ "$APPLY" -eq 1 ]]; then no "blocktracer-publish not found; build it first"; exit 1
   else plan "MISSING: blocktracer-publish (build before --yes)"; MISSING=$((MISSING+1)); fi
 fi
-if [[ "$APPLY" -eq 1 ]]; then
+if [[ -n "$REHEARSE" ]]; then
+  mkdir -p "$REHEARSE"
+  "$publisher" --tree "$TREE" --backend local --dest "$REHEARSE" \
+    || { no "rehearsal publish failed — this is the apply path, and it is broken"; exit 1; }
+  ok "rehearsal publish completed into $REHEARSE"
+elif [[ "$APPLY" -eq 1 ]]; then
   "$publisher" --tree "$TREE" --backend s3 --bucket "$BUCKET" --endpoint "$ENDPOINT" \
     || { no "publish failed — NOT binding the apex; the live site is untouched"; exit 1; }
   ok "publish completed"
@@ -152,9 +178,25 @@ verifier=$(command -v blocktracer-verify-published || echo ./blocktracer-verify-
 verified=0
 for c in $chains; do
   ledger="$LEDGER_DIR/$c/coverage.json"
-  args=(--url "https://$DOMAIN" --tree "$TREE")
+  if [[ -n "$REHEARSE" ]]; then args=(--backend local --dest "$REHEARSE" --tree "$TREE" --allow-unrunnable CACHE)
+  else args=(--url "https://$DOMAIN" --tree "$TREE"); fi
   for e in $chains; do args+=(--expect-chain "$e"); done
-  [[ -f "$ledger" ]] && args+=(--ledger "$ledger")
+  if [[ -f "$ledger" ]]; then
+    args+=(--ledger "$ledger")
+  else
+    # No ledger for this chain, so the exhaustive whole-range check cannot run
+    # and the verifier exits non-zero for an UNRUNNABLE check — correctly, since
+    # a check that did not happen is not a pass. Declaring it allowed keeps the
+    # run honest AND finishable: the verifier still prints
+    # `UNRUNNABLE ALLOWED (by request): LEDGER`, so the reduced coverage is in
+    # the output rather than in somebody's head.
+    #
+    # Found by `--rehearse`: without this the bind is unreachable for any chain
+    # that has no ledger, and `aztec-testnet-frames` is exactly that, so the
+    # real go-live would have refused to bind and never said why.
+    args+=(--allow-unrunnable LEDGER)
+    printf '   note  %s has no ledger at %s — range is SAMPLED, not exhaustive\n' "$c" "$ledger"
+  fi
   if [[ "$APPLY" -eq 1 ]]; then
     [[ -x "$verifier" ]] || { no "blocktracer-verify-published not found; cannot verify, so not binding"; exit 1; }
     if "$verifier" "${args[@]}"; then ok "verified: $c"; verified=$((verified+1))
