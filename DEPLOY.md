@@ -170,6 +170,49 @@ curl -sI https://blocktracer.org/     # 200 once Step 4 has published index.html
 > cannot fetch trace containers cross-origin, and the symptom appears in the
 > browser at first use rather than at publish time.
 
+> **The policy itself (added 2026-09-30).** The correction above says CORS is
+> required and does not say what it is, which leaves the operator to derive it
+> from a spec at the moment they are least able to check it. It is:
+>
+> ```json
+> [
+>   {
+>     "AllowedOrigins": ["*"],
+>     "AllowedMethods": ["GET", "HEAD"],
+>     "AllowedHeaders": ["Range"],
+>     "ExposeHeaders": ["Content-Range", "Content-Length", "ETag"],
+>     "MaxAgeSeconds": 86400
+>   }
+> ]
+> ```
+>
+> Dashboard → R2 → `blocktracer` → Settings → CORS policy, or
+> `aws s3api put-bucket-cors --bucket blocktracer --endpoint-url "$R2_ENDPOINT"
+> --cors-configuration file://cors.json`.
+>
+> `AllowedHeaders: Range` and the exposed `Content-Range` are the two that carry
+> the weight — `Trace-Artifacts.md` §5.3: "without them the fetcher cannot issue
+> or verify a partial read, and lazy loading silently degrades into whole-file
+> downloads." That degradation is silent and expensive: a trace container is
+> tens of megabytes, and the page would fetch all of it to show one frame.
+>
+> **`Cross-Origin-Resource-Policy: cross-origin` is NOT part of this JSON.** CORS
+> policy sets only the `Access-Control-*` family; CORP is an ordinary response
+> header and belongs with the cache rules (`infra` #1626 / Step 2b), not here.
+> §5.3 also records that it is "not load-bearing" for this site, because the site
+> deliberately does not enable cross-origin isolation — so its absence is not a
+> reason to hold the go-live, while `Range` very much is.
+>
+> Verify after publishing, since a wrong policy shows up as a browser-side
+> failure at first debug rather than at publish:
+>
+> ```sh
+> curl -sI -H 'Origin: https://blocktracer.org' -H 'Range: bytes=0-1' \
+>   https://blocktracer.org/t/<any-trace-object> \
+>   | grep -iE 'access-control-|content-range|^HTTP'
+> # expect: HTTP/2 206, access-control-allow-origin, content-range
+> ```
+
 
 Per Deployment §6b.3 the **publisher's credential is not the release-deploy
 credential** and **must not be able to sign**: it needs write to *one* R2 bucket and
