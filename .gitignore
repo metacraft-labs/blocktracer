@@ -12,6 +12,9 @@ nimcache/
 # for anyone who ran the range or the endpoint check.
 /blocktracer-chain-ingest
 /objectstore-probe
+# `blocktracer-rehearse` (namedBin; `just rehearse` builds it at the root).
+/blocktracer-rehearse
+/blocktracer_rehearse
 # `blocktracer-verify-published` (namedBin; `just verify-published` builds it at
 # the root with `-o:`, the same way `objectstore-probe` above does).
 /blocktracer-verify-published
@@ -28,6 +31,7 @@ nimcache/
 /src/blocktracer_conformance
 /blocktracer-client-conformance
 /blocktracer-conformance
+/src/blocktracer_rehearse
 *.exe
 
 # Compiled test binaries (`nim c -r tests/foo.nim` drops a `tests/foo` next to it)
@@ -41,6 +45,7 @@ nimcache/
 /tests/tdebugpanes
 /tests/tidentifierencoding
 /tests/tchainprofile
+/tests/trehearse
 /tests/tverifypublished
 
 # Generated output trees. `demo-site-2` is the determinism check's second

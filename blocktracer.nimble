@@ -8,7 +8,8 @@ srcDir         = "src"
 installExt     = @["nim"]
 bin            = @["blocktracer_demo_gen", "blocktracer_validate", "blocktracer_publish",
                    "blocktracer_chain_ingest", "blocktracer_client_conformance",
-                   "blocktracer_conformance", "blocktracer_verify_published"]
+                   "blocktracer_conformance", "blocktracer_rehearse",
+                   "blocktracer_verify_published"]
 namedBin["blocktracer_demo_gen"] = "blocktracer-demo-gen"
 namedBin["blocktracer_validate"] = "blocktracer-validate"
 namedBin["blocktracer_publish"] = "blocktracer-publish"
@@ -27,6 +28,14 @@ namedBin["blocktracer_client_conformance"] = "blocktracer-client-conformance"
 # runs both of the checks above over what that produced. It restates no rule: each of
 # its three steps IS one of the existing entry points.
 namedBin["blocktracer_conformance"] = "blocktracer-conformance"
+
+# The publish-side drill. `blocktracer-validate` asks whether a tree is
+# well-formed and `blocktracer-client-conformance` whether a consumer can read
+# it; neither asks whether PUBLISHING it works, which is a property of the tree
+# and the store together and was until now measured only by publishing the whole
+# thing and watching. `blocktracer-rehearse` asks it against a coverage contract,
+# so a partial run can be sufficient and a full one can still be insufficient.
+namedBin["blocktracer_rehearse"] = "blocktracer-rehearse"
 
 # The PRODUCTION side of the same seam. `blocktracer-validate` answers "is this
 # tree well-formed" about a directory, by walking every object in it. That
@@ -51,6 +60,11 @@ task test, "Run the conformance + publisher + Client SDK test suites":
   # separate suite (tests/tembedhandoff.nim, `just sdk-test-embed`), because the
   # chain half compiling without one IS the layering.
   exec "nim c -r --hints:off tests/tclientsdk.nim"
+  # Does the publish rehearsal's coverage gate bite? The suite asserts both
+  # ends — that a healthy corpus reaches every cell of the contract (a gate
+  # that can never be green gets turned off) and that each deliberately broken
+  # corpus is refused by name.
+  exec "nim c -r --hints:off tests/trehearse.nim"
   # The production verifier, and the nine deliberately-broken trees it must
   # refuse. Offline: its HTTP cases run against an in-process fixture on
   # 127.0.0.1, which is the only way to drive the cache-header check and the

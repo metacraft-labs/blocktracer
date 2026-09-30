@@ -807,6 +807,28 @@ jobs:
             nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2 &&
             diff -r demo-site demo-site-2'
 
+      - name: Is a PARTIAL publish rehearsal sufficient? (coverage contract, not volume)
+        # `nimble test` above runs `tests/trehearse.nim`, which proves the gate
+        # bites against synthetic corpora. THIS step runs it end to end over the
+        # demo tree with the known-findings register, so the contract is measured
+        # against a real producer's output on every commit and a NEW hole in the
+        # publish path is a red job rather than a paragraph.
+        #
+        # WHY A CONTRACT AND NOT A SIZE. Measured on 2026-09-28: a 290-object
+        # rehearsal passed, and a 460,589-object one then found a data-loss
+        # defect. The difference was not the 460,299 objects — the small one had
+        # ONE CHAIN, and one chain cannot overwrite another's registry row. The
+        # defect needed cardinality 2. So `--mode partial` and `--mode full` are
+        # checked against the same contract and both can fail it, and an
+        # unexercised object class is a refusal rather than a percentage.
+        #
+        # THE REGISTER FAILS IN BOTH DIRECTIONS. A finding it lists is reported
+        # and does not fail; a finding it does NOT list fails; and a listed
+        # finding that stops occurring ALSO fails, demanding the entry be
+        # deleted. So this step goes red on the commit that fixes the registry
+        # clobber, which is the point: an entry cannot outlive its defect.
+        run: nix develop .#ci --command just rehearse
+
       - name: Does the conformance kit reach a verdict with no toolchain, no checkout and no network?
         # 10 checks. A recorder for a chain nobody here has run answers "does my
         # tree validate?" from a RELEASED ARTIFACT — three binaries and a fixture
