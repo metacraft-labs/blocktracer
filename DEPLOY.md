@@ -81,6 +81,37 @@ plan drift is the gate (Deployment §6b.2). Add to `import-ids.json`:
 
 ## Step 2 — Bind `blocktracer.org` to the bucket (R2 custom domain)
 
+> **CORRECTION (2026-09-30) — this step runs LAST, after Step 4 has published.**
+> Its number is its history, not its position. `infra`'s
+> `terraform/cloudflare/metacraft-prod/README.md` (lines 53-58 on `live`) already
+> states the rule for this exact binding:
+>
+> > "Binding it to the apex (DEPLOY.md Step 2, `cloudflare_r2_custom_domain` —
+> > **not** Terraform-manageable in provider v5, so an operator API call) creates
+> > the proxied apex record pointing at R2 and **Pages stops serving
+> > `blocktracer.org` the moment it lands**. The order is: create this bucket →
+> > publish the tree into it (Step 4) → only then bind the domain. **Binding an
+> > empty bucket takes the site down.**"
+>
+> The apex is indeed already serving: on 2026-09-30 it answered with a real
+> registry and real generations — `aztec` 170 blocks / 2 transactions,
+> `aztec-testnet` 9 blocks / 3 transactions.
+>
+> So this binding is not "turn the site on". It is **switching a live origin**,
+> and the switch is atomic while the upload is not. Bind before Step 4 and the
+> apex serves an empty bucket for the length of the publish — at the rehearsed
+> 536 objects/s, a 882,642-object tree is about **27 minutes of hard downtime**,
+> for no gain, replacing a working site with nothing.
+>
+> The order is therefore: **Step 1** (bucket) → **Step 2b** (cache rules, per the
+> 2026-09-28 correction below — they must be in force before the origin changes)
+> → **Step 3** (credential) → **Step 4** (publish, verified) → **this step**.
+>
+> The verification line further down still reads `200 once Step 4 has published
+> index.html`. Under this order it is a `200` immediately, and if it is not, the
+> bind is what to undo.
+
+
 > **CORRECTION (2026-09-28) — run Step 2b (cache rules) BEFORE this step.**
 > The `no-store` that trace 404s carry today is **Cloudflare Pages' default, not
 > configuration**, and it disappears the moment R2 becomes the origin. Binding R2
@@ -138,6 +169,49 @@ curl -sI https://blocktracer.org/     # 200 once Step 4 has published index.html
 > (`Trace-Artifacts.md` §5.3, which also specifies `Cross-Origin-Resource-Policy`). Without it the debugger
 > cannot fetch trace containers cross-origin, and the symptom appears in the
 > browser at first use rather than at publish time.
+
+> **The policy itself (added 2026-09-30).** The correction above says CORS is
+> required and does not say what it is, which leaves the operator to derive it
+> from a spec at the moment they are least able to check it. It is:
+>
+> ```json
+> [
+>   {
+>     "AllowedOrigins": ["*"],
+>     "AllowedMethods": ["GET", "HEAD"],
+>     "AllowedHeaders": ["Range"],
+>     "ExposeHeaders": ["Content-Range", "Content-Length", "ETag"],
+>     "MaxAgeSeconds": 86400
+>   }
+> ]
+> ```
+>
+> Dashboard → R2 → `blocktracer` → Settings → CORS policy, or
+> `aws s3api put-bucket-cors --bucket blocktracer --endpoint-url "$R2_ENDPOINT"
+> --cors-configuration file://cors.json`.
+>
+> `AllowedHeaders: Range` and the exposed `Content-Range` are the two that carry
+> the weight — `Trace-Artifacts.md` §5.3: "without them the fetcher cannot issue
+> or verify a partial read, and lazy loading silently degrades into whole-file
+> downloads." That degradation is silent and expensive: a trace container is
+> tens of megabytes, and the page would fetch all of it to show one frame.
+>
+> **`Cross-Origin-Resource-Policy: cross-origin` is NOT part of this JSON.** CORS
+> policy sets only the `Access-Control-*` family; CORP is an ordinary response
+> header and belongs with the cache rules (`infra` #1626 / Step 2b), not here.
+> §5.3 also records that it is "not load-bearing" for this site, because the site
+> deliberately does not enable cross-origin isolation — so its absence is not a
+> reason to hold the go-live, while `Range` very much is.
+>
+> Verify after publishing, since a wrong policy shows up as a browser-side
+> failure at first debug rather than at publish:
+>
+> ```sh
+> curl -sI -H 'Origin: https://blocktracer.org' -H 'Range: bytes=0-1' \
+>   https://blocktracer.org/t/<any-trace-object> \
+>   | grep -iE 'access-control-|content-range|^HTTP'
+> # expect: HTTP/2 206, access-control-allow-origin, content-range
+> ```
 
 
 Per Deployment §6b.3 the **publisher's credential is not the release-deploy
@@ -312,6 +386,62 @@ curl -sSI https://blocktracer.org/aztec/tx/<txhash>/      # a pre-rendered entry
 re-run of Step 4 publishes any new generation as a delta with a single atomic pointer
 flip. **This is the campaign's "fake-data site LIVE" bound** — reached the moment
 Step 4's first publish completes against the live bucket bound to the zone.
+
+### The curls above prove the site answers. They do not prove the data arrived.
+
+**Added 2026-09-30.** Four requests against a CDN cannot distinguish a complete
+tree from a truncated one — every path that is present returns `200` in both.
+The check that can tell the difference is `blocktracer-verify-published`, which
+is read-only by construction (it holds a `verify/source.Source`, which has no
+write operation) and therefore safe to run against production repeatedly.
+
+Run it **once per chain**, because `--ledger` takes one ledger and each ledger
+names one chain. Two runs is the whole of it:
+
+```bash
+# inside `nix develop`, from a checkout of this repo
+nimble build -d:release blocktracer-verify-published
+
+for c in aztec aztec-testnet; do
+  ./blocktracer-verify-published \
+    --url https://blocktracer.org \
+    --tree "$TREE" \
+    --expect-chain aztec --expect-chain aztec-testnet \
+    --expect-chain aztec-testnet-frames \
+    --ledger ".chain-state/$c/coverage.json"
+done
+```
+
+`$TREE` is the tree that was published — it supplies the expectation from
+*outside* the instance, which is the point: it is what makes `REGISTRY` and
+`CENSUS` run at all, and it compares sampled objects byte for byte.
+
+Exit codes: `0` clean, `1` a finding, `2` usage, `3` the instrument voided the
+run. **Do not read `UNRUNNABLE` as a pass** — it means the check did not
+happen, and each one prints why.
+
+Measured against the staged go-live tree on 2026-09-30, before any publish, so
+that the post-publish run has a known-good baseline rather than being its own
+first test:
+
+```
+PASS  CENSUS — store holds 882642 object(s); per class, local == store
+         ocEntryPage 385731 · ocContent 374374 · ocGenMap 86284
+         ocTraceContainer 18093 · ocTraceManifest 18093 · +6 classes
+PASS  LEDGER — chain 'aztec':         all 102690 heights — exhaustive
+PASS  LEDGER — chain 'aztec-testnet': all  99091 heights — exhaustive
+PASS  RANGE  — 865 heights matched by identity, all byte-identical
+```
+
+Two things only the **production** run can establish, because a local directory
+serves no response headers and `CACHE` reports `UNRUNNABLE` against one:
+
+- the cache contract of §4.1 / `Publishing-And-Caching.md` §4 actually in force;
+- range requests (`206`) surviving the chosen topology.
+
+Note for the `curl` block above: after the first full-history publish the
+generation ids are `raztec00001` and `rtestnet0001`, not `"1"` — `"1"` is what
+the pre-backfill site serves today.
 
 The credentialed apply list, in one line each:
 
