@@ -836,10 +836,19 @@ html[data-register="debugger"],
    It is emitted on BOTH sides of the rung boundary and never replaces the rung
    header, so a pane can carry both and they read as two facts rather than as one
    contradicting the other. */
-.srcattr{flex:0 0 auto;
+/* `.srccause` — WHICH CONTRACT the steps with no line ran in and why none is
+   published — shares these rules rather than getting its own, and the sharing is
+   the design decision. It sits directly under `.srcrung`, which states the RATIO
+   it explains; the two are one thought, and giving the explanation a second
+   surface colour or a second border weight would present them as two unrelated
+   advisories and invite a reader to skip one. No new declaration and no new
+   token: the note that says "how much" and the note that says "why" are the same
+   kind of statement at the same volume. See `session_view.EditorPane.coverageNote`. */
+.srcattr,.srccause{flex:0 0 auto;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
-.srcattr .panenote{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+.srcattr .panenote,.srccause .panenote{
+  padding:var(--bt-space-2xs) var(--bt-density-cell-x);
   color:var(--bt-text-muted);font-size:var(--bt-type-label-size);
   line-height:var(--bt-type-body-sm-line)}
 .srcline.cattr .n{text-decoration:underline dotted;

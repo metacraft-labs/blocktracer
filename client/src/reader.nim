@@ -299,6 +299,88 @@ type
       ## `demo_session.withSourcePositions`. Both 0 on a recording older than
       ## the fields, which compares equal to nothing and so admits nothing.
 
+  ArtifactAsking* = enum
+    ## WHETHER ANYBODY LOOKED FOR THIS CONTRACT'S ARTIFACT, AND WHAT THEY FOUND.
+    ##
+    ## "There is no source" is three different sentences and a page that cannot
+    ## tell them apart will pick the flattering one. The published tree CAN tell
+    ## them apart, which is the whole reason this enum is a fold and not a guess:
+    ## `native.replay.artifacts` carries one entry per executed contract,
+    ## resolved or not, and an unresolved entry carries `candidatesConsidered`
+    ## and `rejected` beside its `reason`.
+    aaUnasked = "unasked"
+      ## No entry for this address at all. Nobody looked — which is the capture's
+      ## own limitation and NOT a statement about what the world publishes.
+      ## Every capture taken before off-chain artifact resolution existed is
+      ## here, and saying "not published" of one would be an overclaim.
+    aaNoCandidate = "no-candidate"
+      ## Asked, and there was nothing to test: zero candidate artifacts were
+      ## found for the class. "We looked and nothing is published under this
+      ## class id", which is a real negative and is not the same as `aaUnasked`.
+    aaRejected = "rejected"
+      ## Asked, candidates were found, and every one failed the proof — the
+      ## artifact hash, the dispatch bytes or the class id did not recompute.
+      ## The strongest negative the pipeline can produce.
+    aaResolved = "resolved"
+      ## An artifact was proved for this contract. Note that this says nothing
+      ## about whether the RECORDING positions its steps — see
+      ## `SourceCoverageView.positioned` for why those must not be conflated.
+
+  ContractRung* = object
+    ## One executed contract, how many steps it ran, and how many it positioned.
+    ##
+    ## Folded from `native.replay.contractRungs`, which `ingest.nim` republishes
+    ## as "the per-contract detail `sourceLevel` was computed from — so a reader
+    ## can see WHICH contract held a transaction at rung 3, rather than only that
+    ## one did". Until now nothing outside the Raw JSON block read it.
+    address*: string
+    rung*: int                 ## 1 source text, 2 debug symbols, 3 bytecode only
+    steps*, positioned*: int
+    asking*: ArtifactAsking
+    candidatesConsidered*, candidatesRejected*: int
+
+  ContractCoverageView* = object
+    ## WHICH CONTRACT THE UNPOSITIONED STEPS BELONG TO, AND WHY IT HAS NO SOURCE.
+    ##
+    ## ## The defect this exists to close
+    ##
+    ## It is the same defect, and the same shape, as the one `ReplayScopeView`
+    ## closed one type down. `aztec-testnet-frames/0x0a807e4e…` resolves source
+    ## for 86 of its 459 steps, and the Code pane said exactly that: the RATIO,
+    ## and not the CAUSE. The cause is true, specific and creditable — a SECOND
+    ## contract in the same transaction ran 351 of the 373 unpositioned steps and
+    ## positions none of them, because what the node serves for its class is
+    ## bytecode plus a commitment to the compiled artifact rather than the
+    ## artifact, and off-chain resolution ran for it and matched nothing — and
+    ## the only place a visitor could read any of it was `contractRungs[1]`
+    ## inside the collapsed "Raw (chain-native)" JSON. That is 81% of the
+    ## execution explained nowhere a reader will look.
+    ##
+    ## ## Why the fold is here
+    ##
+    ## Beside `sourceCoverage` and `replayScope`, over the same `native`, for the
+    ## same §7.1 reason: the Code pane's caption, the metadata row and anything
+    ## that ever wants it read ONE derivation and cannot come to disagree.
+    ##
+    ## ## What it refuses to say
+    ##
+    ## `has` is false on a transaction with no per-contract record, and the
+    ## caption's producer draws nothing at all then. A page that inferred "one
+    ## contract, so the shortfall is its own" from an ABSENT array would be
+    ## manufacturing the cause it exists to report.
+    has*: bool
+    contracts*: seq[ContractRung]      ## in published order
+    unpositioned*: seq[int]            ## indices with steps > 0, positioned == 0
+    partial*: seq[int]                 ## indices with 0 < positioned < steps
+    shortfall*: int
+      ## The steps no contract positioned, summed over the per-contract records.
+      ##
+      ## Derived HERE rather than taken from `stepsUnpositioned` so the two can
+      ## be compared instead of one standing in for the other: they are written
+      ## by the same capture but by different code paths, and a caption that
+      ## accounts for the shortfall contract by contract may only claim to
+      ## account for it when the arithmetic closes.
+
   EffectMismatch* = object
     ## One published effect the replay did not reproduce, with both readings.
     field*, published*, replayed*: string
@@ -424,6 +506,16 @@ type
       ## from one source, and the two cannot be allowed to diverge" — applies to
       ## this fact as much as to the rest, and the transaction page, the
       ## debugger's metadata pane and every list row now read one derivation.
+    contracts*: ContractCoverageView
+      ## WHICH contract the unpositioned steps belong to and why it has no
+      ## source — the fold `ContractCoverageView` documents, over the same
+      ## `native` as the two fields above and for the same §7.1 reason.
+      ##
+      ## Not on `TxRow`, deliberately, and the asymmetry with `sources` is the
+      ## point: `sources` is a BADGE a list column shows, so it has to ride on
+      ## every row. This is a paragraph naming a contract, which no list column
+      ## has room for and no list reader has asked for. It is read by the one
+      ## surface that owes the explanation, which is the Code pane.
 
 func newDataRoot*(dir: string): DataRoot =
   DataRoot(dir: dir, store: localTree(dir))
@@ -751,6 +843,73 @@ proc sourceCoverage*(native: JsonNode): SourceCoverageView =
       if everyResolvedIsCorroborated: scCorroborated else: scSingleDistributor
     result.postHoc = everyResolvedIsPostHoc
 
+proc contractCoverage*(native: JsonNode): ContractCoverageView =
+  ## Join `native.replay.contractRungs` with `native.replay.artifacts`, per
+  ## contract, into WHICH contract the unpositioned steps belong to and WHY it
+  ## has none — the fold `ContractCoverageView` documents.
+  ##
+  ## ## The join is on the address and nothing else
+  ##
+  ## Both arrays are published per executed contract and both carry `address`,
+  ## but they are written by different halves of the runtime — `contractRungs`
+  ## by the recorder measuring its own stream, `artifacts` by the resolver — and
+  ## neither is required to be ordered like the other or to be the same length.
+  ## Joining by INDEX would silently attribute one contract's resolution attempt
+  ## to another, which on a two-contract transaction is a 50% chance of naming
+  ## the wrong contract as the unpublished one. A rung with no matching artifact
+  ## entry is `aaUnasked`, which is the honest answer and is a DIFFERENT answer
+  ## from "not published".
+  ##
+  ## ## Every distinction here is one the tree makes
+  ##
+  ## Nothing is inferred from the chain's name, the contract's address or the
+  ## rung number. `aaNoCandidate` and `aaRejected` are separated by
+  ## `candidatesConsidered`, which the resolver publishes because the difference
+  ## matters: zero candidates means nothing is published for the class, and a
+  ## rejected candidate means something is published and could not be proved to
+  ## be this class. Both are "looked for"; only one is "and found something".
+  if native.isNil or native.kind != JObject: return
+  let replay = native{"replay"}
+  if replay.isNil or replay.kind != JObject: return
+  let rungs = replay{"contractRungs"}
+  if rungs.isNil or rungs.kind != JArray or rungs.len == 0: return
+  let artifacts = replay{"artifacts"}
+  result.has = true
+  for r in rungs:
+    if r.isNil or r.kind != JObject: continue
+    var c = ContractRung(
+      address: r{"address"}.getStr,
+      rung: r{"rung"}.getInt(0),
+      steps: r{"steps"}.getInt(0),
+      positioned: r{"positioned"}.getInt(0),
+      asking: aaUnasked)
+    if artifacts != nil and artifacts.kind == JArray:
+      for a in artifacts:
+        if a.isNil or a.kind != JObject: continue
+        if a{"address"}.getStr != c.address or c.address.len == 0: continue
+        if a{"resolved"}.getBool:
+          c.asking = aaResolved
+        else:
+          c.candidatesConsidered = a{"candidatesConsidered"}.getInt(0)
+          let rej = a{"rejected"}
+          c.candidatesRejected =
+            if rej != nil and rej.kind == JArray: rej.len else: 0
+          # ZERO CANDIDATES IS THE SEPARATE ANSWER, and it is the one this
+          # corpus actually produces. `rejected: []` beside
+          # `candidatesConsidered: 0` says the resolver ran and found nothing to
+          # test; the same empty `rejected` beside a non-zero count would say
+          # candidates were tested and the tree does not record which failed, so
+          # the COUNT is what the branch turns on and the list is only detail.
+          c.asking =
+            if c.candidatesConsidered > 0: aaRejected else: aaNoCandidate
+        break
+    let i = result.contracts.len
+    result.contracts.add c
+    if c.steps > c.positioned:
+      result.shortfall += c.steps - c.positioned
+      if c.positioned == 0: result.unpositioned.add i
+      else: result.partial.add i
+
 proc replayScope*(native: JsonNode): ReplayScopeView =
   ## Fold `native.replay` into what the replay was and was not checked against.
   ##
@@ -819,6 +978,10 @@ proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   # page, the debugger's banner and any list row cannot come to disagree about
   # what the replay was checked against.
   result.replay = replayScope(v.facts.native)
+  # …and the third fold over the same object, for the third time for the same
+  # reason: the Code pane's cause caption may not re-derive from the JSON what
+  # the ratio beside it was derived from here.
+  result.contracts = contractCoverage(v.facts.native)
   result.canonical = v.canonical
   result.finality = v.finality
   for e in v.execTraces:

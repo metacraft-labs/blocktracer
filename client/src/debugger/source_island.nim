@@ -154,6 +154,17 @@ proc encodeSourceIsland*(p: EditorPane): string =
     # sidecars, and a pane that keeps the marks and loses the explanation is
     # worse than one with neither.
     "attributionNote": p.attributionNote,
+    # AND THE CAUSE OF THE STEPS WITH NO LINE, for the same reason and with the
+    # same consequence if it were left out.
+    #
+    # It is folded from `native.replay.contractRungs` joined with
+    # `native.replay.artifacts` — the transaction's MANIFEST, which is a separate
+    # object the page does not carry — so a hydrated pane cannot recompute it any
+    # more than it can recompute `positionedSteps`. Leaving it here would put the
+    # ratio's explanation on the SERVED page and delete it on the visitor's first
+    # step, which is precisely the defect this module has recorded twice and which
+    # `attributionNote` was added one line up to avoid a third time.
+    "coverageNote": p.coverageNote,
     "activeIndex": p.activeIndex,
     "documents": docs,
   }
@@ -271,6 +282,11 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
   result.positionedSteps = payload{"positionedSteps"}.getInt(0)
   result.positionedOf = payload{"positionedOf"}.getInt(0)
   result.attributionNote = payload{"attributionNote"}.getStr("")
+  # `""` for an island that predates the field, which renders no caption at all —
+  # the same state a pane whose transaction has one contract carries, and the
+  # right direction for a value the page did not carry: no explanation is worse
+  # than an explanation and better than an invented one.
+  result.coverageNote = payload{"coverageNote"}.getStr("")
   result.activeIndex = 0
   result.currentLine = currentLine
   let docs = payload{"documents"}

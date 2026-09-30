@@ -1281,7 +1281,31 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
         tdiv(class = "srcattr", `aria-live` = "polite"):
           p(class = "panenote"): text p.attributionNote)
 
-  if not listing: return renderFlowRail(p.flow) & rung & attribution & wrap
+  # THE CAUSE OF THE STEPS WITH NO LINE, DIRECTLY UNDER THE RATIO THAT STATES
+  # THEM, and on both sides of the rung boundary for the reason `rung` itself is:
+  # a reader standing in the source is the one who has not yet stepped off the
+  # edge, and is therefore the one the sentence is most useful to.
+  #
+  # IMMEDIATELY AFTER `rung` AND BEFORE `attribution`, and the order is the
+  # argument. `rung` says "86 of 459, and the other 373 continue in the listing";
+  # this says WHICH CONTRACT those 373 are and why no line exists for them. They
+  # are one thought split over two elements, and putting the attribution caveat
+  # — which is about lines that ARE marked — between them would separate the
+  # question from its answer with an unrelated paragraph.
+  #
+  # Its own element rather than more text inside `rung`'s `<p>`: the two are
+  # independently reachable (a pane can have a boundary and no per-contract
+  # record, and `unpositionedCauseNote` returns "" then), and a `.panenote`
+  # carrying two paragraphs' worth of prose is the shape a reader skips.
+  let cause =
+    if p.coverageNote.len == 0: ""
+    else: (block:
+      ui:
+        tdiv(class = "srccause", `aria-live` = "polite"):
+          p(class = "panenote"): text p.coverageNote)
+
+  if not listing:
+    return renderFlowRail(p.flow) & rung & cause & attribution & wrap
 
   # ── the instruction listing's own chrome ──────────────────────────────────
   #
@@ -1318,7 +1342,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
              title = "BlockTracer cannot accept supplied sources yet. " &
                      "The instructions below are what this recording carries."):
         text "Supply sources"
-  renderPositionHead(pos) & rung & attribution & why & wrap
+  renderPositionHead(pos) & rung & cause & attribution & why & wrap
 
 const MaxIndentDepth* = 8
   ## The depth the indentation ladder in `debugger_css.nim` has rules for.

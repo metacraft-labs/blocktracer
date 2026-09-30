@@ -234,6 +234,34 @@ proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
       "which. Where a marked line disagrees with the Call Trace beside it, the " &
       "call tree is the stronger evidence: it names the frames the recording " &
       "actually opened."
+  # ── …AND WHY THE STEPS IT MARKS NOWHERE HAVE NO LINE ──────────────────────
+  #
+  # THE SAME DEFECT AS THE ROOTS BANNER, AND IT WAS STILL STANDING FOR 81% OF
+  # THIS RECORDING. The header above this says "This recording resolves source
+  # for 86 of its 459 steps", which is the RATIO. The CAUSE was published too,
+  # and it is specific and creditable: `native.replay.contractRungs[1]` records a
+  # SECOND contract in the same transaction that ran 351 of the 373 unplaced
+  # steps and positions none of them, at rung 3, because what a node serves for
+  # its class is bytecode plus a commitment to the compiled artifact and not the
+  # artifact — and off-chain resolution RAN for it and matched nothing. Every
+  # word of that was legible only inside the collapsed "Raw (chain-native)"
+  # JSON, which is exactly where the roots disagreement was before the banner.
+  #
+  # PROPORTIONATE, AND DELIBERATELY NOT A BANNER. The roots banner is about the
+  # whole recording's standing as evidence, so it sits above every pane and
+  # cannot be dismissed. This is about one pane's rows, so it is a caption in
+  # that pane, in the `.srcrung`/`.srcattr` idiom already beside it. A second
+  # `role="status"` competing with the first would cost the first its weight.
+  #
+  # AFTER `markCompilerAttributed` for the same reason that runs where it does:
+  # the pane's coverage counts are what the note is about and the ladder above
+  # settles them, so nothing may still replace the pane when this reads them.
+  # `viewutil.unpositionedCauseNote` owns every refusal — no per-contract record,
+  # no rung boundary, or no contract that positioned nothing — so a transaction
+  # with one contract, and one that positions everything, get "" here rather than
+  # an empty paragraph, and the rule lives with the prose it gates.
+  result.editor.coverageNote = unpositionedCauseNote(
+    v.contracts, result.editor.positionedSteps, result.editor.positionedOf)
   # THE CALL TRACE, AND IT IS NOT PART OF THAT CONTEST. The three calls above
   # compete for the CODE pane — a bundle beats positions beats a listing — and
   # this fills a different pane from a different object, so it runs outside the

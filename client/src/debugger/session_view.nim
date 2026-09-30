@@ -533,6 +533,34 @@ type
       ## Empty is the ordinary state: it is set exactly when
       ## `demo_session.markCompilerAttributed` marked at least one line, and the
       ## count it quotes is that proc's return value rather than a second walk.
+    coverageNote*: string
+      ## WHY the steps this pane cannot place have no source line — which
+      ## contract they ran in, and whether the artifact was looked for.
+      ##
+      ## A SECOND NOTE BESIDE `attributionNote` RATHER THAN A SECOND MECHANISM,
+      ## and rather than more text inside the first. The two are about opposite
+      ## halves of the same pane: `attributionNote` is about lines that ARE
+      ## marked and may be in the wrong place, and this is about steps that are
+      ## marked NOWHERE. Merging them would produce one paragraph a reader has
+      ## to disentangle, and either sentence is drawn without the other on real
+      ## recordings — `0x20ed5b91…` carries both, the eight rung-3 recordings
+      ## carry neither, and a recording with a second contract and no `comptime`
+      ## template would carry only this one.
+      ##
+      ## Everything in it is DERIVED: the counts, the contract addresses, the
+      ## rung and the resolution verdict all come from
+      ## `reader.ContractCoverageView`, folded from `native.replay.contractRungs`
+      ## joined with `native.replay.artifacts`. `ssr.debugSessionFor` is the only
+      ## producer, and it declines to write anything at all unless the pane has a
+      ## rung boundary AND some contract positioned none of its steps — so a
+      ## single-contract transaction, and one that positions everything, grow no
+      ## note rather than an empty or a manufactured one.
+      ##
+      ## It travels in the source island for `attributionNote`'s reason and with
+      ## the same consequence if it did not: it is folded from the manifest,
+      ## which the page does not carry, so a hydrated pane cannot recompute it
+      ## and the cause would appear on the served page and vanish on the
+      ## visitor's first step.
     documents*: seq[SourceDocument]
     activeIndex*: int         ## which document the pane shows
     currentLine*: int         ## 0 when the session is not positioned
