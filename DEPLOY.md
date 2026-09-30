@@ -81,6 +81,29 @@ plan drift is the gate (Deployment §6b.2). Add to `import-ids.json`:
 
 ## Step 2 — Bind `blocktracer.org` to the bucket (R2 custom domain)
 
+> **CORRECTION (2026-09-30) — this step runs LAST, after Step 4 has published.**
+> Its number is its history, not its position. The apex is **already serving**:
+> `terraform/cloudflare/metacraft-prod/README.md` records that "`blocktracer.org`
+> is already served by its Pages project (apex `CNAME` + custom domain added
+> out-of-band)", and on 2026-09-30 it answered with a real registry and a real
+> generation — `aztec` 170 blocks / 2 transactions, `aztec-testnet` 9 blocks / 3
+> transactions.
+>
+> So this binding is not "turn the site on". It is **switching a live origin**,
+> and the switch is atomic while the upload is not. Bind before Step 4 and the
+> apex serves an empty bucket for the length of the publish — at the rehearsed
+> 536 objects/s, a 882,642-object tree is about **27 minutes of hard downtime**,
+> for no gain, replacing a working site with nothing.
+>
+> The order is therefore: **Step 1** (bucket) → **Step 2b** (cache rules, per the
+> 2026-09-28 correction below — they must be in force before the origin changes)
+> → **Step 3** (credential) → **Step 4** (publish, verified) → **this step**.
+>
+> The verification line further down still reads `200 once Step 4 has published
+> index.html`. Under this order it is a `200` immediately, and if it is not, the
+> bind is what to undo.
+
+
 > **CORRECTION (2026-09-28) — run Step 2b (cache rules) BEFORE this step.**
 > The `no-store` that trace 404s carry today is **Cloudflare Pages' default, not
 > configuration**, and it disappears the moment R2 becomes the origin. Binding R2
