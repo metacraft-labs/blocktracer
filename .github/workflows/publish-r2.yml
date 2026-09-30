@@ -50,6 +50,24 @@ on:
           production. Leave true unless you mean it.
         type: boolean
         default: true
+      bucket:
+        description: >-
+          The R2 bucket to publish into. REQUIRED and deliberately without a
+          default. This workflow publishes what CI can build — `nix build
+          .#default`, the client over the DEMO data tree — and defaulting that
+          at the production bucket is how a demo ends up overwriting
+          `index.html`, `_a/` and `replay-engine/` next to the real history.
+          Name a staging bucket unless you mean production.
+        type: string
+        required: true
+      allow-foreign-chains:
+        description: >-
+          Publish even though the bucket already serves chains this tree does
+          not contain. Off by default: that combination means the tree is a
+          subset of what is live, and the site objects it overwrites are shared
+          by every chain, not guarded per chain.
+        type: boolean
+        default: false
       runner:
         description: >-
           JSON array of capability labels, decoded with fromJSON at `runs-on`.
@@ -122,17 +140,47 @@ jobs:
             exit 1
           fi
 
+          BUCKET='${{ inputs.bucket }}'
+          ENDPOINT='${{ vars.R2_ENDPOINT }}'
+
+          # THE GUARD THAT MAKES THIS SAFE TO POINT AT PRODUCTION.
+          #
+          # `assertRegistryKeepsKnownChains` stops the registry LOSING a chain
+          # row. It says nothing about the objects published beside the
+          # registry, and `index.html`, `404.html`, `_a/**` and
+          # `replay-engine/**` are shared by every chain rather than owned by
+          # one. So "the registry survived" and "production is unchanged" are
+          # different claims, and only the first has a guard.
+          #
+          # If the bucket already serves chains this tree does not contain,
+          # this tree is a SUBSET of what is live, and publishing it overwrites
+          # those shared objects with a build that was never rendered against
+          # the live history. Refuse, and say which chains.
+          live=$(aws s3 cp "s3://$BUCKET/registry/chains.v1.json" - \
+                   --endpoint-url "$ENDPOINT" 2>/dev/null || true)
+          if [ -n "$live" ]; then
+            # `python3 -c`, not a heredoc: a heredoc terminator has to sit at
+            # column zero, and everything here is indented inside a YAML block
+            # scalar, so the quoted form would never terminate.
+            missing=$(python3 -c 'import json,sys; live=set(json.loads(sys.argv[1]).get("chains",{})); here=set(json.load(open("site/registry/chains.v1.json"))["chains"]); print(",".join(sorted(live-here)))' "$live")
+            if [ -n "$missing" ] && [ "${{ inputs.allow-foreign-chains }}" != "true" ]; then
+              echo "::error::s3://$BUCKET already serves chain(s) this tree does" \
+                   "not contain: $missing. This tree is a subset of what is" \
+                   "live, and the site objects it would overwrite (index.html," \
+                   "_a/**, replay-engine/**) are shared by every chain and are" \
+                   "NOT protected by the per-chain registry guard. Publish a" \
+                   "tree that contains them, or re-run with" \
+                   "allow-foreign-chains if you mean it."
+              exit 1
+            fi
+          fi
+
           ./blocktracer-publish \
             --tree site \
             --backend s3 \
-            --bucket "${{ vars.R2_BUCKET || 'blocktracer' }}" \
-            --endpoint "${{ vars.R2_ENDPOINT }}"
+            --bucket "$BUCKET" \
+            --endpoint "$ENDPOINT"
 
-      # A green publish is a claim about a process; the objects being served is
-      # a claim about the bucket. This project has been bitten by that
-      # distinction repeatedly — a registry that lost a chain, a tree
-      # advertising a 35-block window over 201,780 blocks — so the publish is
-      # not done until something reads the bucket back.
       # A green publish is a claim about a process; the objects being served
       # is a claim about the bucket. This project has been bitten by that
       # distinction repeatedly — a registry that silently lost a chain, a tree
