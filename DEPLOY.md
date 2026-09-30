@@ -370,6 +370,33 @@ browser-visible namespace.
 
 ---
 
+## Running the steps: `scripts/go-live.sh`
+
+**Added 2026-09-30.** The steps above are individually easy and collectively
+ordered, and this runbook numbers the apex bind **Step 2** and the publish
+**Step 4** — so read top to bottom it points a live apex at an empty bucket.
+The dated correction at Step 2 says so; `scripts/go-live.sh` makes it
+unnecessary, by running them in the one safe order and making the others
+unreachable rather than discouraged: **step 5 cannot execute unless step 4
+verified every chain in the registry.**
+
+```sh
+# Rehearse the whole sequence against a local store. No credential, no
+# network, no bucket — and it refuses --bind, having no apex to move.
+scripts/go-live.sh --tree DIR --rehearse /tmp/gl-store
+
+# The real thing.
+export R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=…
+scripts/go-live.sh --tree DIR --ledgers .chain-state --yes --bind
+```
+
+Credentials come from the environment or an interactive prompt, never from
+argv, which is world-readable in `ps`; nothing prints one.
+
+Dry run is the default. `--yes` mutates. `--bind` is additionally opt-in and
+needs `CF_ADMIN_TOKEN`, which is deliberately not the publisher credential —
+per Deployment §6b.3 that one must carry no zone rights.
+
 ## What "LIVE" means, and how to confirm it
 
 After Steps 1–4:
