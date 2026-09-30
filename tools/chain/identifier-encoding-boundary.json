@@ -180,6 +180,10 @@
             "why": "reads the declaration out of the tree it is validating"
           },
           {
+            "path": "src/blocktracer/verify/audit.nim",
+            "why": "READS the declaration to ask a published tree whether its data is all there. The verifier samples object keys across a chain's whole range, and a key is derived from an identifier, so it must know how that chain writes one — it takes the encoding from the registry row like every other reader rather than assuming hex, which is the whole reason the member exists. Joined 2026-09-29 with the production verifier."
+          },
+          {
             "path": "src/blocktracer_client/entities.nim",
             "why": "hands the session's declaration to the paths"
           },

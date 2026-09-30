@@ -635,7 +635,11 @@ test('exactly the expected files know about each half of the seam');
   // whose only mention of the member was in that header — documentation of
   // `blocktracer_client/paths.nim`'s signature, not a second reader of the declaration,
   // and the module it re-exports is in the set.
-  ck('nine files under src/ read the declaration', sizeOf('declaration').src.length === 9);
+  // TEN AND NOT NINE: `verify/audit.nim` joined 2026-09-29 with the production
+  // verifier. It samples object keys across a chain's whole range, and a key is
+  // derived from an identifier — so it reads the chain's encoding from the registry
+  // row rather than assuming hex. A reader, not an exempter.
+  ck('ten files under src/ read the declaration', sizeOf('declaration').src.length === 10);
   // THREE under tools/ AND NOT TWO: `snapshot-contract-selftest.mjs` joined when §5.6's
   // declaration became reachable. `provenance.identifierEncoding` is in §5.2b's census
   // now, so the census check names it, and its §15 asserts the SHAPE of the reader's one

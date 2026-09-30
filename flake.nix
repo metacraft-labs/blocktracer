@@ -228,6 +228,14 @@
             just
             (python3.withPackages (ps: [ ps.pyyaml ]))
             wrangler
+            # `blocktracer-verify-published`'s HTTP backend shells out to curl
+            # (verify/source.nim's header says why: TLS through `std/httpclient`
+            # needs `-d:ssl` and a dynamically-resolved libssl, which is how a
+            # tool comes to work only on the machine that built it). Its suite
+            # drives that backend against an in-process fixture, so the suite
+            # needs curl too — DECLARED rather than inherited from whatever the
+            # runner happens to have on PATH.
+            curl
           ] ++ lib.optionals stdenv.hostPlatform.isLinux [
             bubblewrap
           ]) ++ [ followerNodejs ];
