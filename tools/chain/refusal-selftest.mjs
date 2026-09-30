@@ -1432,7 +1432,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // sentence is now CHECKED: each term is read out of the suite that owns it, and the
   // arithmetic is checked as arithmetic.
   //
-  // THE TWELVE DECLARATIONS ARE IN FOUR DIFFERENT PATTERNS, which is why each has its own
+  // THE TWELVE DECLARATIONS ARE IN FIVE DIFFERENT PATTERNS, which is why each has its own
   // rather than one generic sweep. A generic regex over the phrasings is the false-green
   // this file exists to refuse: it would silently match most of them and score the rest as
   // absent. If a suite rephrases its declaration this arm goes RED, which is correct — the
@@ -1454,7 +1454,14 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ['identifier-encoding-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['object-set-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['snapshot-contract-selftest.mjs', /asserted !== (\d+)\) \{/],
-    ['chain-health-selftest.mjs', /asserted !== (\d+)\) \{/],
+    // THE FIFTH PATTERN, and it is a different shape for a reason rather than by accident.
+    // `chain-health-selftest` runs a different number of arms in each of two host
+    // configurations — the container reader `ct-print` is present or it is not — so it declares
+    // a host-independent BASE plus one figure per configuration, and checks the base plus the
+    // configuration it actually ran in. The term below, and the Justfile header's and CI's
+    // copies of it, are the BASE: the only one of the three figures that is the same on every
+    // host, and therefore the only one a static cross-check can state.
+    ['chain-health-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
     ['yield-method-selftest.mjs', /asserted !== (\d+)\) \{/],
   ];
   const terms = [];

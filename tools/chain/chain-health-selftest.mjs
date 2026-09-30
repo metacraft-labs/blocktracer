@@ -62,7 +62,7 @@ const CONFORMANCE_BUILT = existsSync(CONFORMANCE);
 
 let asserted = 0, failed = 0;
 
-// ── TWO COUNTERS, AND THE REASON IS THAT ONE BLOCK OF ARMS NEEDS A BINARY CI HAS NOT GOT ──
+// ── THREE COUNTERS, BECAUSE THERE ARE TWO HOST CONFIGURATIONS AND A BASE COMMON TO BOTH ──
 //
 // The container-versus-claim arms need the REAL reader, because their whole subject is whether
 // a container's own measurements match a row's claim about them — drive that with a stand-in
@@ -74,15 +74,39 @@ let asserted = 0, failed = 0;
 // `chain-selftest` header, the recipe body and the CI step comments all cross-check it, and all
 // three would have to name whichever host the last person ran on.
 //
-// So the arms that need the reader increment their own counter. `asserted` is host-independent
-// and is the number the three cross-check sites read; `assertedWithReader` is declared here and
-// asserted only where the reader exists, and where it does not the suite PRINTS how many arms
-// did not run. That is the honest shape: not a skip, a recorded absence with a figure on it.
-let assertedWithReader = 0;
-let readerArms = false;
-const tally = () => { if (readerArms) assertedWithReader++; else asserted++; };
+// So the arms that run in only ONE configuration are counted in that configuration's own
+// counter, and the host-independent BASE is what the three cross-check sites read.
+//
+// THERE ARE TWO SUCH BLOCKS, NOT ONE, and missing the second is what made this accounting
+// dishonest for a while. §9's reader-present block is the obvious one. But its `else` — the
+// branch that asserts the tool reports NOT RUN, for the reader's absence and for nothing else —
+// is ALSO configuration-specific, and it was tallied into the base. So the base was 219 on a
+// host with the reader and 222 on a host without, and the ANTI-VACUITY count that exists to
+// catch a shrinking suite was the thing that failed on the reader-absent host — a legitimate
+// configuration, and the one CI runs in. The mechanism cannot be the failure.
+//
+// Now each configuration declares its own figure and the suite checks the base PLUS the figure
+// for the configuration it actually ran in, states which that was, and requires the OTHER
+// configuration's counter to be zero so an arm cannot drift into the wrong bucket unnoticed.
+// A configuration's own arms are never counted as passed in the configuration that skipped
+// them — where the reader is absent, the suite PRINTS how many reader arms did not run. That is
+// the honest shape: not a skip, a recorded absence with a figure on it.
+let assertedWithReader = 0;     // §9's arms that require the real `ct-print`
+let assertedWithoutReader = 0;  // §9's arms that exist only BECAUSE it is absent
+let armBucket = null;           // null → the host-independent base
+const tally = () => {
+  if (armBucket === 'reader') assertedWithReader++;
+  else if (armBucket === 'no-reader') assertedWithoutReader++;
+  else asserted++;
+};
 const ck = (label, cond) => { tally(); if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`); };
 const bite = (label, cond) => { tally(); if (!cond) { failed++; console.error(`  FAIL  MUTATION DID NOT BITE  ${label}`); } else console.error(`  bite  ${label}`); };
+
+// THE CONFIGURATION, DETECTED ONCE. §9 needs it to choose its branch and the reporting at the
+// bottom of this file needs it to say which total it is checking; two `existsSync` calls could
+// disagree if the binary appeared mid-run, and then the suite would check the wrong total.
+const REAL_READER = join(REPO_ROOT, '..', 'codetracer-trace-format-nim', 'ct-print');
+const HAVE_REAL_READER = existsSync(REAL_READER);
 
 const REG = healthChecks();
 const tmp = mkdtempSync(join(tmpdir(), 'bt-health-'));
@@ -1047,8 +1071,8 @@ console.error('\n§9 — the container against the claim, over the one recording
   // asserting, in that same arm, that the reason is the reader's absence and nothing else.
   // Skipping silently is what a suite does when it has been told to be green.
   const SUBJECT = join(REPO_ROOT, 'fixtures', 'chain-health', 'readable-container');
-  const READER = join(REPO_ROOT, '..', 'codetracer-trace-format-nim', 'ct-print');
-  const haveReader = existsSync(READER);
+  const READER = REAL_READER;
+  const haveReader = HAVE_REAL_READER;
   console.error(`  (the real reader is ${haveReader ? 'present' : 'ABSENT'} at ${READER})`);
 
   // ── WHAT THE SUBJECT DECLARES, ASSERTED HERE SO ITS MAKING.md CANNOT DRIFT FROM IT ──
@@ -1097,6 +1121,10 @@ console.error('\n§9 — the container against the claim, over the one recording
      AG.some((a) => a.containerEqualsClaimPlus !== 0));
 
   if (!haveReader) {
+    // THESE ARMS EXIST ONLY IN THIS CONFIGURATION, so they are counted in this configuration's
+    // own bucket rather than in the host-independent base. Tallying them into the base made the
+    // base two different numbers on two legitimate hosts.
+    armBucket = 'no-reader';
     // THE PREMISE IS ASSERTED IN THE SAME ARM AS THE ABSENCE. Without it this is a negative
     // assertion satisfied because nothing was looked at.
     const noR = one(SUBJECT);
@@ -1113,8 +1141,9 @@ console.error('\n§9 — the container against the claim, over the one recording
     ck(`(the container-versus-claim arms need the real reader and it is not on this host — `
        + `they are NOT RUN here, and this line is the record of that rather than a pass)`,
        true);
+    armBucket = null;
   } else {
-    readerArms = true;
+    armBucket = 'reader';
     const R = [READER];
     const base = one(SUBJECT, { readerArgv: R });
     ck('control: the subject opens under the real reader',
@@ -1340,7 +1369,7 @@ console.error('\n§9 — the container against the claim, over the one recording
          + 'the reader refuses version 3 to avoid — also raises the finding',
            has(m2, 'H-POSITIONS-VALUE-SKEW'));
     }
-    readerArms = false;
+    armBucket = null;
   }
 
   // ── THE LANGUAGE TABLE'S OWN SHAPE AND ITS GAPS ────────────────────────────────────
@@ -1780,28 +1809,82 @@ console.error('\n§11 — the committed reading, and the ratchet H-SOURCE-ABSENT
 
 cleanup();
 console.error('');
-// THE HOST-INDEPENDENT TOTAL. This is the one the `chain-selftest` header, the recipe body and
-// the CI step comments cross-check, and it is the same on every host by construction.
-if (asserted !== 219) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 219 — a case was added, removed or skipped.`);
+// ── THE DECLARATION, WHICH IS HONEST ABOUT BOTH CONFIGURATIONS ───────────────────────────────
+//
+// This suite runs in one of two configurations, and it runs a different number of arms in each.
+// A single declared total is therefore wrong in one of them, and it was: the reader-absent host
+// — the configuration CI runs in — reported 222 against a declared 219 and failed, because §9's
+// absence branch was tallied into the host-independent base. The anti-vacuity count that exists
+// to catch a shrinking suite was the only thing that ever went red, which is the mechanism
+// failing rather than doing its job.
+//
+// So the figure is declared in three parts, and the total checked is the one for the
+// configuration that actually ran:
+//
+//   BASE_ARMS                              runs on every host      219
+//   + READER_ARMS         where `ct-print` IS present               31   → 250
+//   + NO_READER_ARMS      where it is NOT                            3   → 222
+//
+// BASE_ARMS is the one the `chain-selftest` header, the recipe body and the CI step comments
+// cross-check, and it is now host-independent for real rather than by assertion. It is declared
+// ONCE, as the constant below: `refusal-selftest.mjs` reads that declaration out of this file's
+// source and requires the Justfile header's term and the CI step's numeral to equal it, so a
+// second copy of 219 in this file would be a copy that can go stale.
+//
+// A SHRINK IS CAUGHT IN EITHER CONFIGURATION, which is the whole point: whichever host this runs
+// on, the base is checked exactly and that configuration's own block is checked exactly. Neither
+// figure is a floor and neither is skipped when the reader is missing. The counter belonging to
+// the configuration that did NOT run must be zero — an arm that drifted from one block into the
+// other would otherwise be subtracted from one exact figure and added to an unchecked one.
+const BASE_ARMS = 219;
+const READER_ARMS = 31;
+const NO_READER_ARMS = 3;
+const CONFIG_ARMS = HAVE_REAL_READER ? READER_ARMS : NO_READER_ARMS;
+const CONFIG = HAVE_REAL_READER ? 'reader-present' : 'reader-absent';
+const ranConfigArms = HAVE_REAL_READER ? assertedWithReader : assertedWithoutReader;
+const ranOtherArms = HAVE_REAL_READER ? assertedWithoutReader : assertedWithReader;
+
+console.error(`configuration: ${CONFIG} (the container reader ${HAVE_REAL_READER ? 'is' : 'is NOT'}`
+  + ` on this host at ${REAL_READER})`);
+
+if (asserted !== BASE_ARMS) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED ${BASE_ARMS} — a case was added, `
+    + `removed or skipped. This is the HOST-INDEPENDENT base and it is wrong in both `
+    + `configurations; the per-configuration figure is checked separately below.`);
   failed++;
 } else {
-  console.error(`assertion count: ${asserted} (as declared: 219)`);
+  console.error(`assertion count: ${asserted} (as declared: ${BASE_ARMS} base)`);
 }
-// AND THE READER-DEPENDENT ONES, DECLARED AND EITHER ASSERTED OR REPORTED UNRUN. A block of arms
-// that quietly contributes nothing on the host where it matters is how a suite comes to be green
-// everywhere and load-bearing nowhere.
-const READER_ARMS = 31;
-if (assertedWithReader === 0) {
+
+// THE CONFIGURATION'S OWN BLOCK, CHECKED EXACTLY — never waived for the configuration it is in.
+if (ranConfigArms !== CONFIG_ARMS) {
+  console.error(`${CONFIG.toUpperCase()} ARM COUNT IS ${ranConfigArms}, EXPECTED ${CONFIG_ARMS} `
+    + `— an arm in the ${CONFIG} block was added, removed or skipped.`);
+  failed++;
+} else {
+  console.error(`${CONFIG} arms: ${ranConfigArms} (as declared: ${CONFIG_ARMS})`);
+}
+
+// AND THE BLOCK THAT DID NOT RUN, REPORTED WITH ITS FIGURE ON IT rather than omitted. A block of
+// arms that quietly contributes nothing on the host where it matters is how a suite comes to be
+// green everywhere and load-bearing nowhere. Its counter must be exactly zero: a non-zero value
+// means an arm ran in a configuration it does not belong to, and then neither exact figure means
+// what it says.
+if (ranOtherArms !== 0) {
+  console.error(`ARM BUCKET LEAK: ${ranOtherArms} arm(s) belonging to the other configuration `
+    + `ran in the ${CONFIG} one — the two declared figures no longer partition the suite.`);
+  failed++;
+} else if (HAVE_REAL_READER) {
+  console.error(`NOT RUN: ${NO_READER_ARMS} arm(s) assert the tool's behaviour WITHOUT the `
+    + `container reader, and it is present here, so they did not run. They are not counted as `
+    + `passed. Their figure is checked on the hosts that lack it, CI among them.`);
+} else {
   console.error(`NOT RUN: ${READER_ARMS} arm(s) need the container reader `
     + `(../codetracer-trace-format-nim/ct-print) and it is not on this host. They are not `
     + `counted as passed. Build it with \`nimble buildCtPrint\` in that checkout's own devshell.`);
-} else if (assertedWithReader !== READER_ARMS) {
-  console.error(`READER-ARM COUNT IS ${assertedWithReader}, EXPECTED ${READER_ARMS} — an arm `
-    + `in the reader-dependent block was added, removed or skipped.`);
-  failed++;
-} else {
-  console.error(`reader-dependent arms: ${assertedWithReader} (as declared: ${READER_ARMS})`);
 }
+
+console.error(`total this configuration: ${BASE_ARMS} + ${CONFIG_ARMS} = `
+  + `${BASE_ARMS + CONFIG_ARMS} assertions (${CONFIG})`);
 if (failed) { console.error(`FAIL — ${failed} problem(s)`); process.exit(1); }
 console.error('PASS — every finding has a twin it must not fire on and a mutation it must');
