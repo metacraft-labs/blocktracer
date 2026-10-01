@@ -258,11 +258,11 @@ export const readFacts = (page) =>
       // certifies neither. Journey 13 owns the judgement; this reports the
       // numbers.
       //
-      // THE SCROLLER IS FOUND, NOT NAMED. `#pane-editor .panebody` is the
+      // THE SCROLLER IS FOUND, NOT NAMED. `#pane-editor` is the
       // element the hydration bundle holds and it is NOT where the lines
-      // overflow: `.src` is, and on the demo pane `.panebody` has a scroll range
+      // overflow: `.src` is, and on the demo pane the panel has a scroll range
       // of ZERO (539 == 539) while `.src` has 886 against a 512 box. A probe
-      // that read `.panebody.scrollTop` would have reported 0 before the fix and
+      // that read the panel's own `scrollTop` would have reported 0 before the fix and
       // 0 after it — a constant, from which any assertion at all can be written
       // green. So this walks out from the marked line and takes the first
       // ancestor that actually scrolls, which is the element the visitor's
@@ -271,7 +271,7 @@ export const readFacts = (page) =>
       // `sourceInView` is reported and is deliberately NOT the verdict, for the
       // reason above: it is the assertion that passes under both behaviours.
       // HOW MANY REVEALS HAVE RUN, published by `revealCurrentLine` on the pane
-      // it reveals into (`#pane-editor .panebody`, which is `Ui.editor`).
+      // it reveals into (`#pane-editor`, which is `Ui.editor`).
       //
       // It exists because the reveal's whole policy is to do NOTHING when the
       // position is already on screen — no scroll, no class, no event a restore
@@ -279,12 +279,12 @@ export const readFacts = (page) =>
       // nothing to observe and a harness could only sleep. `null` before the
       // first reveal, because the exporter does not write the attribute.
       revealSeq: (() => {
-        const pane = document.querySelector("#pane-editor .panebody");
+        const pane = document.querySelector("#pane-editor");
         const v = pane && pane.getAttribute("data-reveal-seq");
         return v === null || v === undefined ? null : Number(v);
       })(),
       sourceScroll: (() => {
-        const pane = document.querySelector("#pane-editor .panebody");
+        const pane = document.querySelector("#pane-editor");
         if (!pane || !cur) return null;
         const scrollers = [];
         for (let e = cur; e; e = e.parentElement) {
@@ -351,7 +351,7 @@ export const readFacts = (page) =>
           changed: r.classList.contains("chg"),
           appeared: r.classList.contains("new"),
         })),
-      stateNote: document.querySelector("#pane-state .panenote")?.textContent?.trim() ?? "",
+      stateNote: document.querySelector("#pane-state .empty-overlay")?.textContent?.trim() ?? "",
 
       // THE FUNCTION HEADERS THIS PAGE RENDERED, per document, as raw rows.
       //
@@ -539,7 +539,7 @@ export const readFacts = (page) =>
       })(),
 
       // ---- the frame at large -----------------------------------------------
-      paneTitles: [...document.querySelectorAll(".panetitle")].map((e) => e.textContent.trim()),
+      paneTitles: [...document.querySelectorAll(".lm_title")].map((e) => e.textContent.trim()),
       reasonText: text(".reason"),
       engineNotice: text("#dbg-engine-failure") ?? "",
       positionNotice: text("#dbg-position-notice") ?? "",

@@ -97,7 +97,7 @@ type
     ## on every step, where it would mean "silently skip a pane".
     root: Element
     controls: Element      ## `.dbgctl` — the toolbar and the phase rail
-    editor: Element        ## `#pane-editor .panebody`
+    editor: Element        ## `#pane-editor`, which is a `.lm_content`
     calltrace: Element
     state: Element
     eventLog: Element
@@ -277,8 +277,15 @@ proc trackWidth(e: Element): float {.importjs:
   ## beside the pane rebuild each answered seek already does.
 
 proc paneBody(root: Element; id: cstring): Element =
-  let pane = root.querySelector(id)
-  if pane == nil: nil else: pane.querySelector(".panebody")
+  ## The panel element itself, now that the pane chrome is CodeTracer's.
+  ##
+  ## `#pane-*` used to name the whole pane (`section.pane`) and the body was a
+  ## child (`.panebody`); it now names the panel — `.lm_content` inside
+  ## `.lm_items` — which IS the body and IS the scroller. `components/debugger`
+  ## explains why the id had to move: the tab strip's links, `?pane=` and a
+  ## shared deep link all resolve to a PANEL, and one id cannot be both the
+  ## region and the panel inside it.
+  root.querySelector(id)
 
 proc readUi(): Ui =
   ## Everything the bundle needs from the served document, or a `root` of `nil`.
@@ -616,7 +623,7 @@ proc markScrubberSeekable(ui: Ui; p: DebugControlsPane) =
 #
 # WHICH ELEMENT ACTUALLY SCROLLS, AND WHY IT IS NOT THE ONE THIS FILE HOLDS
 #
-# `Ui.editor` is `#pane-editor .panebody` and it is NOT the source pane's
+# `Ui.editor` is `#pane-editor`, which IS the `.lm_content` panel, and it is NOT the source pane's
 # scroller. Measured in the browser on both renderings:
 #
 #   .srcline.cur                      23px
@@ -624,11 +631,11 @@ proc markScrubberSeekable(ui: Ui; p: DebugControlsPane) =
 #   .src.instr      overflow-y:auto   client 549 / scroll 7975  (chain listing)
 #   .srcdoc         visible           client 539 / scroll 539
 #   .srcwrap        visible           client 539 / scroll 539
-#   .panebody       overflow-y:auto   client 614 / scroll 838
+#   .lm_content     overflow-y:auto   client 614 / scroll 838
 #
-# `.src` is where the lines live and where the overflow is; `.panebody` scrolls
+# `.src` is where the lines live and where the overflow is; `.lm_content` scrolls
 # only the tab strip or the listing caption above it, and on the demo pane it
-# does not scroll at all (539 == 539). A reveal written against `.panebody`
+# does not scroll at all (539 == 539). A reveal written against `.lm_content`
 # would have set `scrollTop` on an element with a scroll range of ZERO and moved
 # nothing — which is a fix that measures as applied and is not.
 #

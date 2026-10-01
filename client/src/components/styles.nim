@@ -87,6 +87,41 @@
 ##    the full 1140px container (VD.1 round 1; recorded as divergence row D-06).
 ##  * **Focus, hover and active** are one treatment, defined once, shared by
 ##    both registers (Design-System.md §2).
+##
+## ── What the COMPONENT pass changed, and why it is not the tint ────────────
+##
+## `docs/EXPLORER-TINT.md` moved the explorer's radius ladder and its elevation
+## onto the product register's. That pass changed no component RULE: it moved
+## two primitives and declined four candidates. The operator's reply to it is
+## the reason this second pass exists:
+##
+##   "my request was not merely about adopting colors, font sizes, etc. I meant
+##    a more complete reuse of the style, the way that tab bars look, panel
+##    separators, the elements inside the panels, etc."
+##
+## So the reference for this pass is not `debugger_css.nim` — it is CodeTracer's
+## own component layer, `src/frontend/styles/components/*.styl`, read element by
+## element against the classes the explorer actually renders. Where a
+## counterpart exists the DECLARATIONS are adopted; where none does the
+## explorer's own treatment stays and the reason is written at the rule. The
+## pairing is tabulated in `docs/EXPLORER-COMPONENTS.md`.
+##
+## Two constraints bound it and neither is negotiable:
+##
+##   * **The arrangement is frozen** — "The special arrangement on the
+##     blockexplorer page stays (i.e. the top bar, the transaction details
+##     panel, etc)." No rule below changes a `display`, `grid-*`, `flex-*`,
+##     `position`, `order`, `width` or `margin` on the nav, on `.dl`, or on any
+##     page's section order. The one padding that moves is `.codehead`'s, onto
+##     the register's own cell rung, and it moves a pane header by one rung
+##     inside a panel that keeps its place.
+##   * **The explorer is not the debugger.** `tools/visual-review-brief.md` §2
+##     puts the explorer register on the 2026 CodeTracer WEB direction — light
+##     canvas, generous whitespace — and §3 says applying one register's rubric
+##     to the other is "a regression dressed as a win". CodeTracer's component
+##     stylesheets are the desktop app's, so what is adopted from them is
+##     GEOMETRY, STATE and STRUCTURE; the surface colours stay the web
+##     lineage's, resolved through `--bt-*` exactly as before.
 
 const fontFaceCss* = """
 @font-face{font-family:'Space Grotesk Variable';font-weight:400;font-style:normal;font-display:swap;src:url(/assets/fonts/SpaceGrotesk-Regular.woff2) format('woff2');}
@@ -285,9 +320,47 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 .nav .links a.opt{color:var(--bt-text-muted);transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 .nav .links a.opt:hover{color:var(--bt-text-strong)}
 .nav form{flex:0 1 var(--bt-layout-search);min-width:0}
-.nav input{width:100%;background:var(--bt-surface-sunken);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);padding:var(--bt-space-xs) var(--bt-space-sm);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease)}
+.nav input{width:100%;background:var(--bt-surface-sunken);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);padding:var(--bt-space-xs) var(--bt-space-sm);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease),color var(--bt-motion-fast) var(--bt-motion-ease)}
 .nav input::placeholder{color:var(--bt-text-subtle)}
-.nav input:hover{border-color:var(--bt-border-strong)}
+.nav input:hover{border-color:var(--bt-border-strong);color:var(--bt-text-strong)}
+
+/* ── THE INPUT STATE LADDER (CodeTracer `components/input.styl`) ───────────── */
+/* An input in CodeTracer is not one appearance with a focus ring bolted on. It
+   is a ladder of four states — resting, hovered, FILLED, disabled — and the
+   rung the explorer had never drawn is the third:
+
+     &:not(:placeholder-shown):not(:disabled)
+       border-color: colors-ui-border-action
+       background:   colors-ui-surface-input-default
+       color:        colors-ui-text-primary-body
+
+   A field with something in it takes the ACTION border and strengthens its
+   text, so a form tells you at a glance which of its inputs carry a value.
+   Both of the explorer's two inputs are resolver fields — the nav's and the
+   hero's — and both of them looked identical empty and full.
+
+   `:not(:placeholder-shown)` and not `:valid`, `:not(:empty)` or a script:
+   it is CodeTracer's own selector, it is the only pure-CSS test for "this
+   field has content", and both fields already carry a placeholder so it can
+   never be stuck true. There is no `:disabled` arm here because neither field
+   is ever disabled — a rule for a state the markup cannot reach is the orphan
+   this file's own §3.2 note argues against.
+
+   TWO OF THE THREE DECLARATIONS ARE ADOPTED AND THE THIRD IS DECLINED.
+   `border-action` is `--bt-border-accent` and `text-primary-body` is
+   `--bt-text-strong` against these surfaces, so those port exactly.
+   `surface-input-default` has no counterpart in the web lineage: the two
+   fields sit on DIFFERENT surfaces (the nav's on sunken inside the bar, the
+   hero's on raised against the canvas), so one filled-surface token would have
+   to be wrong for one of them. Keeping each field's own surface is the honest
+   port, and the border plus the text carry the state on their own.
+
+   THE PLACEHOLDER IS PART OF THE LADDER, which is the half that is easy to
+   miss: CodeTracer strengthens `::placeholder` on hover and on focus as well,
+   so the prompt comes forward with the field rather than staying at its
+   resting weight while everything around it brightens. */
+.nav input:not(:placeholder-shown){border-color:var(--bt-border-accent);color:var(--bt-text-strong)}
+.nav input:hover::placeholder,.nav input:focus-visible::placeholder{color:var(--bt-text-muted)}
 
 /* ── breadcrumbs (sans: navigation is prose, not a machine value) ───────── */
 .crumbs{font-size:var(--bt-type-caption-size);line-height:var(--bt-type-caption-line);color:var(--bt-text-subtle);display:flex;gap:var(--bt-space-xs);flex-wrap:wrap;margin-bottom:var(--bt-rhythm-stack)}
@@ -298,9 +371,12 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 /* ── hero ───────────────────────────────────────────────────────────────── */
 .hero{padding:var(--bt-rhythm-section) 0}
 .search{margin-top:var(--bt-rhythm-stack);display:flex;gap:var(--bt-space-sm);max-width:var(--bt-measure-prose)}
-.search input{flex:1 1 auto;min-width:0;background:var(--bt-surface-raised);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);color:var(--bt-text-default);font-size:var(--bt-type-body-size);padding:var(--bt-density-control-y) var(--bt-density-control-x);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease)}
+.search input{flex:1 1 auto;min-width:0;background:var(--bt-surface-raised);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);color:var(--bt-text-default);font-size:var(--bt-type-body-size);padding:var(--bt-density-control-y) var(--bt-density-control-x);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease),color var(--bt-motion-fast) var(--bt-motion-ease)}
 .search input::placeholder{color:var(--bt-text-subtle)}
-.search input:hover{border-color:var(--bt-border-strong)}
+.search input:hover{border-color:var(--bt-border-strong);color:var(--bt-text-strong)}
+/* The same ladder, on the hero field — see the note at `.nav input`. */
+.search input:not(:placeholder-shown){border-color:var(--bt-border-accent);color:var(--bt-text-strong)}
+.search input:hover::placeholder,.search input:focus-visible::placeholder{color:var(--bt-text-muted)}
 .chainstrip{display:flex;gap:var(--bt-space-md);flex-wrap:wrap;margin-top:var(--bt-rhythm-group)}
 .chaincard{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-space-lg) var(--bt-space-xl);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease),background var(--bt-motion-fast) var(--bt-motion-ease)}
 .chaincard:hover{border-color:var(--bt-border-accent);background:var(--bt-surface-hover)}
@@ -347,6 +423,27 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
    and not the content of any one page. */
 .dl dd{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);min-width:0;overflow-wrap:anywhere;font-size:var(--bt-type-body-sm-size);line-height:var(--bt-space-lg);font-variant-numeric:var(--bt-numeric-features)}
 .dl dd .identifier,.dl dd code{font-size:inherit;line-height:inherit}
+/* THE SAME DEFECT `debugger_css.nim` ALREADY FIXED, ONE SELECTOR OVER.
+   `.badge` is `white-space:nowrap` globally (line ~540), which is right for a
+   status word — `Yes`, `Safe`, `Pending` — and wrong for producer-supplied
+   text, which nothing bounds. In a `<dd>` the overflow is clipped by the cell
+   and the reader gets a phrase cut mid-word with no ellipsis saying so.
+
+   `debugger_css.nim` scoped `white-space:normal` to `.mddl dd .badge` after
+   `check-badge-legibility.mjs` found 22 clipped badges across three chains,
+   and recorded that none of it was found by reading CSS — it was found by
+   photographing a chain nobody had looked at. That fix stopped at the
+   debugger's metadata list. The explorer's `<dd>` renders the same badges from
+   the same data and was never covered, so the same gate caught the same two
+   rows here:
+
+     AGE      `No timestamp published`  overflows by 14px @laptop
+     SOURCES  `Instruction level`       overflows by 19px @laptop
+
+   `normal` PERMITS wrapping, it does not force it: the short status words have
+   room and still sit on one line. Scoped to `.dl dd .badge` so a `.muted`
+   suffix elsewhere keeps its nowrap — `mana (FeeJuice)` must not come apart. */
+.dl dd .badge{white-space:normal}
 .dl dt:last-of-type,.dl dd:last-of-type{border-bottom:0}
 .dl dd a{color:var(--bt-text-link);text-decoration:underline;text-underline-offset:var(--bt-space-3xs);transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 .dl dd a:hover{color:var(--bt-text-link-hover)}
@@ -417,10 +514,51 @@ table.tbl tbody tr:hover{background:var(--bt-surface-hover)}
 table.tbl td.hash a,table.tbl td a.addr{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);color:var(--bt-text-link);transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 table.tbl td.hash a:hover,table.tbl td a.addr:hover{color:var(--bt-text-link-hover);text-decoration:underline;text-underline-offset:var(--bt-space-3xs)}
 table.tbl td.num{text-align:right}
-.empty{padding:var(--bt-rhythm-group) var(--bt-density-cell-x);color:var(--bt-text-muted);text-align:center}
+/* ── the empty state (CodeTracer `components/empty_states.styl`) ──────────── */
+/* That file exists to make "nothing here yet" ONE treatment across a dozen
+   panels, and its header is explicit about which of its declarations are the
+   shared treatment and which are each panel's own. Three are portable and are
+   adopted; two are not and the reasons are below.
+
+   `overflow-wrap:break-word` — the messages this cell carries are the pages'
+   own sentences and several of them contain an address or a hash, which is one
+   unbreakable token wider than a column. CodeTracer states it for the same
+   reason.
+
+   `br{display:none}` — CodeTracer's note is worth quoting because it is the
+   non-obvious one: "these messages read as one continuous sentence. Where the
+   line falls is the panel's decision, not the author's: a hard break chosen
+   for one panel width lands in the wrong place at every other width." The
+   emptyNote strings are passed in by seven different pages and this table
+   reflows from `wide` to `mobile`, so the rule is enforced here rather than
+   trusted at seven call sites.
+
+   `text-align:center` — already present, and it is the same declaration.
+
+   NOT ADOPTED, both from the same rule. `opacity:0.6` is how CodeTracer dims
+   the message; this cell uses `--bt-text-muted`, which is a MEASURED role
+   (7.74:1 on the light canvas, 8.23:1 on the dark) where an opacity multiplier
+   is a number nothing checks — and stacking the two would dim a measured
+   colour by an unmeasured factor. And the `display:flex` centring is declined
+   for the reason CodeTracer's own file declines it for `.dt-empty`: "it is a
+   table cell, and `display:flex` would take it out of the table layout". This
+   is that cell. */
+.empty{padding:var(--bt-rhythm-group) var(--bt-density-cell-x);color:var(--bt-text-muted);text-align:center;overflow-wrap:break-word}
+.empty br{display:none}
 
 /* ── badges: colour never carries the meaning alone (rubric A7) ─────────── */
-.badge{display:inline-flex;align-items:center;font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);line-height:var(--bt-type-label-line);letter-spacing:var(--bt-type-label-tracking);padding:var(--bt-space-3xs) var(--bt-space-xs);border-radius:var(--bt-radius-xs);border:var(--bt-stroke-hairline) solid var(--bt-status-neutral-border);background:var(--bt-status-neutral-bg);color:var(--bt-status-neutral-fg);white-space:nowrap}
+/* `vertical-align:middle` is CodeTracer's, from `.ct-origin-badge`
+   (`components/button.styl`), and it is the one declaration of that component
+   the explorer's badge was missing. An `inline-flex` box in a run of text is
+   still an INLINE box to the line it sits on, so it aligns on its baseline —
+   which for a bordered chip is the baseline of the text INSIDE it, putting the
+   chip's own descender-and-border below the sentence's baseline. The badge sat
+   low beside the value it qualifies in every `.dl dd`, every `.titlerow` and
+   every `.badgerow` on the site.
+   The same component's `user-select:none` is deliberately NOT adopted: it is a
+   control in CodeTracer and a LABEL here, and several of these badges carry
+   the producer's own provenance words, which a reader may well want to copy. */
+.badge{display:inline-flex;align-items:center;vertical-align:middle;font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);line-height:var(--bt-type-label-line);letter-spacing:var(--bt-type-label-tracking);padding:var(--bt-space-3xs) var(--bt-space-xs);border-radius:var(--bt-radius-xs);border:var(--bt-stroke-hairline) solid var(--bt-status-neutral-border);background:var(--bt-status-neutral-bg);color:var(--bt-status-neutral-fg);white-space:nowrap}
 .badge.ok{color:var(--bt-status-success-fg);border-color:var(--bt-status-success-border);background:var(--bt-status-success-bg)}
 .badge.bad{color:var(--bt-status-danger-fg);border-color:var(--bt-status-danger-border);background:var(--bt-status-danger-bg)}
 .badge.warn{color:var(--bt-status-warning-fg);border-color:var(--bt-status-warning-border);background:var(--bt-status-warning-bg)}
@@ -440,13 +578,36 @@ table.tbl td.num{text-align:right}
 .dl dd .badge:only-child{margin-left:calc(-1 * (var(--bt-space-xs) + var(--bt-stroke-hairline)))}
 
 /* ── buttons: every variant sets its own background ─────────────────────── */
-.btn{font-size:var(--bt-type-body-sm-size);font-weight:var(--bt-type-h3-weight);line-height:var(--bt-type-body-sm-line);padding:var(--bt-density-control-y) var(--bt-density-control-x);border-radius:var(--bt-radius-sm);display:inline-flex;gap:var(--bt-space-xs);align-items:center;justify-content:center;cursor:pointer;border:var(--bt-stroke-hairline) solid transparent;background:var(--bt-action-ghost-bg);color:var(--bt-action-ghost-fg);transition:background var(--bt-motion-fast) var(--bt-motion-ease),border-color var(--bt-motion-fast) var(--bt-motion-ease),color var(--bt-motion-fast) var(--bt-motion-ease)}
+/* `white-space:nowrap` is CodeTracer's, and it is the first declaration in
+   `components/button.styl`'s base `button` rule. A control's label is its
+   IDENTITY: "Debug this transaction" broken across two lines is a different
+   shape from the same control in the row above it, and in the transactions
+   table the Debug cell is `position:sticky` at a fixed column width, which is
+   exactly the place a two-word label wraps. CodeTracer states it once on the
+   element; so does this. */
+.btn{font-size:var(--bt-type-body-sm-size);font-weight:var(--bt-type-h3-weight);line-height:var(--bt-type-body-sm-line);padding:var(--bt-density-control-y) var(--bt-density-control-x);border-radius:var(--bt-radius-sm);display:inline-flex;gap:var(--bt-space-xs);align-items:center;justify-content:center;white-space:nowrap;cursor:pointer;border:var(--bt-stroke-hairline) solid transparent;background:var(--bt-action-ghost-bg);color:var(--bt-action-ghost-fg);transition:background var(--bt-motion-fast) var(--bt-motion-ease),border-color var(--bt-motion-fast) var(--bt-motion-ease),color var(--bt-motion-fast) var(--bt-motion-ease)}
 .btn.primary{background:var(--bt-action-bg);color:var(--bt-action-fg);border-color:var(--bt-action-bg)}
 .btn.primary:hover{background:var(--bt-action-bg-hover);border-color:var(--bt-action-bg-hover)}
 .btn.primary:active{background:var(--bt-action-bg-active);border-color:var(--bt-action-bg-active)}
 .btn.ghost{background:var(--bt-action-ghost-bg);color:var(--bt-action-ghost-fg);border-color:var(--bt-action-ghost-border)}
 .btn.ghost:hover{background:var(--bt-action-ghost-bg-hover);border-color:var(--bt-action-ghost-border-hover)}
 .btn.ghost:active{background:var(--bt-action-ghost-bg-active)}
+/* CODETRACER'S `pointer-events:none` IS DECLINED HERE, AND THE REASON IS A
+   PROPERTY OF THIS PRODUCT'S MARKUP RATHER THAN A PREFERENCE.
+   `components/button.styl` gives `button:disabled` both `cursor:not-allowed`
+   and `pointer-events:none`, and adopting the pair looks free. It is not:
+   every one of this product's three inert controls carries a `title` whose
+   entire job is to name WHY it refuses — "the oldest block this generation
+   indexes", "the head of the chain at this generation", and the share
+   control's unanchored label. `pointer-events:none` removes the element from
+   hit testing, which suppresses the native tooltip, so the rule would delete
+   the only statement each of those controls makes. It would also delete
+   `cursor:not-allowed`'s effect in the same stroke, since the pointer then
+   belongs to whatever is underneath.
+   CodeTracer can afford it because its disabled buttons are `<button>`
+   elements that the UA already blocks, and none of them explains itself in a
+   `title`. The explorer's are `<span>`s that never navigated in the first
+   place. Adopted from this component instead: `white-space:nowrap`, above. */
 .btn.disabled{background:var(--bt-action-disabled-bg);color:var(--bt-action-disabled-fg);border-color:var(--bt-action-disabled-border);cursor:not-allowed}
 .btn.disabled:hover{background:var(--bt-action-disabled-bg);border-color:var(--bt-action-disabled-border)}
 
@@ -502,14 +663,81 @@ pre.raw{max-height:var(--bt-layout-code-max-height);overflow:auto;background:var
    rail down its left edge, which is a stronger and more specific signal than a
    shadow, and it is in flow. Three channels for one notice — rail colour, rail
    weight and a drop shadow — was two more than the thing needs. */
-.notice{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-left:var(--bt-stroke-thick) solid var(--bt-border-strong);border-radius:var(--bt-radius-sm);padding:var(--bt-space-md) var(--bt-density-cell-x);background:var(--bt-surface-raised)}
-.notice.bad{border-left-color:var(--bt-status-danger-border)}
-.notice.warn{border-left-color:var(--bt-status-warning-border)}
-.notice.info{border-left-color:var(--bt-status-info-border)}
-.notice.muted{border-left-color:var(--bt-status-neutral-border)}
+/* ── THE TONE RUNS ROUND THE BOX, NOT DOWN ITS LEFT EDGE ────────────────────
+   CodeTracer's `components/notifications.styl` is the counterpart of this
+   callout, and it draws a toned notice in exactly one way:
+
+     .status-notification.ct-notification.ct-notification-warning-primary
+       border-color:     colors-ui-border-warning
+       background-color: colors-ui-surface-primary-default
+       color:            colors-ui-text-primary-body
+
+   — a uniform hairline border in the status hue, on the ordinary panel
+   surface. Four tones, four rules, one shape. There is no rail in the
+   component, and there is no rail anywhere in CodeTracer: a thick coloured
+   strip down the left edge of a box is a different design system's idiom that
+   this file had inherited from nowhere in particular.
+
+   WHAT IS GAINED AND WHAT IS SPENT, because it is not free in both directions.
+   Gained: the tone is now on all four edges instead of one, so it is visible
+   whichever corner of the notice a reader's eye lands on, and it is visible at
+   the width the notice actually is rather than only at its left margin — on a
+   full-bleed provenance band that left edge is off at the page gutter, tens of
+   ems from the sentence it qualifies. Spent: the rail was a WEIGHT channel as
+   well as a colour one, and a uniform hairline is colour only.
+
+   THAT SPEND IS WHY THE BADGE RULE IS NOT NEGOTIABLE HERE. Rubric A7 is "the
+   row is named in a badge before it is painted", and both callers satisfy it
+   in markup — `components/degraded.nim` and `components/provenance.nim` each
+   open with a `.noticehead` carrying a `.badge` whose text states the tone in
+   words. Read with colour removed entirely, every notice on this site still
+   says what it is. The rail was never the channel that carried that.
+
+   `--bt-border-default` stays as the untoned default, so a `.notice` with no
+   tone class is a plain panel edge — which is what `ct-notification` with no
+   tone modifier is. */
+.notice{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-sm);padding:var(--bt-space-md) var(--bt-density-cell-x);background:var(--bt-surface-raised)}
+.notice.bad{border-color:var(--bt-status-danger-border)}
+.notice.warn{border-color:var(--bt-status-warning-border)}
+.notice.info{border-color:var(--bt-status-info-border)}
+.notice.muted{border-color:var(--bt-status-neutral-border)}
 .notice .noticehead{display:flex;align-items:center;gap:var(--bt-space-sm);flex-wrap:wrap;margin-bottom:var(--bt-space-sm)}
 .notice p{font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line);color:var(--bt-text-default)}
 .notice .reason{color:var(--bt-text-muted);margin-top:var(--bt-space-2xs)}
+/* THE ACTION INSIDE A NOTICE IS A PILL, AND IT IS THE NOTICE'S OWN COLOUR.
+   CodeTracer gives the action inside a notification its own shape rather than
+   reusing the page's button — `.notification-action-button` in
+   `components/notifications.styl`:
+
+     border:        0.0625rem solid currentColor
+     border-radius: 999px
+     background:    transparent
+     color:         inherit
+
+   Three properties and each one says something. `currentColor` + `inherit`
+   take the control out of the button vocabulary entirely: it is drawn in the
+   text colour of the block it sits in rather than in `--bt-action-ghost-*`, so
+   it belongs to the notice instead of being site chrome that landed there. Be
+   precise about what that is and is not — in CodeTracer's PRIMARY variant, the
+   one this callout matches, the notice's own colour is the ordinary body text
+   colour, so the pill is NOT tinted by the tone. The tone stays on the border
+   of the box. `transparent` means the control never competes with the page's
+   primary action — §14's remedies are "here is what would fix this", not calls
+   to action. And the full radius is what separates it at a glance from the
+   `--bt-radius-sm` buttons everywhere else.
+
+   This is NOT a third button style invented here: it is the component
+   CodeTracer ships for exactly this position, and it appears nowhere else.
+   What is deliberately NOT adopted is its SIZE (`min-height:1.75rem;
+   padding:0 0.75rem`) — Design-System.md §2 makes density the thing the two
+   registers do not share, so the control keeps the explorer's control rung and
+   changes only its shape and its colour.
+
+   Declared after `.btn.ghost` and at matching specificity, so source order
+   decides and neither rule needs a weight it has not earned. */
+.notice .btn{border-radius:var(--bt-radius-full);border-color:currentColor;background:none;color:inherit}
+.notice .btn:hover{background:var(--bt-surface-hover);border-color:currentColor}
+.notice .btn:active{background:var(--bt-surface-selected)}
 
 /* ── provenance, in its ordinary-case form ──────────────────────────────── */
 /* The chip a chain-scoped page carries when its data is REAL — see
@@ -578,11 +806,123 @@ table.tbl td a.addr{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback)
 table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
 
 /* ── verified-source browser (§10) ──────────────────────────────────────── */
+/* ── THE ONE TAB STRIP IN THE EXPLORER REGISTER ─────────────────────────────
+   `.filetree` is the row of file names above a verified bundle's sources. It
+   is a tab strip by every property that matters — a horizontal row of named
+   documents of which one is the one you are looking at, each a control that
+   takes you to it — and it was drawn as a row of bordered pills, which is the
+   one shape in this stylesheet that resembled nothing in CodeTracer.
+
+   CodeTracer's tab is `components/tab.styl`:
+
+     .ct-tab
+       background:    transparent
+       border:        none
+       border-bottom: 0.125em solid colors-ui-border-primary
+       border-radius: 0.375em
+       transition:    background-color .12s, border-color .12s, color .12s
+     &:hover:not([data-disabled]):not([data-selected])
+       background:          colors-ui-surface-primary-secondary-hover
+       border-bottom-color: colors-ui-border-contrast
+     &[data-selected="true"]
+       background:          colors-ui-surface-primary-secondary-hover
+       border-bottom-color: colors-ui-border-action
+       color:               colors-ui-text-primary-active
+
+   The shape is a RAIL, not a box: no side or top edges at all, a
+   two-hairline underline that is always drawn, and the state lives in that
+   underline's colour plus a fill that appears on hover. That is the same
+   component `debugger_css.nim` already carries as `.srctab` and `.stacktab`,
+   one register over — so this rule makes the two surfaces draw one tab, which
+   is the whole of what "tab bars look like CodeTracer's" can mean in a product
+   that has one tab strip per register.
+
+   The mappings, each one a role and not a colour: `text-primary-body` is
+   `--bt-text-strong`, `border-primary` is `--bt-border-default`,
+   `border-contrast` is `--bt-border-strong`,
+   `surface-primary-secondary-hover` is `--bt-surface-hover`, the `0.125em`
+   rail is `--bt-stroke-thick` and the `0.375em` corner is `--bt-radius-xs`,
+   which is the chip rung both registers share after EXPLORER-TINT.md T-1.
+
+   FIVE OF THOSE SIX ARE CONFIRMED AGAINST AN INDEPENDENT DERIVATION, and one
+   of them was wrong until it was. The branch porting CodeTracer's component
+   layer into the DEBUGGER register carries a `Bridge` table that maps
+   CodeTracer's role names onto `--bt-*` roles by reading both products'
+   generated token layers, and it agrees with this rule on `border-primary`,
+   `border-action`, `surface-primary-secondary-hover` and the status borders.
+   It disagreed on the tab's RESTING colour, and it was right: `.ct-tab` rests
+   at `colors-ui-text-primary-body`, which resolves to `--bt-text-strong`, and
+   this rule had `--bt-text-muted`. That is `text-primary-body-subtle` — and
+   `.ct-tab[data-disabled="true"]` is muted text over a `border-primary` rail,
+   so every resting tab was wearing very nearly the component's DISABLED
+   appearance: a strip of four files, none of them looking reachable, on the
+   page whose whole subject is the source.
+
+   So the tab rests at full strength and hover changes no colour at all, which
+   is `.ct-tab` exactly — the state is the rail and the fill and nothing else.
+   `border-contrast` is the one role that table does not carry, because
+   `tab.styl` is not among the files it vendors; `--bt-border-strong` is where
+   its sibling `border-primary-hover` lands, which is the same
+   one-rung-up-on-hover move.
+
+   NO SELECTED STATE, AND THAT IS NOT AN OMISSION. Every file in the bundle is
+   rendered, stacked, on this one page; the strip jumps to them rather than
+   switching between them, so at rest no tab is "the one open". The selected
+   rung of the component is therefore spent where the selection actually is —
+   on the PANEL, at `.codefile:target` below — which is also where CodeTracer
+   puts it (`components/golden_layout.styl`, `SELECTED_PANEL_BORDER`).
+
+   The padding, the gap and the wrap are unchanged, so the strip occupies the
+   same box it did. */
 .filetree{display:flex;gap:var(--bt-space-sm);flex-wrap:wrap;margin-bottom:var(--bt-rhythm-stack)}
-.filetree a{border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-xs);padding:var(--bt-space-3xs) var(--bt-space-xs);color:var(--bt-text-link);background:var(--bt-surface-sunken);font-size:var(--bt-type-caption-size)}
-.filetree a:hover{border-color:var(--bt-border-accent)}
-.codefile{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);overflow:hidden;background:var(--bt-surface-code)}
-.codehead{display:flex;justify-content:space-between;gap:var(--bt-space-md);padding:var(--bt-space-xs) var(--bt-density-cell-x);background:var(--bt-surface-sunken);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-default);font-size:var(--bt-type-caption-size)}
+.filetree a{border:0;border-bottom:var(--bt-stroke-thick) solid var(--bt-border-default);border-radius:var(--bt-radius-xs);padding:var(--bt-space-3xs) var(--bt-space-xs);color:var(--bt-text-strong);background:none;font-size:var(--bt-type-caption-size);transition:background var(--bt-motion-fast) var(--bt-motion-ease),border-color var(--bt-motion-fast) var(--bt-motion-ease)}
+.filetree a:hover{background:var(--bt-surface-hover);border-bottom-color:var(--bt-border-strong)}
+
+/* ── a source file is a PANE ────────────────────────────────────────────────
+   `.codefile` + `.codehead` + `.codeview` is a pane, a pane header and a pane
+   body, and it is the only structure in the explorer register that already had
+   all three. What it did not have was the product register's declarations for
+   them, which `debugger_css.nim` writes as `.panehead` / `.panetitle` and
+   CodeTracer writes as `.lm_content` / `.lm_title`:
+
+     .panehead   padding: cell-y cell-x; align-items: center; gap: xs;
+                 background: sunken; border-bottom: hairline border-SUBTLE
+     .panetitle  label size / weight / tracking, uppercase, text-muted
+
+   Three differences, all adopted. The header sat on `--bt-space-xs` rather
+   than the register's own `--bt-density-cell-y`, so the one pane header on the
+   site was the one strip not on the rhythm every table header and every `.dl`
+   row sits on. It separated itself with `--bt-border-default`, a full-strength
+   edge, where a pane's internal division is `--bt-border-subtle` — the head is
+   part of the pane, and a boundary as strong as the pane's own outline reads
+   as two stacked boxes. And it had no `align-items`, so a mono path and a
+   proportional count aligned on their box tops rather than their centres.
+
+   THE COUNT BECOMES A PANE LABEL. `.panetitle`'s job is to say what the strip
+   is in the quietest type the system has; here the left half is the file's
+   path, which is a machine value and stays mono, and the right half is the
+   pane's own metadata. Giving it the label treatment is what turns the strip
+   from "two pieces of caption text" into a header with a title and a label,
+   which is what the product register's panes look like.
+
+   Scoped to `.codehead .muted` rather than restyling `.muted`: that utility is
+   a colour and nothing else, in ninety places. */
+.codefile{margin-top:var(--bt-rhythm-stack);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);overflow:hidden;background:var(--bt-surface-code);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease)}
+/* THE SELECTED PANE, and it is deliberately not a hue. CodeTracer marks the
+   panel you are in with a full-strength neutral outline and says why at
+   `SELECTED_PANEL_BORDER` in `components/golden_layout.styl`: "the outline is
+   now the *only* selection cue — the panel surface no longer changes — and a
+   sub-pixel stroke is antialiased down to roughly half strength, which read as
+   no indicator at all". So the mark is `--bt-border-strong` against the
+   `--bt-border-default` every other pane carries: same weight, one rung up in
+   contrast, no colour spent. That also keeps it out of the five-meanings-on-
+   one-token problem `debugger_css.nim` records at `.stacktab` — "this is the
+   pane you jumped to" is not "this is a link".
+   `:target` is what makes it reachable with no script: the strip's hrefs are
+   `#file-<slug>` and this is the file at that fragment. */
+.codefile:target{border-color:var(--bt-border-strong)}
+.codehead{display:flex;justify-content:space-between;align-items:center;gap:var(--bt-space-xs);padding:var(--bt-density-cell-y) var(--bt-density-cell-x);background:var(--bt-surface-sunken);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);font-size:var(--bt-type-caption-size)}
+.codehead .muted{font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);line-height:var(--bt-type-label-line);letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;color:var(--bt-text-muted);white-space:nowrap}
 .codeview{max-height:var(--bt-layout-code-max-height);overflow:auto;padding:var(--bt-space-sm) 0}
 .codeline{display:flex;gap:var(--bt-space-sm);font-family:var(--bt-font-code),var(--bt-font-mono-fallback);font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line)}
 .codeline .gutter{flex:0 0 var(--bt-space-3xl);text-align:right;color:var(--bt-text-subtle);user-select:none;font-variant-numeric:var(--bt-numeric-features)}

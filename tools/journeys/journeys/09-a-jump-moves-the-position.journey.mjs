@@ -159,16 +159,16 @@ const pickTarget = (page, selector) =>
  */
 const readPaneHealth = (page) =>
   page.evaluate(() => {
-    const panes = [...document.querySelectorAll(".dbg .pane")];
+    const panes = [...document.querySelectorAll(".dbg .lm_stack")];
     const speaks = (p) =>
       p.querySelectorAll(".ctrow,.evrow,.strow,.srcline").length > 0 ||
-      [...p.querySelectorAll(".panenote")].some((n) => (n.textContent ?? "").trim().length > 0);
+      [...p.querySelectorAll(".empty-overlay")].some((n) => (n.textContent ?? "").trim().length > 0);
     return {
       panes: panes.length,
       mute: panes.filter((p) => !speaks(p)).length,
       muteTitles: panes
         .filter((p) => !speaks(p))
-        .map((p) => p.querySelector(".panetitle")?.textContent?.trim() || p.id || "(unnamed)"),
+        .map((p) => p.querySelector(".lm_title")?.textContent?.trim() || p.id || "(unnamed)"),
     };
   });
 
@@ -332,14 +332,52 @@ export async function run({ browser, site, j }) {
     // written now would freeze whichever producer the author happened to
     // measure. The question, and the cheapest test that would settle it, is
     // written at `projectCalltrace`'s `step` field.
+    //
+    // PER REGION, AND THE UNION IS WHY. This read the UNION —
+    // `hydrated !== servedRows.total` over `.ctrow,.evrow` — and the union
+    // cannot see the defect this control is named for. Measured on the
+    // synthetic subject, with `live_navigation.handleEvent` returning before it
+    // reads either event (selftest arm O, the mutation that IS "the export
+    // answers for the live path"):
+    //
+    //                    call trace      event log       union
+    //     served             12               8            20
+    //     unmutated          70              20            90
+    //     mutated            12              20            32
+    //
+    // The CALL TRACE falls back to exactly the twelve rows the exporter wrote
+    // — the defect, stated as an equality. THE EVENT LOG DOES NOT MOVE AT ALL:
+    // 20 either way, because dropping BlockTracer's own feed does not stop the
+    // pinned store applying `ct/updated-events` for itself (see
+    // `live_navigation.applyEvents`' note on the bulk `applyEventLogResponse`,
+    // which that proc declines to use). So the union reads 32 against 20,
+    // "different", and the control stayed GREEN with the call trace showing
+    // the export's rows — arm O survived on exactly that arithmetic.
+    //
+    // A SUM CANNOT SAY WHICH ADDEND MOVED. That is the same lesson the real
+    // arm's own reading below records for `.ctrow,.evrow` with a floor of one,
+    // and it is the same repair: ask each region against its OWN served
+    // baseline, and require BOTH. Unmutated 70≠12 and 20≠8, green; with the
+    // navigation feed dead 12=12, red, whatever the event log is doing.
+    //
+    // THE EVENT-LOG CONJUNCT IS NOT WHAT KILLS THE ARM, and the table above is
+    // why it is here anyway. It is a true and separately checkable claim — the
+    // rows on screen are not the eight the exporter wrote — and it is the half
+    // a future regression in the OTHER writer would come for. It is recorded
+    // as not load-bearing for arm O so that nobody later reads its greenness
+    // as evidence about this repository's feed.
     const servedRows = await servedNavRows(page, site.origin + subject.debugPath);
-    const hydratedRows = await page.evaluate(
-      () => document.querySelectorAll(".ctrow,.evrow").length,
-    );
+    const hydrated = await page.evaluate(() => ({
+      ct: document.querySelectorAll(".ctrow").length,
+      ev: document.querySelectorAll(".evrow").length,
+      total: document.querySelectorAll(".ctrow,.evrow").length,
+    }));
     j.expect(
-      hydratedRows > 0 && hydratedRows !== servedRows.total,
+      hydrated.ct > 0 && hydrated.ct !== servedRows.ct &&
+        hydrated.ev > 0 && hydrated.ev !== servedRows.ev,
       "CONTROL: the navigation rows are the engine's, not the export's",
-      `served ${servedRows.total} row(s), hydrated ${hydratedRows}`,
+      `call trace served ${servedRows.ct}, hydrated ${hydrated.ct}` +
+        ` · event log served ${servedRows.ev}, hydrated ${hydrated.ev}`,
     );
 
     // ── the call trace ───────────────────────────────────────────────────
@@ -402,7 +440,7 @@ export async function run({ browser, site, j }) {
     // rows, and the control whose fragment points at that pane. A renamed pane
     // moves this on its own; a selector spelling "eventlog" would not.
     const opened = await page.evaluate(() => {
-      const pane = document.querySelector(".evrow")?.closest(".pane");
+      const pane = document.querySelector(".evrow")?.closest(".lm_content");
       if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
       const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
       if (!tab) return { ok: false, why: `no control targets #${pane.id}` };
@@ -710,7 +748,7 @@ async function realArm(browser, site, j, subject) {
     // taken, by the same property-not-name technique: the pane that holds the
     // event rows, and the control whose fragment points at it.
     const openedReal = await page.evaluate(() => {
-      const pane = document.querySelector(".evrow")?.closest(".pane");
+      const pane = document.querySelector(".evrow")?.closest(".lm_content");
       if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
       const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
       if (!tab) return { ok: false, why: `no control targets #${pane.id}` };

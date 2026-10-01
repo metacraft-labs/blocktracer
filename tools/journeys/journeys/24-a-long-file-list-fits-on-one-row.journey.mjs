@@ -207,7 +207,7 @@ const readStrip = (page) =>
     // between two pages.
     const stripBox = panel.querySelector(".srcstrip");
     const srcBody = panel.querySelector(".src");
-    const paneBody = panel.closest(".panebody");
+    const paneBody = panel.closest(".lm_content");
     const rectOf = (e) => {
       const r = e.getBoundingClientRect();
       return { top: r.top, left: r.left, right: r.right, bottom: r.bottom, height: r.height };

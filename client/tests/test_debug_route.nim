@@ -224,7 +224,8 @@ proc txHtml(hash: string): string = txHtmlIn(root, hash)
 # — rather than a word on the page: a page that merely SAID "debugger" would
 # satisfy a copy match and none of these.
 const SessionMarkers = [
-  "class=\"dbgmain\"",          # the pane region
+  "class=\"dbgmain lm_goldenlayout\"",  # the pane region, and the GoldenLayout
+                                        # frame it now IS
   "id=\"pane-editor\"",         # a pane the LayoutNode walk placed
   "id=\"pane-calltrace\"",
   "id=\"pane-metadata\"",       # §7.1's pane, beside the walked tree
@@ -512,7 +513,12 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     let bar = html[barStart ..< barEnd]
     check "class=\"dbgctl\"" in bar
     check "class=\"dc\"" in bar
-    check occurrences(bar, "class=\"dcbtn off\"") == s.controls.buttons.len
+    # `ct-button-image-md-secondary` is CodeTracer's own icon-button class and
+    # is what now draws these controls; `.dcbtn` survives for the pair spacing
+    # and the measured inert treatment. Both are asserted, because a control
+    # that lost either would look like the other product again.
+    check occurrences(bar, "class=\"dcbtn ct-button-image-md-secondary off\"") ==
+          s.controls.buttons.len
     check "class=\"dctl\"" in bar          # the scrubber came with them
     check "class=\"dcsteps num\"" in bar   # …and the position readout
     # Every control the model names is in the bar, by its own label.
@@ -535,14 +541,18 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     let code = model.children[0]
     let nav = model.children[1]
     check ("ln row " & dbgc.weightClass(model.weight)) in html
-    check ("pane p-source " & dbgc.weightClass(code.weight)) in html
+    # The weight lands on the STACK and the pane class on the PANEL inside it:
+    # every pane is a `.lm_stack` now, holding one `.lm_content`, because that
+    # is the nesting `golden_layout.styl` is written against.
+    check ("ln lm_stack " & dbgc.weightClass(code.weight)) in html
+    check ("lm_content btdefault " & dbgc.paneClass(code.pane)) in html
     check ("ln col " & dbgc.weightClass(nav.weight)) in html
     # The navigation region is a STACK, so its weight lands on the container
     # rather than on a pane — the panels inside it each fill the region and
     # carry no fraction of their own, which is what a tab pair means.
-    check ("ln stack " & dbgc.weightClass(nav.children[0].weight)) in html
-    check (dbgc.paneClass(nav.children[1].pane) & " " &
-           dbgc.weightClass(nav.children[1].weight)) in html
+    check ("ln lm_stack " & dbgc.weightClass(nav.children[0].weight)) in html
+    check ("ln lm_stack " & dbgc.weightClass(nav.children[1].weight)) in html
+    check ("lm_content btdefault " & dbgc.paneClass(nav.children[1].pane)) in html
 
   test "a DIFFERENT layout renders differently — the walk is driven by the model":
     # The negative half. Without it, "the arrangement comes from LayoutNode"
@@ -558,7 +568,7 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
 
     var reweighted = blockTracerReplayLayout()
     check setWeight(reweighted, paneEditor, 5.0)
-    check ("pane p-source w5") in dbgc.renderLayout(reweighted, s)
+    check ("ln lm_stack w5") in dbgc.renderLayout(reweighted, s)
 
     # The titles are the MODEL's, not the renderer's: a pane relabelled in the
     # tree is relabelled on the page, which is what makes "Code" and "Values"
@@ -577,25 +587,36 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     ## `.stacktab` rules, so a whole-document match would answer itself.
     let markup = debugHtml(readyTx).split("</style>")[1]
 
-    # One region, two panels, one strip.
-    check occurrences(markup, "class=\"ln stack ") == 1
-    check occurrences(markup, "class=\"stacktabs\"") == 1
-    check "stackpanel p-eventlog alt" in markup
+    # One region with two tabs. Every pane is a `.lm_stack` now — that is
+    # CodeTracer's vocabulary, in which a panel's name is always a tab — so the
+    # region is identified by being the only stack with a SECOND tab, which is
+    # also the selector `tools/capture/views.mjs` clips these views to.
+    check occurrences(markup, "class=\"ln lm_stack ") == 4
+    check occurrences(markup, "class=\"lm_tabs\"") == 4
+    # `<li class="lm_tab`, with the element name: `class="lm_tab` alone also
+    # matches the `<ul class="lm_tabs">` that holds them, which counted nine.
+    check occurrences(markup, "<li class=\"lm_tab") == 5
+    check "class=\"lm_content p-eventlog\"" in markup
     # Call Trace is the DEFAULT panel — `activeIndex = 0` — and the Event Log
     # is the alternate. Reversing that fails here.
-    check "stackpanel p-calltrace def" in markup
-    check "stackpanel p-eventlog def" notin markup
-    check "stackpanel p-calltrace alt" notin markup
+    check "class=\"lm_content btdefault p-calltrace\"" in markup
+    check "btdefault p-eventlog" notin markup
 
     # The strip names both, in the model's order, and switches with `:target`
     # links rather than script. `.stacktab:first-child` is what the stylesheet
     # marks active, so the FIRST tab has to be the default panel: an arrangement
     # whose active child is not its first would render a strip that marks the
     # wrong tab, which is the latent defect this ordering avoids.
-    check "class=\"stacktab t-pane-calltrace\" href=\"#pane-calltrace\"" in markup
-    check "class=\"stacktab t-pane-eventlog\" href=\"#pane-eventlog\"" in markup
+    check "class=\"lm_tab btdefault t-pane-calltrace\"" in markup
+    check "class=\"lm_title\" href=\"#pane-calltrace\"" in markup
+    check "class=\"lm_tab t-pane-eventlog\"" in markup
+    check "class=\"lm_title\" href=\"#pane-eventlog\"" in markup
     check markup.find("t-pane-calltrace") < markup.find("t-pane-eventlog")
-    check ".stacktabs > .stacktab:first-child" in debugRouteCss
+    # The stylesheet marks the default tab active with CodeTracer's OWN
+    # `.lm_active` declarations, re-emitted under a `:target`-derived selector
+    # rather than re-typed. See `ct_components_css.activeTabCss`.
+    check ".lm_stack:not(:has(> .lm_items > .lm_content:target)) " &
+          ".lm_tab.btdefault{" in debugRouteCss
     # The tabs are `:target` links and NOT script. Asserted as "no executable
     # script", which is what the claim has always meant and is now the sharper
     # spelling of it: this build declares no hydration bundle
@@ -608,9 +629,41 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     # Values is NOT in the region: it is a pane below it, not a third tab. It
     # answers "what is true here" rather than "where do I want to be", and a
     # tab would rank it as an alternative to navigating.
-    check "stackpanel p-state" notin markup
-    check "t-pane-state" notin markup
-    check "class=\"pane p-state " in markup
+    #
+    # ASSERTED OVER THE REGION'S OWN STRIP, not over the document. Every pane
+    # is a `.lm_stack` with a tab now, so Values HAS a tab — what it must not
+    # be is a tab of THIS strip. The strip runs from the region's `.lm_tabs` to
+    # the `.lm_items` that closes it.
+    let calltraceTabAt = markup.find("t-pane-calltrace")
+    check calltraceTabAt > 0
+    # From the `<ul>` that OPENS the strip, not from the tab inside it: starting
+    # mid-tag drops the first `<li>` from the count and the assertion passes for
+    # the wrong reason on a one-tab region.
+    let regionAt = markup.rfind("<ul class=\"lm_tabs\">", last = calltraceTabAt)
+    check regionAt > 0
+    let stripEnd = markup.find("class=\"lm_items\"", regionAt)
+    check stripEnd > regionAt
+    let strip = markup[regionAt ..< stripEnd]
+    check "t-pane-state" notin strip
+    check occurrences(strip, "<li class=\"lm_tab") == 2
+    check "class=\"lm_content btdefault p-state\"" in markup
+
+    # EVERY STACK ON THE PAGE OPENS ON EXACTLY ONE PANEL, and this is the
+    # assertion a capture had to make for me first. `debugger_css.nim` hides
+    # every `.lm_content` and shows the one carrying `btdefault`, so a panel
+    # that lost the class renders as a tab strip over an empty pane — which is
+    # what the hand-written Transaction pane in `pages/debug.nim` did, silently,
+    # with every Nim suite green, until `debugger--metadata-pane` was
+    # photographed at 4 KB instead of 85 KB.
+    #
+    # One `btdefault` panel per stack, and one `btdefault` tab per stack: both
+    # counts, because the panel decides what is SHOWN and the tab decides what
+    # looks OPEN, and a page that got one without the other would be right in
+    # one half and wrong in the other.
+    let stacks = occurrences(markup, "class=\"ln lm_stack ")
+    check stacks > 0
+    check occurrences(markup, "class=\"lm_content btdefault") == stacks
+    check occurrences(markup, "<li class=\"lm_tab btdefault") == stacks
 
     # Both panes still exist and are both addressable — a tab is a change of
     # ranking, not a removal. This is the half that stops "tabbed" from decaying
@@ -631,8 +684,8 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     let node = stack([pane(paneState, "Values"), pane(paneEventLog, "Event Log")],
                      activeIndex = 0)
     let html = dbgc.renderLayout(node, s)
-    check "stackpanel p-state def" in html
-    check "stackpanel p-eventlog alt" in html
+    check "class=\"lm_content btdefault p-state\"" in html
+    check "class=\"lm_content p-eventlog\"" in html
     # The tab strip links to both, so the switch works with no JavaScript.
     check "href=\"#pane-state\"" in html
     check "href=\"#pane-eventlog\"" in html
@@ -640,12 +693,15 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     let other = dbgc.renderLayout(
       stack([pane(paneState, "Values"), pane(paneEventLog, "Event Log")],
             activeIndex = 1), s)
-    check "stackpanel p-eventlog def" in other
+    check "class=\"lm_content btdefault p-eventlog\"" in other
     check other != html
     # The rules that render it are in the shipped stylesheet, so the branch is
-    # not styled by nothing.
-    check ".stackpanel.alt:target" in debugRouteCss
-    check ".stackpanel.alt:target ~ .stackpanel.def" in debugRouteCss
+    # not styled by nothing. `:has()` and not a sibling combinator: the tab
+    # strip and the panels are in two subtrees under `.lm_stack` now, which is
+    # the nesting CodeTracer's own rules are written against.
+    check ".lm_stack:has(> .lm_items > .lm_content:nth-child(2):target)" in
+          debugRouteCss
+    check ".lm_stack > .lm_items > .lm_content{display:none" in debugRouteCss
 
   test "§13's narrow reduction removes the Event Log's TAB, not just its panel":
     ## The Event Log is the alternate half of the region now, so at narrow width
@@ -655,18 +711,25 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     ## control this surface has removed twice; the stylesheet has to name the
     ## tab, and it has to answer `:target` so a stale fragment cannot blank the
     ## region either.
-    check ".stacktab.t-pane-eventlog{display:none}" in debugRouteCss
-    check ".stackpanel.p-eventlog:target{display:none}" in debugRouteCss
-    check ".stackpanel.p-eventlog:target ~ .stackpanel.def{display:flex}" in
+    # `!important` and the register prefix: the tab rule is ANSWERING
+    # `golden_layout.styl`'s own `.lm_tab{display:flex !important}`, and an
+    # unprefixed `display:none` lost to it — the tab was still on screen at
+    # `tablet` and a capture is what noticed.
+    check "[data-register=\"debugger\"] .lm_tab.t-pane-eventlog" &
+          "{display:none !important}" in debugRouteCss
+    check ".lm_stack > .lm_items > .lm_content.p-eventlog{display:none}" in
+          debugRouteCss
+    check ".lm_stack:has(> .lm_items > .lm_content.p-eventlog:target)\n" &
+          "    > .lm_items > .lm_content.p-calltrace{display:flex}" in
           debugRouteCss
     # …inside the narrow media query and not at top level, where it would hide
     # the Event Log at every width.
     let narrow = debugRouteCss.split("@media (max-width:1100px){")[1]
-    check ".stacktab.t-pane-eventlog{display:none}" in narrow
+    check ".lm_tab.t-pane-eventlog{display:none !important}" in narrow
     # The Code pane's narrow height fix is in the same block — the P1 where an
     # auto-height `.panebody` gave `.srcwrap`'s `height:100%` nothing to divide
     # and the pane rendered as an empty title bar.
-    check ".p-source .panebody{height:" in narrow
+    check ".lm_content.p-source{height:" in narrow
 
   test "a weight the stylesheet has no fraction for is a build failure":
     # `weightClass` is the only place a layout can fail to be renderable, and
@@ -2150,8 +2213,8 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     check rail.iterations.len == 8
     for i in 0 ..< rail.iterations.len:
       check ("id=\"fit-" & $i & "\"") in served
-    let body = "<div class=\"panebody\">"
-    let paneAt = served.find("id=\"pane-editor\"")
+    let body = "id=\"pane-editor\">"
+    let paneAt = served.find("class=\"lm_content btdefault p-source\"")
     check paneAt >= 0
     let bodyAt = served.find(body, paneAt)
     check bodyAt >= 0
@@ -2999,7 +3062,7 @@ suite "the pane with no line to mark still says where the session is":
     # then why there is no text to put it on.
     check html.find("srcpos") < html.find("srcnone")
     # …and `.srcnone` itself is untouched.
-    check "class=\"panenote\"" in html
+    check "class=\"empty-overlay\"" in html
     check "Stepping continues at instruction level." in html
 
   test "it reads the same channels as the current source line, not new ones":
@@ -3325,7 +3388,8 @@ suite "M8b — the metadata pane and the page cannot diverge":
     let html = debugHtml(readyTx)
     check "data-session-phase=\"fetching\"" in html
     # Every stepping control carries the inert class; none is left enabled.
-    check occurrences(html, "class=\"dcbtn off\"") == s.controls.buttons.len
+    check occurrences(html, "class=\"dcbtn ct-button-image-md-secondary off\"") ==
+          s.controls.buttons.len
     check "class=\"dcbtn\"" notin html
     # …and each one says so as a CONTROL, on the accessibility tree and in its
     # own tooltip, rather than relying on a paragraph elsewhere on the page.
@@ -3694,7 +3758,8 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
     # …and the whole toolbar is still honestly inert, which is the state the
     # bundle's absence must leave behind.
     let s = sessionFor(readyTx)
-    check occurrences(html, "class=\"dcbtn off\"") == s.controls.buttons.len
+    check occurrences(html, "class=\"dcbtn ct-button-image-md-secondary off\"") ==
+          s.controls.buttons.len
 
   test "every control names the MOVE it would make, in the enum's spelling":
     ## Hydration binds a button to a command by `data-action`. Matching on the

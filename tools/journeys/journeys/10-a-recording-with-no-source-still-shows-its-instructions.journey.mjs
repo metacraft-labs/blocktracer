@@ -71,7 +71,7 @@ export async function run({ browser, site, j }) {
         const rows = [...document.querySelectorAll(".src.instr .srcline")].filter(shown);
         const cur = document.querySelector(".src.instr .srcline.cur");
         const caption = document.querySelector(".instrcap");
-        const reason = document.querySelector(".srcnone .panenote");
+        const reason = document.querySelector(".srcnone .empty-overlay");
         return {
           rowsShown: rows.length,
           // The rows' own text, so "shows a program counter" is judged on what

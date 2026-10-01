@@ -373,7 +373,42 @@ async function rpc(method, params = []) {
 }
 
 // ── phase 1: fetch the range into its own snapshot ──────────────────────────
-async function fetchRange(nodeInfo, tip, finalized) {
+// ── THE REPLAYABLE FLOOR IS MEASURED, NOT ASSUMED ───────────────────────────
+//
+// `window.replayableFrom` was hardcoded to `finalized + 1`. `ingest.nim` derives
+// the registry's `historyFloor` and `reach` from it (`chain_profile.nim` maps
+// `boundary == finalized + 1` to `rkWindowed`, anything else to `rkFloor`), so a
+// genesis-to-tip backfill published a registry row advertising a ~tip-sized
+// window: the blocks were all in the store and fetchable by hash, and the row
+// said the chain only reached back to the finalized pointer. Nothing ever
+// emitted `rkFloor`, so the `floor` half of that machinery was unreachable.
+//
+// This probe answers the question the field actually asks — the lowest height
+// the node will still serve prestate for — by bisecting on a real witness call
+// rather than naming a constant. `node_getPublicDataWitness` is the same call
+// the replay path uses for intermediate state, so a height it answers for is a
+// height replay can start from.
+//
+// Opt-in. With neither `--probe-floor` nor `--replayable-from`, the value is
+// `finalized + 1` exactly as before, so no existing caller changes behaviour.
+async function probeReplayableFloor(tip) {
+  const serves = async (h) => {
+    const r = await rpc('node_getPublicDataWitness', [h, '0x1']);
+    return !(r && r.__err);
+  };
+  // A node that cannot answer at the tip cannot be bisected against.
+  if (!await serves(tip)) return null;
+  let lo = 1, hi = tip;
+  if (await serves(lo)) return lo;
+  // invariant: `lo` is not served, `hi` is.
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (await serves(mid)) hi = mid; else lo = mid;
+  }
+  return hi;
+}
+
+async function fetchRange(nodeInfo, tip, finalized, replayableFrom) {
   const dir = join(RANGES, rangeKey);
   mkdirSync(join(dir, 'ct'), { recursive: true });
   const p = join(dir, 'snapshot.json');
@@ -554,8 +589,8 @@ async function fetchRange(nodeInfo, tip, finalized) {
       range: { from, to },
     },
     captures: [],
-    window: { tip, finalized, replayableFrom: finalized + 1, replayableTo: tip,
-              blocks: tip - finalized },
+    window: { tip, finalized, replayableFrom, replayableTo: tip,
+              blocks: tip - replayableFrom + 1 },
     counts: {},
     blocks,
     transactions,
@@ -1119,6 +1154,28 @@ if (tip?.__err || finalized?.__err) { console.error('ingest-range: node refused 
 report.tipAtRun = tip;
 report.finalizedAtRun = finalized;
 
+// See `probeReplayableFloor`. Explicit flag wins; then a measured probe; then the
+// historical default, so an unflagged run is byte-for-byte what it always was.
+const replayableFromArg = arg('replayable-from', '');
+let replayableFrom = finalized + 1;
+if (replayableFromArg !== '') {
+  replayableFrom = Number(replayableFromArg);
+  if (!Number.isFinite(replayableFrom) || replayableFrom < 1) {
+    console.error(`ingest-range: --replayable-from must be a height >= 1`);
+    process.exit(2);
+  }
+} else if (flag('probe-floor')) {
+  const probed = await probeReplayableFloor(tip);
+  if (probed == null) {
+    console.error('ingest-range: --probe-floor: the node would not serve prestate at the '
+      + 'tip, so the floor cannot be bisected. Nothing was written.');
+    process.exit(2);
+  }
+  replayableFrom = probed;
+  say(`probed replayable floor: ${replayableFrom} (node serves prestate from here up)`);
+}
+report.replayableFromAtRun = replayableFrom;
+
 const ledger = loadLedger();
 const already = ledger.ranges[rangeKey];
 if (already && !refetch) {
@@ -1126,7 +1183,7 @@ if (already && !refetch) {
   report.fetch = { reused: true, ...already.fetch };
 } else {
   say(`fetching blocks ${from}..${to} from ${url}`);
-  report.fetch = await fetchRange(nodeInfo, tip, finalized);
+  report.fetch = await fetchRange(nodeInfo, tip, finalized, replayableFrom);
   say(`fetched: ${report.fetch.served}/${report.fetch.requested} served, ` +
       `${report.fetch.transactions} transactions, ${report.fetch.fetchMs} ms`);
   // A RANGE THINNED BY A RATE LIMIT IS NOT A COVERED RANGE. Writing it to the

@@ -150,7 +150,7 @@ const READ_ROWS = () => {
     : {
         shown: shown(sel),
         heading: sel.querySelector(".mdexectitle")?.textContent ?? null,
-        note: sel.querySelector(".panenote")?.textContent ?? null,
+        note: sel.querySelector(".empty-overlay")?.textContent ?? null,
         facts: Object.fromEntries(
           [...sel.querySelectorAll("dt")].map((dt, i) => [
             dt.textContent,

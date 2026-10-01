@@ -255,6 +255,13 @@ proc traceContentHash(manifestJson: string): string =
 # The publishing cycle for one chain.
 # ---------------------------------------------------------------------------
 
+proc discoverChains(treeDir: string): seq[string] {.used.} =
+  let d = treeDir / "d"
+  if not dirExists(d): return
+  for entry in walkDir(d):
+    if entry.kind == pcDir: result.add extractFilename(entry.path)
+  result.sort()
+
 proc publishChain*(store: ObjectStore, treeDir, chain: string,
                    opts: PublishOptions): PublishResult =
   result.chain = chain
@@ -265,6 +272,28 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
   var keys = enumerateTree(treeDir)
   # Only keys belonging to this chain, plus the chain-agnostic layers (assets,
   # global hash index, registry, site home) that the tree also carries.
+  # ── AN ALLOWLIST DROPPED EIGHT OBJECTS SILENTLY, SO THE RULE IS INVERTED ──
+  #
+  # This used to admit site-root objects by three literal names — `index.html`,
+  # `sitemap.xml`, `robots.txt`. Everything else at the root belonged to no chain
+  # and was skipped at exit 0 with no warning. Found by a coverage rehearsal that
+  # subtracted a published store from the tree, not by anything in this file:
+  #
+  #   404.html  about/  chains/  search/  settings/
+  #   replay-engine/worker.js  replay-engine/pkg/db_backend.js  …_bg.wasm
+  #
+  # `replay-engine/**` is the one that breaks production. It is the debugger's
+  # engine, wasm included; serving from R2 without it means every page renders,
+  # the publish exits 0, and every debug session fails to load. `404.html` was
+  # fixed here by name and that fix was the same mistake one notch smaller — the
+  # NEXT root file reproduces it.
+  #
+  # So the question is no longer "is this key on the list" but "is this key
+  # SCOPED TO SOME CHAIN": `d/{chain}/`, `src/{chain}/`, or a first segment that
+  # names a chain. Anything else is site-level and belongs to every chain, so it
+  # is published once (content is skip-if-present, pointers are idempotent) and
+  # a new root file or directory is carried by default instead of vanishing.
+  let treeChains = discoverChains(treeDir)
   proc belongs(k: string): bool =
     if k.startsWith("d/"): return k.startsWith("d/" & chain & "/")
     # Source bundles are filed per chain under /src/{chain}/ (Source-Resolution
@@ -272,12 +301,9 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
     # while the bundle it names never is, and the debugger steps through code it
     # cannot display.
     if k.startsWith("src/"): return k.startsWith("src/" & chain & "/")
-    if k.startsWith(chain & "/"): return true          # this chain's entry pages
-    if k.startsWith("t/") or k.startsWith("idx/") or k.startsWith("assets/") or
-       k.startsWith("registry/") or k == "index.html" or k == "sitemap.xml" or
-       k == "robots.txt": return true
-    # another chain's entry pages / data → not ours
-    false
+    let seg = k.split('/')[0]
+    if seg in treeChains: return seg == chain          # some chain's entry pages
+    return true                                        # site-level: every chain carries it
   keys = keys.filterIt(belongs(it))
 
   keys.sort(proc(a, b: string): int =
@@ -475,12 +501,161 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
 
   result.publishedGeneration = readSyncState(store, chain).generation
 
-proc discoverChains(treeDir: string): seq[string] {.used.} =
-  let d = treeDir / "d"
-  if not dirExists(d): return
-  for entry in walkDir(d):
-    if entry.kind == pcDir: result.add extractFilename(entry.path)
-  result.sort()
+# ---------------------------------------------------------------------------
+# The global-pointer guard (§2.2a), and the bug it exists for.
+# ---------------------------------------------------------------------------
+#
+# MEASURED, NOT HYPOTHETICAL. Publishing `aztec` and then `aztec-testnet` into one
+# bucket left the store's registry naming ONLY `aztec-testnet`. All 102,689 of
+# `aztec`'s blocks were still present and fetchable by hash, and invisible,
+# because the registry is the only thing that lists a chain.
+#
+# THE MECHANISM IS NOT VISIBLE FROM THE SYMPTOM. `registry/**` classifies as
+# `ocPointer`, whose strategy is `stUnconditional` — "always (re)write". The key
+# is GLOBAL: it carries no chain segment, so both chains write the same key.
+# `ingest.nim` does merge a registry, and its own comment names this hazard, but
+# it merges within ONE TREE (it reads `cfg.outDir/registry` and adds a key). Two
+# chains ingested into two trees each produce a registry holding one chain, and
+# the second publish overwrites the first. The seam was right; it was at the
+# wrong level.
+#
+# THE FIX IS TO INGEST EVERY CHAIN INTO ONE SHARED TREE, so `ingest.nim`'s merge
+# sees both. This guard does not enforce that directly — it refuses the OUTCOME,
+# which is the thing that must never reach the store:
+#
+#   1. a global `stUnconditional` key that is not a known one. A new global
+#      pointer added later gets this bug for free, and silently. `idx/**/meta.json`
+#      and `index.html` / `sitemap.xml` / `robots.txt` are already in that class
+#      and are emitted by the demo generator today; a chain producer that starts
+#      emitting one would reproduce this exactly.
+#   2. a registry that DROPS a chain the store already holds. This is the check
+#      that would have caught the measured bug, and it is content-aware because
+#      the generic rule cannot be: the registry is legitimately global and
+#      legitimately rewritten, and what makes a write wrong is that it loses a row.
+
+# WHOLE-SITE OBJECTS, AND WHY THEY ARE SAFE WHILE AN UNKNOWN ONE IS NOT.
+#
+# Once `blocktracer.org` is served from the bucket, the bucket is the origin for the
+# SITE and not only the data plane: the published tree carries `index.html`, the
+# sitemap, the 404 page, the fonts, and `idx/**` — the global hash index, which
+# `buildGlobalHashIndex` computes over EVERY chain at once. All of those are global
+# keys under unconditional rewrite, exactly like the registry.
+#
+# They are nonetheless safe, and the reason is not that they are on this list. It is
+# that `assertRegistryKeepsKnownChains` runs beside this check and refuses any tree
+# that does not already know every chain the store knows. A tree that passes THAT is
+# a whole-site tree by construction, so its whole-site objects were built over the
+# whole site and rewriting them loses nothing. A single-chain tree cannot reach this
+# point at all.
+#
+# So this list is not "objects we trust". It is "objects whose sharing we have
+# already reasoned about", and the check below exists for the one we have not: a new
+# global pointer added later inherits the registry bug for free and silently, and
+# should stop a publish until someone decides what merging it means.
+const knownGlobalPointers = [
+  "registry/",      # merged by ingest.nim within a tree; guarded semantically below
+  "src/",           # src/{chain}/{contentHash}/current.json — chain- AND content-scoped
+  "idx/",           # global hash index, built over every chain by buildGlobalHashIndex
+  "assets/", "_a/", # fonts and immutable client assets
+  "index.html", "sitemap.xml", "robots.txt", "404.html",
+]
+
+func isChainScoped(key: string): bool =
+  ## `d/{chain}/…` — two chains never write the same key, so a rewrite is safe.
+  key.startsWith("d/")
+
+proc assertNoUnknownGlobalPointer(treeDir: string) =
+  for key in enumerateTree(treeDir):
+    if strategyOf(classOf(key)) != stUnconditional: continue
+    if isChainScoped(key): continue
+    var known = false
+    for k in knownGlobalPointers:
+      if key.startsWith(k): known = true
+    if known: continue
+    raise newException(PublishError,
+      "refusing to publish '" & key & "': it is a GLOBAL key (no chain segment) written " &
+      "with the unconditional-rewrite strategy, so publishing one chain would overwrite " &
+      "whatever another chain wrote there. This is the defect that left the registry naming " &
+      "one chain while the other's blocks sat in the store unreferenced. If this object is " &
+      "genuinely shared and must be merged across chains, ingest every chain into ONE tree " &
+      "so the merge happens before publication, then add its prefix to `knownGlobalPointers` " &
+      "with a check like `assertRegistryKeepsKnownChains`.")
+
+proc assertRegistryKeepsKnownChains(store: ObjectStore, treeDir: string) =
+  ## A registry write may add chains and may change rows. It may not LOSE a chain.
+  # The contract version lives in the filename and this module has no constant for it, so the
+  # tree is asked rather than told: whatever `chains.v*.json` it carries is the one to check.
+  var rel = ""
+  let regDir = treeDir / "registry"
+  if dirExists(regDir):
+    for kind, path in walkDir(regDir):
+      let base = extractFilename(path)
+      if kind == pcFile and base.startsWith("chains.v") and base.endsWith(".json"):
+        rel = "registry/" & base
+        break
+  if rel.len == 0: return
+  let local = treeDir / rel
+  if not fileExists(local): return
+  let (stored, ok) = store.get(rel)
+  if not ok: return                      # first publish: nothing to lose
+  var have, want: JsonNode
+  try:
+    have = parseJson(stored){"chains"}
+    want = parseJson(readFile(local)){"chains"}
+  except CatchableError:
+    return                               # unparseable is a different problem, not this one
+  if have == nil or want == nil: return
+  var dropped: seq[string]
+  for name, _ in have.pairs:
+    if want{name} == nil: dropped.add name
+  if dropped.len > 0:
+    raise newException(PublishError,
+      "refusing to publish a registry that drops chain(s) " & dropped.join(", ") &
+      ": the store lists them and this tree does not. The registry is the only object that " &
+      "lists a chain, so writing this would leave those chains' objects present in the store " &
+      "and invisible to every reader. This happens when each chain is ingested into its OWN " &
+      "tree: each tree's registry then holds one chain and the second publish overwrites the " &
+      "first. Ingest every chain into ONE shared tree — `ingest.nim` merges a registry within " &
+      "a tree — and publish that.")
+
+proc assertEveryObjectIsClaimed(treeDir: string) =
+  ## No object in the tree may belong to no chain IN THE TREE.
+  ##
+  ## SKIPPING IS THE FAILURE MODE, NOT UPLOADING. `publishChain` filters the tree by
+  ## `belongs`, so an object no chain claims is not refused — it is silently absent from
+  ## the store while the publish exits 0. That shipped a site with no `404.html`, and a
+  ## coverage rehearsal later found seven more, including `replay-engine/**`: the
+  ## debugger's engine and its wasm, without which every page renders and every debug
+  ## session fails to load its engine.
+  ##
+  ## THE QUESTION IS ABOUT THE TREE, NOT ABOUT THIS RUN. Asking whether the chains being
+  ## published claim every key makes a single-chain publish refuse another chain's data,
+  ## which is normal and correct. The invariant is that the tree is self-consistent:
+  ## every object is scoped to some chain the tree contains, or is site-level.
+  ##
+  ## `belongs` is now scope-based rather than an allowlist, so nothing should reach this.
+  ## That is exactly why it is here: the previous rule also looked complete, and the cost
+  ## of being wrong is a defect invisible from the publisher's own output.
+  let treeChains = discoverChains(treeDir)
+  var orphans: seq[string]
+  for key in enumerateTree(treeDir):
+    var claimed = false
+    if key.startsWith("d/"):
+      for c in treeChains:
+        if key.startsWith("d/" & c & "/"): claimed = true; break
+    elif key.startsWith("src/"):
+      for c in treeChains:
+        if key.startsWith("src/" & c & "/"): claimed = true; break
+    else:
+      claimed = true                 # site-level, or a chain's entry pages
+    if not claimed: orphans.add key
+  if orphans.len > 0:
+    raise newException(PublishError,
+      "refusing to publish: " & $orphans.len & " object(s) in the tree belong to no chain " &
+      "the tree contains, and would be SKIPPED SILENTLY at exit 0, e.g. " &
+      orphans[0 ..< min(5, orphans.len)].join(", ") &
+      ". Either the owning chain is missing from d/, or the key is misfiled. Do not add " &
+      "them to an allowlist by name: that is what dropped `404.html` and `replay-engine/**`.")
 
 proc publishTree*(store: ObjectStore, treeDir: string,
                   opts = defaultOptions()): seq[PublishResult] =
@@ -491,6 +666,11 @@ proc publishTree*(store: ObjectStore, treeDir: string,
     if opts.chain.len > 0: @[opts.chain] else: discoverChains(treeDir)
   if chains.len == 0:
     raise newException(PublishError, "no chains found under " & treeDir / "d")
+  # Before any write, and before the lease: a refusal here costs nothing, while the
+  # same refusal after the first pointer lands has already lost a chain.
+  assertNoUnknownGlobalPointer(treeDir)
+  assertRegistryKeepsKnownChains(store, treeDir)
+  assertEveryObjectIsClaimed(treeDir)
   for chain in chains:
     if opts.takeLease and not acquireLease(store, chain, opts.writer):
       raise newException(PublishError,

@@ -679,14 +679,32 @@ test('exactly the expected files know about each half of the seam');
   // whose only mention of the member was in that header — documentation of
   // `blocktracer_client/paths.nim`'s signature, not a second reader of the declaration,
   // and the module it re-exports is in the set.
-  ck('nine files under src/ read the declaration', sizeOf('declaration').src.length === 9);
-  // TWO under tools/ AND NOT ONE: `snapshot-contract-selftest.mjs` joined when §5.6's
+  // TEN AND NOT NINE: `verify/audit.nim` joined 2026-09-29 with the production
+  // verifier. It samples object keys across a chain's whole range, and a key is
+  // derived from an identifier — so it reads the chain's encoding from the registry
+  // row rather than assuming hex. A reader, not an exempter.
+  ck('ten files under src/ read the declaration', sizeOf('declaration').src.length === 10);
+  // THREE under tools/ AND NOT TWO: `snapshot-contract-selftest.mjs` joined when §5.6's
   // declaration became reachable. `provenance.identifierEncoding` is in §5.2b's census
   // now, so the census check names it, and its §15 asserts the SHAPE of the reader's one
   // binding. It derives nothing — it reads a Nim file as text.
-  ck('seven under client/, and TWO under tools/ — this suite and the census check',
+  //
+  // `hostile-chain-corpus.mjs` joined on 2026-09-29, and it is the first member that
+  // names the declaration in order to LEAVE IT ALONE. It poisons every snapshot string
+  // it does not recognise as structural, and a closed-set enum spelling is not something
+  // a chain decides a byte of — poisoning it only makes `ingest` refuse on the closed-set
+  // rule before a single page renders, which is how `ci/test/untrusted-text.sh` came to
+  // exit 2 having scanned 0 pages and measured nothing. It sits beside `outcome`, `kind`,
+  // `refusalReason` and `prestateStrategy` in that generator's exemptions.
+  //
+  // So this set now holds two KINDS of member, and the distinction is worth keeping when
+  // the next one arrives: a reader that derives behaviour from the declaration, and an
+  // exempter that names it to avoid corrupting it. Both must be listed — the sweep asks
+  // who NAMES the member, not who uses it — but only the first is a consumer.
+  ck('seven under client/, and THREE under tools/ — this suite, the census check '
+     + 'and the hostile corpus that exempts the member',
      sizeOf('declaration').client.length === 7
-     && sizeOf('declaration').tools.length === 2);
+     && sizeOf('declaration').tools.length === 3);
   ck('six files under src/ read the case rule', sizeOf('caseRule').src.length === 6);
   ck('three under client/ — the query canonicaliser, the route enumerator and the '
      + 'browser bundle — and one under tools/',

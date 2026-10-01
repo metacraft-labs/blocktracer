@@ -152,10 +152,11 @@ one, because the defect had two mechanisms:
 
 Two smaller rules came out of the same file and generalise:
 
-- **Read the scroller you find, not the one you name.** `#pane-editor .panebody`
+- **Read the scroller you find, not the one you name.** `#pane-editor`
   is the element the product's own code holds and it is *not* where the source
-  pane overflows — `.src` is. On the demo pane `.panebody` has a scroll range of
-  zero. A journey that read it would have measured a constant, and a constant
+  pane overflows — `.src` is. On the demo pane that panel has a scroll range of
+  zero. (It used to be spelled `#pane-editor .panebody`; the pane chrome is
+  CodeTracer's now, so `#pane-*` names the `.lm_content` panel directly.) A journey that read it would have measured a constant, and a constant
   supports whichever assertion its author wants. `sourceScroll` walks out from the
   marked line and takes the first ancestor that actually scrolls, and asserts that
   it found one with somewhere to go before judging that it stayed put.

@@ -20,7 +20,7 @@
 ##   nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
 ##   # or via the Justfile:  just export
 
-import std/[os, strutils, times, algorithm, sets, tables, json]
+import std/[os, strutils, times, algorithm, sets, tables, json, sha1]
 import blocktracer/contract/hashshard   # §5's shard codec + its published depth
 import blocktracer/contract/identifier_encoding  # each chain's declared encoding — the index keys with it
 import blocktracer/demo/generator
@@ -730,6 +730,28 @@ proc exportSite() =
   # resolved rather than leaving a reader to infer it from a flag.
   let root = resolveDataOrigins(newDataRoot(OutputDir))
   let routes = staticRoutes(root)
+  # See `store.nim`'s `enableSingletonJsonCache`: an export is one moment, so the
+  # whole-chain singletons it re-reads per page may be parsed once. Worth ~23%
+  # and NOT a fix for the export's cost curve — see that proc's header.
+  enableSingletonJsonCache()
+  # And the block list itself, once per generation rather than once per page —
+  # see `entities.nim`'s `enableBlockRefMemo`. The HashSet fix removed the
+  # quadratic INSIDE each call; this removes the one ACROSS calls.
+  enableBlockRefMemo()
+  enableHeightIndexMemo()
+
+  # ── THE STYLESHEET AS ONE ASSET, NOT 288,046 COPIES ───────────────────────
+  # See `layout.nim`'s `useExternalCss`. Content-addressed so the year-long
+  # immutable policy on `/_a/*` is safe, and written before the first page is
+  # rendered because every page's `<head>` names it.
+  block:
+    let cssBytes = siteCss()
+    let cssName = ($secureHash(cssBytes)).toLowerAscii[0 ..< 16] & ".css"
+    ensureDir(OutputDir / "_a")
+    writeFile(OutputDir / "_a" / cssName, cssBytes)
+    useExternalCss("/_a/" & cssName)
+    echo "  + stylesheet: /_a/" & cssName & " (" & $cssBytes.len &
+      " bytes, once instead of per page)"
   var rendered = 0
   for route in routes:
     let (status, body, _) = renderRoute(root, route)

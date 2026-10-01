@@ -879,6 +879,60 @@ objectstore-probe bucket endpoint prefix="":
     nim c --hints:off -d:release --path:src -o:objectstore-probe tools/dev/objectstore_probe.nim
     ./objectstore-probe {{bucket}} {{endpoint}} {{prefix}}
 
+# ── is all the data actually on the published instance ─────────────────────
+#
+# `blocktracer-validate` answers "is this TREE well-formed" about a directory on
+# the machine that produced it, and it walks every object. Nobody has ever asked
+# the question of PRODUCTION, and nobody could: the tree to walk is 882,639
+# objects. This asks it in a bounded number of requests, read-only, and exits
+# non-zero naming which of its eight checks found what.
+#
+# The design and the sampling argument are in
+# `src/blocktracer/verify/audit.nim`'s header. In one line: the pointers are
+# checked exhaustively, the RANGE LEDGER against the published height map is
+# exhaustive too and costs two objects, and only "does the store hold the object
+# this height names" is sampled — deterministically at every range boundary plus
+# the floor and the tip, then spread over the span, with the run printing the
+# omission rate that sample detects at 99% confidence.
+#
+# IT CANNOT WRITE. `verify/source.nim` has no write operation,
+# `tests/tverifypublished.nim` asserts `not compiles(s.put(…))`, and
+# `ci/test/verify-published-readonly.sh` refuses a write call being added.
+# Pointing it at production is an operator action with an operator credential
+# (DEPLOY.md §3) — but unlike `--backend s3` on the publisher, it is a safe one.
+#
+#     just verify-published --url https://blocktracer.org --tree ./tree \
+#       --ledger .chain-state/aztec-mainnet/coverage.json --allow-unrunnable CENSUS
+verify-published *ARGS:
+    nim c --hints:off -d:release --path:src -o:blocktracer-verify-published \
+      src/blocktracer_verify_published.nim
+    ./blocktracer-verify-published {{ARGS}}
+
+# The suite, including the nine deliberately-broken trees the verifier must
+# refuse. Runs offline: an in-process HTTP fixture on 127.0.0.1 provides the one
+# backend that can answer the cache-header question and impersonate a host that
+# answers 200 for every path.
+verify-published-selftest:
+    nim c -r --hints:off --path:src tests/tverifypublished.nim
+    bash ci/test/verify-published-readonly.sh
+    bash ci/test/verify-published-readonly-test.sh
+
+# ── has the transcribed cache contract drifted from the spec ───────────────
+#
+# `tools/verify/cache-policy.json` is a transcription of Static-Site-Architecture
+# §2.9 (normative) and Publishing-And-Caching §4. This recomputes the sha256 of
+# both sections against a `codetracer-specs` checkout and reports what moved.
+#
+# NOT A CI STEP, AND IT REFUSES RATHER THAN PASSING WHEN IT CANNOT LOOK: CI does
+# not check out `codetracer-specs` (the same limitation `snapshot-contract-tables`
+# above records), and a guard that exits 0 on an absent subject is the empty-set
+# pass in disguise. Absent checkout ⇒ exit 2.
+#
+#     just cache-policy-drift
+#     just cache-policy-drift --specs ../codetracer-specs --ref origin/latest
+cache-policy-drift *ARGS:
+    node tools/verify/cache-policy-drift.mjs {{ARGS}}
+
 # ── the chain captures' call frames ─────────────────────────────────────────
 #
 # Derive `calltrace/<tx>.json` beside a committed capture's containers: the
@@ -1021,6 +1075,33 @@ layout-vendor:
     ci/test/flow-layout-vendor.sh --require
     ci/test/flow-layout-vendor-test.sh
 
+# The vendored CodeTracer COMPONENT STYLESHEETS — the six `.styl` files that
+# draw a CodeTracer window, and the reason the debugger stopped looking like a
+# different product.
+#
+# A THIRD manifest over the same vendor tree, and it is here rather than in
+# `layout-vendor` because what it protects is different in kind. Those two
+# protect a COMPUTATION: where a pane goes, where a label goes. This protects
+# the RULES — the tab strip, the connectors, the panel surface, the splitters,
+# the buttons, the rows, the empty states. `client/src/design_system/
+# ct_styl.nim` compiles these bytes into the stylesheet the site serves, so a
+# local edit here is a fork of the product's appearance that no screenshot
+# review would attribute to the right cause.
+#
+# Part B is a BYTE comparison, unlike the two above, and the script's header
+# argues why at length: there is no observable short of the compiled CSS, the
+# comparison is against a FIXED commit rather than a moving checkout so it has
+# no false positive, and upstream's comments are where the reason for a rule
+# lives — a copy whose prose has drifted compiles the same and has stopped
+# being traceable, which was the whole point.
+#
+# The self-test drives all six failure paths plus the control, for the reason
+# every gate here has one: a check whose failure path has never run is a check
+# nobody has reason to believe.
+ct-styles-vendor:
+    ci/test/ct-styles-vendor.sh --require
+    ci/test/ct-styles-vendor-test.sh
+
 # ── The Noir corpus (fixtures/trace/tour) ───────────────────────────────────
 # Two sets: `programs` are recordable and are the capability tour the demo chain
 # publishes; `toolchainPrograms` exercise the toolchain and cannot produce a
@@ -1092,6 +1173,55 @@ validate dir="demo-site":
 
 # Generate a demo tree and validate it (the M5c end-to-end check).
 demo: (demo-gen) (validate)
+
+# ── the publish rehearsal: coverage, not volume ─────────────────────────────
+#
+# `validate` above asks whether a tree is WELL FORMED and `client-conformance`
+# whether a consumer can READ it. Neither asks whether PUBLISHING it works,
+# which is a property of the tree and the store together, and which was until
+# now measured by publishing the whole thing and watching.
+#
+# That does not scale. Aztec is the first chain and a small one; a dress
+# rehearsal of a large chain's tree is not something anybody runs before a
+# deploy. And "run a smaller one" fails for a reason that was MEASURED on
+# 2026-09-28: a 290-object rehearsal passed and a 460,589-object one then found
+# a data-loss defect — because the small one had ONE CHAIN, and one chain cannot
+# overwrite another's registry row. The defect needed cardinality 2, not scale.
+#
+# So `--mode partial` and `--mode full` are both checked against the same
+# coverage contract, and BOTH can fail it. An unexercised object class, a
+# missing cardinality, a conditional reached on one side only, or an invariant
+# proven in the refusing direction but not the accepting one is a REFUSAL, not
+# a percentage.
+#
+# This recipe runs the gate over the demo tree with the known-findings register,
+# which fails in both directions (see `tools/rehearse/known-findings.json`).
+rehearse mode="partial": (demo-gen)
+    nim c --hints:off -d:release --path:src -o:blocktracer-rehearse src/blocktracer_rehearse.nim
+    ./blocktracer-rehearse --tree demo-site --mode {{mode}} \
+        --known-findings tools/rehearse/known-findings.json
+
+# The same drill over any corpus, with NO register — `--tree` is repeatable, and
+# two chains arriving as two producer trees is the shape the registry defect
+# needs, so a real two-tree corpus makes the cross-chain invariant non-vacuous
+# where a derived second chain leaves part of it vacuous (see
+# `src/blocktracer/rehearse/corpus.nim`).
+#
+#     just rehearse-tree --tree client/dist             # the bytes about to ship
+#     just rehearse-tree --tree a --tree b --mode full  # two real producer trees
+#
+# No register: an entry there is evidence about a specific measurement over a
+# specific corpus, and applying it to a different one would excuse a finding
+# nobody has looked at.
+rehearse-tree *ARGS:
+    nim c --hints:off -d:release --path:src -o:blocktracer-rehearse src/blocktracer_rehearse.nim
+    ./blocktracer-rehearse {{ARGS}}
+
+# Does the coverage gate BITE? Asserts both ends: a healthy corpus reaches every
+# cell (a gate that can never be green gets turned off) and each deliberately
+# broken corpus is refused by name.
+rehearse-selftest:
+    nim c -r --hints:off --path:src tests/trehearse.nim
 
 # Report what a CONSUMER could not do with a published tree (the other end of M5b's
 # seam). `validate` above asks whether the tree is well formed; this asks whether the
@@ -1579,6 +1709,27 @@ design-citations:
 # source carrying one deliberate violation, restored byte-identically after.
 design-selftest:
     node tools/design/check-tokens-selftest.mjs
+
+# verify_the_arrangement_did_not_move — the element-geometry diff between two
+# BUILT TREES, for the operator's standing constraint on every finish pass:
+# "The special arrangement on the blockexplorer page stays (i.e. the top bar,
+# the transaction details panel, etc)."
+#
+# It looks at no pixels — a finish pass is allowed to change every one of them.
+# It compares the page-absolute box of every structural element, the count of
+# each, and the document's own tag-plus-class sequence, and prints what differs.
+#
+# It takes TWO trees, which is why it is not a CI gate and is not in
+# `design-verify`: CI has one. Build the comparison tree first —
+#
+#   git stash push -- client/src/components/styles.nim
+#   (cd client && just export) && cp -R client/dist /tmp/dist-before
+#   git stash pop && (cd client && just export)
+#   just design-arrangement /tmp/dist-before client/dist
+#
+# exit 0 nothing moved · 1 something did · 2 the check could not run.
+design-arrangement BEFORE AFTER="client/dist":
+    node tools/capture/check-arrangement.mjs {{BEFORE}} {{AFTER}}
 
 # verify_foundations_round_reaches_bar — the gate narrowed to the foundations
 # criteria, with the FULL gate reported alongside it and never in place of it.

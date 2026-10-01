@@ -1,4 +1,12 @@
-# DEPLOY — an unexecuted plan for serving blocktracer.org from R2
+# DEPLOY — a plan for serving blocktracer.org from R2
+
+> **Corrected 2026-09-28 against a full-scale rehearsal.** Everything below was
+> written before any of it had been run. A dress rehearsal of the real tree
+> (**460,589 objects**, both chains, against a local S3) then found a data-loss
+> defect and three further corrections, all marked **CORRECTION (2026-09-28)**
+> in place. The step order also changed: **Step 2b now runs first.** Read the
+> corrections before executing a step; the surrounding prose is otherwise as
+> written and still accurate.
 
 > **None of this is production, and none of it has been done.** blocktracer.org is
 > served by the **`blocktracer` Cloudflare Pages project**, with the apex as a
@@ -73,6 +81,48 @@ plan drift is the gate (Deployment §6b.2). Add to `import-ids.json`:
 
 ## Step 2 — Bind `blocktracer.org` to the bucket (R2 custom domain)
 
+> **CORRECTION (2026-09-30) — this step runs LAST, after Step 4 has published.**
+> Its number is its history, not its position. `infra`'s
+> `terraform/cloudflare/metacraft-prod/README.md` (lines 53-58 on `live`) already
+> states the rule for this exact binding:
+>
+> > "Binding it to the apex (DEPLOY.md Step 2, `cloudflare_r2_custom_domain` —
+> > **not** Terraform-manageable in provider v5, so an operator API call) creates
+> > the proxied apex record pointing at R2 and **Pages stops serving
+> > `blocktracer.org` the moment it lands**. The order is: create this bucket →
+> > publish the tree into it (Step 4) → only then bind the domain. **Binding an
+> > empty bucket takes the site down.**"
+>
+> The apex is indeed already serving: on 2026-09-30 it answered with a real
+> registry and real generations — `aztec` 170 blocks / 2 transactions,
+> `aztec-testnet` 9 blocks / 3 transactions.
+>
+> So this binding is not "turn the site on". It is **switching a live origin**,
+> and the switch is atomic while the upload is not. Bind before Step 4 and the
+> apex serves an empty bucket for the length of the publish — at the rehearsed
+> 536 objects/s, a 882,642-object tree is about **27 minutes of hard downtime**,
+> for no gain, replacing a working site with nothing.
+>
+> The order is therefore: **Step 1** (bucket) → **Step 2b** (cache rules, per the
+> 2026-09-28 correction below — they must be in force before the origin changes)
+> → **Step 3** (credential) → **Step 4** (publish, verified) → **this step**.
+>
+> The verification line further down still reads `200 once Step 4 has published
+> index.html`. Under this order it is a `200` immediately, and if it is not, the
+> bind is what to undo.
+
+
+> **CORRECTION (2026-09-28) — run Step 2b (cache rules) BEFORE this step.**
+> The `no-store` that trace 404s carry today is **Cloudflare Pages' default, not
+> configuration**, and it disappears the moment R2 becomes the origin. Binding R2
+> first therefore opens a window in which 404s under `/t/` are cached for
+> Cloudflare's default **three minutes** — which is exactly the go-live defect the
+> cache rules exist to prevent, arriving in the gap between two steps of this
+> runbook. Landing the rules first puts the contract in force at the instant the
+> origin changes. See `infra` PR #1626, which measured every rule against the live
+> Pages site before recommending this order.
+
+
 The zone `blocktracer.org` already exists in the root. What remains is to serve the
 bucket at the apex and turn on the CDN.
 
@@ -114,6 +164,56 @@ curl -sI https://blocktracer.org/     # 200 once Step 4 has published index.html
 
 ## Step 3 — Create the publisher credential and store it as repo secrets
 
+> **CORRECTION (2026-09-28) — a Step 3b is missing from this runbook.**
+> **R2 bucket CORS must be configured before any artifact is published**
+> (`Trace-Artifacts.md` §5.3, which also specifies `Cross-Origin-Resource-Policy`). Without it the debugger
+> cannot fetch trace containers cross-origin, and the symptom appears in the
+> browser at first use rather than at publish time.
+
+> **The policy itself (added 2026-09-30).** The correction above says CORS is
+> required and does not say what it is, which leaves the operator to derive it
+> from a spec at the moment they are least able to check it. It is:
+>
+> ```json
+> [
+>   {
+>     "AllowedOrigins": ["*"],
+>     "AllowedMethods": ["GET", "HEAD"],
+>     "AllowedHeaders": ["Range"],
+>     "ExposeHeaders": ["Content-Range", "Content-Length", "ETag"],
+>     "MaxAgeSeconds": 86400
+>   }
+> ]
+> ```
+>
+> Dashboard → R2 → `blocktracer` → Settings → CORS policy, or
+> `aws s3api put-bucket-cors --bucket blocktracer --endpoint-url "$R2_ENDPOINT"
+> --cors-configuration file://cors.json`.
+>
+> `AllowedHeaders: Range` and the exposed `Content-Range` are the two that carry
+> the weight — `Trace-Artifacts.md` §5.3: "without them the fetcher cannot issue
+> or verify a partial read, and lazy loading silently degrades into whole-file
+> downloads." That degradation is silent and expensive: a trace container is
+> tens of megabytes, and the page would fetch all of it to show one frame.
+>
+> **`Cross-Origin-Resource-Policy: cross-origin` is NOT part of this JSON.** CORS
+> policy sets only the `Access-Control-*` family; CORP is an ordinary response
+> header and belongs with the cache rules (`infra` #1626 / Step 2b), not here.
+> §5.3 also records that it is "not load-bearing" for this site, because the site
+> deliberately does not enable cross-origin isolation — so its absence is not a
+> reason to hold the go-live, while `Range` very much is.
+>
+> Verify after publishing, since a wrong policy shows up as a browser-side
+> failure at first debug rather than at publish:
+>
+> ```sh
+> curl -sI -H 'Origin: https://blocktracer.org' -H 'Range: bytes=0-1' \
+>   https://blocktracer.org/t/<any-trace-object> \
+>   | grep -iE 'access-control-|content-range|^HTTP'
+> # expect: HTTP/2 206, access-control-allow-origin, content-range
+> ```
+
+
 Per Deployment §6b.3 the **publisher's credential is not the release-deploy
 credential** and **must not be able to sign**: it needs write to *one* R2 bucket and
 nothing else — no zone rights.
@@ -140,7 +240,113 @@ nothing else — no zone rights.
 
 ---
 
-## Step 4 — Publish the fake-data tree (CI, or a one-off operator run)
+## Step 3b — Rehearse the publish, against a coverage contract
+
+> **Added 2026-09-29.** The corrections in Step 4 below came out of a
+> **460,589-object** dress rehearsal. That does not scale — Aztec is the
+> smallest chain this project targets — and "run a smaller one" is not the fix
+> either: a **290-object** rehearsal of the demo tree passed on the same day,
+> and the difference was not the 460,299 objects. It was that the small one had
+> **one chain**, and one chain cannot overwrite another's registry row.
+
+`blocktracer-rehearse` runs the publish path against a **coverage contract** and
+**refuses** when a cell of it was never exercised, so a *partial* rehearsal can
+be sufficient and a *full* one can still be insufficient:
+
+```bash
+just rehearse                                 # the CI gate: demo corpus + register
+just rehearse-tree --tree client/dist         # the bytes about to be uploaded
+just rehearse-tree --tree a --tree b --mode full --no-derive
+```
+
+It reaches no network and takes no credential — every store it writes to is a
+directory it creates — so unlike the rest of this runbook it is safe for an
+agent to run. A 106-object partial rehearsal of the 878-object `client/dist`
+reproduces defect **(a)** below and finds one more: **eight objects of that
+tree, including `404.html` and all of `replay-engine/`, are published by no
+chain's cycle at all.**
+
+See [`docs/Publish-Rehearsal.md`](./docs/Publish-Rehearsal.md) for the contract,
+the selection argument and the measured evidence.
+
+---
+
+## Step 4 — Publish the tree (CI, or a one-off operator run)
+
+> **CORRECTION (2026-09-28) — this step as written publishes the DEMO tree, and
+> three things about a real publish are not in it.**
+>
+> `(cd client && just export)` renders the fake-data demo tree into `client/dist`.
+> That is the right thing for proving the pipeline, and it is **not** the chain
+> history. A real publish points `--tree` at an assembled chain tree instead. The
+> three requirements below were each established by measurement, and the first is
+> a data-loss defect:
+>
+> **(a) ALL CHAINS MUST BE INGESTED INTO ONE SHARED TREE.** `registry/**`
+> classifies as `ocPointer` and pointers are `stUnconditional` — *always rewrite*.
+> Each chain ingested into its own `--out` produces a tree whose registry holds
+> only that chain, so **publishing the second chain erases the first from the
+> registry**: its blocks stay in the bucket, fetchable by hash, and invisible.
+> Measured at full scale on 2026-09-28. `ingest.nim`'s merge guard names this
+> hazard in its own comment but merges *within* a tree, which is the wrong seam.
+> A guard now refuses a registry that drops a chain the store already holds, and
+> refuses any unknown global `stUnconditional` key.
+>
+> **(b) THE FINAL ASSEMBLY MUST CARRY `--probe-floor`.** Without it the published
+> registry advertises `reach=windowed` with a floor a few dozen blocks below tip,
+> over a store holding the whole chain — the data is present and the pointer lies.
+> Note `--probe-floor` on a **re-merge silently does nothing**: `mergeSnapshots`
+> takes the window from the range with the newest `capturedAt`, so a run that
+> reuses covered ranges honours the flag, runs the probe, and keeps the old
+> window. The fix is to add one additive 1-block range at the tip carrying the
+> flag, so its snapshot is newest and its window wins. Do **not** use `--refetch`
+> on an existing range for this: it strips that range's containers.
+>
+> **(c) PUBLISH-THEN-PRUNE IS NOT YET SAFE.** `ingest.nim`'s unguarded `readFile`
+> of each container means a pruned range breaks any later re-ingest, and the
+> whole-chain generation maps are rebuilt from the union on every publish — so
+> pruning produces maps that quietly stop naming pruned ranges. Streaming needs
+> ingest to tolerate an absent container whose object is already published first.
+>
+> **(d) THE DEPLOY MUST CARRY THE REPLAY ENGINE, OR THE DEBUGGER SHIPS BROKEN.**
+> `replay-engine/**` — the engine's worker and its ~18 MB wasm — is **not emitted
+> by `static_export`, by design**. `client/Justfile` says so: *"Not part of
+> `export`, and not committed: it is 18 MB of build output from another
+> repository, and a deploy decides for itself whether to carry it."*
+>
+> So a deploy must do one of two things, and the default does neither:
+>
+>   * run `just replay-engine` (in `client/`), which fetches the pinned engine
+>     into `dist/replay-engine/` — the **recommended** mode, because
+>     CodeTracer-Embed-SDK.md §5.1's `new Worker(scriptURL)` requires a
+>     **same-origin** script, which is also why `ReplayEngineBase` defaults to
+>     `/replay-engine/`; or
+>   * build with `-d:replayEngineBase=<origin>` pointing at a host that already
+>     serves it, accepting that same-origin constraint.
+>
+> Note the ordering hazard `client/Justfile` also records: the exporter **removes
+> `dist/` and rewrites it**, so an engine staged before the export is destroyed by
+> it. Stage the engine *after* exporting, before publishing.
+>
+> The symptom names nothing: every page renders, every data object resolves, the
+> publish exits 0, and **every debugger session fails to load its engine**.
+> Verified on 2026-09-29 — a full-corpus export contained no `replay-engine/`
+> directory at all.
+>
+> Check before publishing: the tree must contain `replay-engine/worker.js` and
+> `replay-engine/pkg/*.wasm`. A separate defect that *would* have dropped them
+> even when present — `belongs` admitting site-root objects by an allowlist of
+> three literal names — is fixed, and the publisher now refuses any object
+> belonging to no chain rather than skipping it at exit 0.
+>
+> (`-d:hydrationBundle` is a **different** input — it installs the single
+> `client/hydrate/hydrate.js` and has nothing to do with the engine assets.)
+>
+> **Measured throughput**, for planning: 460,589 objects published in ~15 minutes
+> (~500 objects/sec), peak RSS 300–450 MB, the per-chain lease surviving the whole
+> run, and a second run reporting `content uploaded: 0` in 40 s — the idempotency
+> contract holding at scale, not just on a sample.
+
 
 The publisher is idempotent and resumable, so it is safe to run repeatedly and safe
 to interrupt. It uploads only the delta and flips `current.json` last.
@@ -195,6 +401,33 @@ browser-visible namespace.
 
 ---
 
+## Running the steps: `scripts/go-live.sh`
+
+**Added 2026-09-30.** The steps above are individually easy and collectively
+ordered, and this runbook numbers the apex bind **Step 2** and the publish
+**Step 4** — so read top to bottom it points a live apex at an empty bucket.
+The dated correction at Step 2 says so; `scripts/go-live.sh` makes it
+unnecessary, by running them in the one safe order and making the others
+unreachable rather than discouraged: **step 5 cannot execute unless step 4
+verified every chain in the registry.**
+
+```sh
+# Rehearse the whole sequence against a local store. No credential, no
+# network, no bucket — and it refuses --bind, having no apex to move.
+scripts/go-live.sh --tree DIR --rehearse /tmp/gl-store
+
+# The real thing.
+export R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=…
+scripts/go-live.sh --tree DIR --ledgers .chain-state --yes --bind
+```
+
+Credentials come from the environment or an interactive prompt, never from
+argv, which is world-readable in `ps`; nothing prints one.
+
+Dry run is the default. `--yes` mutates. `--bind` is additionally opt-in and
+needs `CF_ADMIN_TOKEN`, which is deliberately not the publisher credential —
+per Deployment §6b.3 that one must carry no zone rights.
+
 ## What "LIVE" means, and how to confirm it
 
 After Steps 1–4:
@@ -211,6 +444,62 @@ curl -sSI https://blocktracer.org/aztec/tx/<txhash>/      # a pre-rendered entry
 re-run of Step 4 publishes any new generation as a delta with a single atomic pointer
 flip. **This is the campaign's "fake-data site LIVE" bound** — reached the moment
 Step 4's first publish completes against the live bucket bound to the zone.
+
+### The curls above prove the site answers. They do not prove the data arrived.
+
+**Added 2026-09-30.** Four requests against a CDN cannot distinguish a complete
+tree from a truncated one — every path that is present returns `200` in both.
+The check that can tell the difference is `blocktracer-verify-published`, which
+is read-only by construction (it holds a `verify/source.Source`, which has no
+write operation) and therefore safe to run against production repeatedly.
+
+Run it **once per chain**, because `--ledger` takes one ledger and each ledger
+names one chain. Two runs is the whole of it:
+
+```bash
+# inside `nix develop`, from a checkout of this repo
+nimble build -d:release blocktracer-verify-published
+
+for c in aztec aztec-testnet; do
+  ./blocktracer-verify-published \
+    --url https://blocktracer.org \
+    --tree "$TREE" \
+    --expect-chain aztec --expect-chain aztec-testnet \
+    --expect-chain aztec-testnet-frames \
+    --ledger ".chain-state/$c/coverage.json"
+done
+```
+
+`$TREE` is the tree that was published — it supplies the expectation from
+*outside* the instance, which is the point: it is what makes `REGISTRY` and
+`CENSUS` run at all, and it compares sampled objects byte for byte.
+
+Exit codes: `0` clean, `1` a finding, `2` usage, `3` the instrument voided the
+run. **Do not read `UNRUNNABLE` as a pass** — it means the check did not
+happen, and each one prints why.
+
+Measured against the staged go-live tree on 2026-09-30, before any publish, so
+that the post-publish run has a known-good baseline rather than being its own
+first test:
+
+```
+PASS  CENSUS — store holds 882642 object(s); per class, local == store
+         ocEntryPage 385731 · ocContent 374374 · ocGenMap 86284
+         ocTraceContainer 18093 · ocTraceManifest 18093 · +6 classes
+PASS  LEDGER — chain 'aztec':         all 102690 heights — exhaustive
+PASS  LEDGER — chain 'aztec-testnet': all  99091 heights — exhaustive
+PASS  RANGE  — 865 heights matched by identity, all byte-identical
+```
+
+Two things only the **production** run can establish, because a local directory
+serves no response headers and `CACHE` reports `UNRUNNABLE` against one:
+
+- the cache contract of §4.1 / `Publishing-And-Caching.md` §4 actually in force;
+- range requests (`206`) surviving the chosen topology.
+
+Note for the `curl` block above: after the first full-history publish the
+generation ids are `raztec00001` and `rtestnet0001`, not `"1"` — `"1"` is what
+the pre-backfill site serves today.
 
 The credentialed apply list, in one line each:
 

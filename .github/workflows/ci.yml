@@ -415,6 +415,29 @@ jobs:
         # check that passed because it was looking at nothing.
         run: node tools/ci/check-runner-labels-selftest.mjs
 
+      # ── the production verifier's read-only boundary ────────────────────
+      #
+      # `blocktracer-verify-published` is the one tool here MEANT to be pointed
+      # at production, repeatedly. The operator who runs it holds a credential
+      # that can write, because reading a private bucket needs one — so the only
+      # thing between that credential and a production object is the code, and
+      # "we were careful" is not a boundary. `S3Source` privately holds an
+      # `S3ObjectStore` whose `put`/`del`/`putIfAbsent`/`putMany` are one field
+      # access away; holding it is deliberate (a second copy of the `aws`
+      # plumbing is where the `/dev/stdin` defect lived), and this is the cost.
+      - name: Can the production verifier write? (it must not — lexical, both directions)
+        run: bash ci/test/verify-published-readonly.sh
+
+      - name: Does the read-only guard bite?
+        # The guard strips comments and string literals before matching, and the
+        # files it scans are full of prose naming the exact methods it looks
+        # for — so an over-greedy strip would remove the CODE too and the guard
+        # would pass over anything. Eight arms: a real call planted for each of
+        # the four write methods, one on a line that also carries a trailing
+        # comment, prose that must NOT be a violation, an unmodified control,
+        # and an empty subject tree that must REFUSE rather than report zero.
+        run: bash ci/test/verify-published-readonly-test.sh
+
       # ── the chain capture tooling, for this job's own stated reason ──────
       #
       # Same hole, same shape. `tools/chain/`'s selftests were referenced by
@@ -880,10 +903,47 @@ jobs:
             nim c -r --hints:off src/blocktracer_validate.nim demo-site'
 
       - name: Determinism — regenerate and diff
+        # BOTH HALVES INSIDE THE SHELL, and the `diff` is why this step is being
+        # touched at all. It sat on its own line, outside the `nix develop`, and
+        # the self-hosted NixOS runner has no `diff` in its ambient PATH — so
+        # every run of this job since the toolchain moved into the flake ended
+        # `line 3: diff: command not found`, exit 127. The generator ran twice
+        # and nothing compared the two trees: a step named for a comparison it
+        # was not making, failing for a reason that says nothing about
+        # determinism.
+        #
+        # `pkgs.mkShell`'s stdenv puts `diffutils` on PATH, which is where every
+        # other shell gate in this file gets the `diff` it uses
+        # (`ci/test/ct-styles-vendor.sh`, `client-sdk-boundary-test.sh`), and it
+        # is the same one-command-per-step shape the rest of the job already
+        # has. The `&&` keeps the comparison from running against a tree the
+        # second generate did not finish writing.
         run: |
           nix develop .#ci --command bash -c '
-            nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2'
-          diff -r demo-site demo-site-2
+            nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site-2 &&
+            diff -r demo-site demo-site-2'
+
+      - name: Is a PARTIAL publish rehearsal sufficient? (coverage contract, not volume)
+        # `nimble test` above runs `tests/trehearse.nim`, which proves the gate
+        # bites against synthetic corpora. THIS step runs it end to end over the
+        # demo tree with the known-findings register, so the contract is measured
+        # against a real producer's output on every commit and a NEW hole in the
+        # publish path is a red job rather than a paragraph.
+        #
+        # WHY A CONTRACT AND NOT A SIZE. Measured on 2026-09-28: a 290-object
+        # rehearsal passed, and a 460,589-object one then found a data-loss
+        # defect. The difference was not the 460,299 objects — the small one had
+        # ONE CHAIN, and one chain cannot overwrite another's registry row. The
+        # defect needed cardinality 2. So `--mode partial` and `--mode full` are
+        # checked against the same contract and both can fail it, and an
+        # unexercised object class is a refusal rather than a percentage.
+        #
+        # THE REGISTER FAILS IN BOTH DIRECTIONS. A finding it lists is reported
+        # and does not fail; a finding it does NOT list fails; and a listed
+        # finding that stops occurring ALSO fails, demanding the entry be
+        # deleted. So this step goes red on the commit that fixes the registry
+        # clobber, which is the point: an entry cannot outlive its defect.
+        run: nix develop .#ci --command just rehearse
 
       - name: Does the conformance kit reach a verdict with no toolchain, no checkout and no network?
         # 10 checks. A recorder for a chain nobody here has run answers "does my
@@ -1546,6 +1606,23 @@ jobs:
           nix develop .#ci --command bash -c '
             bash ci/test/flow-layout-vendor.sh &&
             bash ci/test/flow-layout-vendor-test.sh'
+
+      - name: The vendored CodeTracer stylesheets still agree with upstream
+        # THE SAME OMISSION AS THE STEP ABOVE, ONE PORT LATER. This branch
+        # vendors six of CodeTracer's component stylesheets byte-verbatim and
+        # wrote both gates for them — and wired neither, which is precisely
+        # what `ci-coverage.sh` exists to catch and did:
+        #
+        #   [FAILED] shell gate 'ci/test/ct-styles-vendor.sh' exists and NO CI job runs it
+        #   [FAILED] shell gate 'ci/test/ct-styles-vendor-test.sh' exists and NO CI job runs it
+        #
+        # A vendored copy with no check is a fork nobody has noticed yet, and
+        # the whole point of copying upstream's bytes rather than re-typing its
+        # rules is that a gate can prove they are still upstream's bytes.
+        run: |
+          nix develop .#ci --command bash -c '
+            bash ci/test/ct-styles-vendor.sh &&
+            bash ci/test/ct-styles-vendor-test.sh'
 
       # DOES `test_selection_detail.nim` BITE? The proof-of-bite for the one Nim
       # suite that exists BECAUSE a guard somewhere else was dead.
