@@ -106,7 +106,43 @@ const bite = (label, cond) => { tally(); if (!cond) { failed++; console.error(` 
 // bottom of this file needs it to say which total it is checking; two `existsSync` calls could
 // disagree if the binary appeared mid-run, and then the suite would check the wrong total.
 const REAL_READER = join(REPO_ROOT, '..', 'codetracer-trace-format-nim', 'ct-print');
-const HAVE_REAL_READER = existsSync(REAL_READER);
+
+// PRESENT IS NOT THE SAME AS USABLE, and conflating them cost this suite a crash rather than a
+// verdict. `existsSync` alone was the whole test, so a reader that exists and REFUSES every
+// container in this corpus passed it: §9's arms then ran, got no rows back, and the suite died
+// with `TypeError: Cannot read properties of undefined (reading 'available')` instead of saying
+// what was wrong. That is exactly the shape this file refuses elsewhere — a tool that cannot
+// answer must report NOT RUN with its reason, never crash and never silently pass.
+//
+// It happened for a real reason worth recording: `codetracer-trace-format-nim` moved its
+// accepted container version to 5 only, and this corpus is at version 3, so a freshly built
+// `ct-print` answers every subject with
+//   "CTFS container version 3 is not supported: this reader reads version 5 only"
+// The failure was invisible on any host where the binary is simply not built — all 31
+// reader-dependent arms skip and the suite exits 0 — which is why it reached `latest`.
+//
+// So the configuration is detected by ASKING THE READER TO READ, once, against the same
+// committed subject §9 uses. Three states, not two: absent, present-but-refusing, usable.
+const READER_SUBJECT_CONTAINER = join(
+  REPO_ROOT, 'fixtures', 'chain-health', 'readable-container', 'ct',
+  '0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1.ct');
+const probeReader = () => {
+  if (!existsSync(REAL_READER)) return { usable: false, reason: 'the reader is not built on this host' };
+  if (!existsSync(READER_SUBJECT_CONTAINER)) {
+    return { usable: false, reason: `the probe subject is missing at ${READER_SUBJECT_CONTAINER}` };
+  }
+  const r = spawnSync(REAL_READER, ['--events', READER_SUBJECT_CONTAINER], { encoding: 'utf8' });
+  if (r.error) return { usable: false, reason: `the reader could not be spawned: ${r.error.message}` };
+  if (r.status !== 0) {
+    // The reader's own words, trimmed to one line: a refusal that names its cause is worth
+    // repeating verbatim, and this is the only place the cause is visible.
+    const said = String(r.stderr || r.stdout || '').split('\n').find((l) => l.trim()) || '(no output)';
+    return { usable: false, reason: `the reader is built but REFUSED the probe subject (exit ${r.status}): ${said.trim()}` };
+  }
+  return { usable: true, reason: 'the reader read the probe subject' };
+};
+const READER_PROBE = probeReader();
+const HAVE_REAL_READER = READER_PROBE.usable;
 
 const REG = healthChecks();
 const tmp = mkdtempSync(join(tmpdir(), 'bt-health-'));
@@ -1142,8 +1178,9 @@ console.error('\n§9 — the container against the claim, over the one recording
     ck('…and none of them is reported as having raised nothing, which is how "we could not '
        + 'look" comes to read like "there was nothing to see"',
        needOpened.every((id) => noR.checkStatus[id]?.raised === undefined));
-    ck(`(the container-versus-claim arms need the real reader and it is not on this host — `
-       + `they are NOT RUN here, and this line is the record of that rather than a pass)`,
+    ck(`(the container-versus-claim arms need a reader that can READ this corpus; here `
+       + `${READER_PROBE.reason} — they are NOT RUN, and this line is the record of that `
+       + `rather than a pass)`,
        true);
     armBucket = null;
   } else {
@@ -1844,12 +1881,26 @@ const BASE_ARMS = 219;
 const READER_ARMS = 31;
 const NO_READER_ARMS = 3;
 const CONFIG_ARMS = HAVE_REAL_READER ? READER_ARMS : NO_READER_ARMS;
-const CONFIG = HAVE_REAL_READER ? 'reader-present' : 'reader-absent';
+// THREE STATES, NAMED SEPARATELY. `reader-absent` and `reader-refusing` take the same BRANCH —
+// the reader-dependent arms cannot run either way — but they are not the same situation, and
+// collapsing them is what let a version floor move underneath this corpus unnoticed. The first
+// is a host that never built the tool; the second is a tool that is built and will not read what
+// this repository commits, which is a defect somewhere and must read as one.
+const CONFIG = HAVE_REAL_READER
+  ? 'reader-present'
+  : (existsSync(REAL_READER) ? 'reader-refusing' : 'reader-absent');
 const ranConfigArms = HAVE_REAL_READER ? assertedWithReader : assertedWithoutReader;
 const ranOtherArms = HAVE_REAL_READER ? assertedWithoutReader : assertedWithReader;
 
-console.error(`configuration: ${CONFIG} (the container reader ${HAVE_REAL_READER ? 'is' : 'is NOT'}`
-  + ` on this host at ${REAL_READER})`);
+console.error(`configuration: ${CONFIG} (${READER_PROBE.reason}; at ${REAL_READER})`);
+if (CONFIG === 'reader-refusing') {
+  // Loud, and on stderr beside every other verdict, because a built-but-unusable reader is the
+  // state most likely to be mistaken for coverage: the binary is right there.
+  console.error('  NOTE: the reader is BUILT and REFUSED the probe subject, so the '
+    + `${READER_ARMS} container arms did not run. This is NOT the same as "no reader on this `
+    + 'host" and should not be read as one — either this corpus needs re-recording for the '
+    + "reader's accepted version set, or the reader's floor moved further than intended.");
+}
 
 if (asserted !== BASE_ARMS) {
   console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED ${BASE_ARMS} — a case was added, `
@@ -1883,9 +1934,16 @@ if (ranOtherArms !== 0) {
     + `container reader, and it is present here, so they did not run. They are not counted as `
     + `passed. Their figure is checked on the hosts that lack it, CI among them.`);
 } else {
+  // The remedy differs by state, so the message must too. Telling someone to BUILD a reader
+  // that is already built — and that refused — is the kind of advice that sends them in a
+  // circle, which is worse than saying nothing.
   console.error(`NOT RUN: ${READER_ARMS} arm(s) need the container reader `
-    + `(../codetracer-trace-format-nim/ct-print) and it is not on this host. They are not `
-    + `counted as passed. Build it with \`nimble buildCtPrint\` in that checkout's own devshell.`);
+    + `(../codetracer-trace-format-nim/ct-print). They are not counted as passed. `
+    + (CONFIG === 'reader-refusing'
+      ? `It IS present and it REFUSED the probe subject, so building it again will not help: `
+        + `${READER_PROBE.reason}`
+      : `It is not on this host. Build it with \`nimble buildCtPrint\` in that checkout's own `
+        + `devshell.`));
 }
 
 console.error(`total this configuration: ${BASE_ARMS} + ${CONFIG_ARMS} = `
