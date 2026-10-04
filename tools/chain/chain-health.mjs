@@ -377,7 +377,7 @@ export function examineSnapshot(dir, { registry, requested, readerArgv } = {}) {
   const txs = Array.isArray(snap.transactions) ? snap.transactions : [];
 
   // ── the admissibility tables, indexed once ──────────────────────────────────────────
-  const pairKey = (o, r) => `${o} ${r}`;
+  const pairKey = (o, r) => `${o}\0${r}`;
   const admissible = new Map(
     reg.admissibleOutcomeReasonPairs.map((p) => [pairKey(p.outcome, p.refusalReason), p]));
   const joints = reg.reasonMemberJoints;
