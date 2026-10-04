@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWELVE suites — 98 + 19 + 24 + 24 + 57 + 231 + 33 + 162 + 53 + 115 + 219 + 83 = 1118 counted assertions —
+# THIRTEEN suites — 98 + 19 + 24 + 24 + 57 + 232 + 33 + 162 + 53 + 115 + 219 + 83 + 6 = 1125 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -424,6 +424,12 @@ chain-selftest:
     node tools/chain/snapshot-contract-selftest.mjs
     node tools/chain/chain-health-selftest.mjs
     node tools/chain/yield-method-selftest.mjs
+    # Needs nothing but files already in this repository: the perturbations are
+    # applied to the committed READING and not to the corpus, so no container is
+    # written. Without a `ct-print` two of its eight arms SKIP, are reported as
+    # SKIP and are NOT counted as passed, and the version census still runs —
+    # it is read from the bytes.
+    node tools/chain/ct-corpus-census-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -673,6 +679,50 @@ chain-health-corpus *ARGS:
 chain-health-check *ARGS:
     node tools/chain/chain-health.mjs --corpus --quiet \
       --expect tools/chain/measurements/chain-health.json {{ARGS}} > /dev/null
+
+# ── the committed `.ct` corpus, by population and by producer ──────────────
+#
+# `chain-health-check` above covers the chain SNAPSHOT directories, selected by
+# `corpusSnapshotDirs()`. It does not cover `fixtures/trace/`, which carries no
+# `snapshot.json` — measured, not assumed: the ten containers there were
+# re-recorded from container version 4 to version 5 and `chain-health-check`
+# reported "unchanged from it", correctly, because they are not its subject.
+#
+# WHY THIS IS A GATE AND NOT A PARAGRAPH. The committed `.ct` corpus has been
+# censused by hand three times and the hand census was wrong twice — once on the
+# population (a `find` counted generated copies under `client/dist/` as
+# "committed", giving 78 where there are 55 tracked paths) and once on the
+# PRODUCER (all 52 containers were described as chain recordings needing a node
+# and a replay driver, when ten are `nargo trace` recordings of local Noir
+# packages whose sources are vendored beside them and whose re-record command is
+# committed). Grouping by producer is what makes that split visible, and the
+# producer is the field that decides the remedy.
+#
+# `tools/chain/ct-corpus.json` declares the populations, their producers and the
+# remedy for each. `tools/chain/measurements/ct-corpus.json` is the committed
+# READING. A corpus change is allowed; a corpus change that leaves the reading
+# stale is a red gate naming every delta.
+#
+# THREE-STATE ON THE READER, like every other optional-reader gate here: no
+# `ct-print` is exit 2 and reports readability as NOT MEASURED while still
+# measuring the version census from the bytes; a reading that disagrees is
+# exit 1; agreement is 0. A REFUSAL IS NOT A FAILURE — the 42 chain containers
+# are expected to be refused at `meta.dat` schema 3, the reading says so by
+# name, and one of them suddenly opening is as much a skew as one of the ten
+# that stopped.
+ct-corpus-check *ARGS:
+    node tools/chain/ct-corpus-census.mjs \
+      --expect tools/chain/measurements/ct-corpus.json {{ARGS}}
+
+# Re-read the census into the committed reading. Run this deliberately, after a
+# corpus change, and say in the commit WHY each delta moved.
+ct-corpus-read:
+    node tools/chain/ct-corpus-census.mjs --json > tools/chain/measurements/ct-corpus.json
+
+# Does the census gate decide? One perturbation per field, plus a base case so
+# the others are not vacuous.
+ct-corpus-selftest:
+    node tools/chain/ct-corpus-census.mjs --selftest
 
 # ── §5's member census, as the spec's own tables ───────────────────────────
 #

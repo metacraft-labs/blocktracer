@@ -15,7 +15,9 @@
 #   fixtures/trace/tour/record.sh [program-id ...]     (default: all)
 #
 # Env:
-#   NARGO      path to the `nargo` binary   (default: ../noir/target/release/nargo)
+#   NARGO      path to the `nargo` binary   (default: a sibling
+#              ../noir/target/release/nargo if one is built, else the pinned
+#              recorder under /nix/store — see PINNED_NARGO below)
 #   CT_PRINT   path to `ct-print`, used for the summary   (optional)
 
 set -uo pipefail
@@ -37,21 +39,58 @@ find_sibling() {
 NARGO="${NARGO:-$(find_sibling noir/target/release/nargo || true)}"
 CT_PRINT="${CT_PRINT:-$(find_sibling codetracer-trace-format-nim/ct-print || true)}"
 
+# THE PINNED RECORDER IS THE FALLBACK, and that is what makes the pin
+# load-bearing rather than documentary. The sibling walk above finds a nargo
+# somebody BUILT; the pin names the one this corpus was recorded by. Preferring
+# the sibling keeps a developer's own build in charge, and falling back to the
+# pin means a host that has the store path — which is every host the corpus was
+# recorded on, and CI once it substitutes it — runs these checks instead of
+# skipping them. `manifest.json`'s `recorder` block is where this value comes
+# from; a bump belongs in both places.
+PINNED_NARGO="/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir/bin/nargo"
+if [ -z "${NARGO:-}" ] || [ ! -x "${NARGO:-}" ]; then
+  if [ -x "$PINNED_NARGO" ]; then NARGO="$PINNED_NARGO"; fi
+fi
+
 if [ -z "$NARGO" ] || [ ! -x "$NARGO" ]; then
   echo "no nargo found in any parent of $HERE — set NARGO=/path/to/nargo" >&2
   echo "build it with: cargo build -p nargo_cli --bin nargo --release" >&2
   exit 2
 fi
 
-# The recorder this corpus is pinned to. Every container in the tour, and the
-# `tracerCommit` the demo generator publishes in each source bundle, name this
-# one commit — a corpus recorded by two tracers is two corpora.
-PIN="906af2f42d6b874cf0f5dde193accb1e39e1bcd3"
-have="$("$NARGO" --version 2>/dev/null | sed -n 's/.*git version hash: \([0-9a-f]*\).*/\1/p')"
-if [ "$have" != "$PIN" ]; then
-  echo "WARNING: nargo is at ${have:-unknown}, the corpus is pinned to $PIN." >&2
+# The recorder this corpus is pinned to — a corpus recorded by two tracers is
+# two corpora.
+#
+# THE PIN IS A NIX STORE PATH AND NO LONGER A GIT SHA, and the change is a fix
+# rather than a relaxation. The 2026-10 recorder is a Nix build that embeds no
+# git hash: `nargo --version` answers `git version hash: false`. The previous
+# check was
+#
+#   sed -n 's/.*git version hash: \([0-9a-f]*\).*/\1/p'
+#
+# which on that string extracts the two hex characters `fa` out of the word
+# `false`. It therefore "worked" on the pinned binary only because that binary
+# happened to carry a SHA, and against a Nix build it compared `fa` against a
+# 40-character pin and warned BY ACCIDENT — a check that cannot distinguish the
+# right binary from any other is not a check. A store path is content-addressed,
+# so comparing it identifies the exact bytes that produced this corpus, which a
+# branch SHA never did.
+#
+# `manifest.json`'s `recorder` block carries the derivation and both of its
+# sources; `README.md` says what is claimed about the noir commit and what is
+# not.
+PIN="$PINNED_NARGO"
+# Resolve both sides: `$NARGO` may be a symlink into the store, or the store
+# path itself. `readlink -f` is not portable to macOS's coreutils-free default,
+# so fall back to the literal value when it is unavailable.
+canon() { readlink -f -- "$1" 2>/dev/null || printf '%s' "$1"; }
+if [ "$(canon "$NARGO")" != "$(canon "$PIN")" ]; then
+  echo "WARNING: nargo is $NARGO, the corpus is pinned to" >&2
+  echo "           $PIN" >&2
   echo "         Re-recording with a different tracer changes what the tour" >&2
-  echo "         demonstrates. Update the pin here and in fixtures/trace/tour/" >&2
+  echo "         demonstrates — the 2026-10 move changed \`calls\`, \`functions\`," >&2
+  echo "         \`types\` and \`bytes\` in all nine programs. Update the pin here," >&2
+  echo "         in fixtures/trace/tour/manifest.json's \`recorder\` block and in" >&2
   echo "         README.md deliberately, or use the pinned binary." >&2
 fi
 
@@ -106,8 +145,12 @@ for id in "${programs[@]}"; do
   work="$WORKROOT/$id"
 
   rm -rf "$work"
-  # `--out-dir` must already exist: the pinned nargo predates the commit that
-  # creates it, and does not fail gracefully — it panics and SIGABRTs.
+  # `--out-dir` is created here and not relied on. MEASURED at the 2026-10
+  # recorder: it now DOES create a missing `--out-dir` (rc 0, "Saved trace to
+  # .../nonexistent"), so the previous reason for this line — the old nargo
+  # panicked and SIGABRTed on a missing directory — no longer holds. The
+  # `mkdir -p` stays because it costs nothing and keeps this script working
+  # against an older binary somebody points NARGO at.
   mkdir -p "$work/out"
   cp -R "$src" "$work/pkg"
 

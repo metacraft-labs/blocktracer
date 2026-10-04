@@ -1432,7 +1432,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // sentence is now CHECKED: each term is read out of the suite that owns it, and the
   // arithmetic is checked as arithmetic.
   //
-  // THE TWELVE DECLARATIONS ARE IN FIVE DIFFERENT PATTERNS, which is why each has its own
+  // THE THIRTEEN DECLARATIONS ARE IN FIVE DIFFERENT PATTERNS, which is why each has its own
   // rather than one generic sweep. A generic regex over the phrasings is the false-green
   // this file exists to refuse: it would silently match most of them and score the rest as
   // absent. If a suite rephrases its declaration this arm goes RED, which is correct — the
@@ -1463,6 +1463,13 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // host, and therefore the only one a static cross-check can state.
     ['chain-health-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
     ['yield-method-selftest.mjs', /asserted !== (\d+)\) \{/],
+    // THE SECOND SUITE IN PATTERN FIVE, and it is there for the same reason as the
+    // first: `ct-corpus-census-selftest` runs two of its eight arms only when a
+    // container reader is present, so it declares a host-independent BASE plus one
+    // figure per configuration and the term below is the BASE. That the pattern now
+    // has two members is the point of having declared it as a pattern rather than as
+    // a one-off.
+    ['ct-corpus-census-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1474,7 +1481,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# TWELVE suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  const m = /# THIRTEEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
@@ -1483,7 +1490,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's twelve terms are the suites' own declarations, in recipe order — `
+    ck(`the header's thirteen terms are the suites' own declarations, in recipe order — `
        + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
@@ -1742,7 +1749,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       follow (the header's arithmetic, the recipe body's order, ci.yml's copy) are
 //       aggregates and do not grow with it. The ELEVENTH, one line above this in the
 //       history, cost exactly the same one.
-expectCount(231);
+expectCount(232);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

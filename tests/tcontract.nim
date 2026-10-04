@@ -255,7 +255,7 @@ suite "M5c — the published traces are the real noir_space_ship execution":
     # `truncated` is the ONE field in `execution` that is a published claim
     # rather than a measurement of the container, and it is deliberately checked
     # here rather than exempted: `steps` and `frames` stay at the container's
-    # real 1315/80 on the truncated manifest too. A manifest that shrank them to
+    # real 1315/81 on the truncated manifest too. A manifest that shrank them to
     # look truncated would be describing a container that is not the one beside
     # it, which is exactly the "well-formed but wrong" failure this suite exists
     # to catch. What `truncated` says is where the recording STOPS — the
@@ -268,13 +268,27 @@ suite "M5c — the published traces are the real noir_space_ship execution":
       if p.extractFilename != "manifest.json": continue
       inc seen
       let m = parseFile(p)
-      # ct-print --summary on fixtures/trace/noir_space_ship/zk_shields.ct
+      # ct-print --summary on fixtures/trace/noir_space_ship/zk_shields.ct.
+      #
+      # MOVED when that fixture was re-recorded at the 2026-10 trace-format
+      # revision, and both numbers are the re-reading rather than a relaxation:
+      #
+      #   frames 80 -> 81   the 2026-10 writer wraps every recording in a
+      #                     synthetic `<toplevel>` frame at depth 0 whose only
+      #                     child is `main`. The program did not gain a call.
+      #   bytes 147456 -> 102400   the writer's LAYOUT moved. `steps` did not,
+      #                     which is what says the recording did not.
+      #
+      # The previous container was at container version 4 / `meta.dat` schema 3
+      # and the current reader refused it outright, so this re-recording is what
+      # made the fixture readable at all. These two assertions going red is the
+      # mechanism `generator.nim` documents working as intended.
       check m["execution"]["steps"].getInt == 1315
-      check m["execution"]["frames"].getInt == 80
+      check m["execution"]["frames"].getInt == 81
       check m["execution"]["languages"].getElems.mapIt(it.getStr) == @["noir"]
       check m["execution"]["sourceLevel"].getBool
       check m["container"]["bytes"].getInt == readFile(fixture).len
-      check m["container"]["bytes"].getInt == 147456
+      check m["container"]["bytes"].getInt == 102400
       if m["execution"]["truncated"].getBool: inc truncatedSeen
     check seen == 6
     # Exactly one truncated recording, and therefore five that are not: the

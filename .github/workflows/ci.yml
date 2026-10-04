@@ -531,7 +531,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 231 assertions, and the reason it is offline is the reason it
+        # ING-3, 232 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -855,6 +855,63 @@ jobs:
         # already in this repository and spawns nothing but `git ls-files`, whose
         # failure is a failure here and not an empty population.
         run: node tools/chain/yield-method-selftest.mjs
+
+      - name: Does the committed `.ct` corpus census refuse a corpus that moved?
+        # 6 arms on every host, plus two more where a container reader is present.
+        # Two configurations rather than one, for `chain-health-selftest`'s reason:
+        # the version census is read from the BYTES and runs anywhere, while
+        # readability needs `ct-print`, which is not a dependency of this
+        # repository and is not built on this runner. The absent arms are reported
+        # NOT RUN and are not counted as passed.
+        #
+        # WHY THE CENSUS IS A GATE. The committed `.ct` corpus was censused by hand
+        # three times and the hand census was wrong twice: once on the POPULATION
+        # (a `find` counted generated copies under `client/dist/` as committed,
+        # giving 78 where there are 55 tracked paths) and once on the PRODUCER
+        # (every container was described as a chain recording needing a node and a
+        # replay driver, when ten are `nargo trace` recordings of local Noir
+        # packages whose sources are vendored beside them and whose re-record
+        # command is committed). The producer is the field that decides the remedy,
+        # so getting it wrong sends the next reader to the wrong repository.
+        #
+        # The perturbations are applied to the committed READING and not to the
+        # corpus, so this writes no container: `compare()` is a pure function of
+        # (reading, census), which is why it is exported and called directly.
+        #
+        # Offline and toolchain-free: `git ls-files`, the bytes of files already in
+        # this repository, and two committed JSON documents.
+        run: node tools/chain/ct-corpus-census-selftest.mjs
+
+      - name: Does the committed `.ct` corpus reading still describe this corpus?
+        # The companion of the step above: that one proves the gate decides, this
+        # one runs it. `tools/chain/ct-corpus.json` declares the populations, their
+        # producers and the remedy for each; `tools/chain/measurements/ct-corpus.json`
+        # is the reading.
+        #
+        # EXIT 2 IS NOT A FAILURE HERE, and the step says so rather than letting
+        # GitHub render it as one. The tool is three-state like every other
+        # optional-reader gate in this repository: 2 is "there is no `ct-print` on
+        # this host, so the readability half of the reading was not checked", 1 is
+        # "a figure disagrees", 0 is agreement. This runner is exactly the first
+        # case, so a bare invocation would deliver a precondition absence to the
+        # checks UI as the same red X as a real skew — and a reader who cannot tell
+        # those apart without opening the log learns to discount the lane.
+        #
+        # THE VERSION CENSUS STILL RUNS IN THE EXIT-2 CASE, which is what makes the
+        # step worth having here: a container arriving, leaving or changing version
+        # is caught on this runner. Only the readability counts go unchecked, and
+        # the annotation names that.
+        run: |
+          set +e
+          node tools/chain/ct-corpus-census.mjs \
+            --expect tools/chain/measurements/ct-corpus.json
+          rc=$?
+          set -e
+          if [ "$rc" = "2" ]; then
+            echo "::notice title=.ct corpus census::the version census agreed; readability was NOT MEASURED (no ct-print on this runner)"
+            exit 0
+          fi
+          exit "$rc"
 
       - name: Does the committed recording-health reading still describe this tree?
         # The reading `just chain-health-corpus` writes is committed, and this is

@@ -1,0 +1,124 @@
+{
+  "_comment": [
+    "THE COMMITTED READING of this repository's tracked `.ct` corpus. Generated —",
+    "do not hand-edit. Re-read with:",
+    "",
+    "  node tools/chain/ct-corpus-census.mjs --json > tools/chain/measurements/ct-corpus.json",
+    "",
+    "and checked by `just ct-corpus-check`. A corpus change is allowed; a corpus change",
+    "that leaves this file stale is a red gate naming every delta. The populations, their",
+    "producers and the remedy for each are declared in `tools/chain/ct-corpus.json`."
+  ],
+  "totals": {
+    "trackedPaths": 55,
+    "containers": 52,
+    "notContainers": 3,
+    "readable": 10
+  },
+  "containerVersions": {
+    "v3": 42,
+    "v5": 10
+  },
+  "populations": [
+    {
+      "id": "chain/aztec-testnet",
+      "producer": "aztec-avm-runtime replay + aztec_ct_writer.wasm (NOT in this workspace)",
+      "paths": 25,
+      "containers": 25,
+      "versions": {
+        "v3": 25
+      },
+      "readable": 0,
+      "refusals": {
+        "meta.dat-schema-3": 25
+      }
+    },
+    {
+      "id": "chain/aztec-testnet-frames",
+      "producer": "aztec-avm-runtime replay + aztec_ct_writer.wasm (NOT in this workspace)",
+      "paths": 6,
+      "containers": 6,
+      "versions": {
+        "v3": 6
+      },
+      "readable": 0,
+      "refusals": {
+        "meta.dat-schema-3": 6
+      }
+    },
+    {
+      "id": "chain/aztec",
+      "producer": "aztec-avm-runtime replay + aztec_ct_writer.wasm (NOT in this workspace)",
+      "paths": 2,
+      "containers": 2,
+      "versions": {
+        "v3": 2
+      },
+      "readable": 0,
+      "refusals": {
+        "meta.dat-schema-3": 2
+      }
+    },
+    {
+      "id": "chain/noir-frames",
+      "producer": "tools/chain/record-noir-frames-fixture.mjs (needs the runtime above)",
+      "paths": 1,
+      "containers": 1,
+      "versions": {
+        "v3": 1
+      },
+      "readable": 0,
+      "refusals": {
+        "meta.dat-schema-3": 1
+      }
+    },
+    {
+      "id": "chain/chain-artifacts",
+      "producer": "aztec-avm-runtime replay + aztec_ct_writer.wasm (NOT in this workspace)",
+      "paths": 8,
+      "containers": 8,
+      "versions": {
+        "v3": 8
+      },
+      "readable": 0,
+      "refusals": {
+        "meta.dat-schema-3": 8
+      }
+    },
+    {
+      "id": "noir/capability-tour",
+      "producer": "nargo trace, pinned at /nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir",
+      "paths": 9,
+      "containers": 9,
+      "versions": {
+        "v5": 9
+      },
+      "readable": 9,
+      "refusals": {}
+    },
+    {
+      "id": "noir/space-ship",
+      "producer": "nargo trace, pinned at /nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir",
+      "paths": 1,
+      "containers": 1,
+      "versions": {
+        "v5": 1
+      },
+      "readable": 1,
+      "refusals": {}
+    },
+    {
+      "id": "conformance-kit/placeholders",
+      "producer": "none — these are 229-byte ASCII placeholders, by design",
+      "paths": 3,
+      "containers": 0,
+      "versions": {
+        "not-a-container": 3
+      },
+      "readable": 0,
+      "refusals": {}
+    }
+  ],
+  "unclassified": [],
+  "ambiguous": []
+}

@@ -349,8 +349,9 @@ host mapping of the extensionless spec routes and is future-compatible with the
 ### D7 — Real `noir_space_ship` traces: vendored, with source published separately
 
 **Decision.** The demo generator packages a **real CTFS container recorded by
-`nargo trace`** from `codetracer/test-programs/noir_space_ship` (Noir tracer fork
-`codetracer` @ `906af2f42d`, nargo `1.0.0-beta.26`). It is **checked into the
+`nargo trace`** from `fixtures/trace/noir_space_ship/sources` (recorder pin
+`/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir`, nargo `1.0.0-beta.26`;
+container version 5 / `meta.dat` schema 6). It is **checked into the
 repository** at `fixtures/trace/noir_space_ship/zk_shields.ct` and copied verbatim
 into every published `ready`/`divergent` artifact, rather than recorded at
 generation time. The Noir sources are published as content-addressed **source
@@ -400,10 +401,26 @@ reconstruct the path from the id alone; `blocktracer_client/paths.nim`'s
 Truncating the hash in the filename would publish a bundle that only the
 `current.json` route could ever find.
 
-**What the packaged trace contains** (`ct-print --summary`): 1315 steps, 80 calls,
-1315 values, 70 IO events, 3 paths, 6 functions, 8 types, 22 varnames; maximum call
-depth 3; 147456 bytes (144 KiB). Commit `906af2f42d` ("record compound assignments
+**What the packaged trace contains** (`ct-print --summary`, verbatim): 1315 steps,
+81 calls, 1315 values, 70 IO events, 3 paths, 7 functions, 6 types, 22 varnames;
+102400 bytes (100 KiB).
+
+**RE-RECORDED at the 2026-10 trace-format revision**, because the previous
+container was at container version 4 / `meta.dat` schema 3 and the current reader
+refused it outright (`meta.dat: schema version 3 is not supported; this reader
+reads version 6 only`). `steps`, `values`, IO events, `paths` and `varnames` did
+not move. `calls` and `functions` each read one higher than the program's own
+count because the 2026-10 writer wraps every recording in a synthetic
+`<toplevel>` frame at depth 0 whose only child is `main` — so the maximum call
+depth is 3 for the program and 4 as the reader reports it. `types` fell 8 -> 6
+(the writer stopped interning unnamed placeholder entries; no type name was
+lost) and the byte size fell with the writer's layout.
+
+Commit `906af2f42d` ("record compound assignments
 and while/loop bodies") is load-bearing for this program: `shield.nr` drives its
 simulation through `remaining_shield -= damage` inside a `for` loop, and the
-container records 29 distinct `remaining_shield` transitions, so the fix is
-observable in the bytes rather than merely claimed.
+container records 1105 observations of `remaining_shield` over 21 distinct values
+with 28 adjacent transitions, so the fix is observable in the bytes rather than
+merely claimed. (The previous reading said "29 distinct transitions" without
+saying which it counted; all three figures are given so the next reader need not
+guess.)

@@ -17,9 +17,11 @@
 ##
 ## THE TRACE IS REAL. Every published (`ready` / `divergent`) execution carries
 ## `fixtures/trace/noir_space_ship/zk_shields.ct` — a genuine CTFS container
-## recorded by `nargo trace` from `codetracer/test-programs/noir_space_ship`
-## (Noir tracer fork `codetracer` @ `906af2f42d`, nargo 1.0.0-beta.26). 1315 steps,
-## 80 calls, max call depth 3, all 22 variables observed, 70 stdout events. See
+## recorded by `nargo trace` from `fixtures/trace/noir_space_ship/sources`
+## (recorder pin `/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir`, nargo
+## 1.0.0-beta.26). Container version 5 / `meta.dat` schema 6. 1315 steps,
+## 81 calls (80 of the program's own plus the writer's `<toplevel>` frame), max
+## program call depth 3, all 22 variables observed, 70 stdout events. See
 ## `fixtures/trace/noir_space_ship/README.md` for provenance and `ct-print` output.
 ##
 ## The container is VENDORED rather than recorded at generation time on purpose:
@@ -215,7 +217,18 @@ var chain = DemoChainSlug
 const
   recorderId = "aztec-avm"
   recorderVersion = "0.0.0-demo"
-  traceSchema = "ctfs/v4"
+  # The schema the vendored container is actually written in. MOVED `ctfs/v4` ->
+  # `ctfs/v5` when the fixture was re-recorded at the 2026-10 trace-format
+  # revision: the container's header version byte is 5 and its `meta.dat` schema
+  # is 6, so leaving this at `v4` would be a producer stating a schema its own
+  # bytes do not carry — `snapshot-contract.json` defines the field as "the
+  # schema this recorder's containers are written in".
+  #
+  # IT IS NOT A FREE LABEL: `deriveTraceArtifactId` hashes it, so moving it
+  # re-addresses every published trace artifact in the demo tree. That is what
+  # version-addressing is for, and it is the correct consequence rather than a
+  # side effect to avoid.
+  traceSchema = "ctfs/v5"
   profileName = "default"
   tsv = "1"
 
@@ -224,13 +237,31 @@ const
   # `fixtures/trace/noir_space_ship/zk_shields.ct`, and `tcontract` asserts the
   # manifests still agree with the vendored container, so re-recording the fixture
   # without updating them fails the suite rather than silently publishing a lie.
-  traceSteps = 1315         ## ct-print: steps
-  traceFrames = 80          ## ct-print: calls — one frame per call entry
+  # It did exactly that: re-recording at the 2026-10 revision took `tcontract`
+  # red on `frames` and on `container.bytes`, which is the mechanism working.
+  traceSteps = 1315         ## ct-print: steps — UNMOVED by the re-recording
+  traceFrames = 81          ## ct-print: calls. MOVED 80 -> 81, and the program did
+                            ## not gain a call: the 2026-10 writer wraps every
+                            ## recording in a synthetic `<toplevel>` frame at depth
+                            ## 0 whose only child is `main`. Measured in the bytes —
+                            ## the function table now begins `"<toplevel>", "main"`,
+                            ## and the `<toplevel>` `call_entry` has
+                            ## `parent_call_key: -1`. This constant stays a verbatim
+                            ## ct-print reading, as the comment above requires, so
+                            ## it carries the frame.
   traceLanguage = "noir"
   # Provenance of the vendored container, surfaced in the source bundle's
   # `compiler` block so a reader can tell which tracer produced the execution.
+  #
+  # `tracerCommit` is a NIX STORE PATH and no longer a git SHA. The 2026-10
+  # recorder is a Nix build and embeds no git hash — its `nargo --version`
+  # answers `git version hash: false` — so a SHA here could only be a guess. A
+  # content-addressed store path names the exact bytes that produced the
+  # container, which is a stronger identity. `fixtures/trace/tour/README.md`
+  # ("The recorder pin") carries the derivation and both of its sources, and
+  # states what is claimed about the noir commit and what is not.
   nargoVersion = "1.0.0-beta.26"
-  tracerCommit = "906af2f42d6b874cf0f5dde193accb1e39e1bcd3"
+  tracerCommit = "/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir"
   # Search-index parameters (Search-And-Routing §5.3, §6). Version-addressed and
   # independent of the contract version; the depths are small for the demo's tiny
   # dataset and are recomputable for the real pipeline (documented D4/D5).
@@ -418,7 +449,7 @@ proc writeArtifact(cfg: DemoConfig, rec: Recording, txHash, execInputId: string,
   ## `truncated` is §14's "Trace truncated" row as published data: the recorder
   ## reached the profile's budget, so the recording's ending is the budget
   ## rather than the program's end. It does NOT change `steps` or `frames` —
-  ## those still describe the vendored container exactly (1315 / 80), because
+  ## those still describe the vendored container exactly (1315 / 81), because
   ## the container really does carry that many and a manifest that shrank them
   ## to look truncated would be describing a container that is not the one
   ## beside it. The claim is about where the recording STOPS, not about how big

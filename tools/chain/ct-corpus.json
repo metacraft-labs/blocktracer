@@ -1,0 +1,143 @@
+{
+  "_comment": [
+    "THE POPULATIONS OF THIS REPOSITORY'S COMMITTED `.ct` CORPUS, each with the",
+    "producer that writes it and the remedy when it goes stale against that producer.",
+    "",
+    "Read by `tools/chain/ct-corpus-census.mjs`. A tracked `.ct` path that matches no",
+    "population below is a FAILURE and not an 'other': an unclassified corpus arriving",
+    "quietly is precisely how the hand censuses in `codetracer-specs`'",
+    "CTFS-Reader-Revision-Rollout went wrong, once on the population (a `find` counted",
+    "generated copies under `client/dist/` as committed) and once on the PRODUCER (all 52",
+    "containers were described as chain recordings needing a node and a replay driver,",
+    "when ten of them are `nargo trace` recordings of local Noir packages whose sources are",
+    "vendored beside them and whose re-record command is committed).",
+    "",
+    "`producer` is the thing that must be run to re-record the population. It is the field",
+    "that decides the remedy, and grouping by it is what makes the two halves of this",
+    "corpus distinguishable: every chain recording is at container version 3 and every",
+    "`nargo trace` one is at 5, and no amount of looking at the version byte alone says why."
+  ],
+  "format": "blocktracer/ct-corpus-populations/v1",
+  "populations": [
+    {
+      "id": "chain/aztec-testnet",
+      "paths": ["client/fixtures/chain/aztec-testnet/ct/"],
+      "producer": "aztec-avm-runtime replay + aztec_ct_writer.wasm (NOT in this workspace)",
+      "remedy": "re-record; see `remedyNotes.chain` below",
+      "what": "Real Aztec testnet transactions replayed at capture time, published by the site."
+    },
+    {
+      "id": "chain/aztec-testnet-frames",
+      "paths": ["client/fixtures/chain/aztec-testnet-frames/ct/"],
+      "producer": "aztec-avm-runtime replay + aztec_ct_writer.wasm (NOT in this workspace)",
+      "remedy": "re-record; see `remedyNotes.chain` below",
+      "what": "The frame-level subset, carrying the register sidecars REGISTERS.md describes."
+    },
+    {
+      "id": "chain/aztec",
+      "paths": ["client/fixtures/chain/aztec/ct/"],
+      "producer": "aztec-avm-runtime replay + aztec_ct_writer.wasm (NOT in this workspace)",
+      "remedy": "re-record; see `remedyNotes.chain` below",
+      "what": "The mainnet-slug capture."
+    },
+    {
+      "id": "chain/noir-frames",
+      "paths": ["client/fixtures/noir-frames/ct/"],
+      "producer": "tools/chain/record-noir-frames-fixture.mjs (needs the runtime above)",
+      "remedy": "re-record; see `remedyNotes.chain` below",
+      "what": "One testnet transaction recorded for the Noir frame views."
+    },
+    {
+      "id": "chain/chain-artifacts",
+      "paths": ["fixtures/chain-artifacts/aztec-testnet/ct/"],
+      "producer": "aztec-avm-runtime replay + aztec_ct_writer.wasm (NOT in this workspace)",
+      "remedy": "re-record; see `remedyNotes.chain` below",
+      "what": "The artifact-resolution corpus."
+    },
+    {
+      "id": "noir/capability-tour",
+      "paths": ["fixtures/trace/tour/"],
+      "producer": "nargo trace, pinned at /nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir",
+      "remedy": "fixtures/trace/tour/record.sh — the sources are vendored beside each container, so this needs no node and no network",
+      "what": "Nine small Noir packages, one per debugger capability. Re-recorded at the 2026-10 trace-format revision on 2026-10-04."
+    },
+    {
+      "id": "noir/space-ship",
+      "paths": ["fixtures/trace/noir_space_ship/"],
+      "producer": "nargo trace, pinned at /nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir",
+      "remedy": "fixtures/trace/noir_space_ship/README.md §Reproducing — sources vendored, no node, no network",
+      "what": "The M5c demo fixture, one container behind six published executions."
+    },
+    {
+      "id": "conformance-kit/placeholders",
+      "paths": ["conformance-kit/template/complete/ct/"],
+      "producer": "none — these are 229-byte ASCII placeholders, by design",
+      "remedy": "none; they are not containers and must not become any",
+      "what": "The shipped conformance template's stand-ins. They carry no CTFS magic ON PURPOSE: the kit's subject is the snapshot's SHAPE, and a real container would make the template cost a recorder to produce."
+    }
+  ],
+  "remedyNotes": {
+    "chain": [
+      "BLOCKED on a producer bump in a repository that is not in this workspace, and the",
+      "blocker was measured rather than assumed on 2026-10-04.",
+      "",
+      "The producer is `metacraft-labs/aztec-avm-runtime`'s replay driver plus",
+      "`aztec_ct_writer.wasm`. The built writer available here is",
+      "/nix/store/2akip1fivva63rh4g3577wj8yaynb2l7-aztec-ct-writer-wasm-0.0.0, and its own",
+      "build inputs say what it emits:",
+      "",
+      "  the wasm's source derivation materialises `codetracer-trace-format` at",
+      "  592fa42cbfd759cf13398180798daaf856eb7e9d (it writes that SHA into",
+      "  `build-wasm-deps/materialised-at`), and at that revision",
+      "  `codetracer_ctfs/src/header.rs` declares `pub const VERSION: u8 = 3` and",
+      "  `codetracer_trace_writer/src/meta_dat.rs` declares",
+      "  `pub const META_DAT_VERSION: u16 = 3`.",
+      "",
+      "So re-recording the chain corpus with the PINNED producer reproduces exactly the",
+      "state that makes it unreadable: container version 3, `meta.dat` schema 3. The real",
+      "prerequisite is a `pins.json` bump of the `trace_format` and `trace_format_nim`",
+      "anchors in `aztec-avm-runtime` and a rebuild of the writer wasm, which is work in",
+      "that repository and not in this one.",
+      "",
+      "THE BODIES ARE NOT THE BLOCKER, and that is worth recording because",
+      "`tools/chain/record-noir-frames-fixture.mjs`'s header says they are: 'the node serves",
+      "transaction bodies only out of its active pool, for about an hour, and that hour is",
+      "long gone'. True of the node and not of the corpus. Measured on 2026-10-04 against",
+      "the first transaction of `client/fixtures/chain/aztec-testnet/snapshot.json`",
+      "(0x0858d644c60851824141160a69391e304430aabc06ef9ace18d8024b22e67fb2):",
+      "",
+      "  the keyless file store answered HTTP 200 with 195116 bytes whose leading 32 bytes",
+      "  ARE the requested hash, so the payload self-verified against its own key;",
+      "  a fabricated hash 404ed and a wrong base path 404ed, so the 200 is measured",
+      "  against two failures;",
+      "  the node answered `null` to BOTH `node_getTxByHash` and `node_getTxEffect` — a",
+      "  stronger control than ING-4's 'refused with the pool-pruned reason', because the",
+      "  testnet has since been REDEPLOYED (the snapshot's rollup is",
+      "  0xd73a91bdcf6891c7642f3e460036e1ef2cc23178 at rollupVersion 1821665230; the live",
+      "  node reports 0x8c2fb2a68a3d362ab1de99e06f83f8903160bbd9 at 2914217885, tip 8150),",
+      "  so the whole deployment is gone from the node and the store is the only surviving",
+      "  source.",
+      "",
+      "NOTHING COSTS ANYTHING WHILE THIS IS OPEN. No gate depends on any chain container",
+      "being readable: `chain-health.mjs` reports them as `H-CONTAINER-UNREADABLE`",
+      "findings, which is the tool working, and the committed reading at",
+      "`tools/chain/measurements/chain-health.json` records that figure."
+    ],
+    "restampingIsForbidden": [
+      "Flipping the `meta.dat` schema byte on these containers is NOT an option, and the",
+      "reason is this format's own history rather than a policy preference. A schema-3",
+      "writer packed a line-only `global_position_index` as `prefixSum[path_id] + line`;",
+      "schema 4 on packs `prefixSum[path_id] + (line - 1)`. Both land inside the trace's",
+      "own address space and nothing else in the container tells them apart, so a reader",
+      "that accepted a schema-3 container would place every step one line high AND report",
+      "success. That incident is why the refusal exists.",
+      "",
+      "Nor is vouching per read, and that one is no longer merely discouraged — it is",
+      "GONE. `readMetaDat`'s `acceptShiftedGlobalIndex` opt-in was removed in",
+      "`codetracer-trace-format-nim` by `b8db98c` ('feat!: the 2026-10 trace format",
+      "revision'); the proc now takes one parameter and the only surviving mentions of the",
+      "name are two test-file header comments describing history. There is no caller-side",
+      "bridge to build."
+    ]
+  }
+}

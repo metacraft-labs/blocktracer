@@ -55,6 +55,19 @@ find_sibling() {
 NARGO="${NARGO:-$(find_sibling noir/target/release/nargo || true)}"
 CT_PRINT="${CT_PRINT:-$(find_sibling codetracer-trace-format-nim/ct-print || true)}"
 
+# THE PINNED RECORDER IS THE FALLBACK, and that is what makes the pin
+# load-bearing rather than documentary. The sibling walk above finds a nargo
+# somebody BUILT; the pin names the one this corpus was recorded by. Preferring
+# the sibling keeps a developer's own build in charge, and falling back to the
+# pin means a host that has the store path — which is every host the corpus was
+# recorded on, and CI once it substitutes it — runs these checks instead of
+# skipping them. `manifest.json`'s `recorder` block is where this value comes
+# from; a bump belongs in both places.
+PINNED_NARGO="/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir/bin/nargo"
+if [ -z "${NARGO:-}" ] || [ ! -x "${NARGO:-}" ]; then
+  if [ -x "$PINNED_NARGO" ]; then NARGO="$PINNED_NARGO"; fi
+fi
+
 if [ -z "$NARGO" ] || [ ! -x "$NARGO" ]; then
   echo "no nargo found in any parent of $HERE — set NARGO=/path/to/nargo" >&2
   exit 2

@@ -84,17 +84,30 @@ program's `trace` object. Two of them had already gone stale here — `limits` w
 missing from the table entirely, and `mutation`'s counts read 91/7/0 against the
 manifest's 118/8/0 — so read the manifest when they matter.
 
-| id | demonstrates | steps | calls | events |
-|---|---|---|---|---|
-| `values` | every value kind the language has, one line at a time | 34 | 1 | 0 |
-| `loops` | a flat loop, nested loops, a `while`, and `break`/`continue` | 863 | 9 | 0 |
-| `branches` | arms taken on one visit and not on another | 54 | 8 | 0 |
-| `calls` | direct, mutual and tree recursion; one callee, two parents | 657 | 49 | 0 |
-| `generics` | one body, many instantiations; one name, many bodies | 99 | 8 | 0 |
-| `events` | what the execution said, as distinct from what it held | 124 | 6 | 14 |
-| `constraints` | an execution that STOPS on a constraint that cannot hold | 71 | 4 | 4 |
-| `limits` | the EDGES of a type — saturating, wrapping and shifting arithmetic | 101 | 5 | 0 |
-| `mutation` | a binding whose value moves — and one form that is not recorded | 118 | 8 | 0 |
+`calls` counts the `<toplevel>` frame the 2026-10 writer wraps every recording
+in, because the manifest's `trace` block is a verbatim `ct-print --summary`
+reading and that is what the reader reports. The program's own call count is one
+lower, and the `(n−1)` column says so rather than leaving the reader to subtract.
+
+| id | demonstrates | steps | calls | own calls | events |
+|---|---|---|---|---|---|
+| `values` | every value kind the language has, one line at a time | 34 | 2 | 1 | 0 |
+| `loops` | a flat loop, nested loops, a `while`, and `break`/`continue` | 863 | 10 | 9 | 0 |
+| `branches` | arms taken on one visit and not on another | 54 | 9 | 8 | 0 |
+| `calls` | direct, mutual and tree recursion; one callee, two parents | 657 | 50 | 49 | 0 |
+| `generics` | one body, many instantiations; one name, many bodies | 99 | 9 | 8 | 0 |
+| `events` | what the execution said, as distinct from what it held | 124 | 7 | 6 | 14 |
+| `constraints` | an execution that STOPS on a constraint that cannot hold | 71 | 5 | 4 | 4 |
+| `limits` | the EDGES of a type — saturating, wrapping and shifting arithmetic | 101 | 6 | 5 | 0 |
+| `mutation` | a binding whose value moves — and one form that is not recorded | 118 | 9 | 8 | 0 |
+
+**`steps` and `events` did not move when the corpus was re-recorded at the
+2026-10 recorder, and neither did `paths` or `varnames`.** What moved was
+`calls`/`functions` (the `<toplevel>` frame above), `types` (the writer stopped
+interning unnamed placeholder entries; no type NAME was lost) and `bytes` (the
+writer's layout). Nine programs, and not one checked fact among them moved —
+which is the same separation `codetracer-specs`' `CTFS-Reader-Revision-Rollout`
+CRR-4 measured independently on a different recording.
 
 ## Why the containers are vendored rather than built
 
@@ -102,6 +115,11 @@ manifest's 118/8/0 — so read the manifest when they matter.
 recording id minted when the container closes, and the embedded `workdir`
 string is wherever the recording ran. Everything else — every step, call and
 value — is identical between runs.
+
+**RE-MEASURED at the 2026-10 recorder rather than carried over**, because this
+is the whole reason the containers are committed and a figure taken against a
+retired recorder would not support it: two runs of `values` at the same producer
+produce two 77,824-byte containers that differ in **22 bytes**.
 
 The demo tree must be byte-identical for a given seed (CI generates it twice
 and diffs), so a generator that shelled out to `nargo trace` could not satisfy
@@ -111,15 +129,66 @@ whoever ran it.
 
 Re-record deliberately, not on every build, and expect the ids to change.
 
+**AND THIS IS WHY THESE NINE ARE NOT MOVED TO ON-THE-FLY RECORDING.**
+`metacraft-dev-guidelines/policies/repo-requirements.md` §4.3 says a test that
+needs a recording should record it on the fly, and that is the route
+`fixtures/chain-health/readable-container` took. It is refused here by the 22
+bytes above: a non-deterministic producer cannot feed a tree that CI regenerates
+and diffs. The policy's objection is that a committed recording goes stale
+against its recorder; the answer taken here is the other one §4.3 leaves open —
+the recorder is named exactly, its re-record command is committed, and the
+corpus is re-recorded when the recorder moves. This is that re-recording.
+
 ## The recorder pin
 
 ```
 nargo 1.0.0-beta.26
-noirc 1.0.0-beta.26+906af2f42d6b874cf0f5dde193accb1e39e1bcd3
+noirc 1.0.0-beta.26+unknown           ← the binary self-reports `git version hash: false`
+/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir   ← THE PIN
 ```
 
 One pin for the whole corpus: a corpus recorded by two tracers is two corpora.
-`record.sh` warns if the binary it finds is not at that commit.
+`record.sh` warns if the binary it finds is not the pinned one.
+
+**THE PIN IS A STORE PATH RATHER THAN A COMMIT, AND THAT IS NOT A WEAKENING.**
+This recorder is a Nix build and embeds no git hash — `nargo --version` answers
+`git version hash: false`, which `record.sh`'s old SHA check could not even
+parse (it extracted the two hex characters `fa` out of the word `false` and
+warned by accident). A content-addressed store path identifies the exact bytes
+that produced this corpus, which a branch SHA does not. The derivation names its
+inputs, and `manifest.json`'s `recorder` block carries all of them:
+
+| what | where |
+|---|---|
+| derivation | `/nix/store/k72k7g9g4yjlzkl5fmx3qx7z41axspya-Noir.drv` |
+| noir source | `/nix/store/c8xl12ywhj1g6761y7sljs2lx2j64ifl-source` |
+| writer source | `/nix/store/vr9mll4gqpjsxnmfqqz0yffbxjz9jvif-source` (`codetracer-trace-format-nim`, the `b8db98c` 2026-10 revision) |
+| trace-format rev | `1eae5894ce97001f4b013e50767cc2243a1ed47f` (2026-10-02), from the noir source's own `Cargo.toml` |
+
+**What IS claimed and what is not.** The writer source's
+`src/codetracer_trace_writer/meta_dat.nim` is byte-identical to the tip of the
+`codetracer-trace-format-nim` checkout whose `ct-print` reads these containers,
+so the producer and the reader are the same revision — that is measured, not
+inferred. The exact noir COMMIT is **not** claimed: the source's `Cargo.toml`
+matches noir@`875ee4855112` (*feat(tracer): record traces in the 2026-10 CTFS
+format*) and its `Cargo.lock` does not match that commit or any other one
+searched, so naming a SHA would be a guess and the store path is named instead.
+
+**Why the corpus moved off the previous pin.** At `906af2f42d` every container
+was at container version 4 / `meta.dat` schema 3, and the current reader refused
+all nine:
+
+```
+Error: meta.dat present but corrupt: meta.dat: schema version 3 is not supported;
+this reader reads version 6 only. Re-record the trace with a current recorder
+```
+
+That refusal is not a deprecation: schema 3 packed line-only step positions one
+line HIGHER than schema 4 on, both land inside the trace's own address space,
+and nothing else in the container tells them apart — so a reader that answered a
+schema-3 container would place every step one line high and report success. No
+gate widening could have reached these bytes. Re-recording was the only route,
+and it is the one `ctfs-container.md` §2 prescribes.
 
 ## What this recorder cannot do, and what the programs do about it
 
@@ -129,8 +198,8 @@ line said "Four" over a five-row table; count the rows, not the sentence.)
 
 | limit | consequence here |
 |---|---|
-| The pin predates `6939457ff7` (*embed the compiled source text in the `.ct` container*), so every container reports `source_views: []`. | Source text reaches a reader through the `sources/` tree, which the demo generator publishes as a source bundle. Re-recording with a newer tracer would embed it and move the pin — do that deliberately. |
-| A recorded `Field` is truncated to `i64`. | Every program keeps its field values small. `values` demonstrates the related rendering gap: signed integers are recorded as their two's-complement unsigned value, so `-42: i8` reads 214. |
+| ~~The pin predates `6939457ff7`, so every container reports `source_views: []`.~~ **No longer true.** The 2026-10 recorder EMBEDS the compiled source text: `values` reports `source_views: [{"view_name": "src/main.nr", "content_len": 3117}]`. | The `sources/` tree beside each container is KEPT and is still what the demo generator publishes as the source bundle, and what the ViewModels read. Removing it was not part of moving the pin and is separate work. |
+| A recorded `Field` is truncated to `i64`. **NOT RE-MEASURED.** This was taken against the previous pin, and the 2026-10 recorder's noir source already contains `8804acd69d0` (*fix(tracer): an integer too wide for i64 is recorded, not truncated or fatal*), so it is likely stale. No program here exercises it, so re-recording could not decide it either way. | Every program keeps its field values small. `values` demonstrates the related rendering gap, and that one WAS re-measured and still holds: signed integers are recorded as their two's-complement unsigned value, so `-42: i8` reads 214 and `-100_000: i32` reads 4294867296. |
 | `enum` values reach an unimplemented case in the value marshaller and abort the recording. | No program uses `enum`. |
 | User-defined `#[oracle(...)]` calls have no resolver under `nargo trace`, and an oracle body is never instrumented. | No program uses one. **This is a gap in the tour**, not a gap in the language — see below. |
 | Writes through a `&mut` parameter are not captured: the caller's binding never moves, and inside the callee the reference records with no dereferenced value. | `mutation` demonstrates this on purpose, last and labelled, with an assertion proving the circuit did the work the recording does not show. Every other program avoids the form. |

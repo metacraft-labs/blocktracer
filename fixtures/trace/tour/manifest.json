@@ -5,17 +5,29 @@
   "recorder": {
     "tool": "nargo trace",
     "nargo": "1.0.0-beta.26",
-    "noirc": "1.0.0-beta.26+906af2f42d6b874cf0f5dde193accb1e39e1bcd3",
-    "tracerCommit": "906af2f42d6b874cf0f5dde193accb1e39e1bcd3",
-    "container": "ctfs/v4",
+    "noirc": "1.0.0-beta.26+unknown",
+    "tracerCommit": null,
+    "tracerStorePath": "/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir",
+    "tracerDerivation": "/nix/store/k72k7g9g4yjlzkl5fmx3qx7z41axspya-Noir.drv",
+    "tracerNoirSource": "/nix/store/c8xl12ywhj1g6761y7sljs2lx2j64ifl-source",
+    "tracerWriterSource": "/nix/store/vr9mll4gqpjsxnmfqqz0yffbxjz9jvif-source",
+    "tracerWriterRevision": "codetracer-trace-format-nim @ the `b8db98c` 2026-10 trace-format revision (meta_dat.nim byte-identical to that repo's tip)",
+    "tracerTraceFormatRevision": "1eae5894ce97001f4b013e50767cc2243a1ed47f",
+    "container": "ctfs/v5",
+    "metaDatSchema": 6,
     "workdir": "/tmp/blocktracer-tour-rec/{id}/pkg",
     "language": "noir"
   },
   "caveats": [
-    "`nargo trace` is not byte-deterministic: `meta.dat` carries a UUIDv7 recording id minted at close, and the embedded workdir string. Everything else \u2014 every step, call and value \u2014 is identical between runs. The containers are therefore VENDORED, never regenerated at build time, because the demo tree must be byte-identical for a given seed and CI generates it twice and diffs.",
-    "The pinned recorder predates noir@6939457ff7 (`embed the compiled source text in the .ct container`), so every container here reports `source_views: []`. Source text reaches a reader through the `sources/` tree beside each container, which the demo generator publishes as a source bundle. Re-recording with a newer tracer would embed the sources and change the pin; do that deliberately.",
+    "`nargo trace` is not byte-deterministic: `meta.dat` carries a UUIDv7 recording id minted at close, and the embedded workdir string. Everything else \u2014 every step, call and value \u2014 is identical between runs. Re-measured at the 2026-10 recorder: two runs of `values` differ in 22 bytes out of 77824. The containers are therefore VENDORED, never regenerated at build time, because the demo tree must be byte-identical for a given seed and CI generates it twice and diffs.",
+    "`tracerCommit` is null because this recorder is a Nix build and its binary self-reports `git version hash: false`. The pin is the content-addressed store path above, which is a stronger identity than a branch SHA, not a weaker one: the derivation names its noir source and its writer source exactly. The noir source's `Cargo.toml` is identical to noir@875ee4855112 (`feat(tracer): record traces in the 2026-10 CTFS format`) but its `Cargo.lock` is not, so the exact noir commit is NOT claimed.",
+    "Every container here is at container version 5 / `meta.dat` schema 6 and is READ by the current reader. The previous corpus was at container version 4 / schema 3 and was read by nothing current: `ct-print` refused all nine on `meta.dat: schema version 3 is not supported; this reader reads version 6 only`. The schema refusal has a correctness argument behind it rather than a deprecation one (schema 3 packed line-only step positions one line high), so no gate widening could have reached them \u2014 re-recording was the only route.",
+    "The 2026-10 writer wraps every recording in a synthetic `<toplevel>` frame at depth 0, parent of `main`, so `calls` and `functions` each read one HIGHER than the program's own count. Measured in the bytes: `values` reports `functions: [\"<toplevel>\", \"main\"]` and a `call_entry` with `function: \"<toplevel>\", depth: 0, parent_call_key: -1, children: [1]`. The `trace` blocks below are verbatim `ct-print --summary` readings, so they carry the frame; a consumer that wants the program's own count subtracts one.",
+    "`types` fell in all nine programs (for example `values` 22 \u2192 15) and no type NAME was lost. The intermediate recorder's table reads `[\"None\", \"Field\", \"u32\", \"type_2\", \"u8\", \"type_4\", \"u16\", \"type_6\", \"u64\", \"type_8\", \"i8\", \"type_10\", \"i32\", \"type_12\", \"Bool\", \"String\", \"Array<4, ..>\", \"(..)\", \"Vec2\", \"Body\", \"&[..]\"]` and the 2026-10 one reads the same list with the six unnamed `type_N` placeholders gone. The drop is the writer no longer interning placeholder entries, not the recorder observing fewer types.",
+    "`bytes` moved in all nine, down in eight and UP in one (`limits`, 139264 \u2192 143360). It is a property of the writer's LAYOUT and not of the recording: not one step, call, io-event, path or varname moved in any of the nine, which is the same separation `CTFS-Reader-Revision-Rollout` CRR-4 measured independently on a different recording.",
+    "This recorder EMBEDS the compiled source text: every container now reports a populated `source_views` (`values`: `src/main.nr`, `content_len` 3117) where the previous pin, which predated noir@6939457ff7, reported `source_views: []`. The `sources/` tree beside each container is kept and still published as the source bundle \u2014 the demo generator and the ViewModels read it, and removing it was not part of this change.",
     "`nargo trace` compiles with `force_brillig`, so every program is executed unconstrained regardless of how it is written. That is a property of the recorder, not of the programs.",
-    "Three things the tracer cannot record and which therefore appear in no program here: `enum` values (the value marshaller reaches an unimplemented case and aborts the recording), user-defined `#[oracle(...)]` calls (`nargo trace` exposes no resolver, and an oracle body is never instrumented), and `Field` values above 2^63 (a recorded `Field` is truncated to `i64`, so every program keeps its field values small)."
+    "Three things the tracer cannot record and which therefore appear in no program here: `enum` values (the value marshaller reaches an unimplemented case and aborts the recording), user-defined `#[oracle(...)]` calls (`nargo trace` exposes no resolver, and an oracle body is never instrumented), and `Field` values above 2^63 (a recorded `Field` is truncated to `i64`, so every program keeps its field values small). NOT RE-MEASURED at the 2026-10 recorder: this list was taken against the previous pin, and the 2026-10 recorder's noir source already contains `8804acd69d0` (`fix(tracer): an integer too wide for i64 is recorded, not truncated or fatal`), so the third entry is likely stale. No program here exercises it, so re-recording could not decide it either way; it is left stated and labelled rather than carried as true or deleted as false."
   ],
   "capabilities": [
     {
@@ -82,13 +94,13 @@
       },
       "trace": {
         "steps": 34,
-        "calls": 1,
+        "calls": 2,
         "ioEvents": 0,
         "paths": 1,
-        "functions": 1,
-        "types": 22,
+        "functions": 2,
+        "types": 15,
         "varnames": 24,
-        "bytes": 139264
+        "bytes": 77824
       },
       "expectations": [
         "`weights[0] + weights[2]` is 3 + 4, so `from_array` is 7 \u2014 and the program asserts it, so a recording in which it is not 7 did not finish.",
@@ -126,13 +138,13 @@
       },
       "trace": {
         "steps": 863,
-        "calls": 9,
+        "calls": 10,
         "ioEvents": 0,
         "paths": 2,
-        "functions": 6,
-        "types": 4,
+        "functions": 7,
+        "types": 3,
         "varnames": 19,
-        "bytes": 139264
+        "bytes": 77824
       },
       "expectations": [
         "`triangular(6)` sums 0..5, so `acc` takes the sequence 0, 0, 1, 3, 6, 10, 15 across the loop's rungs and returns 15.",
@@ -167,13 +179,13 @@
       },
       "trace": {
         "steps": 54,
-        "calls": 8,
+        "calls": 9,
         "ioEvents": 0,
         "paths": 1,
-        "functions": 4,
-        "types": 7,
+        "functions": 5,
+        "types": 5,
         "varnames": 15,
-        "bytes": 139264
+        "bytes": 77824
       },
       "expectations": [
         "`classify` has three arms and is reached once, from `describe`'s middle arm, with `value = 12` \u2014 so it returns 1 and its other two arms are evaluated-and-not-taken on that visit.",
@@ -208,13 +220,13 @@
       },
       "trace": {
         "steps": 657,
-        "calls": 49,
+        "calls": 50,
         "ioEvents": 0,
         "paths": 2,
-        "functions": 9,
-        "types": 7,
+        "functions": 10,
+        "types": 5,
         "varnames": 17,
-        "bytes": 139264
+        "bytes": 77824
       },
       "expectations": [
         "`factorial(5)` puts six frames of one function on the stack, each with a different `n`, and returns 120 \u2014 which the program asserts.",
@@ -252,13 +264,13 @@
       },
       "trace": {
         "steps": 99,
-        "calls": 8,
+        "calls": 9,
         "ioEvents": 0,
         "paths": 3,
-        "functions": 4,
-        "types": 11,
+        "functions": 5,
+        "types": 8,
         "varnames": 16,
-        "bytes": 139264
+        "bytes": 102400
       },
       "expectations": [
         "`largest` has one body and three instantiations in this recording \u2014 `u32`, `u64` and `i32` \u2014 so the call trace names the same function three times over three types.",
@@ -294,13 +306,13 @@
       },
       "trace": {
         "steps": 124,
-        "calls": 6,
+        "calls": 7,
         "ioEvents": 14,
         "paths": 2,
-        "functions": 3,
-        "types": 4,
+        "functions": 4,
+        "types": 3,
         "varnames": 12,
-        "bytes": 143360
+        "bytes": 90112
       },
       "expectations": [
         "The first entry is the bare string `=== invoice ===` and the last is `=== end ===`, so the log has a readable beginning and end rather than being a repeated sentence.",
@@ -339,13 +351,13 @@
       },
       "trace": {
         "steps": 71,
-        "calls": 4,
+        "calls": 5,
         "ioEvents": 4,
         "paths": 3,
-        "functions": 3,
-        "types": 6,
+        "functions": 4,
+        "types": 5,
         "varnames": 27,
-        "bytes": 143360
+        "bytes": 94208
       },
       "expectations": [
         "Four assertions in `transfer` are evaluated and hold, twice each, before any assertion fails \u2014 so one recording contains both `checked and passed` and `checked and stopped`.",
@@ -394,13 +406,13 @@
       },
       "trace": {
         "steps": 101,
-        "calls": 5,
+        "calls": 6,
         "ioEvents": 0,
         "paths": 5,
-        "functions": 5,
-        "types": 7,
+        "functions": 6,
+        "types": 6,
         "varnames": 19,
-        "bytes": 139264
+        "bytes": 143360
       },
       "expectations": [
         "`saturating_add(u32::MAX - 2, 10)` detects that the addition would pass the ceiling and returns `u32::max_value()` = 4294967295, which the program asserts. Nothing overflows, which is the point: the check is in the source rather than in the failure.",
@@ -445,13 +457,13 @@
       },
       "trace": {
         "steps": 118,
-        "calls": 8,
+        "calls": 9,
         "ioEvents": 0,
         "paths": 2,
-        "functions": 6,
-        "types": 9,
+        "functions": 7,
+        "types": 8,
         "varnames": 14,
-        "bytes": 139264
+        "bytes": 86016
       },
       "expectations": [
         "`ramp(5, 7)` rebinds `level` three times, so the recording holds its whole history \u2014 5, 12, 24, 23 \u2014 and stepping backward walks it in reverse. The result 23 is asserted.",
@@ -468,7 +480,7 @@
           "owner": "upstream",
           "expectation": "The recording shows `slot` at 5, 12, 19 and 26 in `main`, and a dereferenced value for `*slot` inside `bump`.",
           "reason": "Writes through a `&mut` parameter are not captured. Noir's own debug instrumenter emits a literal `0` in place of the assignment oracle for `*x = ...` (noirc_frontend/src/debug/mod.rs:425, present verbatim upstream); the stub it would have called is named `__debug_dereference_assign` while the debugger dispatches on `__debug_deref_assign`, so the two halves could never meet; and the handler is `unimplemented!()` anyway. The caller's binding is never re-recorded after the call, and `PrintableType::Reference` decodes to `Other`, which our tracer renders as `ValueRecord::None`.",
-          "evidence": "fixtures/trace/tour/mutation/tour_mutation.ct at recorder 906af2f42d: `slot` is recorded once, as 5, and never again; inside `bump` it reads `{\"kind\":\"None\"}`. The program's own `assert(slot == start + 3 * step)` HOLDS, so the circuit performed all three writes the recording does not show.",
+          "evidence": "fixtures/trace/tour/mutation/tour_mutation.ct RE-MEASURED at the 2026-10 recorder pin `/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir`, and it still fails identically: `slot` is observed 22 times and reads `{\"kind\":\"Int\",\"i\":5}` on EVERY one of the 19 observations inside `main` (lines 118-132), so the caller's binding never moves; on the 3 observations inside `bump` (lines 106, 107) it reads `{\"kind\":\"None\"}`. The program's own `assert(slot == start + 3 * step)` HOLDS, so the circuit performed all three writes the recording does not show.",
           "closed_by": "An upstream change to noir-lang/noir. It needs all four of: instrumenter emission for `LValue::Dereference`, reconciling `__debug_dereference_assign` with `__debug_deref_assign`, a real `DebugVars::assign_deref`, and a `PrintableValue` that carries reference contents. See docs/NOIR-RECORDER-DEFECTS.md NR-04. UNOWNED.",
           "check": {
             "stage": "recording",

@@ -7,10 +7,63 @@
 //
 // `aztec-avm-runtime@26cac14` taught both AVM recorders to open a Noir frame at
 // every function boundary. The transaction this repository publishes —
-// testnet 0x20ed5b91… — CANNOT BE RE-RECORDED: the node serves transaction
-// bodies only out of its active pool, for about an hour, and that hour is long
-// gone. So the container the capture held for it was the one the OLD recorder
-// wrote, and it held two frames.
+// testnet 0x20ed5b91… — was not re-recordable through the node: it serves
+// transaction bodies only out of its active pool, for about an hour, and that
+// hour is long gone. So the container the capture held for it was the one the
+// OLD recorder wrote, and it held two frames.
+//
+// ── THAT SENTENCE USED TO READ "CANNOT BE RE-RECORDED", AND THE BODY HALF OF IT
+// IS NOW MEASURED FALSE ──────────────────────────────────────────────────────
+//
+// It said the body was gone. It is not gone; it is somewhere else. Measured
+// 2026-10-04 against the keyless `TxFileStore` whose base URLs
+// `AztecProtocol/networks`' `network_config.json` publishes, with the path
+// segment derived from the deployment the capture itself recorded
+// (`aztec-11155111-1821665230-0xd73a91bdcf6891c7642f3e460036e1ef2cc23178`, out
+// of `client/fixtures/chain/aztec-testnet/snapshot.json`'s `provenance`):
+//
+//   0x20ed5b91…                 HTTP 200, 195180 bytes, and the leading 32
+//                               bytes ARE the requested hash, so the payload
+//                               self-verifies against its own key
+//   a fabricated hash           404
+//   the same hash, wrong base   404
+//
+// So the 200 is measured against two failures rather than asserted alone. The
+// node-side control holds and is STRONGER than ING-3's pool-pruned reason: both
+// `node_getTxByHash` and `node_getTxEffect` answer `null`, because the testnet
+// has since been REDEPLOYED — the live node reports rollup
+// 0x8c2fb2a68a3d362ab1de99e06f83f8903160bbd9 at rollupVersion 2914217885 and
+// tip 8150, against the capture's 0xd73a91bd… / 1821665230 / tip 67058. The
+// whole deployment is gone from the node and the store is the only surviving
+// source. `Chain-Ingestion.milestones.org` ING-4 predicted exactly this and
+// this is its control, run.
+//
+// ── SO WHY DOES THIS FIXTURE STILL EXIST? ───────────────────────────────────
+//
+// Because the body was never the only blocker, and the one that remains is in
+// another repository. The producer is `aztec-avm-runtime`'s replay driver plus
+// `aztec_ct_writer.wasm`, and the built writer available here
+// (/nix/store/2akip1fivva63rh4g3577wj8yaynb2l7-aztec-ct-writer-wasm-0.0.0)
+// materialises `codetracer-trace-format` at
+// 592fa42cbfd759cf13398180798daaf856eb7e9d — a revision whose
+// `codetracer_ctfs/src/header.rs` declares `pub const VERSION: u8 = 3` and
+// whose `codetracer_trace_writer/src/meta_dat.rs` declares
+// `pub const META_DAT_VERSION: u16 = 3`. Those are exactly the container
+// version and `meta.dat` schema that make this repository's 42 committed chain
+// containers unreadable by a current reader, so a replay through the pinned
+// producer would reproduce the defect rather than fix it. The prerequisite is a
+// `pins.json` bump in `aztec-avm-runtime` and a rebuild of the writer wasm.
+//
+// NOT MEASURED, and it is the other half of a real re-recording: whether the
+// PRE-STATE is obtainable. The capture's rows record `preStateReadAt`,
+// `contractReferenceBlock`, `hydrationRounds` and `seedSize`, and the strategy
+// was `hydrated-from-node` — against a deployment the node no longer carries.
+// Having the body says nothing about whether the world state at block 63674 of
+// a retired rollup can be reconstructed. Nobody has tried, and this comment
+// does not claim it can.
+//
+// `tools/chain/ct-corpus.json`'s `remedyNotes.chain` holds the same figures as
+// the corpus's own declaration, so the two cannot drift apart silently.
 //
 // This tool writes the container the NEW recorder would have written for that
 // same execution, out of the same parts the new recorder uses.
