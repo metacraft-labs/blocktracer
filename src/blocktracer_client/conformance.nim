@@ -134,48 +134,68 @@ proc checkTrace(store: ObjectStore, session: ChainSession,
       # §1c: by name, never defaulted to identity.
       r.err v.hash & " execution '" & t.selector & "': " & encParsed.why
     elif encParsed.enc != ceIdentity:
-      # ── THE PRE-COMPRESSED OBJECT ───────────────────────────────────────────
+      # ── THE PRE-COMPRESSED OBJECT, AND THIS PACKAGE CANNOT KNOW WHICH
+      #    REPRESENTATION ITS TRANSPORT DELIVERED ──────────────────────────────
       #
-      # The at-rest figures are checked FIRST and need no decoder, so a consumer
-      # with no brotli still reaches a verdict about the bytes it holds. Then, if
-      # the bytes turn out to be a plain container after all, that is the mirror
-      # defect — a publication that recorded an encoding it did not apply — and
-      # it is reported as one rather than as a length mismatch.
-      if t.manifest.container.storedBytes != c.body.len:
-        r.err v.hash & " execution '" & t.selector & "': container.storedBytes " &
-          $t.manifest.container.storedBytes & " but " & $c.body.len &
-          " byte(s) served. That is the OBJECT AT REST under Content-Encoding '" &
-          $encParsed.enc & "'; container.bytes " & $t.manifest.container.bytes &
-          " is the raw container a negotiating consumer holds"
-      elif t.manifest.container.storedHash.len > 0 and
-           t.manifest.container.storedHash != contentHashSha1(c.body):
-        r.err v.hash & " execution '" & t.selector &
-          "': the bytes at rest do not match container.storedHash"
-      elif looksLikeContainer(c.body):
-        r.err v.hash & " execution '" & t.selector & "': " &
-          identityButDeclaredEncodedDiagnosis(t.containerPath, encParsed.enc)
-      else:
-        # ── NOT MEASURED, AND IT IS STRUCTURAL RATHER THAN A MISSING TOOL ─────
+      # That is the fact the branch is shaped around, and getting it wrong once
+      # is what produced this comment. The store's `fetchProc` is the CONSUMER'S:
+      # a browser NEGOTIATES and hands over the raw container; `store.localTree`
+      # is a `readFile` and hands over the object at rest;
+      # `verify/negotiating_store` hands over the raw container again, by running
+      # a codec outside this package. All three arrive here as "some bytes", with
+      # no header and no parameter saying which.
+      #
+      # So the decision is made FROM THE BYTES against the manifest's two sets of
+      # figures, and the first version of this branch — which assumed the at-rest
+      # bytes and compared `storedBytes` first — reported a NEGOTIATED read as a
+      # length mismatch, i.e. called a browser's correct fetch a defect.
+      if looksLikeContainer(c.body):
+        # NEGOTIATED (or decompressed by the consumer's own transport). The raw
+        # figures apply and are fully checkable, with no codec in this package.
+        if c.body.len != t.manifest.container.bytes:
+          r.err v.hash & " execution '" & t.selector & "': container declares " &
+            $t.manifest.container.bytes & " bytes and " & $c.body.len &
+            " byte(s) arrived as a container. This transport negotiated '" &
+            $encParsed.enc & "', so the raw figures are the ones that apply"
+        elif contentHashSha1(c.body) != t.manifest.container.hash and
+             t.manifest.container.hash.startsWith("sha1:"):
+          r.err v.hash & " execution '" & t.selector &
+            "': the container bytes do not match the manifest's traceContentHash"
+      elif c.body.len == t.manifest.container.storedBytes and
+           (t.manifest.container.storedHash.len == 0 or
+            t.manifest.container.storedHash == contentHashSha1(c.body)):
+        # NOT NEGOTIATED, and the object at rest is verified EXACTLY — by length
+        # and by sha1, with no codec. That is the whole purpose of `storedBytes`
+        # and `storedHash`: a consumer that cannot decode still reaches a verdict
+        # about the bytes in front of it rather than a skip.
         #
-        # `container.bytes` / `container.hash` describe the RAW container, and
-        # this package cannot produce it: its boundary bans `osproc` and bans
-        # `src/blocktracer/publish/` outright, so there is no decoder here and
-        # there is not meant to be one. Reporting it as an ERROR would declare a
-        # conformant tree non-conformant for a reason the tree has no part in;
-        # dropping it would let the check become optional silently. So it is the
-        # report's third channel, with the reason in the consumer's own terms —
-        # "install brotli" would be wrong advice for a package that may not call
-        # one.
-        #
-        # What IS checked, exactly, above: the object AT REST, by length and by
-        # sha1. That is the whole purpose of `storedBytes` / `storedHash`, and it
-        # is why this is a partial verdict with a named gap and not a skip.
+        # What is left is the RAW figures, and this package cannot produce them:
+        # its boundary bans `osproc` and bans `src/blocktracer/publish/`, so there
+        # is no decoder here and there is not meant to be one. Reporting that as
+        # an ERROR would declare a conformant tree non-conformant for a reason the
+        # tree has no part in; dropping it would let the check become optional
+        # silently. So it is the report's third channel, in the consumer's own
+        # terms — "install brotli" is wrong advice for a package that may not
+        # call one.
         r.unmeasured v.hash & " execution '" & t.selector &
           "': container.bytes (" & $t.manifest.container.bytes & ") and container.hash " &
           "describe the RAW container and were NOT CHECKED — " &
           noDecoderReason("the Client SDK") & ". The object at rest WAS checked: " &
           $c.body.len & " byte(s) against container.storedBytes, and its sha1 against " &
           "container.storedHash"
+      else:
+        # NEITHER REPRESENTATION, which is a real finding rather than a third
+        # state: the bytes are not a container and are not the object the manifest
+        # says is at rest, so whatever this transport delivered is described by
+        # nothing the producer wrote.
+        r.err v.hash & " execution '" & t.selector & "': " & $c.body.len &
+          " byte(s) arrived and they are neither the raw container (" &
+          $t.manifest.container.bytes & " bytes, which is what a transport " &
+          "negotiating '" & $encParsed.enc & "' delivers) nor the object at rest (" &
+          $t.manifest.container.storedBytes & " bytes). " &
+          unNegotiatedDiagnosis(t.containerPath, encParsed.enc, c.body.len,
+                                t.manifest.container.storedBytes,
+                                t.manifest.container.bytes)
     elif c.body.len != t.manifest.container.bytes:
       # IDENTITY, and the diagnosis forks on what the bytes ARE. A short read of a
       # container is a format defect; bytes that are not a container at all, under

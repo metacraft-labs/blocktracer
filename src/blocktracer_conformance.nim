@@ -70,6 +70,7 @@ import blocktracer/contract/container_encoding
 import blocktracer/contract/version
 import blocktracer_client/store
 import blocktracer_client/conformance
+import blocktracer/verify/negotiating_store
 
 proc usage() =
   stderr.writeLine """usage:
@@ -345,7 +346,19 @@ proc main() =
       failed = true
 
     # ── 3. published -> verdict, consumer side ────────────────────────────────
-    let r = consumerConformance(localTree(published))
+    # ── CHECK 3 READS IT THE WAY A BROWSER WOULD (CCP-6) ────────────────────
+    #
+    # `localTree` is a `readFile` and negotiates nothing, so against a
+    # pre-compressed publication it would hand the SDK the object at rest and the
+    # consumer report would be a partial verdict on every trace. The transport is
+    # the CONSUMER's — that is the seam `store.nim` is built around — so the kit
+    # supplies the equivalent of a browser's `Content-Encoding` handling here,
+    # outside the SDK package, which holds no codec and must not.
+    #
+    # Under `--container-encoding identity`, which is the default, this is
+    # `localTree` and nothing else: the wrapper only acts on an object whose own
+    # manifest declares a scheme.
+    let r = consumerConformance(negotiatingLocalTree(published))
     for m in r.notMeasured:
       echo "[3/3] consumer   NOT MEASURED  " & m
     if r.ok:

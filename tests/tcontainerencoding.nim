@@ -19,6 +19,15 @@
 ## accepted compressed bytes as a malformed container would report a format defect that
 ## does not exist", and the DISTINCT diagnosis is the deliverable rather than a nicety.
 ##
+## CCP-6 asks for two things of each kit and this suite drives both. "Either negotiate or
+## decompress EXPLICITLY": `blocktracer-validate` runs the codec itself, and the consumer
+## side gets it through `verify/negotiating_store` — in the CONSUMER'S fetch closure,
+## which is the seam `store.nim` is built around and the only place it can go, since the
+## SDK's boundary bans a subprocess and bans the publisher's modules by name. "And give a
+## DISTINCT diagnosis when handed compressed bytes": that is the un-negotiated path, which
+## is still reachable on purpose (`--no-negotiate`, and a decoder-less host) and is where
+## the forbidden sentence is checked for by its shape.
+##
 ## So the subject of this suite is a seam that crosses five modules — the pure policy
 ## (`contract/container_encoding`), the codec (`publish/encoding`), the publication
 ## (`chain/ingest`), the producer-side kit (`validator`) and the consumer-side kit
@@ -60,6 +69,7 @@ import ../src/blocktracer/contract/container_encoding
 import ../src/blocktracer/publish/encoding
 import ../src/blocktracer/publish/objectstore
 import ../src/blocktracer/validator
+import ../src/blocktracer/verify/negotiating_store
 import ../src/blocktracer_client/store
 import ../src/blocktracer_client/conformance
 
@@ -481,6 +491,57 @@ suite "the consumer-side kit, which CANNOT decode and must say so":
     ck one.notMeasured.len == 1
     ck all.notMeasured.len == one.notMeasured.len
 
+  test "a NEGOTIATING transport hands the SDK the raw container, and every figure is checked":
+    # THIS IS CCP-6's "either negotiate or decompress explicitly", and the explicit
+    # decompression lives in the CONSUMER'S closure — which is the seam `store.nim` is
+    # built around ("the closure is the consumer's … that is their transport and their
+    # decision") and the only place it can live, since the SDK's boundary bans both a
+    # subprocess and the publisher's modules. A browser's transport does the same thing
+    # by negotiating `Content-Encoding`; this is the kit's stand-in for a browser.
+    let r = consumerConformance(negotiatingLocalTree(brTree))
+    ck r.ok
+    ck r.tracesReplayable == 1
+    # NOTHING unmeasured, which is the difference the whole arm is about: the raw
+    # figures ARE checkable once the transport has done its job.
+    ck r.notMeasured.len == 0
+
+  test "CONTROL: --no-negotiate over the SAME tree reports the gap again":
+    # Without this the arm above could be passing because the tree is not actually
+    # pre-compressed. Same bytes, same manifest, one flag.
+    let r = consumerConformance(negotiatingLocalTree(brTree, negotiate = false))
+    ck r.ok
+    ck r.notMeasured.len == 1
+    ck "NOT CHECKED" in r.notMeasured[0]
+
+  test "CONTROL: the negotiating transport is a NO-OP on an identity tree":
+    # It must act only on an object whose own manifest declares a scheme — otherwise it
+    # would be a second code path for every tree this repository has ever published.
+    let a = consumerConformance(negotiatingLocalTree(idTree))
+    let b = consumerConformance(localTree(idTree))
+    ck a.ok and b.ok
+    ck a.notMeasured.len == 0 and b.notMeasured.len == 0
+    ck a.tracesReplayable == b.tracesReplayable
+
+  test "bytes that are NEITHER representation are a finding that names both figures":
+    # The third outcome, and it is an error rather than a third state: bytes that are not
+    # the container and not the object at rest are described by nothing the producer
+    # wrote. Driven by truncating the stored object, which leaves a manifest that
+    # describes neither what is there nor what a negotiation would yield.
+    let odd = tempDir("odd")
+    copyDir(brTree, odd)
+    for p in walkDirRec(odd):
+      if p.endsWith("trace.ct"):
+        let b = readFile(p)
+        writeFile(p, b[0 ..< b.len div 2])
+    let r = consumerConformance(localTree(odd))
+    ck not r.ok
+    var said = ""
+    for e in r.errors:
+      if "neither the raw container" in e: said = e
+    ck said.len > 0
+    ck "nor the object at rest" in said
+    ck "PRE-COMPRESSED" in said
+
   test "an un-negotiated read of a tree that declares NOTHING is told apart":
     # The undiagnosable case, said honestly. Compressed bytes under a manifest with no
     # `encoding` cannot be identified from the bytes — brotli has no magic — so the kit
@@ -536,4 +597,4 @@ suite "the object store: a local directory cannot carry object metadata":
 
 suite "the suite counted itself":
   test "assertion count":
-    expectCount(128)
+    expectCount(141)

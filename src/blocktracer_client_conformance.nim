@@ -17,24 +17,33 @@
 ## each transaction's own recorded position.
 ##
 ## Usage:
-##   blocktracer-client-conformance PATH [--chain SLUG]
+##   blocktracer-client-conformance PATH [--chain SLUG] [--no-negotiate]
 ##
 ## Exits 0 when the report is clean, 1 when it is not, 2 on a usage error. With no
 ## `--chain` it reports on every chain the tree's registry publishes.
 ##
-## It reads one directory and reaches no network: the store is
-## `blocktracer_client/store.localTree`, whose fetch is a file read.
+## It reads one directory and reaches no network. The store is a file read — plus the
+## one thing a browser's transport does that a file read does not: it DECOMPRESSES an
+## object the manifest says is stored pre-compressed (`verify/negotiating_store`, and
+## CCP-6 for why that lives in the consumer's closure rather than in the SDK).
+##
+## `--no-negotiate` turns that off, and it is a CONTROL rather than a convenience: CCP-6
+## asks for the same archive read WITHOUT negotiation, and requires the report to tell
+## that apart from a malformed container. A control reachable only by editing a test is a
+## control nobody runs.
 
 import std/[os, strutils]
 import blocktracer_client/store
 import blocktracer_client/conformance
+import blocktracer/verify/negotiating_store
 
 proc usage() =
-  stderr.writeLine "usage: blocktracer-client-conformance PATH [--chain SLUG]"
+  stderr.writeLine "usage: blocktracer-client-conformance PATH [--chain SLUG] [--no-negotiate]"
 
 proc main() =
   var root = ""
   var chain = ""
+  var negotiate = true
   var i = 1
   while i <= paramCount():
     let a = paramStr(i)
@@ -45,6 +54,8 @@ proc main() =
       chain = paramStr(i + 1); inc i
     elif a.startsWith("--chain="):
       chain = a["--chain=".len .. ^1]
+    elif a == "--no-negotiate":
+      negotiate = false
     elif a == "--help" or a == "-h":
       usage(); quit 0
     elif a.startsWith("-"):
@@ -67,11 +78,13 @@ proc main() =
     stderr.writeLine "error: no published tree at " & root
     quit 2
 
-  let s = localTree(root)
+  let s = negotiatingLocalTree(root, negotiate)
   let r = if chain.len > 0: consumerConformance(s, chain)
           else: consumerConformance(s)
 
   echo "tree: " & root
+  echo "transport: " & (if negotiate: "file read + Content-Encoding negotiation"
+                        else: "file read, NO negotiation (--no-negotiate)")
   echo "chain(s): " & (if r.chain.len > 0: r.chain else: "(none)")
   echo "generation: " & (if r.generation.len > 0: r.generation else: "(none)")
   echo "blocks checked: " & $r.blocksChecked

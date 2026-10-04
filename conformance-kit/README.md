@@ -72,10 +72,26 @@ misbehaving:
   raw-container figures as **NOT MEASURED** with the reason, which is never
   counted as a pass.
 
-`blocktracer-client-conformance` can *never* decompress, by design: it reads
-through the client SDK, which holds no subprocess and no codec. It therefore always
-reports those two figures as NOT MEASURED against a pre-compressed tree, and that
-is the correct answer rather than a gap.
+### Where the decompressor is, and why that is not an implementation detail
+
+`blocktracer-client-conformance` reads through the **client SDK**, and the SDK holds
+no codec and no subprocess — deliberately, and it is enforced by an import lint
+rather than by convention. Its whole read path is one closure whose entire input is
+a path, and that closure belongs to the *consumer*.
+
+So the kit supplies the decompressor the way a browser does: in its own transport,
+outside the SDK. In a browser that is `Content-Encoding` negotiation; here it is a
+read closure that inflates an object whose manifest declares a scheme. Either way
+the SDK is handed the raw container and never learns an encoding was involved.
+
+Two consequences worth knowing:
+
+- `--no-negotiate` reads the at-rest bytes deliberately. That is the control — it is
+  what an un-negotiating consumer of your published tree will see — and the report
+  tells it apart from a malformed container.
+- With no `brotli` on `PATH`, the kit passes the at-rest bytes through, verifies them
+  exactly against `storedBytes`/`storedHash`, and reports the raw figures as NOT
+  MEASURED. A partial verdict with a named gap, never a pass.
 
 ## The three phases, because the order is not the one you expect
 

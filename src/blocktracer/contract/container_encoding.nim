@@ -88,6 +88,17 @@
 ## bytes are the container the manifest describes — needs a decoder, and where there is
 ## none it is reported as NOT MEASURED with its reason. Never a pass.
 ##
+## AND THE DECODER IS NOT ABSENT FROM THE KIT, ONLY FROM THE PACKAGE, which is the
+## distinction the boundary is actually drawing. `store.nim`'s read path is one closure
+## whose entire input is a path, and the closure is the CONSUMER'S — so
+## `verify/negotiating_store` gives the kit the same thing a browser's transport gives a
+## page, outside the SDK, and the SDK is handed the raw container either way. What the
+## SDK cannot do is know WHICH representation arrived: a browser negotiates, a plain file
+## read does not, and nothing in the response says which. So `conformance.nim` decides
+## from the bytes against the manifest's two sets of figures rather than assuming one —
+## the first version assumed the at-rest bytes and reported a browser's correct fetch as
+## a length mismatch.
+##
 ## ## THE THREE FIGURES ARE THREE FIGURES
 ##
 ## `container.bytes` / `container.hash` keep their existing meaning: **the raw container,
