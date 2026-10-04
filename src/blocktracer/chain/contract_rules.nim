@@ -220,6 +220,7 @@ const
   RuleOutcomeClosed* = cite("S5-OUTCOME-CLOSED")
   RuleRecorderLabelUnique* = cite("S5-RECORDER-LABEL-UNIQUE")
   RuleContainerNonEmpty* = cite("S5-CONTAINER-NONEMPTY")
+  RuleContainerNotPreEncoded* = cite("S5-CONTAINER-NOT-PREENCODED")
   RuleReasonRequired* = cite("S5-REASON-REQUIRED")
   RuleRefusalReasonRequired* = cite("S5-REFUSALREASON-REQUIRED")
   RuleRefusalReasonClosed* = cite("S5-REFUSALREASON-CLOSED")

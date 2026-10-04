@@ -257,10 +257,38 @@ type
     name*, hash*: string
 
   ContainerRef* = object
+    ## ── THREE BYTE FIGURES, AND THEY ARE THREE FIGURES (CCP-6) ─────────────
+    ##
+    ## `bytes` and `hash` describe the RAW CONTAINER — what the format reader
+    ## parses, and what a consumer holds after the transport's own decompression.
+    ## Their meaning is unchanged by the fields below and deliberately so: a
+    ## negotiating consumer, which is every browser, compares against exactly
+    ## these and never learns an encoding was involved.
+    ##
+    ## `encoding`, `storedBytes` and `storedHash` describe the OBJECT AT REST.
+    ## They exist because conflating "at rest", "on the wire" and "as the loader
+    ## sees it" is how a 10x and a 21% came to be conflated in the campaign that
+    ## added them, and because over a FILE READ there is no `Content-Encoding`
+    ## header to answer the question — brotli has no magic number, so the
+    ## manifest is the only thing that can say what the bytes at rest are.
+    ##
+    ## All three are OMITTED from the JSON when the encoding is identity, which
+    ## is the default. A tree published without pre-compression is therefore
+    ## byte-identical to one published before these fields existed, which the
+    ## M5c determinism requirement needs and which keeps every committed
+    ## published-tree figure in this repository unmoved.
     file*: string
     bytes*: int
     blockSize*: int
     hash*: string
+    encoding*: string
+      ## The HTTP `Content-Encoding` token the object carries as metadata, or
+      ## `""` for identity. A token this build does not implement is REFUSED by
+      ## the decoder rather than read as identity (CCP-1 §1c).
+    storedBytes*: int
+      ## The object's length at rest. `0` when there is no encoding.
+    storedHash*: string
+      ## `contentHashSha1` of the bytes at rest. `""` when there is no encoding.
 
   ExecutionEnding* = enum
     ## HOW THE RECORDING ENDED — which is not how the TRANSACTION ended.
@@ -468,6 +496,19 @@ proc toJson*(x: TraceManifest): JsonNode =
   result["container"] = %*{"file": x.container.file, "bytes": x.container.bytes,
                            "blockSize": x.container.blockSize,
                            "hash": x.container.hash}
+  # ── WRITTEN ONLY WHEN THEY ARE A STATEMENT (CCP-6) ───────────────────────
+  #
+  # Same rule as `execution.ending` below and for the same reason: an identity
+  # object is one whose bytes at rest ARE `bytes`/`hash`, so writing
+  # `"encoding": "identity"`, `storedBytes` and `storedHash` would publish three
+  # copies of facts already on the row and give a reader two spellings of one
+  # state. Additive-only, so a consumer predating the fields reads the manifests
+  # it always read — and, measurably, every published tree this repository has
+  # committed stays byte-identical.
+  if x.container.encoding.len > 0:
+    result["container"]["encoding"] = %x.container.encoding
+    result["container"]["storedBytes"] = %x.container.storedBytes
+    result["container"]["storedHash"] = %x.container.storedHash
   result["execution"] = %*{"steps": x.execution.steps,
                            "frames": x.execution.frames,
                            "truncated": x.execution.truncated,

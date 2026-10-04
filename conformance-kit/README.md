@@ -41,6 +41,42 @@ It reaches no network, needs no checkout and needs no Nim toolchain: the contrac
 is compiled into the binary, and every file it opens is under the directory you
 named or the directory it publishes into.
 
+### If the containers you publish are stored pre-compressed
+
+A published container may be stored **pre-compressed**, with a `Content-Encoding`
+carried as object metadata, so the browser's own transparent decompression is the
+only decompressor in the path. Add `--container-encoding br` to publish that way:
+
+```sh
+blocktracer-conformance --snapshot path/to/my-snapshot --container-encoding br
+```
+
+Three things to know, because each of them will otherwise look like the tool
+misbehaving:
+
+- **Your snapshot's container must still be a plain container.** Pre-compression
+  is a *publication* step, not a recording one. An already-encoded container in a
+  snapshot tree is refused by name (`S5-CONTAINER-NOT-PREENCODED`), because
+  compressing it a second time would publish a manifest describing the inner
+  stream as the raw container, and the length check cannot see that.
+- **`container.bytes` still means the RAW container.** The manifest gains
+  `encoding`, `storedBytes` and `storedHash` beside it, which describe the
+  **object at rest**. A consumer that negotiates — every browser, and
+  `curl --compressed` — compares against `bytes`/`hash` and never learns an
+  encoding was involved.
+- **A read that does *not* negotiate gets the at-rest bytes, and the kit says so
+  distinctly.** It is not a malformed container and the kit will not call it one:
+  it names the scheme, gives both byte figures side by side, and says the remedy
+  is to negotiate or to decompress. If `brotli` is not on your `PATH` the kit
+  still verifies the object at rest exactly — by length and hash — and reports the
+  raw-container figures as **NOT MEASURED** with the reason, which is never
+  counted as a pass.
+
+`blocktracer-client-conformance` can *never* decompress, by design: it reads
+through the client SDK, which holds no subprocess and no codec. It therefore always
+reports those two figures as NOT MEASURED against a pre-compressed tree, and that
+is the correct answer rather than a gap.
+
 ## The three phases, because the order is not the one you expect
 
 The command prints this legend before it runs, and it is here too because the

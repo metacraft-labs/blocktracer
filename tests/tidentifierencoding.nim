@@ -2453,4 +2453,17 @@ suite "the boundary: who knows about each half of the seam":
       inc comparedTops
     ck comparedTops == 3
 
-expectCount(892)
+# 892 -> 894: PRE-EXISTING AND NOT MINE, and the two are named so the next reader
+# does not have to re-derive them. `7dbc566` ("Merge dev into agents: reconcile the
+# two sides of the renderer pin refactor") added TWO entries to the `expected` sets
+# of the `declaration` sweep — `verify/audit.nim` under src/ (9 -> 10) and
+# `tools/ci/hostile-chain-corpus.mjs` under tools/ (2 -> 3) — and each `expected`
+# entry contributes one `ck fileExists(...)` in the sweep arm. The `expectedLen`
+# assertions beside them were bumped; this total was not.
+#
+# MEASURED BEFORE TOUCHING ANYTHING: a detached worktree at `18b7eec8`, the
+# unmodified revision, reports `assertion count is 894, expected 892` — so the
+# expectation was stale rather than the code being wrong, and the suite has been
+# red on `agents` since that merge. Recorded here because a declared count is only
+# evidence if the number and the reason travel together.
+expectCount(894)

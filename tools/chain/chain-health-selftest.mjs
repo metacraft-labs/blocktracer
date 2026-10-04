@@ -47,6 +47,7 @@ import {
 import { REFUSAL_REASON_IDS, UNTRACED_OUTCOMES, TRACED_OUTCOMES, CHAIN_ABSENT_OUTCOMES }
   from './lib/refusal.mjs';
 import { POSITION_STREAM_SCHEMA } from './lib/producer-facts.mjs';
+import { makeReadableContainer } from './make-readable-container.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TOOL = join(HERE, 'chain-health.mjs');
@@ -114,20 +115,70 @@ const REAL_READER = join(REPO_ROOT, '..', 'codetracer-trace-format-nim', 'ct-pri
 // what was wrong. That is exactly the shape this file refuses elsewhere — a tool that cannot
 // answer must report NOT RUN with its reason, never crash and never silently pass.
 //
-// It happened for a real reason worth recording: `codetracer-trace-format-nim` moved its
-// accepted container version to 5 only, and this corpus is at version 3, so a freshly built
-// `ct-print` answers every subject with
-//   "CTFS container version 3 is not supported: this reader reads version 5 only"
+// It happened for a real reason worth recording: `codetracer-trace-format-nim` moved to
+// container version 5 and `meta.dat` schema 6 only, and the committed subject was version 4 /
+// schema 4, so a freshly built `ct-print` answered it with
+//   "meta.dat: schema version 4 is not supported; this reader reads version 6 only"
+// — measured 2026-10-04, and note the field: the header comment that stood here blamed the
+// CONTAINER version, which is the field a reader PRINTS when it refuses and not the one that
+// decided. The subject's container version was 4 and the reader never got that far.
 // The failure was invisible on any host where the binary is simply not built — all 31
 // reader-dependent arms skip and the suite exits 0 — which is why it reached `latest`.
+// CRR-4 closes it at the source: the subject is now RECORDED before this probe runs, so the
+// thing it reads is always what the current writer writes. See `SUBJECT_RECORDING` below.
 //
 // So the configuration is detected by ASKING THE READER TO READ, once, against the same
-// committed subject §9 uses. Three states, not two: absent, present-but-refusing, usable.
+// subject §9 uses. Three states, not two: absent, present-but-refusing, usable.
 const READER_SUBJECT_CONTAINER = join(
   REPO_ROOT, 'fixtures', 'chain-health', 'readable-container', 'ct',
   '0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1.ct');
+
+// ── AND THE SUBJECT IS RECORDED ON THE FLY, NOT COMMITTED (CRR-4) ─────────────────────────
+//
+// THE DEFECT THE PARAGRAPH ABOVE DESCRIBES IS NOW FIXED AT ITS SOURCE RATHER THAN ONLY
+// REPORTED. It was a COMMITTED container — 151,552 bytes of version-4 CTFS, recorded once in
+// September — and the clock it was running down went off on 2026-10-01 when the canonical
+// writer moved to container version 5 / `meta.dat` schema 6. Nothing in this repository
+// could have stopped that, because the stale thing was a derived artefact sitting beside
+// nothing that regenerates it.
+//
+// `make-readable-container.mjs` regenerates it, here, from the sibling's own fixture
+// generator, before the probe reads it. Its header carries the measurements: the recording's
+// facts (10 steps, 2 paths, 1 call, the positions columns value by value) are IDENTICAL
+// across the writer move and stay committed; the container is not and no longer is. The cost
+// is 0.2 s with the generator cached and about 30 s when it is not.
+//
+// Three states, and they are the same three as the reader's own — which is not a coincidence,
+// it is the same seam. The sibling supplies both the generator and the reader, so a host
+// without it has neither, and a host that has it and cannot produce a container has a break
+// rather than an absence.
+const SUBJECT_RECORDING = (() => {
+  let r;
+  try { r = makeReadableContainer(); }
+  catch (e) { return { state: 'failed', reason: `the recorder threw: ${e.message}` }; }
+  if (r.state !== 'ready') return r;
+  // THE ONE FIGURE THAT IS A PROPERTY OF THE WRITER AND NOT OF THE RECORDING. `S5-CONTAINER-BYTES`
+  // requires the row's `containerBytes` to equal the file on disk, and the same recording is
+  // 151,552 bytes at the old writer revision and 77,824 at the current one. It stays in the
+  // committed `snapshot.json` — see the materialiser's header for why a generated snapshot
+  // would cost four declared populations to save one integer — and a skew is a RED GATE with
+  // both figures in it rather than a silent drift.
+  if (r.bytes !== r.declaredBytes) {
+    return { state: 'failed',
+             reason: `the recorded container is ${r.bytes} bytes and snapshot.json declares `
+                   + `containerBytes ${r.declaredBytes}. The writer's LAYOUT moved (no step, `
+                   + `path or call did); update that one field and say why.` };
+  }
+  return r;
+})();
+
 const probeReader = () => {
   if (!existsSync(REAL_READER)) return { usable: false, reason: 'the reader is not built on this host' };
+  if (SUBJECT_RECORDING.state !== 'ready') {
+    return { usable: false,
+             reason: `the probe subject could not be recorded (${SUBJECT_RECORDING.state}): `
+                   + SUBJECT_RECORDING.reason };
+  }
   if (!existsSync(READER_SUBJECT_CONTAINER)) {
     return { usable: false, reason: `the probe subject is missing at ${READER_SUBJECT_CONTAINER}` };
   }
@@ -1122,7 +1173,11 @@ console.error('\n§9 — the container against the claim, over the one recording
   const snap = JSON.parse(readFileSync(join(SUBJECT, 'snapshot.json'), 'utf8'));
   const subjectRow = snap.transactions[0];
   const rec = subjectRow.recording;
-  ck('the readable-container subject is committed, is one traced row, and names a container',
+  // "RECORDED", not "committed", and the word changed when the container stopped being
+  // committed (CRR-4). The ASSERTION is unchanged and still requires the file to be there —
+  // what moved is who put it there, and a label that still said "committed" would be the
+  // only thing in this file claiming a `.ct` is in git.
+  ck('the readable-container subject is recorded, is one traced row, and names a container',
      snap.transactions.length === 1 && subjectRow.outcome === 'replayed'
      && typeof subjectRow.container === 'string'
      && existsSync(join(SUBJECT, subjectRow.container)));
@@ -1891,6 +1946,20 @@ const CONFIG = HAVE_REAL_READER
   : (existsSync(REAL_READER) ? 'reader-refusing' : 'reader-absent');
 const ranConfigArms = HAVE_REAL_READER ? assertedWithReader : assertedWithoutReader;
 const ranOtherArms = HAVE_REAL_READER ? assertedWithoutReader : assertedWithReader;
+
+// ── THE SUBJECT'S OWN STATE, PRINTED BEFORE THE READER'S ────────────────────────────────────
+//
+// It is reported separately because the remedies are different and because a recorder that
+// REFUSED is not a host that lacks one. A failure here is a failure of the suite — not an arm,
+// so neither declared figure moves, and not a skip either: the thing the 31 arms are about
+// could not be brought into existence, which is a break.
+console.error(`subject: ${SUBJECT_RECORDING.state} — ${SUBJECT_RECORDING.reason}`);
+if (SUBJECT_RECORDING.state === 'failed') {
+  console.error('  SUBJECT NOT RECORDED. The sibling checkout is here and would not produce the '
+    + 'one container these checks have a subject in. This is a break, not an absence: the '
+    + 'remedy is in that checkout or in the figure quoted, never "install something".');
+  failed++;
+}
 
 console.error(`configuration: ${CONFIG} (${READER_PROBE.reason}; at ${REAL_READER})`);
 if (CONFIG === 'reader-refusing') {

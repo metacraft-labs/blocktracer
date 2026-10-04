@@ -20,6 +20,7 @@
 
 import std/[json, os, strutils, sets, tables]
 import ./contract/[model, version, ids, searchidx, entrypage, chain_profile]
+import ./publish/encoding
 import ./chain/refusal_reasons
 import ./chain/contract_rules
 
@@ -61,6 +62,25 @@ type
   Validator* = object
     root*: string                 ## filesystem path to the published tree root
     findings*: seq[ValidationFinding]
+    notMeasured*: seq[ValidationFinding]
+      ## ── THE THIRD STATE, AND IT IS NOT A FINDING AND NOT A PASS (CCP-6) ───
+      ##
+      ## A check that could not be RUN is neither. `CTFS-Reader-Revision-Rollout`
+      ## CRR-3 is the doctrine and it has three rows, not two: a tool that is
+      ## ABSENT is a skip that must say which tool; a tool that is PRESENT and
+      ## refuses is a failure; and collapsing the two is how a product break
+      ## comes to read as a green run — or, in the other direction, how a host
+      ## missing an optional decoder comes to read as a non-conformant tree.
+      ##
+      ## There is exactly one occupant today: `container.bytes` / `container.hash`
+      ## describe the RAW container, and against a pre-compressed object they can
+      ## only be checked with a brotli decoder. The object AT REST is still
+      ## verified exactly, by `storedBytes` / `storedHash`, which need no decoder
+      ## — so this is a partial verdict with a named gap rather than a shrug.
+      ##
+      ## `validateTree` and `validateTreeFindings` keep their signatures and
+      ## their behaviour: this channel is reached through `validateTreeReport`,
+      ## so nothing that existed before CCP-6 sees a new finding or loses one.
     visited: HashSet[string]      ## files reached during the walk
     registry: Table[string, JsonNode]  ## chain -> registry entry
     identifierEncodings: Table[string, ChainIdentifierEncoding]
@@ -88,6 +108,10 @@ proc err(v: var Validator, ctx, msg: string) =
   ## failure a second formatter beside a structured error is. The line it
   ## produces is byte-for-byte what this proc used to `add` directly.
   v.findings.add ValidationFinding(context: ctx, message: msg)
+
+proc notMeasured(v: var Validator, ctx, msg: string) =
+  ## Record a check that could not be run, with the reason. See `Validator.notMeasured`.
+  v.notMeasured.add ValidationFinding(context: ctx, message: msg)
 
 proc errorLine*(f: ValidationFinding): string =
   ## The one-line rendering. `validateTree` is this over every finding.
@@ -270,6 +294,21 @@ proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
             overlayRecorderBuild & "' and its manifest says it was produced by '" &
             mb & "'")
   # container: bytes must equal the real file size; hash must match its bytes.
+  #
+  # ── AND "THE REAL FILE SIZE" IS TWO SIZES ONCE THE OBJECT IS PRE-COMPRESSED
+  #    (CCP-6) ─────────────────────────────────────────────────────────────────
+  #
+  # This is one of the three doors CCP-6 names: it reads bytes it obtained by a
+  # FILE READ, and a file read negotiates nothing. Against an object stored with
+  # `Content-Encoding: br` the two comparisons below used to produce
+  #
+  #     container.bytes 77824 != actual file size 1058
+  #
+  # which is a format defect that does not exist, and which sends a reader
+  # looking for a truncated writer. `container.encoding` is what makes the
+  # diagnosis precise, and it HAS to be the manifest rather than the bytes:
+  # brotli has no magic number, so an absent CTFS magic is the only evidence the
+  # bytes themselves carry and it is evidence for nothing in particular.
   if "container" in m:
     let c = m["container"]
     let crel = dir / c{"file"}.getStr("trace.ct")
@@ -278,20 +317,73 @@ proc checkContainerAndManifest(v: var Validator, tid, txHash, chain,
     if not fileExists(cpath):
       v.err(mrel, "container file missing: " & crel)
     else:
-      let bytes = readFile(cpath)
-      if c{"bytes"}.getInt != bytes.len:
-        v.err(mrel, "container.bytes " & $c{"bytes"}.getInt &
-              " != actual file size " & $bytes.len)
-      let want = contentHashSha1(bytes)
-      if c{"hash"}.getStr != want:
-        v.err(mrel, "container.hash does not match container bytes")
-      # The TraceSelection overlay advertises the container's size so the client
-      # can choose a fetch strategy before fetching. If it disagrees with the
-      # artifact, the client sizes its fetch against a number that is not the
-      # object it is about to request.
-      if overlayBytes >= 0 and overlayBytes != bytes.len:
-        v.err(mrel, "overlay advertises bytes " & $overlayBytes &
-              " but the container is " & $bytes.len & " bytes")
+      let stored = readFile(cpath)
+      let encField = c{"encoding"}.getStr("")
+      let parsed = parseContainerEncoding(encField)
+      if not parsed.ok:
+        # §1c: refused BY NAME, never read as identity. An encoding this build
+        # does not implement must not be treated as "stored raw", because that
+        # reading turns compressed bytes into a container comparison and the
+        # only thing it can produce is a wrong diagnosis.
+        v.err(mrel, parsed.why)
+      elif parsed.enc == ceIdentity:
+        # The pre-CCP-6 path, unchanged and still the default.
+        if c{"bytes"}.getInt != stored.len:
+          v.err(mrel, "container.bytes " & $c{"bytes"}.getInt &
+                " != actual file size " & $stored.len)
+        let want = contentHashSha1(stored)
+        if c{"hash"}.getStr != want:
+          v.err(mrel, "container.hash does not match container bytes")
+        if overlayBytes >= 0 and overlayBytes != stored.len:
+          v.err(mrel, "overlay advertises bytes " & $overlayBytes &
+                " but the container is " & $stored.len & " bytes")
+      else:
+        # ── THE OBJECT AT REST, CHECKABLE WITH NO DECODER AT ALL ────────────
+        #
+        # This is why `storedBytes`/`storedHash` exist. A kit with no brotli on
+        # PATH still reaches a VERDICT about the bytes in front of it rather
+        # than a skip, and the decoder then adds the stronger claim on top.
+        let sb = c{"storedBytes"}.getInt
+        let sh = c{"storedHash"}.getStr
+        if sb != stored.len:
+          v.err(mrel, "container.storedBytes " & $sb &
+                " != actual file size " & $stored.len &
+                " (this is the OBJECT AT REST under Content-Encoding '" &
+                $parsed.enc & "'; container.bytes " & $c{"bytes"}.getInt &
+                " is the raw container a loader sees)")
+        if sh.len > 0 and sh != contentHashSha1(stored):
+          v.err(mrel, "container.storedHash does not match the bytes at rest")
+        # THE MIRROR CASE, which is invisible without an arm for it: the
+        # manifest records an encoding the publication did not apply.
+        if looksLikeContainer(stored):
+          v.err(mrel, identityButDeclaredEncodedDiagnosis(crel, parsed.enc))
+        else:
+          # ── AND THE RAW FIGURES, WHEN A DECODER IS IN REACH ───────────────
+          let dec = decodeContainer(stored, parsed.enc)
+          if not dec.ok:
+            # THE DIAGNOSIS FIRST, THE MISSING TOOL SECOND. The shared sentence says what
+            # the bytes ARE, which is the half a reader has to have before the half about
+            # a decoder means anything — and it ends with the remedy, so putting the tool
+            # after it would bury that. The object AT REST was checked exactly, above.
+            v.notMeasured(mrel,
+              unNegotiatedDiagnosis(crel, parsed.enc, stored.len, sb, c{"bytes"}.getInt) &
+              ". So container.bytes and container.hash, which describe the RAW container, " &
+              "were NOT CHECKED here: " & dec.why)
+          else:
+            if not looksLikeContainer(dec.data):
+              v.err(mrel, "the object at " & crel & " decompressed under Content-Encoding '" &
+                    $parsed.enc & "' and the result does not begin with the CTFS magic, so " &
+                    "what was stored was not a container")
+            if c{"bytes"}.getInt != dec.data.len:
+              v.err(mrel, "container.bytes " & $c{"bytes"}.getInt &
+                    " != " & $dec.data.len & ", the length of the DECOMPRESSED container")
+            if c{"hash"}.getStr != contentHashSha1(dec.data):
+              v.err(mrel, "container.hash does not match the decompressed container bytes")
+            # The overlay advertises what a CLIENT will hold, which is the raw
+            # container: it negotiates, so it never sees the stored length.
+            if overlayBytes >= 0 and overlayBytes != dec.data.len:
+              v.err(mrel, "overlay advertises bytes " & $overlayBytes &
+                    " but the decompressed container is " & $dec.data.len & " bytes")
   # ── THE LISTING'S INSTRUCTION SET AGAINST THE CHAIN'S DECLARED ONE ─────────
   #
   # `instructions.json` states the instruction set its opcode numbers are
@@ -938,6 +1030,33 @@ proc checkGeneration(v: var Validator, chain, gen: string) =
   v.checkRenderLayer(chain, root)
   v.checkSearchIndices(chain, root)
 
+proc runValidation(root: string): Validator =
+  ## THE ONE WALK. Everything public below is this, read differently — which is
+  ## the property `validateTree`'s own doc comment asks for ("ONE walk and one
+  ## sentence per finding rather than two implementations that can drift"), and
+  ## which adding a second entry point would have broken if it had copied the
+  ## body instead of calling it.
+  result = Validator(root: root, visited: initHashSet[string]())
+  let crel = "d"  # discover chains under /d
+  if not dirExists(root / crel):
+    # THE CONTEXT IS THE ROOT ITSELF, which is the file this finding is about as
+    # nearly as one exists: the tree has no data plane, so no object inside it
+    # can be named. It used to be a bare sentence with no context at all, which
+    # rendered as a finding `blocktracer-conformance` reported as naming no file.
+    result.findings.add ValidationFinding(
+      context: root / "d", message: "no /d data plane found under " & root)
+    return
+  for chainDir in walkDir(root / crel):
+    if chainDir.kind != pcDir: continue
+    let chain = extractFilename(chainDir.path)
+    let cur = result.loadJson("d" / chain / "current.json")
+    if cur == nil: continue
+    for field in ["chain", "generation", "head", "finalized"]:
+      discard result.need(cur, "d" / chain / "current.json", field)
+    let gen = cur{"generation"}.getStr
+    if gen.len > 0:
+      result.checkGeneration(chain, gen)
+
 proc validateTreeFindings*(root: string): seq[ValidationFinding] =
   ## Validate a published tree rooted at `root`. Returns the findings — empty
   ## means the tree conforms to contract version `ContractVersion`.
@@ -948,26 +1067,7 @@ proc validateTreeFindings*(root: string): seq[ValidationFinding] =
   ## reference names a path that is not on disk, which is precisely the case a
   ## scan over "tokens that exist" cannot find, and it is the commonest finding
   ## this check produces.
-  var v = Validator(root: root, visited: initHashSet[string]())
-  let crel = "d"  # discover chains under /d
-  if not dirExists(root / crel):
-    # THE CONTEXT IS THE ROOT ITSELF, which is the file this finding is about as
-    # nearly as one exists: the tree has no data plane, so no object inside it
-    # can be named. It used to be a bare sentence with no context at all, which
-    # rendered as a finding `blocktracer-conformance` reported as naming no file.
-    return @[ValidationFinding(context: root / "d",
-                               message: "no /d data plane found under " & root)]
-  for chainDir in walkDir(root / crel):
-    if chainDir.kind != pcDir: continue
-    let chain = extractFilename(chainDir.path)
-    let cur = v.loadJson("d" / chain / "current.json")
-    if cur == nil: continue
-    for field in ["chain", "generation", "head", "finalized"]:
-      discard v.need(cur, "d" / chain / "current.json", field)
-    let gen = cur{"generation"}.getStr
-    if gen.len > 0:
-      v.checkGeneration(chain, gen)
-  v.findings
+  runValidation(root).findings
 
 proc validateTree*(root: string): seq[string] =
   ## Validate a published tree rooted at `root`. Returns the list of conformance
@@ -976,3 +1076,16 @@ proc validateTree*(root: string): seq[string] =
   ## Defined as `validateTreeFindings` rendered, so there is ONE walk and one
   ## sentence per finding rather than two implementations that can drift.
   for f in validateTreeFindings(root): result.add f.errorLine
+
+proc validateTreeReport*(root: string):
+    tuple[findings, notMeasured: seq[ValidationFinding]] =
+  ## `validateTreeFindings` PLUS the checks that could not be run and why.
+  ##
+  ## A separate entry point rather than a changed return type, deliberately: the
+  ## twenty-odd existing call sites ask "does this tree conform" and that question
+  ## and its answer are unchanged. What is new is a caller that also wants to
+  ## report what it did not look at — `blocktracer-validate` and
+  ## `blocktracer-conformance` — and a check nobody reports as unrun is a check
+  ## that silently became optional.
+  let v = runValidation(root)
+  (v.findings, v.notMeasured)

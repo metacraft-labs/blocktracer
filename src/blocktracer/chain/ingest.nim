@@ -94,6 +94,7 @@
 
 import std/[json, os, algorithm, strutils, tables, times]
 import ../contract/[model, ids, version, identifier_encoding, chain_profile]
+import ../publish/encoding
 import ./refusal_reasons
 import ./snapshot_format
 import ./contract_rules
@@ -186,6 +187,27 @@ type
     snapshotDir*: string  ## a directory holding snapshot.json and ct/
     generation*: string   ## "" => "1"
     scope*: IngestScope   ## see `IngestScope`; the zero value is `isFull`
+    containerEncoding*: ContainerEncoding
+      ## ── HOW `/t/**/trace.ct` IS STORED (CCP-6) ─────────────────────────────
+      ##
+      ## `ceIdentity`, the zero value, writes the container's own bytes and the
+      ## manifest carries no encoding field — byte-identical to every tree this
+      ## repository has ever published.
+      ##
+      ## `ceBrotli` writes the object PRE-COMPRESSED and records
+      ## `container.encoding` / `storedBytes` / `storedHash` beside the raw
+      ## figures, so the bytes are compressed AT REST and transparent in the
+      ## browser rather than one or the other.
+      ##
+      ## THE DEFAULT IS NOT TIMIDITY AND IT IS THIS CAMPAIGN'S OWN RULE.
+      ## `ctfs-container.md` §1c: reader support ships everywhere before any
+      ## writer emits it. Storing compressed bytes is correct only once the
+      ## delivery layer SERVES the `Content-Encoding` — DEL-1b's work, measured
+      ## not to exist today (no `_headers`, `_routes.json`, `_redirects` or
+      ## `cloudflare_ruleset` anywhere in this tree or in `infra`; §4.1 item 8
+      ## measured `identity` and `--compressed` byte-identical with the same
+      ## sha256). Flipping this before that lands would hand compressed bytes to
+      ## every existing consumer with nothing telling them so.
 
   IngestResult* = object
     chain*: string
@@ -1830,7 +1852,50 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           " states containerBytes " & $t["containerBytes"].getInt & " and its container at " &
           (cfg.snapshotDir / t["container"].getStr) & " is " & $ctBytes.len &
           " bytes. " & ruleStatement("S5-CONTAINER-BYTES"))
-      cfg.writeBytes(dir / "trace.ct", ctBytes)
+      # ── DOUBLE ENCODING IS REFUSED, AND THE RULE IS CONDITIONAL (CCP-6) ─────
+      #
+      # The snapshot's `ct/` holds what the RECORDER wrote, and pre-compression is
+      # a PUBLICATION step. Hand this reader an already-encoded object while
+      # publication is set to encode and it compresses it a second time, writing a
+      # manifest that describes the inner stream as the raw container. The length
+      # check above cannot see it: `containerBytes` is measured against the same
+      # file, so it agrees.
+      #
+      # IT IS CONDITIONAL ON THE PUBLICATION ENCODING AND ON NOTHING ELSE, which
+      # is what the shipped conformance template forced and is worth recording
+      # rather than discovering twice. The first version of this check demanded
+      # the CTFS magic unconditionally — and
+      # `conformance-kit/template/complete/ct/*.ct` are 229-byte ASCII
+      # placeholders with no magic at all, deliberately, so `just conformance`
+      # with no argument (the kit checking itself) would have been refused by a
+      # rule invented to catch a hazard that does not exist under identity. A
+      # snapshot container under identity is whatever the producer wrote; this
+      # reader has never claimed otherwise and must not start here.
+      if cfg.containerEncoding != ceIdentity and not looksLikeContainer(ctBytes):
+        raise newException(ValueError,
+          RuleContainerNotPreEncoded &
+          "the snapshot's container for " & shortHash(txHash) & " at " &
+          (cfg.snapshotDir / t["container"].getStr) &
+          " does not begin with the container magic, and this publication is set to store " &
+          "containers with Content-Encoding '" & $cfg.containerEncoding & "'. " &
+          "Compressing it again would publish a manifest describing the inner stream " &
+          "as the raw container, and nothing downstream could tell. A recorder writes a " &
+          "CONTAINER here; pre-compression is a publication step. " &
+          ruleStatement("S5-CONTAINER-NOT-PREENCODED"))
+      # ── THE OBJECT AT REST, WHICH MAY BE THE COMPRESSED ONE (CCP-6) ─────────
+      #
+      # `ctBytes` stays the RAW container everywhere below: it is what
+      # `container.bytes` / `container.hash` describe, what a negotiating consumer
+      # holds, and what the format reader parses. `storedCt` is what goes on disk.
+      # Two names because they are two facts, and because the campaign that added
+      # this spent its first two weeks with "at rest", "on the wire" and "as the
+      # loader sees it" sharing one.
+      let encoded = encodeContainer(ctBytes, cfg.containerEncoding)
+      if not encoded.ok:
+        raise newException(ValueError,
+          "cannot publish the container for " & shortHash(txHash) & ": " & encoded.why)
+      let storedCt = encoded.data
+      cfg.writeBytes(dir / "trace.ct", storedCt)
 
       # ---- the source bundles, when the recording measured itself as source
       # level ---------------------------------------------------------------
@@ -2310,8 +2375,18 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         # not to this sentence, which is why `languages` below was still keyed on
         # the wrong one of the two.)
         sourceBundles: bundles,
-        container: ContainerRef(file: "trace.ct", bytes: ctBytes.len,
-                                blockSize: 4096, hash: contentHashSha1(ctBytes)),
+        # `bytes`/`hash` are the RAW container — what the loader sees. The three
+        # stored-* fields are the object at rest and are OMITTED under identity,
+        # so this manifest is byte-identical to the one this line wrote before
+        # CCP-6 unless pre-compression was asked for. See `ContainerRef`.
+        container: ContainerRef(
+          file: "trace.ct", bytes: ctBytes.len,
+          blockSize: 4096, hash: contentHashSha1(ctBytes),
+          encoding: (if cfg.containerEncoding == ceIdentity: ""
+                     else: $cfg.containerEncoding),
+          storedBytes: (if cfg.containerEncoding == ceIdentity: 0 else: storedCt.len),
+          storedHash: (if cfg.containerEncoding == ceIdentity: ""
+                       else: contentHashSha1(storedCt))),
         execution: ExecutionSummary(
           steps: t["recording"]["steps"].getInt,
           frames: t["recording"]{"callsOpened"}.getInt,

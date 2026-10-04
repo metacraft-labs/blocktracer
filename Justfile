@@ -140,6 +140,13 @@ test:
     nim c -r --hints:off tests/tchainsnapshot.nim
     nim c -r --hints:off tests/tidentifierencoding.nim
     nim c -r --hints:off tests/tchainprofile.nim
+    # THE TRANSPORT ENCODING OF A PUBLISHED CONTAINER (CCP-6). Its own suite because
+    # the property is a RELATION across five modules — the pure policy, the brotli
+    # codec, the publication, the producer-side kit and the consumer-side kit — and a
+    # per-module suite would have each half agreeing with its own idea of what the
+    # other does. That is the shape the campaign behind it spent two weeks undoing,
+    # with three byte figures that had become one.
+    nim c -r --hints:off tests/tcontainerencoding.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
     # ALL FIFTEEN CLIENT SUITES, BY DELEGATION. See the block above this recipe
@@ -418,6 +425,29 @@ chain-selftest:
     node tools/chain/chain-health-selftest.mjs
     node tools/chain/yield-method-selftest.mjs
 
+# ── RECORD the one container a current reader can open ─────────────────────
+#
+# `fixtures/chain-health/readable-container/ct/*.ct` is NOT committed. It is
+# produced from the sibling `codetracer-trace-format-nim`'s own fixture
+# generator, so it follows that writer rather than lagging it, and
+# `chain-health-selftest.mjs` runs this itself before probing the reader — this
+# recipe is the same act by hand, for `just conformance
+# fixtures/chain-health/readable-container` on a fresh checkout.
+#
+# `metacraft-dev-guidelines/policies/repo-requirements.md` §4.3 is the policy:
+# `*.ct` is committed in `codetracer-example-recordings` and nowhere else,
+# because a derived artefact committed beside its producer is a clock. This one
+# went off — 151,552 bytes of container-version-4 CTFS that no reader at the
+# 2026-10 revision opens, which took all 31 reader-dependent arms out of
+# service. The tree's OTHER files stay committed and were measured to be
+# unchanged by the writer move; `MAKING.md` carries that table.
+#
+# THREE EXIT CODES, because two would hide the one that matters: 0 recorded,
+# 2 the sibling is not checked out (SKIP, and the state CI is in), 1 it IS
+# checked out and would not produce a container (FAIL — a break, not an absence).
+readable-container:
+    node tools/chain/make-readable-container.mjs
+
 # ── is the recording layer healthy? ────────────────────────────────────────
 #
 # `just chain-health <snapshot-dir>` sweeps one prepared tree;
@@ -470,12 +500,31 @@ chain-selftest:
 # reader states no version of its own and two of its builds refuse the same
 # container with different exit statuses.
 #
+# RE-MEASURED 2026-10-04 (CRR-4). The three figures above — 46 named, 45 refused,
+# 1 opened, and the 42 / 3 split of the 45 — all still hold exactly, and the
+# schema census the tool reports is `{3: 42, unstated: 4}`. Two sentences do NOT:
+#
+#   * `the reader accepts [4, 5]` is stale. It reads `meta.dat` schema 6 ONLY, and
+#     container version 5 only, as of the 2026-10 trace-format revision. The
+#     refusal is still BY NAME and still for the one-line-high reason; the set it
+#     is a refusal against moved.
+#   * `which this repository added for the purpose` is stale in the other
+#     direction. That subject's container was committed, and on 2026-10-01 the
+#     writer moved past it, so from then until this re-measurement the figure was
+#     46 named, 46 REFUSED, 0 opened — and all 31 reader-dependent arms of
+#     `chain-health-selftest.mjs` did not run. The container is no longer
+#     committed: `tools/chain/make-readable-container.mjs` RECORDS it, at test
+#     time, from the sibling writer's own fixture generator. `just
+#     readable-container` is the same act by hand. That is why 1 opens again, and
+#     it is why 1 will keep opening the next time the writer moves.
+#
 # The schema skew is reported PER CONSUMER and never as one verdict, because the
 # two consumers of these containers accept disjoint sets: the pinned reader above
-# accepts [4, 5] and the replay engine this repository ships to a visitor —
-# pinned by sha256 in `client/hydrate/engine-pin.txt` — accepts [3]. So the same
-# corpus is unreadable to one and readable to the other, and picking which one
-# matters is not a decision a sweep gets to make.
+# accepts schema 6 (it accepted [4, 5] when this paragraph was written) and the
+# replay engine this repository ships to a visitor — pinned by sha256 in
+# `client/hydrate/engine-pin.txt` — accepts [3]. So the same corpus is unreadable
+# to one and readable to the other, and picking which one matters is not a
+# decision a sweep gets to make.
 #
 # ── WHAT AN OPENED CONTAINER IS COMPARED AGAINST ───────────────────────────
 #

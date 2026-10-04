@@ -63,6 +63,8 @@ import std/[unittest, os, json, strutils, sequtils, algorithm, sha1]
 import ../src/blocktracer/chain/ingest
 import ../src/blocktracer/chain/snapshot_format
 import ../src/blocktracer/chain/contract_rules
+# The CODEC, for the one rule whose subject is an already-encoded container.
+import ../src/blocktracer/publish/encoding
 import ../src/blocktracer/validator
 # `shardKeyFor` — the overlay's object path is derived the way the contract derives it,
 # WITH THE ENCODING NAMED (`"hex"`), which is what these trees declare, rather than a
@@ -516,6 +518,20 @@ proc violate(id, dir: string): string =
     result = firstOutcome(doc, "replayed")["container"].getStr
     writeFile(dir / result, "")
     wrote = false
+  of "S5-CONTAINER-NOT-PREENCODED":
+    # ALREADY ENCODED, which is only a violation when publication will encode —
+    # see `encodingFor` below. The row's `containerBytes` moves WITH the file,
+    # because this rule's whole point is that the length check agrees and cannot
+    # see the condition; leaving the old figure would reach `S5-CONTAINER-BYTES`
+    # instead and the citation below would be about a different rule.
+    let rel = firstOutcome(doc, "replayed")["container"].getStr
+    let enc = encodeContainer(readFile(dir / rel), ceBrotli)
+    doAssert enc.ok,
+      "S5-CONTAINER-NOT-PREENCODED needs a brotli encoder to build its subject, and " &
+      "this suite REFUSES rather than skipping: " & enc.why
+    writeFile(dir / rel, enc.data)
+    firstOutcome(doc, "replayed")["containerBytes"] = %enc.data.len
+    result = rel
   of "S5-REASON-REQUIRED":
     firstOutcome(doc, "private-only").delete("reason")
   of "S5-REFUSALREASON-REQUIRED":
@@ -695,11 +711,26 @@ proc prepareTree(id, outDir: string) =
             $(%*{"chain": "aztec-testnet-frames", "generation": "1"}))
   writeFile(gen / "summary.json", $(%*{"provenance": {"kind": "demo"}}))
 
+proc encodingFor(id: string): ContainerEncoding =
+  ## ONE RULE IS CONDITIONAL ON THE PUBLICATION ENCODING, so its subject cannot be
+  ## reached under the config every other case uses.
+  ##
+  ## `S5-CONTAINER-NOT-PREENCODED` says an already-encoded snapshot container is refused
+  ## WHEN publication will pre-compress it, and only then — the shipped conformance
+  ## template's magic-free ASCII placeholders are why (CCP-6 finding 4). Driving it under
+  ## identity would reach no refusal at all, and driving every OTHER rule under `br`
+  ## would change what forty cases publish in order to reach one.
+  ##
+  ## The same value is used for the violation AND for the repaired control below, so "one
+  ## edit is the whole difference" stays true of this case as it is of the rest.
+  if id == "S5-CONTAINER-NOT-PREENCODED": ceBrotli else: ceIdentity
+
 const RuleCases = [
   "S5-SNAPSHOT-PRESENT", "S5-FORMAT-UNKNOWN", "S5-CHAIN-NAMED", "S5-CHAIN-UNIQUE",
   "S5-MEMBERS-REQUIRED", "S5-ROW-MEMBERS-REQUIRED", "S5-COUNTS-PRESENT", "S5-COUNTS-ROWS", "S5-COUNTS-RECONCILE",
   "S5-BLOCKS-ORDER",
-  "S5-RECORDER-LABEL-UNIQUE", "S5-CONTAINER-NONEMPTY", "S5-CONTAINER-BYTES", "S5-REASON-REQUIRED",
+  "S5-RECORDER-LABEL-UNIQUE", "S5-CONTAINER-NONEMPTY", "S5-CONTAINER-NOT-PREENCODED",
+  "S5-CONTAINER-BYTES", "S5-REASON-REQUIRED",
   "S5-REFUSALREASON-REQUIRED", "S5-REFUSALREASON-CLOSED", "S5-REFUSALREASON-FORBIDDEN",
   "S5-OUTCOME-CLOSED",
   "S5-BUNDLE-REQUIRED", "S5-BUNDLE-KEYED", "S5-BUNDLE-NONEMPTY",
@@ -750,7 +781,8 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
       var said = ""
       try:
         discard ingestSnapshot(IngestConfig(outDir: badOut, snapshotDir: badIn,
-                                            generation: "1", scope: isFull))
+                                            generation: "1", scope: isFull,
+                                            containerEncoding: encodingFor(id)))
       except CatchableError as e:
         said = e.msg
       if want notin said:
@@ -781,7 +813,8 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
       var why = ""
       try:
         discard ingestSnapshot(IngestConfig(outDir: okOut, snapshotDir: okIn,
-                                            generation: "1", scope: isFull))
+                                            generation: "1", scope: isFull,
+                                            containerEncoding: encodingFor(id)))
         published = true
       except CatchableError as e:
         why = e.msg
@@ -835,7 +868,10 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
   # the last test. 3 × 4 = 12. The case-list test's own arms are three regardless
   # of how many rules there are, which is why it is an equality rather than a
   # count.
-  expectCount(171)
+  #
+  # 171 → 175: ONE rule added (S5-CONTAINER-NOT-PREENCODED, CCP-6), and the same
+  # arithmetic applies — 1 × 4 = 4.
+  expectCount(175)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT

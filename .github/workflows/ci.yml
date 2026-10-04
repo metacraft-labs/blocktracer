@@ -755,10 +755,14 @@ jobs:
         #     merely mentions the word error and succeeds must not.
         #   * A refused container is a finding ABOUT THE CONTAINER and the reader is
         #     the witness, not the accused. Over this repository's corpus the refusal
-        #     holds on 52 of the 53 containers — every one but the version-4 subject
-        #     in fixtures/chain-health/readable-container — so a sentence that blamed
-        #     the reader would read as a broken tool 52 times over and send an
-        #     operator to the wrong repository.
+        #     holds on all 52 TRACKED containers — so a sentence that blamed the
+        #     reader would read as a broken tool 52 times over and send an operator
+        #     to the wrong repository. (RE-MEASURED 2026-10-04: this said "52 of the
+        #     53 … every one but the version-4 subject in
+        #     fixtures/chain-health/readable-container". That subject was refused too
+        #     from 2026-10-01, when the reader moved to meta.dat schema 6 only, and
+        #     its container is now RECORDED at test time rather than committed, so it
+        #     is not in the tracked census. The tracked 52 are unchanged.)
         #     The arms require the finding to name the container's declared schema
         #     version as the defect, to keep the reader's own sentence, and to carry
         #     the reader's BUILD ID — its own sha256, because the reader states no

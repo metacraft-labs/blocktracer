@@ -47,6 +47,7 @@ nimcache/
 /tests/tchainprofile
 /tests/trehearse
 /tests/tverifypublished
+/tests/tcontainerencoding
 
 # Generated output trees. `demo-site-2` is the determinism check's second
 # tree (`just demo-gen out=demo-site-2` in CI), which the first .gitignore
@@ -184,3 +185,20 @@ nimcache/
 # template. A build output, not a source, and the template it copies is the
 # committed one under conformance-kit/.
 /conformance-kit-release/
+
+# ── THE ONE RECORDING THAT IS RECORDED RATHER THAN COMMITTED (CRR-4) ──────
+#
+# `fixtures/chain-health/readable-container/ct/*.ct` is produced at test time by
+# `tools/chain/make-readable-container.mjs`, from the sibling
+# `codetracer-trace-format-nim`’s own fixture generator. It used to be committed,
+# and the cost was that it went stale against the writer the moment that writer
+# moved: 151,552 bytes of container-version-4 CTFS that no current reader opens,
+# which took all 31 reader-dependent arms of `chain-health-selftest.mjs` out of
+# service. `metacraft-dev-guidelines/policies/repo-requirements.md` §4.3 is the
+# policy — `*.ct` is committed in `codetracer-example-recordings` and nowhere
+# else, because a derived artefact committed beside its producer is a clock.
+#
+# The rest of the tree stays committed: `snapshot.json`, `positions/`,
+# `sources/` and `MAKING.md` are facts about the RECORDING, and all of them are
+# unchanged across the writer move. The container is a fact about the WRITER.
+fixtures/chain-health/readable-container/ct/*.ct

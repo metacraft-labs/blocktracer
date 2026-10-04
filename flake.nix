@@ -236,6 +236,22 @@
             # needs curl too — DECLARED rather than inherited from whatever the
             # runner happens to have on PATH.
             curl
+            # `publish/encoding.nim` shells out to `brotli` for the one thing it
+            # does: pre-compressing a published container so the object at rest
+            # carries its own `Content-Encoding` and the browser's transparent
+            # decompression is the only decompressor in the path (CCP-6). There
+            # is no brotli binding in Nim here, and adding a C dependency would
+            # put one into three released kit binaries a recorder team must be
+            # able to run without a toolchain — so it is a subprocess, the same
+            # way `aws` and `curl` above are.
+            #
+            # DECLARED rather than inherited, for the reason the curl entry
+            # gives: a tool resolved from whatever a runner happens to carry is
+            # a gate that measures the runner. Its ABSENCE is handled rather
+            # than assumed — `encodeContainer` refuses to publish and
+            # `decodeContainer` reports NOT MEASURED with the reason — so a host
+            # without it degrades to a named gap and never to a silent pass.
+            brotli
           ] ++ lib.optionals stdenv.hostPlatform.isLinux [
             bubblewrap
           ]) ++ [ followerNodejs ];

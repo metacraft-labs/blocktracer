@@ -79,6 +79,19 @@ proc main() =
   echo "traces resolved: " & $r.tracesResolved
   echo "traces replayable: " & $r.tracesReplayable
 
+  # ── WHAT A CONSUMER COULD NOT CHECK, PRINTED BEFORE THE VERDICT (CCP-6) ────
+  #
+  # Not an error and not a silence. Its occupant today is the RAW container
+  # figures behind a pre-compressed object: this package holds no decompressor and
+  # may not acquire one — `ci/test/client-sdk-boundary.sh` bans `osproc` from its
+  # graph — so the check is structurally unreachable here rather than missing a
+  # tool. The object AT REST was verified exactly, by length and sha1, which is
+  # what `container.storedBytes` / `storedHash` exist for.
+  if r.notMeasured.len > 0:
+    stderr.writeLine "NOT MEASURED: " & $r.notMeasured.len &
+      " check(s) could not be run. They are not counted as passed:"
+    for m in r.notMeasured:
+      stderr.writeLine "  ? " & m
   if r.ok:
     echo "OK: a consumer can render " & root & " end to end"
     quit 0

@@ -10,7 +10,7 @@
     "l1ChainId": 1,
     "recorder": {
       "id": "codetracer-trace-format-nim multi-stream writer",
-      "traceSchema": "ctfs-v4/meta.dat-v4"
+      "traceSchema": "ctfs-v5/meta.dat-v6"
     },
     "prestateStrategy": "self-contained",
     "identifierEncoding": {
@@ -49,7 +49,7 @@
       "outcome": "replayed",
       "revertCode": 0,
       "container": "ct/0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1.ct",
-      "containerBytes": 151552,
+      "containerBytes": 77824,
       "effects": {
         "matched": 1,
         "mismatched": 0,
