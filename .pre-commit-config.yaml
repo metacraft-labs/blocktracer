@@ -1,0 +1,90 @@
+# THE MCL STANDARD HOOK SET (`mcl-standard-hooks`), portable committed form --
+# PARTIAL ADOPTION, AND THE SHORTFALL IS STATED RATHER THAN HIDDEN.
+#
+# metacraft-dev-guidelines/policies/repo-requirements.md §4 requires the whole
+# set, so this file is a RECORDED SHORTFALL, not a claim of compliance. What it
+# carries is the committed-binaries tier of §4.3 -- the two refusals that this
+# repository, of all of them, most needed and had none of.
+#
+# WHY THIS REPO FIRST. Measured at f8aaf263: this repository tracks 55 `*.ct`
+# recordings and had NO pre-commit gate of any kind -- no `.git/hooks/pre-commit`
+# and no `.pre-commit-config.yaml`. 52 of those containers sit at `meta.dat`
+# schema 3 and are unreadable by every current reader, which is the ban's own
+# argument arriving as a fact rather than a prediction: a committed recording
+# pins a recorder version nothing tracks. The fixture that was moved to
+# on-the-fly recording (`fixtures/chain-health/readable-container`) produced
+# identical values for every checked fact while its `containerBytes` moved
+# 151,552 -> 77,824. The derived bytes churn; the checked facts do not.
+#
+# §4.1 says which adoption form is ours. This repo does not consume the
+# devops-modules flake -- it has no `nix/` directory and no hook wiring in its
+# flake at all -- so the form is the portable one: the block from devops-modules'
+# `git-hooks/mcl-standard-hooks.yaml`, with `rev:` pinned to a devops-modules
+# sha.
+#
+# Install:  prek install        (or: pre-commit install)
+# Run:      prek run --all-files
+#
+# ON NixOS, `uv` MUST BE ON PATH BEFORE EITHER OF THOSE. prek otherwise
+# downloads its own `uv`, which is a generic-linux dynamically linked binary and
+# cannot exec on NixOS ("Could not start dynamically linked executable"). The
+# hook then fails to INSTALL, which fails the commit for a reason that has
+# nothing to do with its content -- a gate that refuses everything is not a
+# gate. See repo-requirements.md §4.x.
+#
+# WHY THESE TWO CAN LAND WITH NOTHING ELSE MOVING. Both act on ADDED files only
+# (`git diff --staged --diff-filter=A`), never on files already tracked, so they
+# cannot rewrite a byte of this repository and cannot retroactively fail its 55
+# recordings or its chain snapshots. `--enforce-all` is deliberately not passed
+# and must not be added to "tighten" it.
+#
+# ----------------------------------------------------------------------------
+# WHAT IS MISSING, AND WHY
+# ----------------------------------------------------------------------------
+#
+# Absent members of the set: `end-of-file-fixer`, `editorconfig-checker`,
+# `nixfmt`, `terraform-format`, `prettier`. All five are FORMATTERS -- they
+# rewrite files on first adoption -- and this repository's gates
+# (`just chain-selftest`, `just chain-health-check`, `chain-health-selftest.mjs`,
+# `just conformance`, `ci/test/ci-coverage.sh`) assert on file content and on
+# declared counts. A hook-adoption commit must not be the commit that also
+# reflows the corpus those gates count, because then nobody can tell which of
+# the two moved a number.
+#
+# TO FINISH THE ADOPTION: add the `- repo: local` block from
+# `git-hooks/mcl-standard-hooks.yaml` verbatim plus `end-of-file-fixer`, run the
+# gates above, and delete this section.
+
+minimum_pre_commit_version: '3.0.0'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # 1024 KB passed explicitly because UPSTREAM'S DEFAULT IS 500 KB; dropping
+      # the argument silently halves the ceiling.
+      - id: check-added-large-files
+        args: ['--maxkb=1024']
+        # THE ONE CONCESSION §4.3 MAKES, AND IT IS FOR INPUTS, NOT RECORDINGS.
+        #
+        # Per-chain `snapshot.json` files are immutable blockchain INPUT data:
+        # what the chain said, fetched once, never regenerated. Two exceed the
+        # ceiling today -- `aztec-testnet/snapshot.json` (3,249,448 B) and
+        # `aztec/snapshot.json` (1,952,655 B) -- and adding a chain adds another.
+        # §4.3 allows exactly this and nothing adjacent to it: "Immutable
+        # blockchain input data may live in a dedicated fixtures repo ...
+        # Recordings DERIVED from that data are not covered: those stay
+        # on-the-fly."
+        #
+        # The pattern is anchored and single-segment on purpose. It cannot be
+        # widened to `^client/fixtures/chain/` without also exempting the
+        # `*-frames/ct/` recording trees that live under the same prefix, which
+        # is the opposite of the point.
+        exclude: '^client/fixtures/chain/[^/]+/snapshot\.json$'
+
+  - repo: https://github.com/metacraft-labs/devops-modules
+    # Pinned to a sha, never to a branch: a hook set that changes under a repo
+    # without a commit in that repo is a hook set nobody can bisect.
+    rev: 6ba34072850f7348e1669a6daf8a0acb79669434
+    hooks:
+      - id: ban-added-ct-recordings
