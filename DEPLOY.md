@@ -22,9 +22,26 @@
 > **CORRECTION (2026-10-06)** in place. The file stays a runbook, because the
 > next chain repeats it.
 >
-> **One defect is still open at the time of writing:** R2 resolves no index
-> document, so directory-ish URLs 404 (`/aztec` -> 404 while
-> `/aztec/index.html` -> 200). See the correction under Step 2.
+> **That defect is now closed (2026-10-06).** R2 resolves no index document, so
+> directory-ish URLs 404ed (`/aztec` -> 404 while `/aztec/index.html` -> 200)
+> for as long as R2 was the origin without a rewrite. The
+> `http_request_transform` ruleset in infra `metacraft-prod` was applied at
+> 15:4x UTC (`cloudflare_ruleset.blocktracer_org_index_rewrite`, id
+> `acbb0867306a408d96008ef4706333a3`, `Apply complete! Resources: 1 added, 0
+> changed, 0 destroyed`) and `/`, `/chains`, `/aztec`, `/aztec-testnet` and
+> `/aztec/blocks` all return **200**. Verified by hash, not by status code:
+> `/aztec` and `/` are byte-identical to their `index.html`, a genuine miss
+> (`/aztec/definitely-not-a-page-9f3c`) still **404s** rather than being
+> rewritten into something, and a ranged read of `current.json` still returns
+> `206` with `content-range` and `access-control-allow-origin: *`.
+>
+> **It uncovered a second, unrelated defect that was unobservable while `/`
+> 404ed:** the root `/index.html` object carries **no `content-type`**, and
+> neither does `/d/<chain>/current.json`, while `/aztec/index.html`,
+> `/chains/index.html` and `/_a/*.css` all carry theirs. Browsers sniff the
+> root page and render it anyway, so the site works, but it is a publishing
+> gap, not an edge one — a rewrite cannot add a header the object never had.
+> See the correction under Step 2.
 
 > **None of this is production, and none of it has been done.** blocktracer.org is
 > served by the **`blocktracer` Cloudflare Pages project**, with the apex as a
