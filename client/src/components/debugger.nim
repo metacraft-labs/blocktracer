@@ -915,9 +915,25 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
         raw toggle
         nav(class = "srctabs"):
           for d in p.documents:
-            a(class = "srctab" & (if d.path == activePath: " on" else: ""),
+            # `ct-tab` is APPENDED, never prepended: `test_debug_route` matches
+            # the literal `class="srctab`, so the first class stays put. The nav
+            # above keeps `class="srctabs"` alone, for the four suites named there.
+            #
+            # THIS IS THE ONLY TAB STRIP STILL DRAWN BY BLOCKTRACER'S OWN RULES.
+            # The pane tabs are already CodeTracer's `lm_tab` (golden_layout) and
+            # the frame selector is deliberately its BUTTON component
+            # (`ct-button-image-md-secondary`, asserted in test_debug_route),
+            # because a frame control is a control and not a tab. So of the
+            # "three idioms in one screenshot" the first review round found, this
+            # strip was the only one that was a divergence rather than a choice.
+            #
+            # `data-selected` as well as `.on`: tab.styl carries the selected
+            # treatment on the attribute and `.on` is BlockTracer's spelling, so
+            # emitting both leaves neither side's rules dark.
+            a(class = "srctab ct-tab" & (if d.path == activePath: " on" else: ""),
               href = "#" & docAnchor(d.path),
-              title = d.path):
+              title = d.path,
+              `data-selected` = (if d.path == activePath: "true" else: "false")):
               text tabLabel(d.path, allPaths)
         raw opener
 
