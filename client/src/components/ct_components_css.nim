@@ -77,6 +77,12 @@ const
     "../debugger/vendor/frontend/styles/components/input.styl")
   VendoredNotifications = staticRead(
     "../debugger/vendor/frontend/styles/components/notifications.styl")
+  # `codetracer.styl` imports this between `notifications` and `data_tables`,
+  # and the position is load-bearing: it declares `.component-container`, the
+  # PANEL SURFACE every other component is drawn inside, so a component rule
+  # meaning to override the surface has to arrive after it.
+  VendoredSharedWidgets = staticRead(
+    "../debugger/vendor/frontend/styles/components/shared_widgets.styl")
   VendoredDataTables = staticRead(
     "../debugger/vendor/frontend/styles/components/data_tables.styl")
   VendoredGoldenLayout = staticRead(
@@ -94,6 +100,8 @@ proc vendoredSources*(): seq[StylSource] =
                text: VendoredInput),
     StylSource(origin: "src/frontend/styles/components/notifications.styl",
                text: VendoredNotifications),
+    StylSource(origin: "src/frontend/styles/components/shared_widgets.styl",
+               text: VendoredSharedWidgets),
     StylSource(origin: "src/frontend/styles/components/data_tables.styl",
                text: VendoredDataTables),
     StylSource(origin: "src/frontend/styles/components/golden_layout.styl",
@@ -215,7 +223,20 @@ const Dropped*: seq[(string, string)] = @[
    "the busy-tab animation is driven by `setCalltraceTabBusy` in CodeTracer's " &
    "renderer; a static page has no panel that can become busy"),
   ("@media (prefers-reduced-motion: reduce)",
-   "its only content is the busy-tab rule above"),
+   "TWO rules share this key, in golden_layout.styl and shared_widgets.styl, " &
+   "and the key is the selector text so one entry drops both. In " &
+   "golden_layout its only content is the busy-tab rule above; in " &
+   "shared_widgets it is the reduced-motion arm of the dropdown reveal, whose " &
+   "keyframes are dropped below. Neither has anything left to say once the " &
+   "animation it modifies is not emitted"),
+  ("@keyframes ct-dropdown-reveal",
+   "the dropdown reveal animation plays when a menu OPENS; this route's " &
+   "menus are `:target` links with no JavaScript to open them, so the " &
+   "animation has no moment at which it could run"),
+  ("@keyframes ct-line-flash",
+   "the flash that marks a line the debugger has just jumped to. It is " &
+   "started by the renderer on a navigation this static route cannot " &
+   "perform, so the animation has no trigger here either"),
 ]
 
 # ── emission ───────────────────────────────────────────────────────────────
