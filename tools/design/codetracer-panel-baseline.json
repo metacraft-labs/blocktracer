@@ -1,7 +1,7 @@
 {
   "schema": "blocktracer/codetracer-panel-baseline@2",
   "reference": "codetracer stylus source (NOT an installed build — see header)",
-  "codetracerRev": "d29c0743b755bef5452f9dc4233f0e4a3deac50e",
+  "codetracerRev": "af70456c981ea8e3c8de2534cdee16eca5550efd",
   "extractedProperties": [
     "background",
     "background-color",
