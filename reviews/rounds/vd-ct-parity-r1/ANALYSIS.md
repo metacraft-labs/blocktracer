@@ -68,7 +68,59 @@ Measured on the rebuilt page the way the precedent specified — distinct
 After: `0x1e82…836b` and the full value, beside the 10-character selector.
 One truncation rule, not three.
 
-## Still open
+## `debugger/wide/dark/L1/3` — addresses print full-length — NOT A DEFECT
 
-`L1/3` (FEE PAYER / TARGET hard-wrap) and `L1/4` (Values pane nesting has no
-guide rule where Call Trace has one) are P3 and untouched.
+> "These addresses print full-length and hard-wrap ... rather than truncating
+> with a copy affordance like every other identifier on the page."
+
+Both halves are answered in `components/debugger.nim`, at the renderer:
+
+    elif r.identifier:
+      # Rendered in FULL — an address, a target, a cost pair, a decoded
+      # argument — so one click selects the whole of it. `Copyable` lives
+      # here rather than at either call site ...
+      span(class = "identifier " & Copyable): text r.value
+
+Full length is the decision, not an oversight: a selectable whole value is the
+point. And the copy affordance the finding says is missing is already there —
+the built page emits `<span class="identifier copyable">` on exactly these
+rows. What remains is the narrower question of WHERE a too-long value wraps,
+which is real but much smaller than the finding as written, and cannot be
+fixed by truncating without reversing the decision above.
+
+## `debugger/wide/dark/L1/4` — Values nesting has no guide rule — DESIGN CALL
+
+The indent is deliberate and doubly anchored, per `debugger_css.nim`: it is
+"the SAME ladder as the call trace, so one level of nesting means one indent
+step in both panes", and the comment records that "the desktop app indents
+state by a flat 16px per level and does not stop". So the two panes differ in
+the GUIDE RULE, not the ladder, and the Values treatment is the one that
+matches the reference application.
+
+Adding a guide rule to Values is defensible, but it is a design decision
+against the desktop app rather than a defect to close, so it is left for the
+owner.
+
+## What this round says about the REVIEW SETUP, which matters more
+
+Of four findings: one was a real defect and is fixed; three were documented
+decisions that a screenshot cannot reveal — an inherited idiom, a semantic
+mark, and a deliberate full-length render. Every one of the three would have
+made the product worse if "fixed", and two would have been outright
+regressions.
+
+The reviewer was not careless. It had the brief's expected-elements block and a
+baseline of DECLARED VALUES, and neither carries intent. Three things would
+change the hit rate:
+
+1. **Reference images.** A reviewer that can see CodeTracer's own panes would
+   not read an inherited idiom as an inconsistency. This is the gap the owner
+   named at the outset and it is still the highest-value missing input.
+2. **Rationale in the expected-elements block.** The block says WHAT must be on
+   screen; it says nothing about which presentation choices are settled. The
+   two marks on the flow rail, and full-length identifiers, are exactly the
+   kind of settled choice a reviewer should be told not to re-litigate.
+3. **A resolved-findings list in the prompt.** `tx-detail/wide/light/L1/4` was
+   in the ledger as fixed; the same defect on another view was found again by a
+   reviewer with no access to that history. That one was useful. The inverse —
+   re-raising a closed WONTFIX — is pure cost.
