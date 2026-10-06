@@ -277,6 +277,47 @@ proc isAssignment(s: string): bool =
   let name = s[0 ..< eq].strip
   name.len > 0 and name[0] in IdentStart and name.allCharsInSet(IdentBody)
 
+const BuildConditions = {
+  # BlockTracer is a WEBSITE, not CodeTracer's VS Code extension, so every
+  # `IS_EXTENSION` arm resolves the same way on this side of the port. Naming
+  # the flag here rather than assuming it keeps the decision reviewable: an arm
+  # that starts mattering is a line to change, not a silent reinterpretation.
+  "IS_EXTENSION": false,
+}.toTable
+
+proc conditionOf(s: string): tuple[ident: string, negated: bool, isCond: bool] =
+  ## `if IS_EXTENSION` / `if !IS_EXTENSION`. Only the single-identifier form is
+  ## recognised; anything richer raises at the call site rather than being
+  ## guessed at, because a mis-evaluated condition silently emits the WRONG arm.
+  var body = s.strip
+  if not body.startsWith("if "): return ("", false, false)
+  body = body[3 .. ^1].strip
+  var negated = false
+  if body.startsWith("!"):
+    negated = true
+    body = body[1 .. ^1].strip
+  if body.len == 0: return ("", false, false)
+  for c in body:
+    if c notin {'A'..'Z', '_', '0'..'9'}: return ("", false, false)
+  (body, negated, true)
+
+proc isColonlessDeclaration(s: string): bool =
+  ## Stylus lets a declaration omit its colon — `flex-basis 100%`. Four lines in
+  ## `shared_widgets.styl` do; none of the other vendored files do.
+  ##
+  ## The test is only ever applied to a LEAF, and that is what makes it safe
+  ## rather than a guess. A selector always introduces a block, and a selector
+  ## with no block is already an error here — so a leaf that is not an
+  ## assignment, a mixin call or an at-rule has nowhere else to be. The property
+  ## shape is still required, so `div span` (a descendant selector someone left
+  ## blockless) keeps raising instead of being emitted as `div:span`.
+  let sp = s.find(' ')
+  if sp <= 0: return false
+  let prop = s[0 ..< sp]
+  for c in prop:
+    if c notin {'a'..'z', '-'}: return false
+  s[sp + 1 .. ^1].strip.len > 0
+
 proc isDeclaration(s: string): bool =
   ## `property: value`. A selector may also contain `:` (`&:hover`,
   ## `.lm_tabdropdown::before`, `table:has(…)`), so the test is that the text
@@ -319,13 +360,37 @@ proc collectVars*(sources: seq[StylSource];
         let eq = body.find('=')
         result[body[0 ..< eq].strip] = body[eq + 1 .. ^1].strip
 
-proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
-               port: StylPort; env: var Table[string, string];
-               rep: var StylReport; body: var string)
+proc mixinName(s: string): string =
+  ## `segmented-tab()` → `segmented-tab`. Arguments are deliberately not
+  ## handled: every mixin in the vendored set is parameterless, and a
+  ## parameterised one must raise rather than silently expand with the wrong
+  ## body.
+  s[0 ..< s.find('(')].strip
+
+proc collectMixins*(sources: seq[StylSource]): Table[string, seq[Node]] =
+  ## Pre-pass over every input, for the same reason `collectVars` has one: a
+  ## mixin defined in one file is called from another, and BlockTracer consumes
+  ## a SUBSET of `codetracer.styl`'s import list, so source order alone would
+  ## leave a definition unreachable from its call.
+  ##
+  ## A DEFINITION IS A MIXIN CALL THAT HAS A BLOCK. `segmented-tabs()` at column
+  ## zero with children is a definition; the same text as a leaf is a call. The
+  ## parser cannot tell them apart by spelling, only by whether a block follows,
+  ## which is exactly how Stylus reads them too.
+  for src in sources:
+    for n in buildTree(src):
+      if n.kids.len > 0 and n.text.isMixinCall:
+        result[mixinName(n.text)] = n.kids
 
 proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
                port: StylPort; env: var Table[string, string];
-               rep: var StylReport; body: var string) =
+               rep: var StylReport; body: var string;
+               mixins: Table[string, seq[Node]]; expandDepth = 0)
+
+proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
+               port: StylPort; env: var Table[string, string];
+               rep: var StylReport; body: var string;
+               mixins: Table[string, seq[Node]]; expandDepth = 0) =
   ## One indentation level. Declarations at this level belong to `parents`;
   ## nested blocks recurse. Emitted depth-first in source order, which is what
   ## keeps CSS's cascade identical to the Stylus output's.
@@ -355,10 +420,35 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
       let eq = n.text.find('=')
       env[n.text[0 ..< eq].strip] = n.text[eq + 1 .. ^1].strip
       continue
+    if n.kids.len > 0 and n.text.isMixinCall:
+      # A DEFINITION, not a rule. Emitting it would produce a CSS selector
+      # spelled `segmented-tabs()`, which matches nothing and silently replaces
+      # the styling the call site expected.
+      continue
     if n.kids.len == 0 and n.text.isMixinCall:
-      raise newException(StylError,
-        src.origin & ":" & $n.line & ": mixin call outside the subset: " &
-        n.text & "\n(drop the enclosing rule with a reason, or widen ct_styl.nim)")
+      let name = mixinName(n.text)
+      if '(' in n.text and n.text[n.text.find('(') + 1 .. ^2].strip.len > 0:
+        raise newException(StylError,
+          src.origin & ":" & $n.line & ": parameterised mixin outside the subset: " &
+          n.text & "\n(every mixin in the vendored set is parameterless; widen ct_styl.nim)")
+      if name notin mixins:
+        raise newException(StylError,
+          src.origin & ":" & $n.line & ": mixin call outside the subset: " &
+          n.text & "\n(drop the enclosing rule with a reason, or widen ct_styl.nim)")
+      # A mixin may call a mixin — `segmented-tabs()` calls `segmented-tab()` —
+      # so expansion recurses, and a cycle would recurse forever. The bound is
+      # a diagnosis, not a silent truncation.
+      if expandDepth >= 8:
+        raise newException(StylError,
+          src.origin & ":" & $n.line & ": mixin expansion too deep at " & n.text &
+          " (cycle?)")
+      # Flush first so the cascade matches Stylus: declarations written BEFORE
+      # the call, then the mixin's, then those after. Three rules with the same
+      # selector in that order resolve identically to one rule in that order.
+      flushDecls()
+      emitBlock(mixins[name], parents, src, port, env, rep, body, mixins,
+                expandDepth + 1)
+      continue
     if n.kids.len == 0 and n.text.isDeclaration:
       let colon = n.text.find(':')
       let prop = n.text[0 ..< colon].strip
@@ -383,11 +473,47 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
       decls.add prop & ":" & subbed & ";"
       inc rep.declarations
       continue
+    block conditional:
+      let c = conditionOf(n.text)
+      if not c.isCond: break conditional
+      # A CONDITIONAL IS NOT A SELECTOR. Flattened into one it emitted
+      # `[data-register="debugger"] if IS_EXTENSION .component-container-html`,
+      # which matches nothing — and the arm that SHOULD have applied was lost
+      # with it. That is the silent divergence this module's header refuses.
+      if c.ident notin BuildConditions:
+        raise newException(StylError,
+          src.origin & ":" & $n.line & ": unknown build condition: " & n.text &
+          "\n(add it to BuildConditions with a value, or widen ct_styl.nim)")
+      let taken = BuildConditions[c.ident] != c.negated
+      rep.dropped.add src.origin & ":" & $n.line & "  " & n.text & " — " &
+        (if taken: "taken" else: "not taken") & " (" & c.ident & " is " &
+        $BuildConditions[c.ident] & " for this build)"
+      if taken:
+        # Inline the arm at THIS level: its declarations belong to the
+        # enclosing rule, exactly as Stylus would place them.
+        emitBlock(n.kids, parents, src, port, env, rep, body, mixins, expandDepth)
+      continue
+    if n.kids.len == 0 and n.text.isColonlessDeclaration:
+      let sp = n.text.find(' ')
+      let prop = n.text[0 ..< sp]
+      let value = n.text[sp + 1 .. ^1].strip.strip(leading = false, chars = {';', ' '})
+      var subbed = substitute(value, env, port.bridge)
+      let residue = residualToken(subbed)
+      if residue.len > 0:
+        rep.unresolved.add src.origin & ":" & $n.line & "  " & prop & ": " &
+          value & "  (" & residue & ")"
+        continue
+      for spelling, replacement in port.literalAliases.pairs:
+        if spelling in subbed: subbed = subbed.replace(spelling, replacement)
+      decls.add prop & ":" & subbed & ";"
+      inc rep.declarations
+      continue
     # A selector line: either a group member, or the head of a nested block.
     group.add n.text.strip(leading = false, chars = {',', ' '})
     if n.kids.len > 0:
       flushDecls()
-      emitBlock(n.kids, compose(parents, group), src, port, env, rep, body)
+      emitBlock(n.kids, compose(parents, group), src, port, env, rep, body,
+                mixins, expandDepth)
       group = @[]
 
   if group.len > 0:
@@ -403,9 +529,10 @@ proc transpile*(sources: seq[StylSource]; port: StylPort;
   ## rules appear in source order below their origin, so any rule here can be
   ## found upstream by reading down from the header.
   var env = collectVars(sources, port.bridge)
+  let mixins = collectMixins(sources)
   for src in sources:
     var body = ""
-    emitBlock(buildTree(src), @[], src, port, env, rep, body)
+    emitBlock(buildTree(src), @[], src, port, env, rep, body, mixins)
     if body.len > 0:
       result.add "\n/* ── ported verbatim from CodeTracer " & src.origin &
         " ── */\n"
