@@ -1,0 +1,46 @@
+{
+  "schema": "blocktracer/codetracer-panel-baseline@1",
+  "source": "/Applications/CodeTracer.app/Contents/MacOS/frontend/styles/default_dark_theme_electron.css",
+  "extractedProperties": [
+    "background",
+    "background-color",
+    "border-radius",
+    "box-shadow",
+    "color",
+    "font-family",
+    "font-size",
+    "font-weight",
+    "letter-spacing",
+    "line-height"
+  ],
+  "missingSelectors": [],
+  "selectors": {
+    ".component-container": {
+      "font-family": "\"FiraCode\"",
+      "font-size": "14px",
+      "line-height": "24px",
+      "font-weight": "400",
+      "box-shadow": "inset 2px 0px 0px 0px #565656"
+    },
+    ".component-wrapper": {
+      "background": "#2c2c2c",
+      "border-radius": "4px",
+      "color": "#e8e8e8"
+    },
+    ".data-table": {
+      "font-size": "14px",
+      "font-weight": "400",
+      "font-family": "'FiraCode'",
+      "letter-spacing": "-0.14px",
+      "color": "#f3f3f3"
+    },
+    ".table-column-names": {
+      "font-size": "14px",
+      "font-weight": "400",
+      "font-family": "\"FiraCode\""
+    },
+    ".panel": {
+      "font-size": "18px"
+    }
+  }
+}

@@ -53,6 +53,41 @@ marketing site on identity.
 Dark-first, dense, information-maximal. A visitor who knows the desktop app must
 recognise this as the same tool.
 
+> **PRIMARY GOAL (2026-10-06, project owner): the debugger panels must match
+> CodeTracer's.** Everything else in this brief is secondary to that, including
+> the explorer register's Webflow direction above — which is a marketing
+> prototype, not the application, and must not be read as the reference for
+> anything in the debugger register.
+>
+> **The reference is the built application, and it is now pinned as data rather
+> than as prose.** `tools/design/codetracer-panel-baseline.json` is extracted
+> from the stylesheet a built CodeTracer actually renders with, by
+> `tools/design/extract-codetracer-baseline.mjs`. Regenerate it against any
+> built CodeTracer; do not hand-edit it. The panel texture it records:
+>
+> | selector | reference |
+> | --- | --- |
+> | `.component-container` | FiraCode 14px / 24px / 400, `box-shadow: inset 2px 0 0 0 #565656` |
+> | `.component-wrapper` | background `#2c2c2c`, radius 4px, color `#e8e8e8` |
+> | `.data-table` | FiraCode 14px / 400, letter-spacing `-0.14px`, color `#f3f3f3` |
+> | `.table-column-names` | FiraCode 14px / 400 |
+>
+> **Why following the design system was not enough, and why this is not a
+> contradiction.** BlockTracer consumes `codetracer-design-system` as a pinned
+> flake input and follows it faithfully — that token set names **Space Mono**.
+> The application does not follow it here: it renders panels in **FiraCode**, at
+> inlined Stylus values, defining **zero** CSS custom properties. So a build can
+> pass every token check and still not look like CodeTracer, which is what
+> happened. When the two disagree about the debugger register, **the application
+> wins**, because the application is what a user compares against.
+>
+> **What the reviewer must do with this.** Where a reference screenshot is named
+> in a view's block below, the first finding is whether the panel texture
+> matches — face, size, line height, letter spacing, panel background and the
+> inset left edge — before any aesthetic judgement. "Looks professional" is not
+> parity, and a view that looks good but does not match is still a P1.
+
+
 Shared across both: type scale ratios, spacing scale, radii, focus-ring
 treatment, motion durations and the accent hue family. What differs is density,
 surface colour and default theme.
