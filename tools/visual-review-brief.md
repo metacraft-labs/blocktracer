@@ -59,27 +59,36 @@ recognise this as the same tool.
 > prototype, not the application, and must not be read as the reference for
 > anything in the debugger register.
 >
-> **The reference is the built application, and it is now pinned as data rather
-> than as prose.** `tools/design/codetracer-panel-baseline.json` is extracted
-> from the stylesheet a built CodeTracer actually renders with, by
-> `tools/design/extract-codetracer-baseline.mjs`. Regenerate it against any
-> built CodeTracer; do not hand-edit it. The panel texture it records:
+> **The reference is CodeTracer's Stylus SOURCE, pinned as data rather than
+> prose.** `tools/design/codetracer-panel-baseline.json` is extracted by
+> `tools/design/extract-codetracer-baseline.mjs` from a CodeTracer checkout, and
+> records the rev it read. Regenerate it; do not hand-edit it. What it records:
 >
-> | selector | reference |
+> | selector | reference (rev `d29c074`) |
 > | --- | --- |
-> | `.component-container` | FiraCode 14px / 24px / 400, `box-shadow: inset 2px 0 0 0 #565656` |
-> | `.component-wrapper` | background `#2c2c2c`, radius 4px, color `#e8e8e8` |
-> | `.data-table` | FiraCode 14px / 400, letter-spacing `-0.14px`, color `#f3f3f3` |
-> | `.table-column-names` | FiraCode 14px / 400 |
+> | `.component-container` | `SpaceGrotesk`, size `inherit`, line-height `1.5em`, weight 400 |
+> | `.data-table` | `SpaceGrotesk`, size `inherit`, weight 400, letter-spacing `-0.00875em`, colour `colors-ui-text-primary-body` |
+> | `.table-column-names` | `SpaceGrotesk`, size `0.875em`, weight 400 |
 >
-> **Why following the design system was not enough, and why this is not a
-> contradiction.** BlockTracer consumes `codetracer-design-system` as a pinned
-> flake input and follows it faithfully — that token set names **Space Mono**.
-> The application does not follow it here: it renders panels in **FiraCode**, at
-> inlined Stylus values, defining **zero** CSS custom properties. So a build can
-> pass every token check and still not look like CodeTracer, which is what
-> happened. When the two disagree about the debugger register, **the application
-> wins**, because the application is what a user compares against.
+> **Read the source, never an installed build.** The first version of this
+> section was taken from `/Applications/CodeTracer.app` and every number in it
+> was wrong, because that bundle predates the fix below. A stale reference is
+> worse than none: it reports drift when BlockTracer is right.
+>
+> **The case that earned the rule.** That bundle set `.component-container` in
+> `"FiraCode"` at 14px/24px, and this brief duly demanded it. `FiraCode` is not a
+> family CodeTracer declares. `components/status_bar.styl` records that the
+> design system declares exactly four `@font-face` families — `SpaceGrotesk`,
+> `SpaceMono`, `FiraMono`, `FontAwesome` — that "FiraCode is not one of them, and
+> no FiraCode file exists in the tree", and that it was "dead text in 21 places"
+> which fell back to Chrome's default **proportional serif**. Demanding it would
+> have had BlockTracer adopt a bug CodeTracer had already fixed.
+>
+> **So the panels are sans, not mono, and relative, not pixel.** Panel chrome is
+> `SpaceGrotesk` at `inherit`/`1.5em`; mono belongs to code and terminal surfaces,
+> where the face is `SpaceMono` — which is what BlockTracer already uses, and is
+> what `codetracer-design-system` names. On this point BlockTracer was right and
+> the installed build was wrong.
 >
 > **What the reviewer must do with this.** Where a reference screenshot is named
 > in a view's block below, the first finding is whether the panel texture

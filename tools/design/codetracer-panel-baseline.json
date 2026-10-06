@@ -1,6 +1,7 @@
 {
-  "schema": "blocktracer/codetracer-panel-baseline@1",
-  "source": "/Applications/CodeTracer.app/Contents/MacOS/frontend/styles/default_dark_theme_electron.css",
+  "schema": "blocktracer/codetracer-panel-baseline@2",
+  "reference": "codetracer stylus source (NOT an installed build — see header)",
+  "codetracerRev": "d29c0743b755bef5452f9dc4233f0e4a3deac50e",
   "extractedProperties": [
     "background",
     "background-color",
@@ -16,31 +17,31 @@
   "missingSelectors": [],
   "selectors": {
     ".component-container": {
-      "font-family": "\"FiraCode\"",
-      "font-size": "14px",
-      "line-height": "24px",
-      "font-weight": "400",
-      "box-shadow": "inset 2px 0px 0px 0px #565656"
-    },
-    ".component-wrapper": {
-      "background": "#2c2c2c",
-      "border-radius": "4px",
-      "color": "#e8e8e8"
+      "source": "components/shared_widgets.styl",
+      "declarations": {
+        "font-family": "\"SpaceGrotesk\"",
+        "font-size": "inherit",
+        "line-height": "1.5em",
+        "font-weight": "400"
+      }
     },
     ".data-table": {
-      "font-size": "14px",
-      "font-weight": "400",
-      "font-family": "'FiraCode'",
-      "letter-spacing": "-0.14px",
-      "color": "#f3f3f3"
+      "source": "components/data_tables.styl",
+      "declarations": {
+        "font-size": "inherit",
+        "font-weight": "400",
+        "font-family": "\"SpaceGrotesk\"",
+        "letter-spacing": "-0.00875em",
+        "color": "colors-ui-text-primary-body"
+      }
     },
     ".table-column-names": {
-      "font-size": "14px",
-      "font-weight": "400",
-      "font-family": "\"FiraCode\""
-    },
-    ".panel": {
-      "font-size": "18px"
+      "source": "components/welcome_screen.styl",
+      "declarations": {
+        "font-size": "0.875em",
+        "font-weight": "400",
+        "font-family": "\"SpaceGrotesk\""
+      }
     }
   }
 }
