@@ -75,6 +75,13 @@ const
     "../debugger/vendor/frontend/styles/components/button.styl")
   VendoredInput = staticRead(
     "../debugger/vendor/frontend/styles/components/input.styl")
+  # `codetracer.styl` imports this between `input` and `notifications`. It is
+  # the TAB IDIOM itself — the first review round found three different ones in
+  # a single debugger screenshot (underline on the file tabs, a pill on the
+  # pane tabs, boxed buttons on the frame selector), which is the thing the
+  # operator's report named.
+  VendoredTab = staticRead(
+    "../debugger/vendor/frontend/styles/components/tab.styl")
   VendoredNotifications = staticRead(
     "../debugger/vendor/frontend/styles/components/notifications.styl")
   # `codetracer.styl` imports this between `notifications` and `data_tables`,
@@ -98,6 +105,8 @@ proc vendoredSources*(): seq[StylSource] =
                text: VendoredButton),
     StylSource(origin: "src/frontend/styles/components/input.styl",
                text: VendoredInput),
+    StylSource(origin: "src/frontend/styles/components/tab.styl",
+               text: VendoredTab),
     StylSource(origin: "src/frontend/styles/components/notifications.styl",
                text: VendoredNotifications),
     StylSource(origin: "src/frontend/styles/components/shared_widgets.styl",

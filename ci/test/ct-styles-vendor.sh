@@ -74,13 +74,14 @@ pin_file="${CT_STYLES_PIN_FILE:-${repo_root}/ci/embed-sdk-pin.env}"
 # branch unreachable.
 ct_fallback="${CT_STYLES_CT_FALLBACK:-${repo_root}/../codetracer}"
 
-# The seven, in `codetracer.styl`'s own import order — which is the order
+# The eight, in `codetracer.styl`'s own import order — which is the order
 # `ct_components_css.nim` compiles them in, and therefore the cascade the
 # shipped page has. Listed here as well so a file added to the port without
 # being added to the manifest fails the count below.
 rels=(
 	"frontend/styles/components/button.styl"
 	"frontend/styles/components/input.styl"
+	"frontend/styles/components/tab.styl"
 	"frontend/styles/components/notifications.styl"
 	"frontend/styles/components/shared_widgets.styl"
 	"frontend/styles/components/data_tables.styl"

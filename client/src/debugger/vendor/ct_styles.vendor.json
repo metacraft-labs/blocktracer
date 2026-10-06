@@ -86,6 +86,11 @@
       "sha256": "f5c22ceb8eab053b94c34789c18b432c12f68a82909f896bc4c32809b1a9ecea"
     },
     {
+      "path": "src/frontend/styles/components/tab.styl",
+      "local": "frontend/styles/components/tab.styl",
+      "sha256": "43c2fe8a750ae2854783a5ddb074cc5cd52f0fda8f16aad0d08fa4698594cb8c"
+    },
+    {
       "path": "src/frontend/styles/components/notifications.styl",
       "local": "frontend/styles/components/notifications.styl",
       "sha256": "452d8def97997fa32d3a73ad04d159c030428cc0e3412e00f0488869d98fcb21"
