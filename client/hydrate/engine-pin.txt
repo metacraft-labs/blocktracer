@@ -122,6 +122,52 @@
 #                `mutable` — the source-path is a moving target and the sha256
 #                is the only thing pinning it.
 #
+# ── THIS PIN IS LOAD-BEARING FOR THE PUBLISHED CORPUS. READ BEFORE BUMPING. ──
+#
+# Measured 2026-10-06 against live blocktracer.org. Bumping the wasm below to a
+# CURRENT db-backend would refuse every container this site publishes — about
+# 288,095 pages (163,539 `aztec`, 124,516 `aztec-testnet`, 37
+# `aztec-testnet-frames`). The pages are static HTML and would still render; the
+# INTERACTIVE REPLAY is what would go, everywhere, at once.
+#
+# Why, in one line each:
+#
+#   * the published containers are container version 3 with `meta.dat` SCHEMA 3
+#     (sampled `aztec-testnet` container: 180,224 bytes, 94.5% zero, 5 Zstd
+#     frames);
+#   * the engine pinned below is old enough to read them, which is the ONLY
+#     reason replay works today;
+#   * a current db-backend accepts container {2,3,4,5} — widened by the reader
+#     revision rollout — but its `meta.dat` set is {4,5,6}
+#     (`db-backend/src/ctfs_trace_reader/meta_dat.rs`, `SUPPORTED_VERSIONS`).
+#     SCHEMA 3 IS NOT IN IT.
+#
+# The two axes are independent and that is the whole trap: the container gate
+# was widened and the `meta.dat` gate was not, so "container v3 is accepted
+# now" is true and insufficient. Widening the container gate alone was measured
+# to change seven refusal MESSAGES and zero refusal OUTCOMES.
+#
+# ORDER OF OPERATIONS, forced, and the root is outside this workspace:
+#
+#   1. bump the producer pin — `aztec-avm-runtime`'s `pins.json` anchors for
+#      `trace_format` / `trace_format_nim` — and rebuild `aztec_ct_writer.wasm`.
+#      Measured from the shipped wasm's own build input: its source derivation
+#      materialises `592fa42c…`, where `header.rs` has `VERSION: u8 = 3` and
+#      `meta_dat.rs` has `META_DAT_VERSION: u16 = 3`. Re-recording with the
+#      pinned producer reproduces the exact problem.
+#   2. re-record the published corpus with it. The transaction bodies ARE still
+#      obtainable — not from the node, whose deployment has been replaced, but
+#      from the keyless public object store, self-verifyingly (the leading 32
+#      bytes of the body equal the requested hash).
+#   3. THEN bump the engine below.
+#
+# NOT MEASURED, and it gates step 2: whether the PRE-STATE can be reconstructed
+# for a retired rollup. The rows record `preStateReadAt`, `hydrationRounds` and
+# `hydrated-from-node` against a deployment that no longer exists.
+#
+# Until step 2 is done, leaving this pin alone is not neglect — it is the thing
+# keeping replay working on every published page.
+#
 # ── Provenance ─────────────────────────────────────────────────────────────
 #
 # origin       https://web-codetracer.pages.dev
