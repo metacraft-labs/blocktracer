@@ -2396,7 +2396,14 @@ proc renderMetadata*(m: MetadataPane): string =
         # travels on `title` (readable on hover) and on `data-copy` (what
         # hydration reads when it turns this into a copy button).
         span(class = "identifier mdhash", title = m.hash,
-             `data-copy` = m.hash): text truncHash(m.hash, 10, 8)
+             # The DEFAULT 6/4, not 10/8. `tx-detail/wide/light/L1/4` was this
+             # same defect on the explorer side: one hash appeared at three
+             # lengths on one page because the hero passed 10/8 while every
+             # other call took the defaults. Its resolution is recorded in
+             # reviews/ledger.json -- the hero took the defaults, leaving the
+             # page exactly two forms, one truncation rule and the full value.
+             # The debugger pane had inherited the same split.
+             `data-copy` = m.hash): text truncHash(m.hash)
       # The hash IN FULL, below the truncation, exactly as the metadata page's
       # hero renders it (`pages/tx.nim`: a truncated `h1` over a full-hash
       # lead). §7.2 section 1 asks for "hash with copy", and after §7.0 this

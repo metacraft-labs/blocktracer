@@ -1872,9 +1872,6 @@ func canHeadline*(v: DebugSessionView): bool =
     if s.name.len == 0: return false
   true
 
-func truncatedHash*(h: string): string =
-  if h.len <= 13: h else: h[0 ..< 8] & "…" & h[h.len - 4 .. ^1]
-
 func truncHash*(h: string, lead = 6, tail = 4): string =
   ## `0x27a6c250…9a6c` — a middle-truncated hash for dense tables and for the
   ## metadata pane's hero.
@@ -1888,6 +1885,22 @@ func truncHash*(h: string, lead = 6, tail = 4): string =
   ## `session_view`, so every existing call site is unchanged.
   if h.len <= lead + tail + 1: return h
   h[0 ..< lead] & "…" & h[h.len - tail ..< h.len]
+
+func truncatedHash*(h: string): string =
+  ## A NAME, no longer a second truncation rule. It used to hardcode 8/4 while
+  ## `truncHash` defaulted to 6/4, so the debug page showed one hash at two
+  ## truncation lengths — the identity bar through this proc, the transaction
+  ## pane through the other.
+  ##
+  ## That is `tx-detail/wide/light/L1/4` one level deeper. There the two lengths
+  ## came from one proc called with different arguments, and the resolution was
+  ## to stop passing them; here they came from two procs, so the second one
+  ## delegates. `reviews/ledger.json` records that resolution's measurement, and
+  ## the standard it set is the one that applies: a page shows ONE truncation
+  ## rule and the full value, never a third shape.
+  ##
+  ## Kept rather than deleted because `test_debug_route` asserts on this name.
+  truncHash(h)
 
 # ── copying a value out (§13: "every hash, address and identifier is copyable
 #    with one click") ───────────────────────────────────────────────────────
