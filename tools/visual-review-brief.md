@@ -59,21 +59,31 @@ recognise this as the same tool.
 > prototype, not the application, and must not be read as the reference for
 > anything in the debugger register.
 >
-> **The reference is CodeTracer's Stylus SOURCE, pinned as data rather than
-> prose.** `tools/design/codetracer-panel-baseline.json` is extracted by
-> `tools/design/extract-codetracer-baseline.mjs` from a CodeTracer checkout, and
-> records the rev it read. Regenerate it; do not hand-edit it. What it records:
+> **The reference is a CodeTracer BUILT FROM SOURCE at a pinned commit, read as
+> data rather than prose.** `tools/design/codetracer-panel-baseline.json` is
+> written by `tools/design/extract-codetracer-baseline.mjs` from the CSS
+> CodeTracer's own toolchain emitted, and records the rev it was built at.
+> Regenerate it; do not hand-edit it. What it records at `af70456c` — the same
+> commit `ct_styles.vendor.json` vendors the component stylesheets from:
 >
-> | selector | reference (rev `d29c074`) |
+> | selector | reference (built at `af70456c`) |
 > | --- | --- |
 > | `.component-container` | `SpaceGrotesk`, size `inherit`, line-height `1.5em`, weight 400 |
-> | `.data-table` | `SpaceGrotesk`, size `inherit`, weight 400, letter-spacing `-0.00875em`, colour `colors-ui-text-primary-body` |
+> | `.data-table` | `SpaceGrotesk`, size `inherit`, weight 400, letter-spacing `-0.00875em`, colour `#f3f3f3` |
 > | `.table-column-names` | `SpaceGrotesk`, size `0.875em`, weight 400 |
 >
-> **Read the source, never an installed build.** The first version of this
-> section was taken from `/Applications/CodeTracer.app` and every number in it
-> was wrong, because that bundle predates the fix below. A stale reference is
-> worse than none: it reports drift when BlockTracer is right.
+> **Build the reference. Do not read an installed one, and do not parse Stylus.**
+> This has been got wrong twice. First from `/Applications/CodeTracer.app`, where
+> every number was wrong because the bundle predated a fix — a stale reference is
+> worse than none, since it reports drift when BlockTracer is right. Then from
+> the Stylus source, which gave the right values but needed a hand-written parser
+> for an indentation-sensitive language (it flattened nested rules) and left
+> tokens UNRESOLVED, recording `colors-ui-text-primary-body` where the product
+> renders `#f3f3f3`. A build emits what a browser will actually see.
+>
+> Build `codetracer-electron`, not `.#default`: the default package pulls in the
+> BPF monitor, whose `libbpf` is Linux-only and refuses to evaluate on darwin.
+> The Electron app builds on both.
 >
 > **The case that earned the rule.** That bundle set `.component-container` in
 > `"FiraCode"` at 14px/24px, and this brief duly demanded it. `FiraCode` is not a

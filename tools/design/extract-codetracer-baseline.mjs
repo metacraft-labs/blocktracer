@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Extract the CodeTracer debugger-panel style baseline from CodeTracer's STYLUS
-// SOURCE, so reference parity is computed against what CodeTracer is, not
-// transcribed into prose that goes stale.
+// Extract the CodeTracer debugger-panel style baseline from a CodeTracer BUILT
+// FROM SOURCE at a known commit, so reference parity is computed against what
+// CodeTracer is rather than transcribed into prose that goes stale.
 //
 // WHY THIS EXISTS. `codetracer-specs/milestones/BlockTracer-Visual-Design.milestones.org`
 // records, under "What the gate cannot currently enforce":
@@ -10,88 +10,79 @@
 //     to a Webflow prototype. gate.mjs checks that the check was performed and
 //     recorded with a verdict, a reference and a named human.
 //
-// READ THE SOURCE, NOT AN INSTALLED BUILD. The first version of this script read
-// /Applications/CodeTracer.app, and every number it produced was wrong, because
-// that bundle predates the fix below. Taking the baseline from whatever build
-// happens to be installed pins a snapshot of unknown age, and a stale reference
-// is worse than none: it reports drift when BlockTracer is right.
+// BUILD THE REFERENCE; DO NOT READ AN INSTALLED ONE, AND DO NOT PARSE STYLUS.
+// This script has been wrong twice, and both ways are worth remembering:
 //
-// THE CONCRETE CASE, kept because it is the reason for the rule. The installed
-// bundle set `.component-container` in `"FiraCode"` at 14px/24px. `FiraCode` is
-// not a family CodeTracer declares — `components/status_bar.styl` records that
-// the design system declares exactly four @font-face families (SpaceGrotesk,
-// SpaceMono, FiraMono, FontAwesome), that "FiraCode is not one of them, and no
-// FiraCode file exists in the tree", and that it was "dead text in 21 places"
-// which fell back to Chrome's default PROPORTIONAL SERIF. A baseline taken from
-// that build would have told BlockTracer to adopt a bug CodeTracer had already
-// fixed. The current source is SpaceGrotesk at relative sizes.
+//   1. It first read /Applications/CodeTracer.app. Every number was wrong: that
+//      bundle predated a fix and set `.component-container` in "FiraCode", a
+//      family CodeTracer does not declare — `components/status_bar.styl` records
+//      it as "dead text in 21 places" that fell back to Chrome's default
+//      PROPORTIONAL SERIF. A baseline from an installed build pins a snapshot of
+//      unknown age, and a stale reference is worse than none: it reports drift
+//      when the consumer is right.
 //
-//   node tools/design/extract-codetracer-baseline.mjs --ct <codetracer-checkout>
+//   2. It then parsed the Stylus SOURCE. The values were right, but getting them
+//      cost a hand-written parser for an indentation-sensitive language, which
+//      promptly flattened nested rules — `.data-table` acquired a hover
+//      background and a line-height belonging to a child — and it left design
+//      tokens UNRESOLVED, recording `colors-ui-text-primary-body` where the
+//      product renders `#f3f3f3`.
 //
-// `--ct` defaults to $CODETRACER_SRC, then ../codetracer.
+// So: build CodeTracer and read the CSS its own toolchain emitted. No parser for
+// a language this repository does not otherwise speak, and tokens already
+// resolved to the values a browser will see.
+//
+//   nix build .#packages.<system>.codetracer-electron   # in a codetracer checkout
+//   node tools/design/extract-codetracer-baseline.mjs --built <result> --rev <sha>
+//
+// `codetracer-electron` and not `.#default`: the default package pulls in the
+// BPF monitor, whose `libbpf` is Linux-only, so it refuses to evaluate on
+// darwin. The Electron app itself builds on both.
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
 
-const SELECTORS = {
-  ".component-container": "components/shared_widgets.styl",
-  ".data-table": "components/data_tables.styl",
-  ".table-column-names": "components/welcome_screen.styl",
-};
+const SELECTORS = [".component-container", ".data-table", ".table-column-names"];
 
-// Only declarations that change how a panel READS. Layout plumbing is excluded:
-// BlockTracer's panels live in a different layout engine, and matching flex/
-// overflow/width would be cargo-culting rather than parity.
+// Only declarations that change how a panel READS. Layout plumbing (flex,
+// overflow, width/height, min-height) is excluded deliberately: BlockTracer's
+// panes live in a different layout engine, and matching those would be
+// cargo-culting rather than parity.
 const PROPERTIES = new Set([
   "font-family", "font-size", "line-height", "font-weight", "letter-spacing",
   "color", "background", "background-color", "border-radius", "box-shadow",
 ]);
 
 function parseArgs(argv) {
-  const out = {
-    ct: process.env.CODETRACER_SRC || "../codetracer",
-    out: "tools/design/codetracer-panel-baseline.json",
-  };
+  const out = { built: "", rev: "", out: "tools/design/codetracer-panel-baseline.json" };
   for (let i = 2; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === "--ct") out.ct = argv[++i];
+    if (a === "--built") out.built = argv[++i];
+    else if (a === "--rev") out.rev = argv[++i];
     else if (a === "--out") out.out = argv[++i];
     else { console.error(`unknown argument: ${a}`); process.exit(2); }
   }
   return out;
 }
 
-// Stylus here is indentation-based: a selector sits at column 0 and its
-// declarations are indented under it. A COMMENTED-OUT declaration is skipped
-// rather than read — `shared_widgets.styl` carries a commented `box-shadow`
-// behind an `// if !IS_EXTENSION`, and reading it would pin a rule that does
-// not apply.
-function blockFor(styl, selector) {
-  const lines = styl.split("\n");
+// THE SELECTOR MUST STAND ALONE. An earlier version of the comparison matched
+// `.data-table` inside `.something .data-table {` and read a descendant rule's
+// declarations as the base rule's, which reported four properties missing that
+// were there all along. So the match is anchored to a line start.
+function blockFor(css, selector) {
+  const lines = css.split("\n");
+  const head = new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{`);
   for (let i = 0; i < lines.length; i += 1) {
-    if (lines[i].trimEnd() !== selector) continue;
+    if (!head.test(lines[i])) continue;
     const decls = {};
-    let depth = null;                        // indent of this block's OWN declarations
     for (let j = i + 1; j < lines.length; j += 1) {
-      const raw = lines[j];
-      if (raw.trim() === "") continue;
-      const indent = raw.length - raw.trimStart().length;
-      if (indent === 0) break;               // dedent to column 0: block over
-      if (depth === null) depth = indent;
-      // STYLUS NESTS, AND A NESTED RULE IS NOT THIS RULE. `.data-table` contains
-      // `&:hover` and child selectors whose declarations are indented deeper;
-      // reading them as the parent's produced a baseline claiming the table had
-      // a hover background and `line-height: 2em`. Only this block's own depth
-      // counts, and a selector AT that depth ends it.
-      if (indent > depth) continue;          // inside a nested rule
-      const line = raw.trim();
-      if (line.startsWith("//")) continue;   // commented-out declaration
-      const m = /^([a-z-]+)\s*:\s*(.+?)$/.exec(line);
-      if (!m) break;                         // a nested selector at our depth
+      const line = lines[j].trim();
+      if (line.startsWith("}")) return decls;
+      const m = /^([a-z-]+)\s*:\s*(.+?);?$/.exec(line.replace(/\/\*.*?\*\//g, "").trim());
+      if (!m) continue;
       const [, prop, rawValue] = m;
       if (!PROPERTIES.has(prop)) continue;
-      decls[prop] = rawValue.replace(/\s*!important\s*$/, "").trim();
+      decls[prop] = rawValue.replace(/\s*!important\s*$/, "").replace(/;$/, "").trim();
     }
     return decls;
   }
@@ -99,31 +90,42 @@ function blockFor(styl, selector) {
 }
 
 const args = parseArgs(process.argv);
-if (!existsSync(join(args.ct, "src/frontend/styles"))) {
-  console.error(`::error::not a CodeTracer checkout: ${args.ct}`);
-  console.error("Pass --ct <path> or set CODETRACER_SRC.");
+if (!args.built) {
+  console.error("::error::--built <path> is required (a built codetracer-electron result).");
+  process.exit(2);
+}
+const cssPath = join(args.built, "styles/default_dark_theme.css");
+if (!existsSync(cssPath)) {
+  console.error(`::error::no compiled theme at ${cssPath}`);
+  console.error("Build it first: nix build .#packages.<system>.codetracer-electron");
   process.exit(1);
 }
 
-let rev = "unknown";
-try {
-  rev = execFileSync("git", ["-C", args.ct, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-} catch { /* a non-git export is still usable; the rev is provenance, not input */ }
+const css = readFileSync(cssPath, "utf8");
+
+// A GUARD, because the failure this script already had was silent. `FiraCode` is
+// not a family CodeTracer declares; a build that still mentions it is older than
+// the fix, and a baseline taken from it would demand a bug.
+const firaCode = (css.match(/FiraCode/g) || []).length;
+if (firaCode > 0) {
+  console.error(`::error::this build mentions FiraCode ${firaCode}x, so it predates the fix.`);
+  console.error("Build a newer CodeTracer; see this file's header.");
+  process.exit(1);
+}
 
 const selectors = {};
 const missing = [];
-for (const [sel, rel] of Object.entries(SELECTORS)) {
-  const path = join(args.ct, "src/frontend/styles", rel);
-  if (!existsSync(path)) { missing.push(`${sel} (${rel} absent)`); continue; }
-  const decls = blockFor(readFileSync(path, "utf8"), sel);
-  if (decls === null) { missing.push(`${sel} (not found in ${rel})`); continue; }
-  selectors[sel] = { source: rel, declarations: decls };
+for (const sel of SELECTORS) {
+  const decls = blockFor(css, sel);
+  if (decls === null) { missing.push(sel); continue; }
+  selectors[sel] = decls;
 }
 
 const baseline = {
-  schema: "blocktracer/codetracer-panel-baseline@2",
-  reference: "codetracer stylus source (NOT an installed build — see header)",
-  codetracerRev: rev,
+  schema: "blocktracer/codetracer-panel-baseline@3",
+  reference: "codetracer-electron, BUILT from source (not an installed bundle, not parsed Stylus)",
+  codetracerRev: args.rev || "unrecorded",
+  compiledFrom: "styles/default_dark_theme.css",
   extractedProperties: [...PROPERTIES].sort(),
   missingSelectors: missing,
   selectors,
@@ -131,9 +133,10 @@ const baseline = {
 
 writeFileSync(args.out, `${JSON.stringify(baseline, null, 2)}\n`);
 console.log(`wrote ${args.out}`);
-console.log(`  codetracer rev: ${rev}`);
-console.log(`  selectors: ${Object.keys(selectors).length}/${Object.keys(SELECTORS).length}`);
-if (missing.length) console.log(`  MISSING: ${missing.join("; ")}`);
-for (const [sel, v] of Object.entries(selectors)) {
-  console.log(`  ${sel} <- ${v.source}: ${JSON.stringify(v.declarations)}`);
+console.log(`  rev: ${baseline.codetracerRev}`);
+console.log(`  FiraCode in build: ${firaCode} (must be 0)`);
+console.log(`  selectors: ${Object.keys(selectors).length}/${SELECTORS.length}`);
+if (missing.length) console.log(`  MISSING: ${missing.join(", ")}`);
+for (const [sel, d] of Object.entries(selectors)) {
+  console.log(`  ${sel}: ${JSON.stringify(d)}`);
 }
