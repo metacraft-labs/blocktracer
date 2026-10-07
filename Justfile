@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# THIRTEEN suites — 98 + 19 + 24 + 24 + 57 + 232 + 33 + 162 + 53 + 115 + 219 + 83 + 6 = 1125 counted assertions —
+# THIRTEEN suites — 98 + 19 + 24 + 24 + 57 + 232 + 33 + 162 + 53 + 118 + 219 + 83 + 6 = 1128 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -1411,6 +1411,59 @@ conformance-kit-release out="conformance-kit-release":
 # Prove the released artifact needs no toolchain, no checkout and no network.
 conformance-kit-sandbox:
     ci/test/conformance-kit-sandbox.sh
+
+# ── Ethereum mainnet: container + chain data -> a §5 snapshot tree ──────────
+#
+# `tools/chain/produce-eth-snapshot.mjs` is the SECOND chain-snapshot producer in
+# this repository and it shares no abstraction with the first. The Aztec
+# producers are `capture-chain.mjs` and `follow-chain.mjs`; this is Ethereum
+# mainnet's, written concretely and duplicatively on purpose — Chain-Delivery
+# DEL-7 is the milestone allowed to extract a seam from the two, once there are
+# two real consumers to measure one against (ING-7's two-consumer rule).
+#
+# IT TAKES A CAPTURE AND THE CAPTURE IS NOT IN THIS REPOSITORY, which is why
+# there is no default for `capture`. `codetracer-evm-recorder trace-onchain
+# <tx> --rpc-url <archive> --out-dir <dir>` writes the container and the
+# disassembly listing; the `.ct` ban refuses an added recording here and is
+# right to — a committed recording pins a recorder version nothing tracks. So
+# the snapshot tree this produces is an ARTIFACT OF A RUN, not a fixture:
+#
+#     # 1. record — in the recorder's checkout, ~3 minutes against a free archive
+#     codetracer-evm-recorder trace-onchain <tx> \
+#       --rpc-url https://eth.drpc.org --out-dir evm 2>&1 | tee run.log
+#
+#     # 2. produce — here
+#     just eth-snapshot <tx> <capture-dir> <run.log> <recorder-commit> <out-dir>
+#
+#     # 3. verify, from the RELEASED kit rather than from this repository's suite
+#     just conformance-kit-release /abs/path/to/kit
+#     /abs/path/to/kit/bin/blocktracer-conformance --snapshot <out-dir>
+#     just eth-snapshot-control <out-dir> /abs/path/to/kit
+#
+# `--dry-run` prints the counts, the window and the archive-floor probe without
+# writing anything, which is the cheap way to see what a run would publish.
+eth-snapshot TX CAPTURE LOG COMMIT OUT *ARGS:
+    node tools/chain/produce-eth-snapshot.mjs \
+      --tx {{TX}} --capture {{CAPTURE}} --recorder-log {{LOG}} \
+      --recorder-commit {{COMMIT}} --out {{OUT}} {{ARGS}}
+
+# ── and the control that makes a green conformance run a VERDICT ────────────
+#
+# `blocktracer-conformance` printing `VERDICT: this tree conforms` is evidence
+# about the tree only if the same command, on the same tree, with ONE member
+# changed, refuses AND names the §5 rule that member belongs to. This runs the
+# released kit over the tree and then over the same tree one member at a time.
+#
+# NOT IN `chain-selftest`, deliberately, and for the reason that recipe's own
+# header gives about everything in it: every suite there is offline and
+# toolchain-free over files already in this repository. This one needs a CAPTURE
+# (not committable — the `.ct` ban) and a RELEASED KIT (gitignored), so wiring it
+# in would buy a suite that reports SKIP forever. It is three-state instead:
+# rc 0 every arm held, rc 1 an arm did not, rc 2 a subject is missing and
+# NOTHING WAS MEASURED.
+eth-snapshot-control SNAPSHOT KIT *ARGS:
+    node tools/chain/produce-eth-snapshot-control.mjs \
+      --snapshot {{SNAPSHOT}} --kit {{KIT}} {{ARGS}}
 
 # Publish a generated tree into a local object-store directory (M8 delta publisher).
 # Idempotent + resumable: re-run to upload only new objects and flip current.json.

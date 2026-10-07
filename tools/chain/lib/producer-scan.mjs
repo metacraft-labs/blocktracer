@@ -64,8 +64,54 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-/** the module every producer must reach the lifted facts through */
+/** the Aztec producers' facts module — the first of them, and still the default subject */
 export const FACTS_MODULE = './lib/producer-facts.mjs';
+
+/**
+ * THE SUFFIX THAT MAKES A FILE IN `lib/` A PRODUCER'S FACTS MODULE.
+ *
+ * ── WHY THIS IS A SET AND NOT ONE MODULE (2026-10-08) ─────────────────────────────────
+ *
+ * R1 used to be "every producer imports `./lib/producer-facts.mjs`", and that was right
+ * while every producer in this directory captured one chain. Chain-Delivery DEL-5 added a
+ * second: `produce-eth-snapshot.mjs`, Ethereum mainnet, whose recorder id is not
+ * `aztec-avm`, whose trace schema is not `ctfs/v4`, whose prestate strategy is not
+ * `hydrated-from-node` and whose cost vector has TWO dimensions rather than one. Under the
+ * old rule that producer could only go green by importing the Aztec facts and therefore by
+ * declaring itself an Aztec recorder — the rule would have REQUIRED a false statement, in
+ * the one member census the reader refuses a snapshot over.
+ *
+ * `producer-facts.mjs`'s own header already said what to do instead, before this file
+ * existed: "a second chain's recorder is a separate tool with a file like this one of its
+ * own". So the rule is now that a producer reaches its facts through A facts module, and
+ * the set of them is DERIVED from `lib/` by this suffix rather than written down — the same
+ * argument the subject list itself rests on (§35: a hardcoded list cannot see a new file in
+ * the directory it claims to cover). Nothing selects between the modules and nothing
+ * imports two; there is no interface, no registry and no dispatch. The duplication is the
+ * mechanism, and DEL-7 is the milestone allowed to extract a seam from it once there are
+ * two real consumers to measure one against.
+ *
+ * THE ENUMERATION IS ARMED, for §35's second rule: `scanProducers` returns the set it
+ * worked over, and an empty set would make R1 fire for every producer rather than for
+ * none — loud, not silent — which the caller asserts.
+ */
+export const FACTS_MODULE_SUFFIX = 'producer-facts.mjs';
+
+/**
+ * Every per-producer facts module in `<dir>/lib`, as the specifier a producer would import
+ * it by, sorted.
+ *
+ * @param {string} dir  the tools directory
+ * @param {(d:string)=>string[]} list  `readdirSync` — a PARAMETER so a control arm can
+ *                                     narrow it and watch R1 fire for every producer
+ * @returns {string[]}
+ */
+export function factsModules(dir, list = (d) => readdirSync(d)) {
+  return list(join(dir, 'lib'))
+    .filter((f) => f.endsWith(FACTS_MODULE_SUFFIX))
+    .sort()
+    .map((f) => `./lib/${f}`);
+}
 
 /**
  * The member that marks an object literal as a published transaction row.
@@ -95,9 +141,17 @@ export const PROVENANCE_MARKER = "kind: 'live-capture'";
  * `--runtime <path-to-aztec-avm-runtime>` inside a usage message — the CLI's own flag
  * documentation, which restates nothing. "Restated" means the source writes the VALUE, so
  * that is what the rule matches.
+ *
+ * THE SET COVERS EVERY FACTS MODULE, not just the first one. DEL-5's Ethereum values are
+ * below the Aztec ones, chosen by the same filter: `evm` is deliberately ABSENT for exactly
+ * the reason `noir` and `mana` are — it is an ordinary word in this tree's paths, flags and
+ * usage messages, so a scan for it would report where it was written rather than whether it
+ * was restated. The rest are unambiguous tokens that occur nowhere except as the value.
  */
 export const RESTATED_VALUES = Object.freeze([
   'aztec-avm', 'ctfs/v4', 'hydrated-from-node', 'avm-source-positions/1', 'FeeJuice',
+  'ethereum-evm', 'ctfs/v5', 'replay-preceding', 'evm-disassembly',
+  'evm-disassembly-positions/1', 'evm-instructions/1', 'evm-call-frames/1',
 ]);
 
 /**
@@ -223,12 +277,15 @@ export function enumerateTools(dir, ext = '.mjs') {
  *                                      arm can substitute a mutated copy of one real file
  *                                      without writing to the repository
  * @param {string} ext
+ * @param {string[]} facts  the per-producer facts modules R1 ranges over — a PARAMETER for
+ *                          the same reason `ext` is one, so a control arm can empty it and
+ *                          watch R1 fire for every producer instead of for none
  * @returns {{producers:string[], others:string[], suites:string[], rows:number,
- *            provenances:number, findings:{file:string, rule:string, line:number,
- *            what:string}[]}}
+ *            provenances:number, facts:string[],
+ *            findings:{file:string, rule:string, line:number, what:string}[]}}
  */
 export function scanProducers(dir, read = (f) => readFileSync(join(dir, f), 'utf8'),
-                              ext = '.mjs') {
+                              ext = '.mjs', facts = factsModules(dir)) {
   const { tools, suites } = enumerateTools(dir, ext);
   const producers = [];
   const others = [];
@@ -252,10 +309,12 @@ export function scanProducers(dir, read = (f) => readFileSync(join(dir, f), 'utf
     if (marks.length === 0) { others.push(f); continue; }
     producers.push(f);
 
-    // R1 — the facts are reached through the one module.
-    if (!code.includes(FACTS_MODULE)) {
+    // R1 — the facts are reached through a facts module of this producer's own.
+    if (!facts.some((m) => code.includes(m))) {
       findings.push({ file: f, rule: 'R1', line: 1,
-                      what: `writes a transaction row and does not import ${FACTS_MODULE}` });
+                      what: `writes a transaction row and imports none of the facts `
+                          + `modules in lib/ (${facts.length === 0 ? 'there are none'
+                                               : facts.join(', ')})` });
     }
 
     // R2 — every row literal states the cost vector and the execution partition, by call.
@@ -311,5 +370,5 @@ export function scanProducers(dir, read = (f) => readFileSync(join(dir, f), 'utf
 
   findings.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1
                            : a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : a.line - b.line));
-  return { producers, others, suites, rows, provenances, findings };
+  return { producers, others, suites, rows, provenances, facts, findings };
 }

@@ -1143,18 +1143,54 @@ test('§14 every tool that writes a transaction row states the lifted facts thro
   // The roster is compared so a NEW producer arrives as a named failure rather than as a
   // silently larger green number. It is not what makes the new file covered — the
   // derivation does that — it is what makes the claim's size visible.
+  //
+  // THE FIFTH ENTRY IS A SECOND CHAIN'S PRODUCER AND THAT IS WHY R1 RANGES OVER A SET
+  // (Chain-Delivery DEL-5, 2026-10-08). `produce-eth-snapshot.mjs` captures Ethereum
+  // mainnet; its recorder id, trace schema, prestate strategy, position language and cost
+  // vector are all different from Aztec's, and two of them are members the reader refuses
+  // a snapshot over. Under the old rule — "imports `./lib/producer-facts.mjs`" — the only
+  // way that producer could go green was to import the Aztec facts and therefore declare
+  // itself an Aztec recorder, i.e. the rule would have required a false statement. The
+  // facts modules are now derived from `lib/` by suffix and R1 asks for one of them;
+  // nothing selects between them and nothing imports two.
   const ROSTER = ['backfill-blocks.mjs', 'capture-chain.mjs', 'follow-chain.mjs',
-                  'ingest-range.mjs'];
+                  'ingest-range.mjs', 'produce-eth-snapshot.mjs'];
   ck(`and they are exactly — ${live.producers.join(', ')}`,
      JSON.stringify(live.producers) === JSON.stringify(ROSTER));
   ck(`the scan worked over ${live.rows} transaction-row literals and `
      + `${live.provenances} live-capture provenance literals`,
      live.rows >= ROSTER.length && live.provenances >= 3);
-  ck(`every one of them reaches ${FACTS_MODULE} — ${live.findings.length} finding(s)`
+  // The facts modules are DERIVED from `lib/`, like the subject list itself, and the set is
+  // asserted non-empty AND to contain the first one by name — an empty set would make R1
+  // fire for every producer rather than for none, which is loud, and a set that had somehow
+  // lost the original would be a different claim than the one this arm makes.
+  ck(`the facts modules are derived from lib/, not listed — ${live.facts.join(', ')}`,
+     live.facts.length >= 2 && live.facts.includes(FACTS_MODULE));
+  ck(`every producer reaches one of them — ${live.findings.length} finding(s)`
      + (live.findings.length
         ? `: ${live.findings.map((x) => `${x.file}:${x.line} ${x.rule} ${x.what}`).join('; ')}`
         : ''),
      live.findings.length === 0);
+  // …and EVERY PRODUCER IMPORTS EXACTLY ONE, which is the shape the duplication has to
+  // keep. A producer importing two facts modules is selecting between chains at run time —
+  // the dispatch this seam exists not to have — and a facts module nobody imports would
+  // make the set above larger than the claim it supports. Several producers sharing ONE
+  // module is fine and is the live state: four of the five are the same chain's.
+  {
+    const importers = new Map(live.facts.map((m) => [m, []]));
+    const perProducer = [];
+    for (const p of live.producers) {
+      const src = readFileSync(join(TOOLS_DIR, p), 'utf8');
+      const mine = live.facts.filter((m) => src.includes(m));
+      perProducer.push([p, mine.length]);
+      for (const m of mine) importers.get(m).push(p);
+    }
+    const shape = [...importers].map(([m, ps]) => `${m} <- ${ps.length}`).join(', ');
+    ck(`every producer imports exactly one facts module and none of them is orphaned `
+       + `— ${shape}`,
+       perProducer.every(([, n]) => n === 1)
+       && [...importers.values()].every((ps) => ps.length >= 1));
+  }
 
   /** an arm fires when the mutated tree reports >=1 finding of exactly the named rule */
   const fires = (what, name, edit, rule) => {
@@ -1195,6 +1231,17 @@ test('§14 every tool that writes a transaction row states the lifted facts thro
      vacuous.producers.length === 0 && vacuous.findings.length === 0
      && JSON.stringify(vacuous.producers) !== JSON.stringify(ROSTER));
 
+  // …and the same rule applied to the OTHER derived set. R1 now ranges over the facts
+  // modules in `lib/`, so a lister that found none of those would make R1 unsatisfiable
+  // rather than vacuous — the failure direction that is safe. This arm proves the
+  // direction rather than assuming it: with the set emptied, every one of the five
+  // producers is reported, not none of them.
+  const noFacts = scanProducers(TOOLS_DIR, real, '.mjs', []);
+  ck(`a facts-module set that found nothing fails LOUDLY — R1 fires for all `
+     + `${noFacts.producers.length} producer(s), not for none`,
+     noFacts.producers.length === ROSTER.length
+     && noFacts.findings.filter((x) => x.rule === 'R1').length === ROSTER.length);
+
   // §35's FIRST rule, demonstrated the way that trap demands — the probe is planted INSIDE
   // the directory the scan claims to cover, because that is the only thing a derived
   // subject list can be wrong about. Removed in the same block whatever happens.
@@ -1208,16 +1255,18 @@ test('§14 every tool that writes a transaction row states the lifted facts thro
     writeFileSync(PROBE, probeSrc(false));
     const planted = scanProducers(TOOLS_DIR);
     const hit = planted.findings.filter((x) => x.file === 'zz-producer-scan-probe.mjs');
-    ck(`a FIFTH tool that writes a row, planted in the directory, is derived as a producer `
-       + `and reported — ${planted.producers.length} producers, ${hit.length} finding(s) `
-       + `against it`,
+    // ONE MORE THAN THE ROSTER, derived rather than named by ordinal: the roster has grown
+    // once already (DEL-5's second chain) and a hardcoded "FIFTH" went stale the day it did.
+    ck(`one more tool than the roster, planted in the directory, is derived as a producer `
+       + `and reported — ${planted.producers.length} producers against a roster of `
+       + `${ROSTER.length}, ${hit.length} finding(s) against it`,
        planted.producers.includes('zz-producer-scan-probe.mjs')
        && hit.some((x) => x.rule === 'R1') && hit.some((x) => x.rule === 'R2'));
     writeFileSync(PROBE, `import { costVectorForRow, executionsForRow } from '${FACTS_MODULE}';\n`
                          + probeSrc(true));
     const repaired = scanProducers(TOOLS_DIR);
-    ck('…and the same fifth tool with the facts stated is accepted, so the arm discriminates '
-       + 'the defect and not the file',
+    ck('…and the same planted tool with the facts stated is accepted, so the arm '
+       + 'discriminates the defect and not the file',
        repaired.producers.includes('zz-producer-scan-probe.mjs')
        && repaired.findings.length === 0);
   } finally {
@@ -1393,7 +1442,7 @@ test('§7 the census is well formed');
 }
 
 console.error(`\nassertion count: ${asserted} (as declared)`);
-if (asserted !== 115) {
+if (asserted !== 118) {
   console.error(`snapshot-contract-selftest: asserted ${asserted}, declared 115`);
   process.exit(1);
 }
