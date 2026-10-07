@@ -1242,6 +1242,9 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - The identity bar carries identity, controls, scrubber, status, phase rail and two actions. Judge whether it reads as grouped or as a strip of unrelated objects, and say where it wraps at laptop width.
 - Continuity with the CodeTracer desktop app — same pane vocabulary, same density. Control PLACEMENT deliberately diverges (the desktop app puts the toolbar in a pane); judge the placement on its own terms, not against the desktop app, and judge the vocabulary against it.
 - Small-text legibility: the tool rubric rewards density, but 11 px text at low contrast is a P2 under it, not a win.
+- SETTLED, and raising it is not a finding: the TWO tab treatments on this screen are CodeTracer's own. Its `lm_active` pane tab is a filled panel-coloured box with rounded top corners (golden_layout.styl); its design-system `.ct-tab` is an underline (tab.styl). Both are vendored verbatim. Unifying them would make this page more internally consistent than the application it is graded against, which is a divergence wearing the costume of a fix.
+- SETTLED, and raising it is not a finding: the flow rail carries TWO marks under the frame numbers, and they are two different facts — `.frhere` is where the SESSION is and never moves, `.frdot` is which pass is on screen and the rail moves it. A bar under the selected frame is therefore not a tab accent bleeding into a control. Collapsing them would tell a reader who looked at pass 1 that the session had gone there.
+- SETTLED, and raising it is not a finding: identifier rows (Fee payer, Target, cost pairs, decoded arguments) render the value in FULL so one click selects the whole of it, and they already carry the copy affordance — the built page emits `class="identifier copyable"` on them. Where a long value WRAPS is a fair observation; that it is not truncated is not.
 
 ### View: `debugger--metadata-pane`
 
