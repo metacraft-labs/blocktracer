@@ -147,26 +147,51 @@
 # now" is true and insufficient. Widening the container gate alone was measured
 # to change seven refusal MESSAGES and zero refusal OUTCOMES.
 #
-# ORDER OF OPERATIONS, forced, and the root is outside this workspace:
+# WHAT TO DO ABOUT IT — and it is NOT "migrate the corpus to the newest full
+# format". That was this note's first prescription and it was wrong; corrected
+# 2026-10-07 on the owner's direction.
 #
-#   1. bump the producer pin — `aztec-avm-runtime`'s `pins.json` anchors for
-#      `trace_format` / `trace_format_nim` — and rebuild `aztec_ct_writer.wasm`.
-#      Measured from the shipped wasm's own build input: its source derivation
-#      materialises `592fa42c…`, where `header.rs` has `VERSION: u8 = 3` and
-#      `meta_dat.rs` has `META_DAT_VERSION: u16 = 3`. Re-recording with the
-#      pinned producer reproduces the exact problem.
-#   2. re-record the published corpus with it. The transaction bodies ARE still
-#      obtainable — not from the node, whose deployment has been replaced, but
-#      from the keyless public object store, self-verifyingly (the leading 32
-#      bytes of the body equal the requested hash).
-#   3. THEN bump the engine below.
+# The published recordings are NOT to be re-recorded into a newer version of the
+# FULL profile. They are expected to be superseded by the COMPACT profile, which
+# all recordings are likely to end up using. So the transition is one step and
+# not three, and the two halves move TOGETHER:
 #
-# NOT MEASURED, and it gates step 2: whether the PRE-STATE can be reconstructed
-# for a retired rollup. The rows record `preStateReadAt`, `hydrationRounds` and
-# `hydrated-from-node` against a deployment that no longer exists.
+#   * the producer emits compact archives (`CCP-6`), and
+#   * the engine below gains the compact loader (`CCP-5` landed it in the
+#      db-backend; the pinned wasm does not carry it — measured: zero hits for
+#      every compact-specific string in it, against a positive control that
+#      finds the version and magic messages, and a negative control).
 #
-# Until step 2 is done, leaving this pin alone is not neglect — it is the thing
-# keeping replay working on every published page.
+# Neither half is useful alone. Shipping compact archives to this engine breaks
+# them; shipping this engine a compact loader does nothing while the corpus is
+# full-profile v3. That is the real coupling, and it is a smaller one than a
+# version migration: the corpus is REPLACED, not converted.
+#
+# So the only rule this file needs to carry is the safety one:
+#
+#   DO NOT BUMP THE WASM BELOW ON ITS OWN. Bump it together with the publish
+#   that replaces the corpus, or not at all.
+#
+# Consequently the producer-pin bump in `aztec-avm-runtime` is NOT on this path.
+# It would be needed to re-record into the newest full profile, which is the
+# thing nobody is going to do. It is left recorded here only so the next reader
+# does not re-derive it as a blocker: `aztec-ct-writer-wasm`'s source derivation
+# materialises `592fa42c…`, where `header.rs` has `VERSION: u8 = 3` and
+# `meta_dat.rs` has `META_DAT_VERSION: u16 = 3`.
+#
+# Two facts that survive the change of plan, because they are about the data and
+# not about the format:
+#
+#   * the transaction bodies ARE still obtainable — not from the node, whose
+#     deployment has been replaced, but from the keyless public object store,
+#     self-verifyingly (the leading 32 bytes of a body equal the requested hash);
+#   * NOT MEASURED: whether the PRE-STATE can be reconstructed for a retired
+#     rollup. The rows record `preStateReadAt`, `hydrationRounds` and
+#     `hydrated-from-node` against a deployment that no longer exists. Any
+#     republish — compact or otherwise — has to answer that.
+#
+# Until the replacing publish happens, leaving this pin alone is not neglect. It
+# is the thing keeping replay working on every published page.
 #
 # ── Provenance ─────────────────────────────────────────────────────────────
 #
