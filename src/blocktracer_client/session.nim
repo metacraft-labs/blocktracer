@@ -69,6 +69,24 @@ type
       ## member, so the session is reading a tree published before it existed and
       ## is deriving the §6.1 compatibility layout. That is a different fact from
       ## a row declaring `hex` and is kept distinguishable on purpose.
+    profile*: ChainProfile
+      ## What this chain's registry row declares ABOUT THE CHAIN rather than
+      ## about one recording: its historical reach, its history floor, its
+      ## ordering kind and its instruction-set identity
+      ## (`contract/chain_profile.nim`).
+      ##
+      ## PINNED HERE FOR `identifierEncoding`'S OWN REASON, and read from the
+      ## same row in the same fetch. A surface that re-read it per render could
+      ## state one reach in a page's heading and another in its prose, and the
+      ## reach is the one chain-wide fact this product is most exposed on: a
+      ## visitor reading "debuggable back to block N" acts on it.
+      ##
+      ## An absent member is `dsAbsent` / `stated = false` and NOT a zero — a
+      ## floor of zero is a chain reachable to genesis and "nobody said" is not
+      ## that. `parseChainProfile` is the one function that decides which, and
+      ## it is the same one the producer-side validator reports findings from,
+      ## so a page and a validator cannot come to disagree about what a registry
+      ## says.
     coverageMode*: string
     stale*: bool
     blockCount*: int
@@ -230,6 +248,20 @@ proc openChain*(store: ObjectStore, chain: string): OpenResult =
       except ValueError as e:
         return openFailed(ooMalformed,
           registryPath(s.contractVersion) & ": " & e.msg)
+      # THE PROFILE IS READ HERE AND NOT IN THE PIN'S `try`, for the reason the
+      # encoding gives two lines up: a chain with no recorder still declares its
+      # reach, its floor and its ordering, and a session that inherited the
+      # pin's failure would report "this chain states no history floor" about a
+      # row that states one.
+      #
+      # IT DOES NOT RAISE AND MUST NOT. `parseChainProfile` answers in data for
+      # every input — absent, declared, or present-and-unrecognised — because a
+      # reach token this build has never heard of is a chain we render
+      # conservatively, not a tree we refuse. That is the opposite choice from
+      # the encoding above, and deliberately: an encoding this build cannot read
+      # makes it compute paths nobody wrote, while a reach it cannot read costs
+      # one sentence on one page.
+      s.profile = parseChainProfile(reg.node["chains"][chain])
 
   OpenResult(outcome: ooOpened, session: s)
 
