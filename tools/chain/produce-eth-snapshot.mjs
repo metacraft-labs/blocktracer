@@ -84,9 +84,32 @@
 //     --out <snapshot dir> \
 //     [--ct-print ../codetracer-trace-format-nim/ct-print] \
 //     [--chain ethereum-mainnet] [--label 'Real Ethereum mainnet data'] \
+//     [--endpoint-label <url>] [--captured-at <iso8601>] \
 //     [--no-skew-note] [--dry-run]
 //
 // Exit codes: 0 wrote a tree · 1 a source would not answer · 2 a configuration refusal.
+//
+// ── `--endpoint-label` AND `--captured-at`, AND WHY THEY ARE NOT COSMETIC ─────────────
+//
+// `--rpc-url` is the endpoint this RUN talked to. The published `provenance.endpoint` is a
+// different fact — the contract says it holds "the node this capture was taken against,
+// republished verbatim" — and the two stopped being the same thing when the capture became
+// reproducible: `tools/chain/eth-rpc-transcript.mjs` serves the committed input set from a
+// loopback port, so an offline run talks to `http://127.0.0.1:<kernel-assigned port>`.
+// Republishing that as the node the capture came from would be false, and uselessly false:
+// the port is different on every run and names no node at all. `--endpoint-label` is the
+// node the DATA came from, which for a transcript replay is the upstream the transcript was
+// recorded against.
+//
+// `--captured-at` is the same correction on the clock. `capturedAt` holds "the instant the
+// capture stopped"; for a transcript replay that instant is when the TRANSCRIPT was
+// recorded, not when the replay ran. Passing the transcript's own `recordedAt` makes the
+// member true and makes the tree reproducible in the same move — a wall-clock read at
+// produce time is the only thing that otherwise differs between two runs over identical
+// inputs.
+//
+// Both default to the live-run values (`--rpc-url` and `new Date()`), so a run that does
+// not pass them behaves exactly as before.
 
 import { execFile } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync,
@@ -533,6 +556,17 @@ async function main() {
   const outDir = flag('out');
   const chain = flag('chain', CHAIN_SLUG);
   const label = flag('label', 'Real Ethereum mainnet data');
+  // The node the DATA came from, and the instant it came from there — see the header.
+  // Defaulting to the live-run values keeps a run that passes neither byte-for-byte
+  // identical to one taken before these existed.
+  const endpointLabel = flag('endpoint-label', url);
+  const capturedAtFlag = flag('captured-at');
+  if (capturedAtFlag && Number.isNaN(Date.parse(capturedAtFlag))) {
+    throw refuse(ConfigRefusal,
+      `--captured-at must be a date \`Date.parse\` accepts (got ${capturedAtFlag}). `
+      + `\`provenance.capturedAt\` is republished verbatim into every row's \`capturedAt\`, `
+      + `and a string no reader can parse is worse than the wall clock it replaced.`);
+  }
   const ctPrint = ctPrintPath(flag('ct-print'));
   const dryRun = has('dry-run');
   const skewNote = !has('no-skew-note');
@@ -833,14 +867,14 @@ async function main() {
   }
 
   // ── the snapshot ─────────────────────────────────────────────────────────
-  const capturedAt = new Date().toISOString();
+  const capturedAt = capturedAtFlag ?? new Date().toISOString();
   const snapshot = {
     format: SNAPSHOT_FORMAT,
     provenance: {
       kind: 'live-capture',
       chain,
       label,
-      endpoint: url,
+      endpoint: endpointLabel,
       recorder: { ...RECORDER },
       prestateStrategy: PRESTATE_STRATEGY,
       capturedAt,
@@ -1044,7 +1078,7 @@ async function main() {
     measuredAt: capturedAt,
     measuredBy: { tool: HERE, resolver: 'Sourcify v2 + solc, through the recorder',
                   runtimeCommit: recorderCommit },
-    endpoint: url,
+    endpoint: endpointLabel,
     counts: {
       transactionsConsidered: 1,
       transactionsWithSourceBundle: 1,

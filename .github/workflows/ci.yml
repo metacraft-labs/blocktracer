@@ -531,7 +531,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 232 assertions, and the reason it is offline is the reason it
+        # ING-3, 233 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -881,6 +881,31 @@ jobs:
         # Offline and toolchain-free: `git ls-files`, the bytes of files already in
         # this repository, and two committed JSON documents.
         run: node tools/chain/ct-corpus-census-selftest.mjs
+
+      - name: Is the committed Ethereum JSON-RPC input set the input set it claims to be?
+        # 30 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # WHAT IT GUARDS. `fixtures/chain-inputs/ethereum-mainnet/<tx>/` is 472
+        # recorded JSON-RPC answers — the whole conversation the Ethereum capture
+        # reads — and `tools/chain/eth-rpc-transcript.mjs` is the endpoint that
+        # replays them. That pair is what makes the capture reproducible without a
+        # network, so the `.ct` ban no longer blocks the Ethereum landing page: the
+        # INPUTS are committed and the container is produced from them.
+        #
+        # Two things can be wrong with that and the suite covers both. The
+        # MECHANISM (arms 1-20): a replay endpoint that quietly fell through to the
+        # network on a miss would make every offline claim in this repository false
+        # while reporting green, so arm 13 hands the replay server a live upstream
+        # and requires its request log to stay empty. The INPUT SET (arms 21-30):
+        # the three independent answers that describe the captured block — the
+        # hash-only block, the full block and the receipts — are cross-checked
+        # against each other, because sha256 pins the bytes and nothing else pins
+        # the MEANING.
+        #
+        # NOT the capture itself. That needs the recorder binary from the
+        # `codetracer-evm-recorder` sibling, which is not built on this runner;
+        # `just eth-capture` is where the end-to-end run lives.
+        run: node tools/chain/eth-rpc-transcript-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this

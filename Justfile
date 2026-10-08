@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# THIRTEEN suites — 98 + 19 + 24 + 24 + 57 + 232 + 33 + 162 + 53 + 118 + 219 + 83 + 6 = 1128 counted assertions —
+# FOURTEEN suites — 98 + 19 + 24 + 24 + 57 + 233 + 33 + 162 + 53 + 118 + 219 + 83 + 6 + 30 = 1159 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -175,7 +175,11 @@ test:
 # whether a prepared tree's RECORDINGS are in a state worth publishing
 # (`chain-health-selftest`), and HOW A YIELD FIGURE IS COUNTED — which fraction of a
 # chain's transactions actually trace, over which denominator, against which pinned
-# windows (`yield-method-selftest`).
+# windows (`yield-method-selftest`), and WHETHER THE COMMITTED ETHEREUM INPUT SET
+# IS THE INPUT SET IT CLAIMS TO BE — every file hashed against its manifest, the
+# three independent block answers cross-checked against each other, and the
+# replay endpoint held to never reaching a network even when handed one
+# (`eth-rpc-transcript-selftest`).
 #
 # `snapshot-contract-selftest` IS THE ONE THAT READS A NIM FILE FROM JAVASCRIPT,
 # and it is a suite rather than a review because the alternative is a person
@@ -430,6 +434,13 @@ chain-selftest:
     # SKIP and are NOT counted as passed, and the version census still runs —
     # it is read from the bytes.
     node tools/chain/ct-corpus-census-selftest.mjs
+    # Offline and toolchain-free like the rest: the committed input set under
+    # fixtures/chain-inputs/ is read off disk, and the twenty mechanism arms
+    # stand up `http.Server`s in-process rather than reaching an endpoint. It
+    # does NOT run the capture — that needs the recorder binary from the
+    # codetracer-evm-recorder sibling, which is why `just eth-capture` is a
+    # separate recipe and not an arm here.
+    node tools/chain/eth-rpc-transcript-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1421,18 +1432,15 @@ conformance-kit-sandbox:
 # DEL-7 is the milestone allowed to extract a seam from the two, once there are
 # two real consumers to measure one against (ING-7's two-consumer rule).
 #
-# IT TAKES A CAPTURE AND THE CAPTURE IS NOT IN THIS REPOSITORY, which is why
-# there is no default for `capture`. `codetracer-evm-recorder trace-onchain
-# <tx> --rpc-url <archive> --out-dir <dir>` writes the container and the
-# disassembly listing; the `.ct` ban refuses an added recording here and is
-# right to — a committed recording pins a recorder version nothing tracks. So
-# the snapshot tree this produces is an ARTIFACT OF A RUN, not a fixture:
+# IT TAKES A CAPTURE, AND THE CAPTURE IS NOW REPRODUCIBLE FROM COMMITTED INPUTS
+# — see `just eth-capture` below, which is the recipe to reach for. This one is
+# the bare producer: it takes a capture directory somebody already has and turns
+# it into a tree, with no opinion about where the capture came from.
 #
-#     # 1. record — in the recorder's checkout, ~3 minutes against a free archive
-#     codetracer-evm-recorder trace-onchain <tx> \
-#       --rpc-url https://eth.drpc.org --out-dir evm 2>&1 | tee run.log
+#     # 1. the capture, offline, from the committed input set
+#     just eth-capture <recorder-binary> <recorder-commit>
 #
-#     # 2. produce — here
+#     # 2. or the bare producer over a capture of your own
 #     just eth-snapshot <tx> <capture-dir> <run.log> <recorder-commit> <out-dir>
 #
 #     # 3. verify, from the RELEASED kit rather than from this repository's suite
@@ -1457,13 +1465,107 @@ eth-snapshot TX CAPTURE LOG COMMIT OUT *ARGS:
 # NOT IN `chain-selftest`, deliberately, and for the reason that recipe's own
 # header gives about everything in it: every suite there is offline and
 # toolchain-free over files already in this repository. This one needs a CAPTURE
-# (not committable — the `.ct` ban) and a RELEASED KIT (gitignored), so wiring it
-# in would buy a suite that reports SKIP forever. It is three-state instead:
-# rc 0 every arm held, rc 1 an arm did not, rc 2 a subject is missing and
-# NOTHING WAS MEASURED.
+# and a RELEASED KIT (gitignored), so wiring it in would buy a suite that reports
+# SKIP forever. It is three-state instead: rc 0 every arm held, rc 1 an arm did
+# not, rc 2 a subject is missing and NOTHING WAS MEASURED.
+#
+# THE REASON THE CAPTURE IS A PRECONDITION HAS CHANGED, and the sentence that
+# used to be here is corrected rather than left standing. It said the capture was
+# "not committable — the `.ct` ban", which was true of the CONTAINER and is still
+# true of it. But the capture is no longer unavailable offline: its INPUTS are
+# committed under `fixtures/chain-inputs/ethereum-mainnet/`, and `just
+# eth-capture` produces the container and the tree from them in about nine
+# seconds with no route off the host. What keeps this out of `chain-selftest` is
+# now the RECORDER BINARY — a Rust build in the `codetracer-evm-recorder` sibling,
+# which this repository does not build. The obstacle is the toolchain, not the
+# chain data.
 eth-snapshot-control SNAPSHOT KIT *ARGS:
     node tools/chain/produce-eth-snapshot-control.mjs \
       --snapshot {{SNAPSHOT}} --kit {{KIT}} {{ARGS}}
+
+# THE ONE TRANSACTION THE COMMITTED INPUT SET DESCRIBES: a USDT transfer at
+# mainnet block 26,083,328 index 8, hardfork PRAGUE, reached by replaying the 8
+# preceding transactions in its block. Named once, here, because three recipes
+# key a fixtures path from it and a second spelling would point one of them at a
+# directory that does not exist.
+ETH_CAPTURE_TX := "0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa"
+
+# ── the Ethereum capture, from COMMITTED INPUTS, with no network at all ─────
+#
+# `fixtures/chain-inputs/ethereum-mainnet/<tx>/` is the whole JSON-RPC
+# conversation the capture reads: 472 answers, every one of them a fact about a
+# finalised mainnet block. `tools/chain/eth-rpc-transcript.mjs --replay` serves
+# them from a loopback port and SERVES NOTHING ELSE — there is no fall-through to
+# the network, because replay mode never constructs an upstream client — so the
+# capture below runs to completion in a namespace with no route off the host.
+#
+# WHY INPUTS AND NOT THE RECORDING. The `.ct` ban refuses a committed container
+# and is right to: a recording pins a recorder version nothing tracks, and
+# `fixtures/chain-health/readable-container` measured the cost of the other
+# choice (regenerating it moved `containerBytes` 151,552 -> 77,824 across two
+# container versions while not one checked fact moved). A transaction body, a
+# block header and the account/storage/code state a replay reads cannot churn,
+# because the chain they describe cannot change. So the inputs are committed and
+# the container is produced.
+#
+# WHAT IT STILL NEEDS, and what therefore keeps it out of `chain-selftest`: the
+# recorder BINARY, which is a Rust build in the `codetracer-evm-recorder`
+# sibling and is not in this repository. The chain data is no longer the
+# obstacle; the toolchain is.
+#
+# The container is NOT byte-identical between two runs over the same inputs, and
+# that is a property of the RECORDER rather than of the inputs — measured over
+# eight offline runs from this one transcript. Two mechanisms: a UUIDv7 recording
+# id (every run differs) and the emission order of two storage variables within a
+# step (a per-process coin flip). Decoded through `ct-print --full` the eight runs
+# produce exactly two outputs, and both of them also occur online, so the
+# transcript reproduces the live capture up to the recorder's own nondeterminism.
+#
+# `COMMIT` IS REQUIRED AND IS NOT DERIVED, which is deliberate. It is the commit
+# of the checkout that BUILT the binary in `RECORDER`, it is published into every
+# row's `runtimeCommit`, and NOTHING HERE CAN READ IT OFF THE BINARY —
+# `codetracer-evm-recorder --version` answers `0.1.0` and no commit. A default of
+# `git -C ../codetracer-evm-recorder rev-parse HEAD` would be right only when the
+# binary came from that one checkout at its current HEAD, and silently wrong — not
+# absent, WRONG — for a binary built in a worktree or before a pull. A figure
+# published into provenance has to be stated by whoever knows it.
+eth-capture RECORDER COMMIT TX=ETH_CAPTURE_TX OUT=".eth-capture/tree" *ARGS:
+    node tools/chain/eth-rpc-transcript.mjs \
+      --replay --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}} -- \
+      bash tools/chain/eth-capture.sh \
+        --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+        --tx {{TX}} --out {{OUT}} \
+        --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}} {{ARGS}}
+
+# Re-record the committed input set against a live archive endpoint.
+#
+# THE ONE RECIPE HERE THAT NEEDS THE NETWORK, and the only one that should. It
+# proxies the same capture to a real endpoint and writes every distinct answer
+# into the fixtures tree, so `just eth-capture` can replay it forever after.
+# ~3 minutes against a free public archive; the offline replay of the same
+# conversation takes ~9 seconds.
+#
+# Re-record only for a reason you can state: the inputs are immutable facts, so a
+# re-record over the SAME transaction should move only `recordedAt`, the two
+# tip-dependent answers (`eth_blockNumber`, `eth_getBlockByNumber ['finalized']`)
+# and the endpoint-identity ones. A re-record that moves an `immutable` answer is
+# a finding about the endpoint, not a refresh.
+eth-inputs-record RECORDER COMMIT TX=ETH_CAPTURE_TX UPSTREAM="https://eth.drpc.org" *ARGS:
+    node tools/chain/eth-rpc-transcript.mjs \
+      --record --upstream {{UPSTREAM}} \
+      --out fixtures/chain-inputs/ethereum-mainnet/{{TX}} -- \
+      bash tools/chain/eth-capture.sh \
+        --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+        --tx {{TX}} --out .eth-capture/tree {{ARGS}}
+
+# Hash every committed input against its manifest and report the ledger.
+#
+# Offline, toolchain-free, and in `chain-selftest` through
+# `eth-rpc-transcript-selftest.mjs`, which runs this check over the real tree as
+# well as over planted defects.
+eth-inputs-verify TX=ETH_CAPTURE_TX:
+    node tools/chain/eth-rpc-transcript.mjs \
+      --verify --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}}
 
 # Publish a generated tree into a local object-store directory (M8 delta publisher).
 # Idempotent + resumable: re-run to upload only new objects and flip current.json.
