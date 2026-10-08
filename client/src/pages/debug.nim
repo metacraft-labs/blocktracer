@@ -316,6 +316,21 @@ proc noSession(s: DebugSessionView): string =
           # `btdefault`, for the reason the metadata pane's own comment gives:
           # a panel that is not the stack's default is hidden.
           tdiv(class = "lm_content btdefault"):
+            # NOT wrapped in `.component-container`. `.nosession .lm_content`
+            # is `display:flex` and `.nostate{margin:auto}` centres this block
+            # by being a flex CHILD of `.lm_content` directly — the same trick
+            # `golden_layout.styl`'s own comment calls out for `:has()`, one
+            # level deep and no deeper. `.component-container` is not itself
+            # `display:flex`, so interposing it between `.lm_content` and
+            # `.nostate` breaks the centring: measured — the notice jumped
+            # from vertically centred to flush top-left, reading as a load
+            # failure, which is exactly the "debugger that failed to load"
+            # misreading `debugger_css.nim`'s own comment on this block says
+            # the empty state must not have. See VD.7 capture
+            # `debugger--no-session__wide__dark` before/after. The right fix,
+            # if this pane is to carry CodeTracer's typography too, is to add
+            # `display:flex` (or redo the centring) on `.component-container`
+            # scoped to `.nosession`, not to drop the wrapper in blind.
             tdiv(class = "nostate"):
               p(class = "btnote measure"): text s.unavailableReason
               # The pipeline's own words beneath ours, never merged into them.
@@ -470,17 +485,18 @@ proc debugPage*(s: DebugSessionView): string =
             # exactly what this one did until a capture caught it: the
             # Transaction pane came out as a tab strip over 1000px of nothing.
             tdiv(class = "lm_content btdefault p-metadata", id = "pane-metadata"):
-              raw renderMetadata(s.metadata)
-              # BELOW the transaction's facts, in the pane the visitor already
-              # reads to learn what they are looking at. The panes on the other
-              # side of `.dbgmain` are the ones with no room — the call trace
-              # truncated a name and a path at once, the event log clips its
-              # detail column and drops it entirely at 720px, and the
-              # instruction listing packs a program counter, an opcode and a gas
-              # reading into one text cell. This is the one place any of them
-              # can be read at full width, and it is one place rather than four
-              # escape hatches. See `session_view.selectionDetail`.
-              raw renderSelection(selectionDetail(s))
+              tdiv(class = "component-container"):
+                raw renderMetadata(s.metadata)
+                # BELOW the transaction's facts, in the pane the visitor already
+                # reads to learn what they are looking at. The panes on the other
+                # side of `.dbgmain` are the ones with no room — the call trace
+                # truncated a name and a path at once, the event log clips its
+                # detail column and drops it entirely at 720px, and the
+                # instruction listing packs a program counter, an opcode and a gas
+                # reading into one text cell. This is the one place any of them
+                # can be read at full width, and it is one place rather than four
+                # escape hatches. See `session_view.selectionDetail`.
+                raw renderSelection(selectionDetail(s))
       # The source bundle, as DATA (§7.0's "data-inlined HTML").
       #
       # `type="application/json"` is not an executable script type: a browser
