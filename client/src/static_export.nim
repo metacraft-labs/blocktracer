@@ -618,9 +618,30 @@ proc exportSite() =
     # are still IN the snapshot, still counted in the banner, and still published
     # in full by an `isFull` ingest — which is the scope their pages are graded
     # in (`test_chain_provenance`).
+    # `isCuratedIfWhole` AND NOT `isCurated`, AND THE CHANGE IS ABOUT CAPTURES
+    # THIS LOOP HAS NOT MET YET.
+    #
+    # The promise `isCurated` makes — every transaction on this chain opens a
+    # container that steps — is a property of a CAPTURE, and this line is the one
+    # place in the build that has to decide it for all of them. Stated outright
+    # it was not a decision at all: a capture for which the promise cannot hold
+    # failed the whole site build rather than publishing a smaller chain, and
+    # took the three chains that were fine down with it. Measured on the Ethereum
+    # mainnet capture (one block, 208 transactions, one replayed): the build
+    # aborted inside `ingestSnapshot` and wrote no `dist/`.
+    #
+    # A single-transaction-per-block chain keeps that promise by accident of its
+    # block shape. An EVM block settles two hundred transactions and a
+    # `replay-preceding` capture reaches the index it was aimed at and stops, so
+    # no window over it can be whole, however good the one recording is.
+    #
+    # So the scope is now a question the ingest answers from the capture, and
+    # the answer is reported below rather than assumed. Nothing moves for the
+    # three Aztec captures: each has a whole window, each still publishes the
+    # curated tree, and `scopeFellBack` says so in the log.
     let ing = ingestSnapshot(IngestConfig(outDir: OutputDir,
                                           snapshotDir: snapshotDir,
-                                          scope: isCurated))
+                                          scope: isCuratedIfWhole))
     # A chain with NO traces is reported as such rather than omitted. It is the
     # expected outcome on a chain whose transactions arrive further apart than
     # the replay window is wide, and a build log that quietly said nothing about
@@ -629,11 +650,22 @@ proc exportSite() =
       if ing.withTrace == 0: "NO replayable transaction in the window"
       else: $ing.withTrace & " with a published trace (" & $ing.divergent &
             " divergent, " & $ing.containerBytes & " bytes)"
+    # THE SCOPE IS IN THE LINE, and the fallback is called a fallback. Under
+    # `isCuratedIfWhole` the ingest decides how much of a capture becomes pages;
+    # a log line that reported only the resulting counts would leave "why does
+    # this chain publish 208 transactions and that one 2" answerable only by
+    # reading the snapshot.
+    let scopeNote =
+      if ing.scopeFellBack:
+        "; scope FULL — no window over this capture has a trace on every " &
+        "transaction in it, so every transaction is published with the " &
+        "producer's own sentence about why"
+      else: "; scope " & $ing.scope
     echo "  + live-chain snapshot: /" & ing.chain & " — published " &
       $ing.blocks & " blocks (" & $ing.windowFrom & "–" & $ing.windowTo &
       "), " & $ing.transactions & " transactions, " & traceNote &
       "; watched " & $ing.observedBlocks & " blocks / " &
-      $ing.observedTransactions & " transactions"
+      $ing.observedTransactions & " transactions" & scopeNote
 
   # Step 1b: the SYNTHETIC demo tree — published again, and the reason is the front page.
   #
