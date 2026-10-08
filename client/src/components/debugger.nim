@@ -206,7 +206,8 @@ proc paneChrome(title, id, cls, body: string; weight = 1.0): string =
           raw paneTab(title, id, linked = false, isDefault = true)
       tdiv(class = "lm_items"):
         tdiv(class = "lm_content btdefault " & cls, id = id):
-          raw body
+          tdiv(class = "component-container"):
+            raw body
 
 proc paneNote(note: string): string =
   ## What a pane says when it has nothing to show. The review brief's
@@ -2559,7 +2560,8 @@ proc renderStack(node: LayoutNode; s: DebugSessionView): string =
       tdiv(class = "lm_content " & (if isDefault: "btdefault " else: "") &
                    paneClass(child.pane),
            id = paneId(child.pane)):
-        raw paneBody(child.pane, s)
+        tdiv(class = "component-container"):
+          raw paneBody(child.pane, s)
     panels.addHtml panel
   ui:
     tdiv(class = "ln lm_stack " & weightClass(node.weight)):
