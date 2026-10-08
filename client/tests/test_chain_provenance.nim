@@ -311,8 +311,22 @@ suite "1 — a rung-3 recording never renders as source":
     # page now states what is true of THIS recording, so that is what is
     # asserted, and the retired clause is asserted ABSENT.
     check "No source resolved for the code this transaction ran" in body
-    check "checked against that commitment" in body
+    # CHANGED 2026-10-09, and the expectation was STALE rather than the code
+    # wrong. "checked against that commitment" pinned the tail of a sentence
+    # whose head named Aztec — "Aztec publishes a commitment to a contract's
+    # compiled artifact rather than the artifact itself" — and this pane serves
+    # every chain: the first Ethereum mainnet transaction ingested into a
+    # BlockTracer tree rendered that sentence on a USDT transfer. The clause is
+    # now chain-neutral and says the same thing about the same mechanism, so
+    # what this arm is really grading — that the pane explains the gap rather
+    # than declaring the source nonexistent — is unchanged.
+    check "proved against that bytecode" in body
     check "no debug symbols, no file map and no source text" notin body
+    # AND THE RETIRED CLAUSE IS ASSERTED ABSENT, on the same terms as the one
+    # above it. An Aztec-specific explanation on an Aztec page would be correct;
+    # one baked into the shared pane is a wrong statement waiting for a second
+    # chain, and a second chain arrived.
+    check "Aztec publishes a commitment" notin body
 
   test "and it says WHERE the session is stopped, in words AND on a row":
     # The defect this arm was added for, and the second half of the same defect.

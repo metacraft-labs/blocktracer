@@ -1470,6 +1470,13 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // has two members is the point of having declared it as a pattern rather than as
     // a one-off.
     ['ct-corpus-census-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // THE THIRD SUITE IN PATTERN FIVE. `eth-rpc-transcript-selftest` declares a
+    // `BASE_ARMS` like the two above, but for a different reason: it has no host
+    // configurations at all — every arm is offline and needs only node — so the base IS
+    // the total. The spelling is shared because the cross-check reads a spelling and not
+    // a rationale, and a fourth pattern for a figure that is already stated in the third
+    // would be a pattern per suite.
+    ['eth-rpc-transcript-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1481,7 +1488,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# THIRTEEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  const m = /# FOURTEEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
@@ -1490,7 +1497,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's thirteen terms are the suites' own declarations, in recipe order — `
+    ck(`the header's fourteen terms are the suites' own declarations, in recipe order — `
        + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
@@ -1609,7 +1616,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   ck(`every suite has a ci.yml step whose comment states its count exactly once — `
      + `${ciProblems.length} problem(s)`, ciProblems.length === 0);
   if (ciProblems.length) console.error(`    ${ciProblems.join('\n    ')}`);
-  ck(`…and ci.yml's twelve counts are the suites' own — [${ciTerms.join(', ')}] vs `
+  ck(`…and ci.yml's fourteen counts are the suites' own — [${ciTerms.join(', ')}] vs `
      + `[${terms.join(', ')}]`,
      ciTerms.length === terms.length && ciTerms.every((n, i) => n === terms[i]));
 }
@@ -1749,7 +1756,11 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       follow (the header's arithmetic, the recipe body's order, ci.yml's copy) are
 //       aggregates and do not grow with it. The ELEVENTH, one line above this in the
 //       history, cost exactly the same one.
-expectCount(232);
+//   +1  a FOURTEENTH suite joined `chain-selftest` — `eth-rpc-transcript-selftest`, over the
+//       committed Ethereum JSON-RPC input set and the endpoint that replays it — and it
+//       costs the same single assertion for the same reason: the `declared` loop reads one
+//       more suite's own count. The THIRTEENTH cost exactly the same one.
+expectCount(233);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

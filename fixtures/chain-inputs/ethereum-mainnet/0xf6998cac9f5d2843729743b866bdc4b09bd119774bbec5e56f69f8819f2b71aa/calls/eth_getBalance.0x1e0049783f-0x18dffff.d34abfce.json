@@ -1,0 +1,1 @@
+{"method":"eth_getBalance","params":["0x1e0049783f008a0085193e00003d00cd54003c71","0x18dffff"],"kind":"immutable","http":200,"response":{"result":"0x0"}}

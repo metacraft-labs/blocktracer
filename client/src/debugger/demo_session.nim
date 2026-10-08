@@ -552,14 +552,38 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
       # The three pane notes below were the same claim restated three times.
       # They now say what each pane does not have and why, without deciding on
       # the chain's behalf what it will never publish.
+      # ── AND IT NAMES NO CHAIN, which is the correction of 2026-10-08. ──────
+      #
+      # The sentence this replaces said "**Aztec** publishes a commitment to a
+      # contract's compiled artifact rather than the artifact itself". That is
+      # true of Aztec and this constructor serves EVERY chain: measured on the
+      # first Ethereum mainnet transaction this tree ingested, the published
+      # page told a visitor looking at a USDT transfer on Ethereum a fact about
+      # Aztec's contract-class model. A page that names the wrong chain is not
+      # over-specific, it is wrong, and it is wrong in the one pane whose whole
+      # job is to explain why there is no source.
+      #
+      # The mechanism differs per chain and the SHAPE does not: a chain
+      # publishes the bytecode that ran, source is obtained from somewhere else,
+      # and something has to tie the two together — an `artifactHash`
+      # commitment on Aztec, a verification registry plus the compiler the
+      # contract was verified with on an EVM chain. What is true on all of them
+      # is that the tying-together did not happen here, and that is now what it
+      # says.
+      #
+      # IT STILL DOES NOT DECIDE ON THE CHAIN'S BEHALF THAT NO SOURCE EXISTS —
+      # the property the previous correction landed and which is kept. "Nothing
+      # resolved" is a statement about this recording; "there is none" would be
+      # a claim about the chain, and on Ethereum it would additionally be false
+      # for most verified contracts.
       result.editor = EditorPane(availability: srcUnverified,
         reason: "No source resolved for the code this transaction ran, so " &
                 "this recording is at instruction level: every step is a " &
-                "program counter into the contract's bytecode. Aztec publishes " &
-                "a commitment to a contract's compiled artifact rather than " &
-                "the artifact itself, so source has to be fetched off-chain " &
-                "and checked against that commitment — which has not happened " &
-                "for this contract. Stepping is complete either way.")
+                "program counter into the contract's bytecode. A chain " &
+                "publishes the bytecode that ran and not the source it was " &
+                "built from, so source has to be obtained separately and " &
+                "proved against that bytecode — which has not happened for " &
+                "this contract. Stepping is complete either way.")
       # NOT "no function names". They HAVE names — the engine answers this
       # recording's call trace with `<toplevel>` and `enqueued-call-0` — and
       # for as long as this sentence said otherwise, the one pane that promised

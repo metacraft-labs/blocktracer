@@ -1,0 +1,1 @@
+{"method":"eth_getTransactionCount","params":["0xccc88a9d1b4ed6b0eaba998850414b24f1c315be","0x18dffff"],"kind":"immutable","http":200,"response":{"result":"0x1"}}

@@ -1,0 +1,1 @@
+{"method":"eth_getStorageAt","params":["0x97630aa70ab14ed9883b41dafccbc11349723043","0x3e9cdbbaf6ed5c66aaa4fd2e9c4ee9032dba64bc0e07223e944b083e897ed58f","0x18dffff"],"kind":"immutable","http":200,"response":{"result":"0x0000000000000000000000008b64f748cd261ee40bcaf46d4f38832f87e48136"}}

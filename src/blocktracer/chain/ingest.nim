@@ -179,8 +179,42 @@ type
     ## transaction is still said, still tested, and still what this ingest emits
     ## the moment the scope is `isFull` — which is the scope
     ## `test_chain_provenance` grades those states in.
+    ## `isCuratedIfWhole` IS THE ANSWER FOR A BUILD THAT CANNOT CHOOSE IN
+    ## ADVANCE, and it exists because the two above are a decision about a
+    ## CAPTURE being taken by a file that only knows about a DIRECTORY.
+    ##
+    ## `static_export.nim` runs one scope over every capture in the tree. Under
+    ## `isCurated` a capture that has no window in which every transaction opens
+    ## does not publish a smaller chain — it FAILS THE WHOLE SITE BUILD, with a
+    ## message whose own prescribed remedy ("ingest this capture with
+    ## scope=isFull") names an option the site build does not offer. Measured
+    ## 2026-10-08 on the Ethereum mainnet capture, which is one block holding 208
+    ## transactions of which the replay reached one: `just export` aborted at
+    ## `ingest.nim(1390)` and published nothing, including the three chains that
+    ## were already fine.
+    ##
+    ## That is the sentence "a second real chain is a directory, not a code
+    ## change" failing by exactly one line, and the line is this enum. A
+    ## single-transaction-per-block chain satisfies `isCurated` by accident of
+    ## its block shape; a chain whose blocks settle two hundred transactions
+    ## cannot, however good its recordings are.
+    ##
+    ## So this member asks the question the two above assume the answer to: CAN
+    ## the curated promise be kept over this capture? It is decided where both
+    ## facts already sit — the window, and the outcomes inside it — and the
+    ## fallback is `isFull`, which is the remedy the refusal already prescribed.
+    ## `IngestResult.scope` reports what was CHOSEN and `scopeFellBack` says
+    ## whether a choice was made, so a build log cannot quietly change what a
+    ## chain publishes.
+    ##
+    ## IT IS NOT A SOFTER `isCurated`. Nothing about the published rows changes:
+    ## a capture for which the curated promise holds publishes exactly the
+    ## curated tree, byte for byte, and one for which it does not publishes
+    ## exactly the full tree — including every honest sentence `isFull` has
+    ## always written about a transaction it could not replay.
     isFull = "full"
     isCurated = "curated"
+    isCuratedIfWhole = "curatedIfWhole"
 
   IngestConfig* = object
     outDir*: string       ## the tree being written (shared with the demo generator)
@@ -225,6 +259,13 @@ type
     observedBlocks*: int
     observedTransactions*: int
     windowFrom*, windowTo*: int
+    scopeFellBack*: bool
+      ## Whether `isCuratedIfWhole` CHOSE `isFull` because the curated promise
+      ## could not be kept over this capture. False both when the scope was
+      ## stated outright and when the probe found the promise holds, which are
+      ## two different things that a caller can tell apart by reading `scope` —
+      ## what this field adds is "a decision happened here", which is the part a
+      ## build log must not be silent about.
 
 const
   # THE SLUG IS DATA, NOT A CONSTANT. It comes out of the snapshot's provenance,
@@ -1355,7 +1396,45 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   var window = CurationWindow(lo: (if allHeights.len > 0: allHeights[0] else: 0),
                               hi: (if allHeights.len > 0: allHeights[^1] else: 0),
                               found: true, why: "")
-  if cfg.scope == isCurated:
+
+  # ── `isCuratedIfWhole`: ASK WHETHER THE CURATED PROMISE CAN BE KEPT ────────
+  #
+  # Decided HERE and not inside `curationWindow`, for the reason the invariant
+  # re-check below gives about itself: the promise is a property of the window
+  # AND of the outcomes inside it, and `curationWindow` sees only heights. A
+  # capture whose blocks each settle one transaction gets `isCurated`; one whose
+  # blocks settle many gets `isFull`, which is the remedy the two refusals below
+  # already prescribe in words.
+  #
+  # THE PROBE IS THE REFUSALS' OWN PREDICATE, run without raising. Writing it as
+  # a second rule would be a second answer to "is this capture curatable", and
+  # the two would drift the first time either refusal moved — so the same two
+  # conditions are asked, in the same order, and the ONLY difference is that
+  # this one answers in data.
+  #
+  # `curationWindow` is therefore called twice on the path that probes, and that
+  # is deliberate rather than overlooked: it is a pure function of four seqs
+  # called with the same four, so the probe and the binding below cannot come to
+  # different answers. Hoisting it would put the window in scope before the
+  # scope that decides whether there IS one.
+  var scope = cfg.scope
+  var scopeFellBack = false
+  if cfg.scope == isCuratedIfWhole:
+    let probe = curationWindow(allHeights, recordedHeights, tracelessHeights,
+                               positionedHeights)
+    var whole = probe.found
+    if whole:
+      for t in snap["transactions"]:
+        let h = t["blockNumber"].getInt
+        if h < probe.lo or h > probe.hi: continue
+        let o = t["outcome"].getStr
+        if o != "replayed" and o != "divergent":
+          whole = false
+          break
+    scope = if whole: isCurated else: isFull
+    scopeFellBack = not whole
+
+  if scope == isCurated:
     window = curationWindow(allHeights, recordedHeights, tracelessHeights,
                             positionedHeights)
     if not window.found:
@@ -1381,7 +1460,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # that is precisely the thing a curated build promises does not happen. It is
   # cheap and it is at the composition of the two facts — the window and the
   # outcomes — rather than inside the proc that produced only one of them.
-  if cfg.scope == isCurated:
+  if scope == isCurated:
     for t in snap["transactions"]:
       let h = t["blockNumber"].getInt
       if h < window.lo or h > window.hi: continue
@@ -2975,7 +3054,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # a check has to read prose to learn a fact. The published set and the set
       # it was chosen out of are both here, so "is this chain curated, and out of
       # what" is answered by the tree.
-      "scope": $cfg.scope,
+      # THE SCOPE WRITTEN HERE IS THE ONE THAT WAS APPLIED, never the one that
+      # was asked for. Under `isCuratedIfWhole` those differ, and a tree that
+      # published every transaction while declaring `curatedIfWhole` would be a
+      # tree whose own statement about itself needed a second lookup to
+      # interpret. `curatedIfWhole` is a BUILD's instruction and never a
+      # published value; `scopeFellBack` on the result is where a build log
+      # learns a choice was made.
+      "scope": $scope,
       "publishedWindow": {"from": window.lo, "to": window.hi},
       "observedBlocks": observedBlocks,
       "observedTransactions": observedTransactions,
@@ -3045,7 +3131,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     "head": {"height": headB.height, "hash": headB.hash},
     "finalized": {"height": finalizedHeight, "hash": finalizedHash}})
 
-  IngestResult(chain: chain, scope: cfg.scope,
+  IngestResult(chain: chain, scope: scope, scopeFellBack: scopeFellBack,
                blocks: blockRows.len, transactions: txCount,
                withTrace: withTrace, divergent: divergentCount,
                pruned: prunedCount, containerBytes: totalContainerBytes,

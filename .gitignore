@@ -202,3 +202,12 @@ nimcache/
 # `sources/` and `MAKING.md` are facts about the RECORDING, and all of them are
 # unchanged across the writer move. The container is a fact about the WRITER.
 fixtures/chain-health/readable-container/ct/*.ct
+
+# The Ethereum capture's work directory: the container the recorder writes from
+# the committed input set under fixtures/chain-inputs/, and the snapshot tree
+# produced from it. Both are DERIVED — `just eth-capture` rebuilds them from the
+# committed transcript in ~9 seconds — and the container is exactly what the `.ct`
+# ban refuses. The path is relative and fixed rather than a temp dir because the
+# recorder INTERNS it: `--out-dir` ends up inside the container, so an absolute
+# work directory would make the container host-specific.
+/.eth-capture/

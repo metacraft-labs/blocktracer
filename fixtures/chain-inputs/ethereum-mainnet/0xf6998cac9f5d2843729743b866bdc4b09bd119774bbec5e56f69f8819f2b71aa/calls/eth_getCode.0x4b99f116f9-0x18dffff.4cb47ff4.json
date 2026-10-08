@@ -1,0 +1,1 @@
+{"method":"eth_getCode","params":["0x4b99f116f92a1f57df8e465bb72099dc4f2f3a99","0x18dffff"],"kind":"immutable","http":200,"response":{"result":"0x363d3d373d3d3d363d734181f37093e3a21a4e0d5ef355c5b1938cba5bfb5af43d82803e903d91602b57fd5bf3"}}

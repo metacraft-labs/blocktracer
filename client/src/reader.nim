@@ -132,6 +132,18 @@ type
       ## TRACE should read it from that trace's manifest, which is the only
       ## place the question has one answer.
     profileName*, traceSchema*: string
+    chainProfile*: ChainProfile
+      ## WHAT THE REGISTRY ROW DECLARES ABOUT THE CHAIN — its historical reach,
+      ## its history floor, its ordering kind, its instruction-set identity.
+      ##
+      ## Named `chainProfile` and not `profile` because `profileName` above is a
+      ## different thing entirely: that is the RECORDING profile the recorder was
+      ## pinned to. Two fields called `profile` on one object, meaning the
+      ## recorder's settings and the chain's capabilities, is the kind of
+      ## collision a reader resolves wrongly once and then trusts.
+      ##
+      ## Carried from the session, which pinned it; see `ChainSession.profile`
+      ## for why it is resolved once per render and not per read.
     provenanceKind*, provenanceLabel*, provenanceDetail*: string
       ## Where this chain's data came from, as the tree states it. Empty
       ## `provenanceKind` means the generation published none, which for this
@@ -632,6 +644,7 @@ proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
     recorderId: s.pin.recorder.id, recorderVersion: s.pin.recorder.version,
     recorderBuild: s.pin.recorder.build,
     profileName: s.pin.profile.name, traceSchema: s.pin.traceSchema,
+    chainProfile: s.profile,
     provenanceKind: s.provenanceKind, provenanceLabel: s.provenanceLabel,
     provenanceDetail: s.provenanceDetail)
 
