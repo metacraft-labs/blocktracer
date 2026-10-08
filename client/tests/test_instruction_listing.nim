@@ -620,13 +620,37 @@ suite "4 — the prose sits beside the listing, and says what is true now":
                                    suffix).body
             ck "no debug symbols, no file map and no source text" notin body
             ck "The chain publishes no source for this contract" notin body
+            # AND IT NAMES NO CHAIN. Added 2026-10-08 with the sentence it
+            # grades. The previous wording said "Aztec publishes a commitment
+            # to a contract's compiled artifact", and this constructor serves
+            # every chain: the first Ethereum mainnet transaction ingested into
+            # this tree rendered that sentence on a USDT transfer. The arm is
+            # written as an absence over the SERVED BODY of every transaction
+            # of every chain in the tree, because the defect was not that the
+            # sentence was unreachable — it was reachable and correct here, and
+            # false one chain over.
+            # THE RETIRED CLAUSE AND NOT THE WORD "Aztec". The first draft of
+            # this arm banned `"Aztec publishes"` and bit immediately — on
+            # `demo_session.nim`'s OTHER Aztec sentence, "the variable table is
+            # empty — Aztec publishes these contracts compiled without variable
+            # debug information", which is reached only where an Aztec
+            # artifact's symbols DID resolve and is true where it appears. A ban
+            # wide enough to catch a correct sentence is a ban that gets
+            # loosened later by whoever is in a hurry.
+            ck "Aztec publishes a commitment" notin body
 
   test "what it says instead is about THIS recording, and names the route out":
     for s in subjects:
       let body = debugBody(s)
       ck body.contains("No source resolved for the code this transaction ran")
-      ck body.contains("commitment to a contract's compiled artifact")
-      ck body.contains("fetched off-chain and checked against that commitment")
+      # CHANGED 2026-10-08, and the expectation was STALE rather than the code
+      # wrong: these three clauses pinned a sentence that named Aztec, and the
+      # thing they were really grading — that the pane explains the gap in
+      # terms of a mechanism rather than declaring the source nonexistent — is
+      # graded by the chain-neutral wording just as well. See
+      # `demo_session.nim`'s note at the sentence itself.
+      ck body.contains("publishes the bytecode that ran and not the source")
+      ck body.contains("obtained separately and proved against that bytecode")
       ck body.contains("which has not happened for this contract")
       ck body.contains("Stepping is complete")
 
@@ -646,7 +670,19 @@ suite "4 — the prose sits beside the listing, and says what is true now":
     ck occurrences(html, "class=\"srcpos\"") == 1
 
   test "assertion count":
-    expectCount(4172)
+    # 4172 -> 6116 on 2026-10-09, and the whole delta is ONE new assertion
+    # multiplied by the walk it sits in. The retired-claim arm above walks every
+    # (chain, block, transaction, route) quadruple in the tree and carried two
+    # absences per quadruple; it now carries three. So the previous
+    # contribution was 2N and the new one is 3N, the delta IS N, and N = 6116 -
+    # 4172 = 1944 — 972 published (chain, block, transaction) triples at two
+    # routes each (`/tx/<h>` and `/tx/<h>/debug`).
+    #
+    # The figure is RAISED and no assertion was removed to pay for it. The new
+    # absence is "Aztec publishes a commitment" — a sentence that was correct on
+    # the chain it was written for and false on the first Ethereum transaction
+    # this tree ingested; see `demo_session.nim` at the sentence itself.
+    expectCount(6116)
 
 suite "5 — source and instructions coexist; neither is hard-coded":
   asserted = 0
