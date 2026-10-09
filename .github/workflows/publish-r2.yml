@@ -91,6 +91,22 @@ on:
           by every chain, not guarded per chain.
         type: boolean
         default: false
+      include-demo-chain:
+        description: >-
+          With `render-over-live`, also publish the DEMO chain out of this
+          build's own tree. On by default, which is the behaviour this workflow
+          has always had — but measured 2026-10-10, it is the wrong default for
+          production: the live bucket serves `aztec`, `aztec-testnet` and
+          `aztec-testnet-frames` and NO demo, while this build's demo chain
+          carries 15 container-version-5 traces. The engine production pins
+          accepts container 2..=4 (sha256 `842c7164dd667085…`, probed: zero
+          CCP-5 compact-loader strings), so publishing them renders 19 debug
+          pages whose replay cannot open its own recordings — the one
+          capability a curated demo exists to show. Turn it OFF until the
+          engine and the corpus move together, which is what
+          `client/hydrate/engine-pin.txt` requires.
+        type: boolean
+        default: true
       render-over-live:
         description: >-
           Render the client over the LIVE bucket's data instead of over this
@@ -196,8 +212,23 @@ jobs:
       - name: Build the site tree
         env:
           RENDER_OVER_LIVE: ${{ inputs.render-over-live }}
+          INCLUDE_DEMO_CHAIN: ${{ inputs.include-demo-chain }}
         run: |
           set -euo pipefail
+          # ONE FLAG, DECIDED HERE SO THE INVOCATION BELOW STAYS ONE LINE PER
+          # SWITCH. Empty rather than absent: `$DEMO_ORIGIN_FLAG` unquoted on
+          # the command line disappears when empty, which is what we want, and
+          # `set -u` would refuse an undefined one — so it is always assigned.
+          if [ "$INCLUDE_DEMO_CHAIN" = "true" ]; then
+            DEMO_ORIGIN_FLAG='-d:chainOrigins=demo=dist'
+            echo "demo chain: INCLUDED (-d:chainOrigins=demo=dist)"
+          else
+            DEMO_ORIGIN_FLAG=''
+            echo "demo chain: HELD BACK — no chainOrigins entry, so the demo" \
+                 "chain inherits the live data origin, which does not carry it," \
+                 "and is therefore not rendered. This is the correct setting" \
+                 "while the published engine cannot open container version 5."
+          fi
           if [ "$RENDER_OVER_LIVE" = "true" ]; then
             LIVE_ORIGIN="${LIVE_ORIGIN:?render-over-live needs the staging step above to have run}"
             ( cd client
@@ -223,7 +254,7 @@ jobs:
                 -d:searchBundle=/assets/search.js \
                 -d:settingsBundle=/assets/settings.js \
                 -d:dataOrigin="$LIVE_ORIGIN" \
-                -d:chainOrigins=demo=dist \
+                $DEMO_ORIGIN_FLAG \
                 src/static_export.nim
             )
             cp -rL client/dist site && chmod -R u+w site
