@@ -1174,13 +1174,33 @@ console.error('\n§9 — the container against the claim, over the one recording
   const subjectRow = snap.transactions[0];
   const rec = subjectRow.recording;
   // "RECORDED", not "committed", and the word changed when the container stopped being
-  // committed (CRR-4). The ASSERTION is unchanged and still requires the file to be there —
-  // what moved is who put it there, and a label that still said "committed" would be the
-  // only thing in this file claiming a `.ct` is in git.
-  ck('the readable-container subject is recorded, is one traced row, and names a container',
+  // committed (CRR-4). What moved is who put it there, and a label that still said
+  // "committed" would be the only thing in this file claiming a `.ct` is in git.
+  //
+  // AND THE ASSERTION HAD TO MOVE WITH IT, which it had not. It required the file to be
+  // there unconditionally — true for a committed container, true for a generated one only on
+  // a host that can generate it. CI is not such a host: the sibling that supplies the
+  // fixture generator is not checked out there, `makeReadableContainer()` returns `absent`,
+  // and this one arm went red on every run while the two declared counts stayed correct.
+  // That is the arm contradicting `probeReader` and the `subject:` line, both of which
+  // already read `SUBJECT_RECORDING.state` and report an absence as an absence.
+  //
+  // So the arm is now TOTAL over the recorder's states, and it is stronger than what it
+  // replaces rather than relaxed. The declaration — one traced row, replayed, naming a
+  // container — is checked on every host, because it is committed and host-independent.
+  // The FILE is required to be present exactly when the recorder says it recorded one, and
+  // required to be ABSENT when it says it did not. The second half is the arm CRR-4 is
+  // about: a `.ct` lying in this tree while nothing regenerates it is precisely the defect
+  // that made the container stale for three days in October, and an existence check that
+  // only ever looked for presence could not see it.
+  const subjectRecorded = SUBJECT_RECORDING.state === 'ready';
+  ck(subjectRecorded
+       ? 'the readable-container subject is recorded, is one traced row, and names a container'
+       : 'the readable-container subject declares one traced row naming a container, and no '
+         + `container is lying in the tree unrecorded (recorder: ${SUBJECT_RECORDING.state})`,
      snap.transactions.length === 1 && subjectRow.outcome === 'replayed'
      && typeof subjectRow.container === 'string'
-     && existsSync(join(SUBJECT, subjectRow.container)));
+     && existsSync(join(SUBJECT, subjectRow.container)) === subjectRecorded);
   ck(`…and it declares every claim member the agreements name — `
      + `steps ${rec.steps}, events ${rec.events}, callsOpened ${rec.callsOpened}`,
      REG.containerClaimAgreements.agreements.every((a) =>
