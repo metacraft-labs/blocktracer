@@ -232,9 +232,10 @@ LIVE element input
 #
 # Read this section as the SHAPE OF THE PORT rather than as a list of
 # mistakes. Eight vendored sheets draw the whole of CodeTracer's component
-# layer; BlockTracer builds five panes out of it. 182 of the 205 items the
-# port emits are for components this product does not build, and that is the
-# port working as intended — the bytes are upstream's, a re-vendor brings
+# layer; BlockTracer builds five panes out of it. 180 OF THE 203 ITEMS the
+# port emits are for components this product does not build — 159 classes, 21
+# `[class*=]` substrings, 13 ids and 10 elements, of which 23 are LIVE — and
+# that is the port working as intended — the bytes are upstream's, a re-vendor brings
 # upstream's changes, and a rule for a component nobody renders costs a few
 # hundred bytes of gzipped CSS and nothing else.
 #
@@ -315,9 +316,10 @@ INERT class hamburger-dropdown
     DEFECT 3's other half. Upstream's dropdown menu: a trigger, the list, the
     rows. This route's menus are `:target` links with no JavaScript to open
     one, which is also why `@keyframes ct-dropdown-reveal` is in `Dropped`.
-    Its 1.08:1 text-on-surface contrast is CodeTracer's OWN binding
-    (`shared_widgets.styl` uses a surface role as a text colour) and is
-    faithful rather than a defect — it must not be "fixed" here. It also
+    Its 1.08:1 text-on-surface contrast is CodeTracer's OWN binding —
+    `shared_widgets.styl:722` is `color: colors-ui-surface-input-default`, a
+    SURFACE role used as a text colour, over a raised surface on the line
+    before it — and is faithful rather than a defect — it must not be "fixed" here. It also
     carries the `z-index: 50 + 7` the browser discards; see the scope note
     above.
 
