@@ -984,10 +984,27 @@ jobs:
         # here. The recipe stays the readable home of the command — its own comment
         # block is the explanation of why the check exists — and this is a guard
         # against the two drifting, not a second declaration of them.
+        #
+        # THE FILENAME IS `Justfile`, WITH A CAPITAL J, AND THAT IS LOAD-BEARING HERE.
+        # The first version of this guard grepped `justfile`. It passed on macOS,
+        # whose filesystem is case-insensitive, and failed on this runner, which is
+        # not: there is no `justfile` on Linux, so `grep` errored with "No such file
+        # or directory", the `!` turned that into a drift report, and the job went red
+        # claiming the recipe had changed when nothing had. A missing file and a
+        # drifted recipe are therefore checked SEPARATELY below — conflating them is
+        # what made that failure unreadable, and a guard that cannot say which of the
+        # two it found is worse than no guard.
         run: |
+          recipe_file=Justfile
           recipe_cmd='node tools/chain/chain-health.mjs --corpus --quiet'
-          if ! grep -qF "$recipe_cmd" justfile; then
-            echo "::error::the justfile's chain-health-check recipe no longer invokes" \
+          if [ ! -f "$recipe_file" ]; then
+            echo "::error::$recipe_file is not here, so the command this step inlines" \
+                 "cannot be checked against the recipe it came from. It was renamed or" \
+                 "removed; this is not recipe drift."
+            exit 1
+          fi
+          if ! grep -qF "$recipe_cmd" "$recipe_file"; then
+            echo "::error::$recipe_file's chain-health-check recipe no longer invokes" \
                  "$recipe_cmd -- this step inlines that command because the job has no" \
                  "just, and the two have drifted. Reconcile them."
             exit 1
