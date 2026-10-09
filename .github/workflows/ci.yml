@@ -963,7 +963,37 @@ jobs:
         # floor and a side below it is a failure with the figure quoted.
         #
         # Offline: it reads snapshot trees and one committed JSON document.
-        run: just chain-health-check
+        #
+        # AND IT IS RUN AS `node`, NOT AS `just`, BECAUSE THIS JOB HAS NO `just`.
+        # `deploy-gates` is deliberately toolchain-free — `actions/checkout` and
+        # `actions/setup-node`, nothing else — and every other step in it is a bare
+        # `node` or `bash`. This was the ONLY bare `just` invocation in any workflow
+        # in this repository, and it had never once run: the job failed earlier, at
+        # `chain-health-selftest.mjs`, so the step was never reached. Fixing that arm
+        # exposed this one, which exited 127 with `just: command not found`. Note the
+        # job itself is new on `agents` and has never been green anywhere, so neither
+        # failure is a regression — they are a new gate's first two defects.
+        # Installing `just` would be a new pattern for one line, and every other
+        # `just` call in this file goes through `nix develop .#ci --command`, which
+        # this job has no nix for.
+        #
+        # SO THE COMMAND IS INLINED, AND CROSS-CHECKED AGAINST THE RECIPE IT CAME
+        # FROM. An inlined copy that nothing compares is exactly the "second copy that
+        # can go stale" this repository refuses elsewhere, so the step reads the
+        # `justfile` and refuses to run when the recipe stops invoking what is written
+        # here. The recipe stays the readable home of the command — its own comment
+        # block is the explanation of why the check exists — and this is a guard
+        # against the two drifting, not a second declaration of them.
+        run: |
+          recipe_cmd='node tools/chain/chain-health.mjs --corpus --quiet'
+          if ! grep -qF "$recipe_cmd" justfile; then
+            echo "::error::the justfile's chain-health-check recipe no longer invokes" \
+                 "$recipe_cmd -- this step inlines that command because the job has no" \
+                 "just, and the two have drifted. Reconcile them."
+            exit 1
+          fi
+          node tools/chain/chain-health.mjs --corpus --quiet \
+            --expect tools/chain/measurements/chain-health.json > /dev/null
 
   contract:
     runs-on: [self-hosted, linux, x64]
