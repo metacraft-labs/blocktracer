@@ -222,13 +222,22 @@ proc paneNote(note: string): string =
   ## stylesheet's header states its scope as panel-level messages and
   ## explicitly excludes "inline 'no rows yet' lines that sit *within* a list
   ## alongside real rows … the side inset would indent them out of line with
-  ## the rows around them". Three notes on this route are exactly that — the
+  ## the rows around them". FIVE notes on this route are exactly that — the
   ## `.srcrung` caption above the listing, the decoded-input note beside the
-  ## payload rows, and the no-session prose, whose block is centred while the
-  ## prose itself is deliberately left-aligned. They carry `.btnote`, which is
-  ## BlockTracer's and says so. Applying the shared treatment to them was
-  ## measured and reverted: `empty_states.styl` centres its text, and the
-  ## decoded-input paragraph came out centred over four lines.
+  ## payload rows, the no-session prose (whose block is centred while the prose
+  ## itself is deliberately left-aligned), and the attribution and coverage
+  ## notes in the `.srcattr` / `.srccause` strips above the source documents.
+  ## They carry `.btnote`, which is BlockTracer's and says so. Applying the
+  ## shared treatment to them was measured and reverted: `empty_states.styl`
+  ## centres its text, and the decoded-input paragraph came out centred over
+  ## four lines.
+  ##
+  ## The last two arrived at `.btnote` by a correction rather than by design:
+  ## they were the last users of the retired pane-note class, which
+  ## `debugger_css.nim`'s retirement table had already listed as deleted and
+  ## replaced by `.empty-overlay`. Both halves of that were wrong — the class
+  ## was still live in markup and in a rule, and `.empty-overlay` is not what
+  ## a note inside a strip wants, by upstream's own line quoted above.
   ui:
     p(class = "empty-overlay"): text note
 
@@ -1361,7 +1370,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     else: (block:
       ui:
         tdiv(class = "srcattr", `aria-live` = "polite"):
-          p(class = "panenote"): text p.attributionNote)
+          p(class = "btnote"): text p.attributionNote)
 
   # THE CAUSE OF THE STEPS WITH NO LINE, DIRECTLY UNDER THE RATIO THAT STATES
   # THEM, and on both sides of the rung boundary for the reason `rung` itself is:
@@ -1377,14 +1386,14 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   #
   # Its own element rather than more text inside `rung`'s `<p>`: the two are
   # independently reachable (a pane can have a boundary and no per-contract
-  # record, and `unpositionedCauseNote` returns "" then), and a `.panenote`
-  # carrying two paragraphs' worth of prose is the shape a reader skips.
+  # record, and `unpositionedCauseNote` returns "" then), and one note carrying
+  # two paragraphs' worth of prose is the shape a reader skips.
   let cause =
     if p.coverageNote.len == 0: ""
     else: (block:
       ui:
         tdiv(class = "srccause", `aria-live` = "polite"):
-          p(class = "panenote"): text p.coverageNote)
+          p(class = "btnote"): text p.coverageNote)
 
   if not listing:
     return renderFlowRail(p.flow) & rung & cause & attribution & wrap

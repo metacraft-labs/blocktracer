@@ -298,9 +298,11 @@ html[data-register="debugger"],
    The deleted class names are written below WITHOUT their leading dot, on
    purpose and for the reason this file gives twice already: it is inlined into
    every served page, so a comment spelling a retired selector puts that
-   selector's text back into the bytes `test_debug_route` asserts over. Written
+   selector's text back into the served bytes a suite asserts over. Written
    this way, a `notin` assertion over the dotted spelling of any of them stays
-   true — and `test_debug_route` makes exactly that assertion.
+   true — and `test_ct_components_css` makes exactly that assertion, over
+   `debugRouteCss`, in "the retired BlockTracer pane vocabulary is gone from
+   the served CSS".
 
      deleted (no longer a selector anywhere)   replaced by
      ───────────────────────────────────────   ──────────────────────────────
@@ -309,8 +311,12 @@ html[data-register="debugger"],
      panehead                                  .lm_header
      panetitle                                 .lm_title
      panebody                                  .lm_content
-     panenote                                  .empty-overlay
-                                                 (empty_states.styl)
+     panenote                                  .empty-overlay for a pane's
+                                                 WHOLE-body message
+                                                 (empty_states.styl), .btnote
+                                                 for a note INSIDE a strip —
+                                                 upstream's own header excludes
+                                                 the second from the first
      ln stack                                  .lm_stack
      ln stack > pane                           .lm_content
      ln stack > pane > panehead                (nothing: a stacked panel never
@@ -431,18 +437,21 @@ a.lm_title{display:block;line-height:inherit}
 /* NO CODETRACER COUNTERPART, and upstream says so itself. `empty_states.styl`
    opens by stating its scope as panel-level messages and excluding "inline
    'no rows yet' lines that sit *within* a list alongside real rows … the side
-   inset would indent them out of line with the rows around them". Three notes
+   inset would indent them out of line with the rows around them". FIVE notes
    on this route are that kind: the `.srcrung` caption above the instruction
-   listing, the decoded-input note beside the payload rows, and the no-session
-   prose, whose BLOCK is centred while the prose is deliberately left-aligned.
+   listing, the decoded-input note beside the payload rows, the no-session
+   prose (whose BLOCK is centred while the prose is deliberately left-aligned),
+   and the attribution and coverage notes in the `.srcattr` / `.srccause`
+   strips, which were the last two users of the retired pane-note class.
    `.empty-overlay` centres its text and insets it 2.5rem a side, which is
-   right for "this panel is empty" and wrong for all three — measured on
-   `debugger--metadata-pane`, where the decoded-input paragraph came out
+   right for "this panel is empty" and wrong for every one of them — measured
+   on `debugger--metadata-pane`, where the decoded-input paragraph came out
    centred over four lines.
 
    So they keep BlockTracer's own treatment, under a name that says whose it
    is. This is the same treatment the retired pane-note class carried, and it
-   is unchanged. */
+   is unchanged — the strip notes override the padding and the size, for the
+   reason their own rule gives, and nothing here moved to accommodate them. */
 .btnote{padding:var(--bt-density-card-pad) var(--bt-density-cell-x);
   color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);
   line-height:var(--bt-type-body-sm-line);max-width:var(--bt-measure-prose)}
@@ -919,10 +928,26 @@ a.lm_title{display:block;line-height:inherit}
 .srcattr,.srccause{flex:0 0 auto;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
-.srcattr .panenote,.srccause .panenote{
+/* The note inside either strip is a `.btnote` — the class whose own comment
+   above states this exact case, and the class the `.srcrung` caption directly
+   beneath these two already uses. It was the retired pane-note class until
+   this change: the retirement table below had listed that class as deleted and
+   replaced by `.empty-overlay` while it was still live here and in two
+   renderers, and `.empty-overlay` was never the right answer for it — a note
+   inside a strip is precisely what `empty_states.styl`'s own header excludes.
+
+   THE RENDERING IS UNCHANGED, which is why the three overrides are here.
+   `.btnote`'s own rule is written for a note in a pane BODY: card padding, the
+   body-small size, and the prose measure. A strip is one sentence in a
+   bordered band the width of the pane, so it keeps the tighter padding and the
+   label size it has always had, and declines the measure — a 68ch cap inside a
+   full-width band would leave a ragged right edge against a border that runs
+   the whole way. `color` and `line-height` are NOT restated: `.btnote` already
+   declares the same two values, and a second copy is a second thing to keep in
+   step. */
+.srcattr .btnote,.srccause .btnote{
   padding:var(--bt-space-2xs) var(--bt-density-cell-x);
-  color:var(--bt-text-muted);font-size:var(--bt-type-label-size);
-  line-height:var(--bt-type-body-sm-line)}
+  font-size:var(--bt-type-label-size);max-width:none}
 .srcline.cattr .n{text-decoration:underline dotted;
   text-decoration-thickness:var(--bt-stroke-hairline);
   text-underline-offset:var(--bt-space-3xs)}
@@ -1711,9 +1736,12 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    reason they are `.instrcap`'s: it is a sentence rather than data, so it is not
    monospace and it WRAPS, and it sits on the sunken surface with a hairline
    under it so a reader learns that the strip above rows is a different kind of
-   thing from the rows. It is NOT `.panenote`: that class is the empty-state
-   paragraph, which is padded as a card because it is the whole of a pane's
-   body, and reusing it here would put card padding above a dense list. */
+   thing from the rows. It is NOT `.empty-overlay`: that is the panel-level
+   empty-state paragraph, which is centred and inset 2.5rem a side because it
+   is the whole of a pane's body, and reusing it here would centre a caption
+   over a dense list. It is not a plain `.btnote` either, for the same reason
+   `.srcattr`'s note overrides one: card padding above a dense list is too
+   much air. */
 .evcap{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken);

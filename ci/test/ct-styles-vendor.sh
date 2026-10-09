@@ -4,7 +4,7 @@
 # stylesheets honest.
 #
 # `client/src/debugger/vendor/frontend/styles/components/*.styl` are
-# byte-verbatim copies of six files from CodeTracer's own
+# byte-verbatim copies of CodeTracer's own
 # `src/frontend/styles/components/`, and `../ct_styles.vendor.json` records
 # where they came from and why they are copies. They are the rules that DRAW a
 # CodeTracer window — the tab strip, the connectors, the panel surface, the
@@ -15,7 +15,8 @@
 # use, because three conventions for one idea is two extra things to learn:
 #
 #   A. LOCAL INTEGRITY (always runs, needs nothing but this repository)
-#      All six files still hash to the sha256s in the manifest, and the
+#      Every vendored file still hashes to its sha256 in the manifest, the
+#      manifest lists exactly the files the port compiles, and the
 #      manifest's commit EQUALS `ci/embed-sdk-pin.env`'s CODETRACER_REF. An
 #      edit here — a helpful tweak, a merge, a formatter — fails.
 #

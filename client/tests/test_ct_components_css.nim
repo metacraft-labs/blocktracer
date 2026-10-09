@@ -1,6 +1,7 @@
 ## The CodeTracer component port, asserted as a PORT and not as a stylesheet.
 ##
-## `components/ct_components_css` compiles six vendored `.styl` files into the
+## `components/ct_components_css` compiles the vendored `.styl` files under
+## `src/debugger/vendor/frontend/styles/components/` into the
 ## CSS this site serves. The vendor gate (`ci/test/ct-styles-vendor.sh`) proves
 ## the INPUT is still upstream's bytes; this proves the OUTPUT is still a port
 ## of them. Those are different failures and neither catches the other: a
@@ -32,8 +33,32 @@ suite "the CodeTracer component port — the rules are upstream's, compiled":
     ## in the shipped stylesheet is found upstream by reading down from the
     ## header above it. A file that compiled to nothing would have no header,
     ## which is what this notices.
+    ##
+    ## STATED AS A RELATIONSHIP, NOT AS A COUNT, and the history is the reason.
+    ## This was `sources.len == 6`, the count the port landed with (`40db9e8`),
+    ## and it went RED when `tab.styl` (`b6093f5`) and `shared_widgets.styl`
+    ## were vendored — i.e. it failed for the one change it should have been silent
+    ## about, and it would have been silent about the change it exists to
+    ## catch, because a sheet that compiled to nothing leaves `sources.len`
+    ## exactly where it was. A literal count is also the restatement of a
+    ## declaration this module's header forbids: `vendoredSources()` IS the
+    ## list, so `== 8` asserts nothing about the port.
+    ##
+    ## The claim instead is that the two SIDES agree: one vendored source, one
+    ## provenance header in the emitted stylesheet. That is bidirectional — a
+    ## sheet that compiled to nothing loses its header while keeping its row,
+    ## and a header with no sheet behind it loses its row while keeping its
+    ## header — and neither direction needs a number anybody maintains.
     let sources = vendoredSources()
-    check sources.len == 6
+    let headers = codetracerComponentCss.count(
+      "ported verbatim from CodeTracer ")
+    check headers == sources.len
+    # …and a floor, so the equality cannot be satisfied by both sides
+    # collapsing to zero. Four, which is well under the six this port landed
+    # with (`40db9e8`) and the eight it carries now: a floor exists to refuse
+    # a 0 == 0 pass, so it is set where no honest re-vendor can reach it and
+    # nobody has to move it when one arrives.
+    check sources.len >= 4
     for src in sources:
       check src.origin.startsWith("src/frontend/styles/components/")
       check src.text.len > 0
@@ -81,23 +106,84 @@ suite "the CodeTracer component port — the rules are upstream's, compiled":
     ## is only safe while the list is the SHORT one — otherwise a bridge row
     ## going missing would quietly unstyle a panel.
     ##
-    ## Two families are legitimate: `ct-images-*`, CodeTracer's own SVG assets,
-    ## which this site does not ship; and the three theme-file constants
-    ## (`LAYOUT_*`, `RR_TICKS_*`, `TOOLTIP_DELAY_TIMER`) that live in files this
-    ## port does not vendor. Anything else is a defect.
+    ## TWO FAMILIES are legitimate, and between them they have four markers:
+    ##
+    ##   * `ct-images-*` — CodeTracer's own SVG asset handles, which this site
+    ##     does not ship.
+    ##
+    ##   * the theme-file constants, `LAYOUT_*` / `RR_TICKS_*` /
+    ##     `TOOLTIP_DELAY_TIMER` / `SEARCHED_TOKEN_COLOR`. Four markers, one
+    ##     family: every one of them is assigned in
+    ##     `src/frontend/styles/defaults.styl` or in a `default_*_theme.styl`
+    ##     beside it, and this port vendors `styles/components/` only. The
+    ##     reason is the family's and not each marker's, which is why the
+    ##     family is what this list is about.
+    ##
+    ## Anything else is a defect, and a `colors-*` row is the SPECIFIC defect
+    ## this notices: upstream's generated token layer resolves every one of its
+    ## role names at the pinned commit, so an unresolved `colors-*` is a
+    ## missing row in `Bridge` and therefore a declaration of upstream's that
+    ## this port has silently stopped emitting. Four of them were on this list
+    ## — `border-contrast`, `divider-primary`, `surface-base-raised`,
+    ## `surface-input-default` — which cost a tab's hover underline, a toolbar
+    ## divider and the dropdown menu's whole surface.
+    const Allowed = ["ct-images-", "LAYOUT_", "RR_TICKS_",
+                     "TOOLTIP_DELAY_TIMER", "SEARCHED_TOKEN_COLOR"]
     for u in ctPortReport().unresolved:
-      check "ct-images-" in u or "LAYOUT_" in u or "RR_TICKS_" in u or
-            "TOOLTIP_DELAY_TIMER" in u
+      var ok = false
+      for marker in Allowed:
+        if marker in u: ok = true
+      if not ok: echo "  unresolved outside both families: ", u
+      check ok
 
   test "every dropped rule is dropped ON PURPOSE, with a reason":
-    ## `Dropped` is the only place a rule leaves the port, and each entry
-    ## carries prose. A silent drop is the failure this whole module is built
-    ## to avoid, so the count is pinned to the declared table.
+    ## A silent drop is the failure this whole module is built to avoid, so
+    ## every row the port reports has to be ACCOUNTED FOR.
+    ##
+    ## THIS WAS `rep.dropped.len == Dropped.len` AND THE ARITHMETIC WAS NEVER
+    ## TRUE. It measured 14 against 9, and all 14 were accounted for:
+    ##
+    ##   * 10 rows come from the 9 declared keys, because one key legitimately
+    ##     matches TWO rules. `@media (prefers-reduced-motion: reduce)` occurs
+    ##     in `golden_layout.styl` and in `shared_widgets.styl`, the key IS the
+    ##     selector text, and the entry's own declared reason says so in words.
+    ##     A table keyed by selector text can never be counted one-to-one
+    ##     against rules.
+    ##
+    ##   * 4 rows are a DIFFERENT MECHANISM that arrived later: a build
+    ##     condition (`if IS_EXTENSION` / `if !IS_EXTENSION`) is reported as a
+    ##     drop whether or not its arm was taken, and `Dropped` has nothing to
+    ##     do with it. Padding `Dropped` to 14 would have declared four rules
+    ##     dropped that are not, and bumping the 9 to 14 would have been a
+    ##     number to re-bump on the next conditional either way.
+    ##
+    ## So the claim is the one the count was reaching for, in both directions:
+    ## every reported row is either a declared key or a self-describing
+    ## conditional, AND every declared key is used by at least one row — so a
+    ## key left behind for a rule upstream has deleted goes red rather than
+    ## rotting in the table.
     let rep = ctPortReport()
-    check rep.dropped.len == Dropped.len
+    # Not vacuous: the port drops rules, and a report with none would mean the
+    # drop mechanism had stopped running rather than that nothing is dropped.
+    check rep.dropped.len > 0
+    var usage = initTable[string, int]()
+    for (key, _) in Dropped: usage[key] = 0
     for d in rep.dropped:
       check " — " in d               # the reason is present
       check d.startsWith("src/frontend/styles/components/")
+      # `origin:line  <text> — <reason>`; the text is what is matched.
+      let body = d[d.find("  ") + 2 ..< d.find(" — ")]
+      if body in usage:
+        inc usage[body]
+      else:
+        # The only other way out is a build condition, which names its own
+        # condition and whether the arm was taken. Anything else is the silent
+        # drop this module exists to prevent.
+        check body.startsWith("if ")
+        check ("— taken (" in d) or ("— not taken (" in d)
+    for key, uses in usage.pairs:
+      if uses == 0: echo "  declared Dropped key matches no rule: ", key
+      check uses > 0
 
   test "every font family a vendored rule names is rebound to a face we serve":
     ## The one place the two products spell the same face differently:
@@ -106,13 +192,18 @@ suite "the CodeTracer component port — the rules are upstream's, compiled":
     ## `'Space Mono'`. Left alone the ported rules would fall back to the UA
     ## default — a regression dressed as fidelity.
     ##
-    ## ASSERTED AGAINST THE VENDORED SOURCE rather than against both aliases.
-    ## At the pinned commit every one of the thirteen `font-family` lines in
-    ## these six files names SpaceGrotesk — upstream moved `.data-table` and
-    ## `button` off SpaceMono before this pin — so asserting that the mono
-    ## binding appears in the OUTPUT would assert a rule upstream does not
-    ## have. The mono alias stays declared as the guard for a re-vendor that
-    ## brings SpaceMono back, and this loop is what would then require it.
+    ## ASSERTED AGAINST THE VENDORED SOURCE rather than against a fixed list of
+    ## aliases, and that is the whole point of the loop: which faces the
+    ## vendored bytes actually name is upstream's decision and it MOVES. At one
+    ## pin every live `font-family` line named SpaceGrotesk, because upstream
+    ## had moved `.data-table` and `button` off SpaceMono; at the pin this tree
+    ## carries, `shared_widgets.styl` names SpaceMono again. A test that had
+    ## asserted the sans binding by name would have gone on passing through
+    ## both moves while the mono binding was unexercised in one of them.
+    ##
+    ## So the REPLACEMENT is derived from the same table the substitution is:
+    ## each spelling the sources name must be absent from the output and its
+    ## own declared replacement present. Nothing below spells a family.
     var wanted: seq[string]
     for src in vendoredSources():
       for (spelling, _) in Aliases:
@@ -122,8 +213,11 @@ suite "the CodeTracer component port — the rules are upstream's, compiled":
     for spelling in wanted:
       # the spelling is gone from the output…
       check spelling notin codetracerComponentCss
-    # …and replaced by a family this site's own @font-face block declares.
-    check "var(--bt-font-sans)" in codetracerComponentCss
+      # …and replaced by the family this site's own @font-face block declares,
+      # which is the row `Aliases` carries for it.
+      for (alias, replacement) in Aliases:
+        if alias == spelling:
+          check replacement in codetracerComponentCss
 
   test "the active tab's rules are upstream's bytes, not a second copy":
     ## `activeTabCss()` re-emits every `.lm_active` rule under the

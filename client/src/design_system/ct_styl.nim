@@ -49,7 +49,7 @@
 ##
 ## ## The subset
 ##
-## Everything the six vendored files use, and nothing else. A construct outside
+## Everything the vendored files use, and nothing else. A construct outside
 ## the subset RAISES rather than being silently skipped — a transpiler that
 ## quietly drops what it does not understand is how a port comes to differ from
 ## its origin without anyone noticing.

@@ -1,6 +1,6 @@
 {
   "_why": [
-    "The six files under `frontend/styles/components/` beside this manifest are",
+    "The files under `frontend/styles/components/` beside this manifest are",
     "VERBATIM copies of CodeTracer's own Stylus component stylesheets. Together",
     "they are the rules that DRAW a CodeTracer window: the tab strip and its",
     "curved connectors, the panel surface and its splitters (golden_layout), the",
@@ -68,8 +68,8 @@
     "NOTE ON THE COMMIT. It IS the Embed SDK pin, for the reason",
     "`flow_layout.vendor.json` gives about its own: one commit, so the version",
     "the handoff compiles against and the version the chrome is drawn from can",
-    "never be two different things. Moving the pin means re-vendoring these six",
-    "files in the same commit."
+    "never be two different things. Moving the pin means re-vendoring every one",
+    "of these files in the same commit."
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "dev",

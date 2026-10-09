@@ -28,8 +28,13 @@
 ##      dressed as fidelity.
 ##
 ##   3. `Dropped` — the rules BlockTracer does not emit, each with the reason.
-##      Only two, and both are for markup that cannot exist on a route with no
-##      JavaScript.
+##      Every one of them is for markup or motion that cannot exist on a route
+##      with no JavaScript. The count is NOT stated here: a number in prose is
+##      a thing somebody updates rather than a claim somebody checks, and
+##      `client/tests/test_ct_components_css.nim` asserts the relationship
+##      instead — every row the port reports is either one of these keys or a
+##      build-condition arm that names its own condition, and every key here is
+##      used by at least one row.
 ##
 ## ## The scope, and why it is not optional
 ##
@@ -44,18 +49,39 @@
 ##
 ## ## What "unresolved" means, and why the list is short on purpose
 ##
-## Three CodeTracer role names — `colors-ui-text-default-tab`,
-## `colors-ui-text-default-placeholder`, `colors-ui-text-disabled-default` —
-## are NOT DEFINED in CodeTracer's own generated token layer at the pinned
-## commit. Stylus emits such an identifier verbatim and the browser then drops
-## the declaration, so those rules have no effect in CodeTracer either; the
-## port reproduces that by dropping them too, and records each one. The
-## `ct-images-*` handles are CodeTracer's own SVG assets, which this site does
-## not ship; their declarations drop for the same reason and with the same
-## record. `ctPortReport()` is that record, and
-## `client/tests/test_ct_components_css.nim` asserts the list holds only those
-## two families — so a bridge row going missing shows up as a test failure
-## rather than as a quietly unstyled panel.
+## Stylus emits an identifier it cannot resolve verbatim and the browser then
+## discards the whole declaration. The port reproduces that — the declaration
+## is dropped and recorded in `ctPortReport().unresolved` — and the record is
+## only worth having while the list is the SHORT one, because every row on it
+## is a declaration that is styling nothing.
+##
+## TWO FAMILIES are legitimate, and nothing else is:
+##
+##   * `ct-images-*`, CodeTracer's own SVG asset handles, which this site does
+##     not ship. (The nine icons it DOES ship are the table above; these are
+##     the rest, and they are not vendored.)
+##
+##   * the theme-file constants — `LAYOUT_*`, `RR_TICKS_*`,
+##     `TOOLTIP_DELAY_TIMER`, `SEARCHED_TOKEN_COLOR`. Every one of them is
+##     assigned in `src/frontend/styles/defaults.styl` or in a
+##     `default_*_theme.styl` beside it, and this port vendors neither: it
+##     carries `styles/components/`, which is the layer that DRAWS, and a
+##     theme file is the layer that is replaced wholesale per theme. All but
+##     one of the values behind them are a raw hex or a CodeTracer SVG url
+##     (`TOOLTIP_DELAY_TIMER` is the one that is not — it is a duration), so
+##     importing them would be importing exactly what the bridge exists to
+##     keep out.
+##
+## A CodeTracer ROLE NAME — anything `colors-*` — is NOT in either family.
+## Upstream's generated token layer resolves all of them at the pinned commit,
+## so an unresolved one means a missing row in `Bridge`, which is a declaration
+## of upstream's that this port silently stopped emitting.
+## `client/tests/test_ct_components_css.nim` asserts exactly that, which is how
+## a missing row shows up as a test failure rather than as a quietly unstyled
+## panel. (Four of them were missing and had been for two re-vendors: a tab's
+## hover underline, a toolbar divider, and the dropdown menu's own surface and
+## ink. The rows are in `Bridge` above, each with what it resolves to upstream
+## and what it was costing.)
 
 import std/[tables, strutils]
 import ../design_system/ct_styl
@@ -214,6 +240,22 @@ const Bridge*: seq[(string, string)] = @[
   ("colors-ui-surface-base-panel", "var(--bt-surface-sunken)"),           # neutral-700 = neutral-700
   ("colors-ui-surface-primary-secondary", "var(--bt-surface-sunken)"),    # neutral-700 = neutral-700
   ("colors-ui-surface-input-secondary", "var(--bt-surface-sunken)"),      # neutral-700 = neutral-700
+  # neutral-800: the OTHER half of upstream's `surface-input-*` pair, and it
+  # has no BlockTracer rung — this site's form controls sit on ONE surface
+  # (`.nav input`, `.search input` in `components/styles.nim`) and that surface
+  # is `sunken`. So the family binds as a family: both of CodeTracer's input
+  # surfaces land on the one BlockTracer input surface, which is the same
+  # decision the row above already makes for `-secondary` and makes the pair
+  # read as one choice rather than two. The gap is one rung (800 -> 700).
+  #
+  # Its only appearance in the vendored set is `shared_widgets.styl:722`,
+  # `.dropdown-list { color: … }` — a SURFACE token used as an ink colour,
+  # which is upstream's own oddity and is reproduced rather than corrected: it
+  # is overridden on every item by `.dropdown-list-item`'s
+  # `color: colors-ui-text-primary-body`, so it styles nothing a reader sees,
+  # and a port that "fixed" a declaration would be the divergence this module
+  # exists to end.
+  ("colors-ui-surface-input-default", "var(--bt-surface-sunken)"),        # role: neutral-800 -> neutral-700
   ("colors-ui-surface-primary-tertiary", "var(--bt-surface-hover)"),      # neutral-650 = neutral-650
   ("colors-ui-surface-primary-secondary-hover", "var(--bt-surface-hover)"), # neutral-650 = neutral-650
   # neutral-750: no BlockTracer surface sits between raised (900) and sunken
@@ -225,6 +267,22 @@ const Bridge*: seq[(string, string)] = @[
   # Stated rather than hidden: it is the one row in this table that loses a
   # distinction upstream makes.
   ("colors-ui-surface-primary-tertiary-hover", "var(--bt-surface-hover)"),
+  # neutral-950, and the name is the whole argument. In CodeTracer's `base`
+  # group `raised` is the DARKEST of the three (canvas 900, panel 700, raised
+  # 950): a thing drawn OVER the canvas separates from it by going a rung
+  # darker. BlockTracer has exactly one surface whose job is that — `overlay`,
+  # the rung `--bt-elevation-overlay`'s shadow is paired with — and in
+  # BlockTracer the separation runs the other way, one rung LIGHTER than
+  # `raised` (850 against 900), because this register's canvas is black and
+  # darker is not available. So the ramp positions disagree and the RELATION
+  # survives: a floating menu is one clearly-separated rung off the panel it
+  # hangs from, in the direction each product's canvas allows.
+  #
+  # The only vendored use is `shared_widgets.styl:721`, `.dropdown-list`'s own
+  # background, which is precisely a floating menu. It was being DROPPED, so
+  # that menu had no surface of its own at all and showed whatever was behind
+  # it.
+  ("colors-ui-surface-base-raised", "var(--bt-surface-overlay)"),         # role: neutral-950 -> neutral-850
   ("colors-ui-surface-primary-disabled", "var(--bt-action-disabled-bg)"), # role
   ("colors-ui-surface-action-primary", "var(--bt-action-bg)"),            # role: brand-500 -> brand-600
   ("colors-ui-surface-action-primary-hover", "var(--bt-action-bg-hover)"), # role: brand-700 -> brand-500
@@ -257,6 +315,30 @@ const Bridge*: seq[(string, string)] = @[
   ("colors-ui-border-tertiary", "var(--bt-border-subtle)"),               # neutral-700 = neutral-700
   ("colors-ui-border-primary-hover", "var(--bt-border-strong)"),          # neutral-350 -> neutral-400
   ("colors-ui-border-secondary", "var(--bt-border-subtle)"),              # neutral-600 -> neutral-700
+  # `generated/mapped.styl:92` resolves `divider-primary` to
+  # neutral-cold-600 — the SAME primitive as `border-secondary` on the line
+  # above (`mapped.styl:74`). Two role names over one value, so one binding:
+  # anything else would make the port draw a divider and a secondary border in
+  # two different colours where upstream draws them in one. The only vendored
+  # use is `shared_widgets.styl:419`, `.separate-bar`'s `border-left` — the
+  # hairline that separates toolbar groups — and it was being DROPPED, so that
+  # bar was a zero-width element with no visible rule at all.
+  ("colors-ui-divider-primary", "var(--bt-border-subtle)"),               # role: neutral-600 -> neutral-700 (= border-secondary)
+  # `colors-base-white`, `mapped.styl:56` — not a ramp position at all but the
+  # ramp's END, i.e. "as far from the panel as this product can get". Bound by
+  # ROLE to the strongest ink this register has, NOT to a white of our own: a
+  # literal `#ffffff` is correct in CodeTracer, which ships one dark theme, and
+  # invisible in BlockTracer's light one, where the tab sits on a near-white
+  # surface. `--bt-text-strong` is neutral-50 in dark and neutral-1000 in
+  # light, so "the hover underline jumps to maximum contrast" stays true in
+  # both — which is the reason this table binds roles and not hexes, stated in
+  # its own header.
+  #
+  # The one vendored use is `tab.styl:38`, the hover arm's
+  # `border-bottom-color`. It was being DROPPED, so hovering a tab moved its
+  # background but left the 0.125em underline at `border-primary` — the hover
+  # had half its two channels.
+  ("colors-ui-border-contrast", "var(--bt-text-strong)"),                 # role: base-white -> neutral-50 (dark) / neutral-1000 (light)
   ("colors-ui-border-action", "var(--bt-border-accent)"),                 # brand-500 = brand-500
   ("colors-ui-border-disabled", "var(--bt-action-disabled-border)"),      # role
   ("colors-ui-border-focus", "var(--bt-focus-ring)"),                     # role: blue-500 -> information-400
@@ -286,8 +368,8 @@ const Aliases*: seq[(string, string)] = @[
 const Dropped*: seq[(string, string)] = @[
   (".lm_splitter.lm_dragging",
    "there is no drag on a route with no JavaScript, so the class is never " &
-   "applied — and it carries the ONE raw hex colour upstream writes in these " &
-   "six files, which `test_static_export`'s shipped-rules scan rejects (and " &
+   "applied — and it carries the ONE raw hex colour upstream writes in the " &
+   "vendored set, which `test_static_export`'s shipped-rules scan rejects (and " &
    "which is not quoted here, because check-tokens.mjs A1 reads this file's " &
    "own string literals). Dropping a rule nothing can match is how both stay " &
    "true without editing upstream's bytes or weakening either gate"),
