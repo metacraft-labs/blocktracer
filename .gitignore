@@ -211,3 +211,14 @@ fixtures/chain-health/readable-container/ct/*.ct
 # recorder INTERNS it: `--out-dir` ends up inside the container, so an absolute
 # work directory would make the container host-specific.
 /.eth-capture/
+
+# The Ethereum RANGE capture's output: `tools/chain/capture-eth-range.mjs` keeps one
+# recording per transaction under `work/rec/<txHash>/` so an interrupted range resumes
+# instead of re-recording, and writes the snapshot tree under `tree/`. Both hold `.ct`
+# containers and both are DERIVED — re-running the same range and budget records the same
+# transactions — so the container is exactly what the `.ct` ban refuses to have committed.
+#
+# The path is relative and fixed for the same reason `.eth-capture/` is: the recorder
+# INTERNS its `--out-dir` into the container, so an absolute work directory would make the
+# container's bytes host-specific and two machines' recordings incomparable.
+/.eth-range/

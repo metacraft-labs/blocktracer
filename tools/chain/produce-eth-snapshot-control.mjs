@@ -44,6 +44,13 @@
 //     --snapshot <tree produce-eth-snapshot.mjs wrote> \
 //     --kit      <directory `just conformance-kit-release` staged> \
 //     [--work <scratch dir>] [--keep]
+//
+// ANY TREE THAT PRODUCER WROTE, not only the single-transaction one. The traced row the
+// arms mutate is read out of the subject rather than written down here — see `TRACED` —
+// so a range capture's tree (several blocks, several traced rows) is a subject like any
+// other. Measured 2026-10-10 over three: the single-transaction fixture tree, a 3-block /
+// 4-recording range, and a 3-block / 5-recording range; 29 arms and 26 distinct §5 rules
+// on each.
 
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync }
   from 'node:fs';
@@ -100,7 +107,36 @@ function check(tree) {
  * states for it. `at` walks the JSON; `set` writes a value and `del` removes the member —
  * nothing here edits two places.
  */
-const TRACED = '0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa';
+/**
+ * THE TRACED ROW THIS CONTROL MUTATES, READ OUT OF THE TREE IT WAS GIVEN.
+ *
+ * It was the fixture transaction's hash, written down — `0xf6998cac…71aa`, the USDT
+ * transfer the single-transaction capture produces. That worked for exactly one subject and
+ * crashed on every other: run over the first range capture's tree, the fourth arm reached
+ * `s.transactions.find((t) => t.txHash === TRACED).containerBytes` on `undefined` and the
+ * control died with a `TypeError` partway through — six arms reported, twenty not run, and
+ * rc 1 from a crash rather than from a finding. A control that cannot be pointed at a tree
+ * is a control for one tree.
+ *
+ * So the subject is derived: the FIRST row the tree itself marks `replayed: true`, in the
+ * order the tree publishes them. Every arm below needs only "a row with a container and
+ * sidecars behind it", and a tree with none of those is refused here rather than reported
+ * as a pass — a mutation of a row that does not exist is a mutation of nothing, and twenty
+ * arms over nothing is the vacuous green this file exists to be the opposite of.
+ */
+const TRACED = (() => {
+  const s = JSON.parse(readFileSync(join(snapshot, 'snapshot.json'), 'utf8'));
+  const row = (s.transactions ?? []).find((t) => t.replayed === true);
+  if (!row) {
+    console.error(`NOT MEASURED: ${join(snapshot, 'snapshot.json')} publishes no traced `
+                  + `row (no \`transactions[]\` entry with \`replayed: true\`). Every arm `
+                  + `below mutates one member of a traced row or of a sidecar keyed by it, `
+                  + `so there is nothing here to measure and this control will not report `
+                  + `arms that ran over an absent subject.`);
+    process.exit(2);
+  }
+  return row.txHash;
+})();
 
 const arms = [
   // file, what, mutate(json), expected rule

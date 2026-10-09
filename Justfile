@@ -1597,6 +1597,41 @@ eth-inputs-verify TX=ETH_CAPTURE_TX:
     node tools/chain/eth-rpc-transcript.mjs \
       --verify --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}}
 
+# ── the Ethereum RANGE capture: the tool a developer runs by hand ───────────
+#
+# `just eth-capture` records ONE named transaction from committed inputs. This
+# records a RANGE, live, which is the development half of the ingestion
+# pipeline: ask for blocks, look at what came out, ask again after a change.
+#
+#     just eth-range <recorder> <commit> --from 26157000 --to 26157002
+#     just eth-range <recorder> <commit> --depth 3 --max 4
+#     just eth-range <recorder> <commit> --depth 3 --plan     # cost, record nothing
+#
+# `--out` defaults to `.eth-range/tree` and NOT into `client/fixtures/chain/`.
+# The Aztec capture defaults into the committed fixture tree; for Ethereum that
+# path is refused by `ban-added-ct-recordings`, so defaulting there would make
+# the first run fail for a reason unrelated to what the tool does.
+#
+# `--depth N` means the N blocks ending at the FINALIZED head, not at the tip —
+# the one place this interface departs from `capture-chain.mjs`'s. Aztec counts
+# below the tip because bodies are PRUNED below finalized; Ethereum's archive
+# serves any depth, and what a block above finalized can still do is REORG OUT.
+# `--from`/`--to` is not clamped: a height an operator names is a height they
+# meant, and the run prints how far above finalized it reached.
+#
+# NOT in any gate, and that is deliberate: it needs the network and the recorder
+# binary, so wiring it into `chain-selftest` would buy a suite that reports SKIP
+# forever — the same reason `eth-snapshot-control` is out. The gated, offline
+# half of this path is `just eth-capture`.
+#
+# COMMIT IS REQUIRED AND IS NOT DERIVED, for the reason `eth-capture`'s header
+# gives: it is published into every row's `runtimeCommit`, the binary cannot be
+# asked for it, and a default read off a sibling checkout's HEAD is silently
+# WRONG — not absent — for a binary built in a worktree or before a pull.
+eth-range RECORDER COMMIT *ARGS:
+    node tools/chain/capture-eth-range.mjs \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
+
 # Publish a generated tree into a local object-store directory (M8 delta publisher).
 # Idempotent + resumable: re-run to upload only new objects and flip current.json.
 publish tree="demo-site" dest="published":
