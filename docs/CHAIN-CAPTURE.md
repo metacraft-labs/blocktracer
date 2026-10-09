@@ -112,11 +112,31 @@ below is counted from the rows rather than from that field.
 
 `traced` is `replayed` + `divergent` — 206 reproduced their block's effects
 exactly, 5 recorded a real execution that disagreed with the block and are shown
-behind a banner (§3). **Depth is not the variable.** The deepest windows are worse
-than the middle ones, but 45000–45199 at 30,825 blocks down traced 100% of the
-transactions that had a public half, while 68000–68199 at 7,825 down traced 95.7%.
-What varies is the chain's ERA — which contracts were live and what they did — not
-how far back it is.
+behind a banner (§3).
+
+**Depth is not MONOTONE, and that is as much as five windows support.** The deepest windows
+are worse than the middle ones, but 45000–45199 at 30,825 blocks down traced 100% of the
+transactions that had a public half, while 68000–68199 at 7,825 down traced 95.7%. Both
+halves of that are load-bearing and only the pair is honest. An earlier version of this
+paragraph read *"depth is not the variable"* and concluded *"what varies is the chain's ERA
+— not how far back it is"*, which quietly drops the first half: the two oldest windows **are**
+the two worst here. Which contracts were live and what they did is the better candidate on
+these five readings, and five readings on one testnet do not make it a law for a second
+chain. So it is recorded as this chain's reading rather than as a finding about chains, and
+`tools/chain/yield-method.json` — where the method is fixed, the windows pinned and each
+chain's expectation declared **before** it measures — deliberately carries no default
+expectation to inherit.
+
+**The method this table instantiates is now a file, and something reads it.** The two
+denominators the fractions above are over — every transaction, and every transaction that
+was structurally observable at all — are named per chain in `tools/chain/yield-method.json`,
+derived from the enumerated populations by `tools/chain/lib/yield.mjs`, and checked against
+the committed reading by `tools/chain/yield-method-selftest.mjs`. Before that suite the
+artifact behind this table was read by nothing. The rule that matters most for anyone
+re-running it: a transaction published as `absent` because the chain never made the
+execution public is **not** a failure to trace and is removed by a named exclusion, while a
+transaction this pipeline declined **is** one and stays in the denominator. The two look
+alike in a tally and are opposite in kind.
 
 **Cost:** median **4.4 s** and mean 4.3 s of wall clock per transaction, and
 **9–15 node RPC calls** per transaction after the proxy's cache (mean ≈ 12), plus

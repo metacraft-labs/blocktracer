@@ -71,6 +71,30 @@ command -v bwrap >/dev/null 2>&1 || {
 	exit 2
 }
 
+# AND THAT IT WORKS, WHICH IS NOT THE SAME QUESTION, and the difference was
+# MEASURED rather than imagined. The check above tests PRESENCE. A bwrap that is
+# on PATH and cannot create a user namespace — no unprivileged userns on the
+# host, a nested container, a seccomp policy, an AppArmor profile — makes every
+# `in_sandbox` call fail, and the arms below then report NINE OR TEN failures
+# that all read as defects in the kit. Reproduced by putting a `bwrap` that exits
+# 1 first on PATH: 19 check(s), 10 failing, and the fifteen-line wall of red says
+# nothing about bwrap.
+#
+# THE WORST HALF IS THAT TWO ARMS PASS. "Inside the sandbox a TCP connect FAILS"
+# and "inside the sandbox none of nim/nimble/gcc/cc/node/git resolves" are
+# NEGATIVE probes: a bwrap that never ran satisfies both, for a reason that has
+# nothing to do with the sandbox. That is §32's family — a probe that cannot run
+# reads exactly like one that measured — arriving through the sandbox itself
+# rather than through a missing tool, and this file already says so twice about
+# `ls`, `wc` and `/bin/sh`.
+#
+# So the namespace is created ONCE, up front, over a no-op, and a failure is rc 2
+# in the idiom above rather than a verdict about the artifact. The preflight sits
+# BELOW the `sandbox_shell` resolution because it has to spawn something and
+# `/bin/true` is not a path that exists everywhere this runs — on NixOS `/bin`
+# holds `sh` and nothing else, so a preflight spelled with `/bin/true` refuses on
+# a perfectly healthy host, which is the same false negative one layer down.
+
 # ── THE SANDBOX AND ITS CONTROL MUST RUN THE SAME SHELL ───────────────────────
 #
 # This was `/bin/sh` inside and `bash -c` outside, and the network probe is
@@ -92,6 +116,95 @@ sandbox_shell="$(command -v bash 2>/dev/null || true)"
 	exit 2
 }
 
+# THE bwrap PREFLIGHT, for the reason spelled out above the `command -v` check.
+bwrap --dev-bind / / --unshare-net --clearenv \
+	-- "${sandbox_shell}" --noprofile --norc -c 'exit 0' >/dev/null 2>&1 || {
+	echo "conformance-kit-sandbox: bwrap is on PATH and cannot create a namespace." >&2
+	echo "  \`bwrap --dev-bind / / --unshare-net --clearenv -- bash -c 'exit 0'\` failed," >&2
+	echo "  so every in-sandbox arm below would fail AND the two NEGATIVE probes would" >&2
+	echo "  PASS for a reason that has nothing to do with the sandbox." >&2
+	echo "  Likely: no unprivileged user namespaces on this host, a nested container," >&2
+	echo "  or a seccomp/AppArmor policy." >&2
+	echo "  REFUSING rather than reporting nine failures about the kit." >&2
+	exit 2
+}
+
+# AND THAT `--clearenv --setenv PATH` SURVIVED THE SHELL'S OWN STARTUP, WHICH IS A
+# THIRD QUESTION AGAIN, AND THE ONE THAT HAS ALREADY BITTEN.
+#
+# MEASURED. A run on 2026-09-26 reported `19 check(s), 9 failing` and not one of
+# the nine was about the kit. Arms 1 to 3 PASSED — the network was unshared and
+# the repository was an empty tmpfs, so bwrap plainly worked — while every arm
+# that EXECUTES the kit reported `blocktracer-conformance: command not found`
+# (rc 127) and the no-toolchain arm reported `/run/current-system/sw/bin/git`.
+# Those two facts are one fact, and it was reproduced: inside the namespace PATH
+# was the HOST's and not `${kit}/bin`.
+#
+# THE CAUSE IS THE SHELL, NOT bwrap, AND IT WAS TRACED RATHER THAN GUESSED.
+# `bwrap ... --clearenv --setenv PATH X -- env` prints `PATH=X`, so bwrap does its
+# job. `bwrap ... -- bash -c 'echo $PATH'` does not, and `bash -xc` says why on
+# its first line:
+#
+#     + . /etc/profile
+#     ++ . /nix/store/…-set-environment
+#     +++ export PATH=/.nix-profile/bin:…:/run/current-system/sw/bin
+#
+# nixpkgs' bash sources `/etc/profile`, `/etc/profile` sources NixOS's
+# `set-environment`, and that file ASSIGNS `PATH` outright. The value it assigns
+# is built from `$HOME` and `$USER`, which `--clearenv` has just emptied — hence
+# the `/etc/profiles/per-user//bin` with nothing between the slashes that is the
+# tell in the leaked value. So the sandbox's PATH was whatever the host's login
+# environment says, which is exactly the environment this script exists to
+# exclude, and `${kit}/bin` was not on it at all.
+#
+# THE FIX IS `--noprofile --norc` ON BOTH SIDES, measured: with it the same probe
+# returns the PATH it was given. It is passed wherever `sandbox_shell` is invoked,
+# including the CONTROL runs, because a control that reads a different environment
+# from the arm it controls is not one.
+#
+# AND IT WAS NEVER RANDOM, WHICH IS WHY IT LOOKED LIKE A FLAKE. Whether
+# `/etc/profile` reassigns PATH is a property of the HOST GENERATION, not of the
+# run: `set-environment` line 21 is an unconditional
+# `export PATH="$HOME/.nix-profile/bin:…"`. Measured on the review host — 28
+# consecutive runs were 19/0, then `/run/current-system` and `/etc/profile` were
+# re-linked at 00:35 by a `nixos-rebuild switch` somebody else ran, and the next
+# three runs of the SAME tree were 19/9. The 2026-09-26 report of one red run
+# followed by two green ones is the same mechanism seen from the other side. A
+# gate whose verdict changes when an unrelated system switch lands is not a gate,
+# and `--noprofile --norc` is what makes it one.
+#
+# THE PREFLIGHT STAYS ANYWAY, because the class is wider than this instance: any
+# future startup file, any `BASH_ENV` a runner exports, any wrapper shell would do
+# the same. And ARMS 1 TO 3 CANNOT CATCH IT BY CONSTRUCTION — all three are
+# deliberately PATH-independent (the network probe is `/dev/tcp`, a built-in, and
+# arm 3 was rewritten to `$(<file)` and `[[ ]]` after `ls` and `wc` could not be
+# found inside), so the three headline properties all verify while the sixteen
+# arms that need the kit on PATH report nine failures about the artifact.
+#
+# So PATH isolation is asserted here, positively and negatively, before any arm
+# runs: the variable must be exactly what was set, and a host tool that resolves
+# OUTSIDE must not resolve INSIDE. The negative half is the one that matters,
+# because it is the half the leak breaks.
+probe="$(bwrap --dev-bind / / --tmpfs "${repo_root}" --unshare-net --clearenv \
+	--setenv PATH "/nonexistent-conformance-kit-probe" \
+	-- "${sandbox_shell}" --noprofile --norc \
+	-c 'printf "%s|%s" "$PATH" "$(command -v git 2>/dev/null)"' \
+	2>/dev/null)"
+if [ "${probe}" != "/nonexistent-conformance-kit-probe|" ]; then
+	echo "conformance-kit-sandbox: bwrap ran but \`--clearenv --setenv PATH\` did not take." >&2
+	echo "  probe returned: ${probe}" >&2
+	echo "  expected:       /nonexistent-conformance-kit-probe|" >&2
+	echo "  With the host PATH inside the namespace the kit's own bin is unreachable," >&2
+	echo "  every arm that executes it reports rc 127, and the no-toolchain arm reports" >&2
+	echo "  a host tool — nine failures, none of them about the artifact." >&2
+	echo "  The known cause is a startup file: \`bash\` sources /etc/profile, which on" >&2
+	echo "  NixOS assigns PATH outright. \`--noprofile --norc\` is already passed here, so" >&2
+	echo "  if this fires the mechanism is a NEW one — check BASH_ENV and whether" >&2
+	echo "  \`${sandbox_shell}\` is a wrapper script rather than bash itself." >&2
+	echo "  REFUSING rather than reporting nine failures about the kit." >&2
+	exit 2
+fi
+
 # ── the artifact leaves the checkout ──────────────────────────────────────────
 work="$(mktemp -d "${TMPDIR:-/tmp}/bt-conformance-sandbox.XXXXXX")"
 trap 'rm -rf "${work}"' EXIT
@@ -108,7 +221,7 @@ in_sandbox() {
 		--setenv PATH "${kit}/bin" \
 		--setenv HOME "${work}" \
 		--setenv TMPDIR "${work}/tmp" \
-		-- "${sandbox_shell}" -c "$1"
+		-- "${sandbox_shell}" --noprofile --norc -c "$1"
 }
 mkdir -p "${work}/tmp"
 
@@ -133,7 +246,8 @@ else
 fi
 # …and the control, outside it, so the arm above is not passing because nothing
 # in this environment can reach the network anyway.
-timeout 10 "${sandbox_shell}" -c 'exec 3<>/dev/tcp/1.1.1.1/443' >/dev/null 2>&1
+timeout 10 "${sandbox_shell}" --noprofile --norc -c 'exec 3<>/dev/tcp/1.1.1.1/443' \
+	>/dev/null 2>&1
 rc=$?
 if [ "${rc}" -eq 0 ]; then
 	report_pass "CONTROL: outside the sandbox the same connect SUCCEEDS"

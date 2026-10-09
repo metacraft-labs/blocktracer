@@ -5,7 +5,7 @@
 //
 // A gate that has only ever been seen to pass has not been demonstrated. This
 // repository has already shipped a gate whose own selftest was dead code
-// (`check-assets-selftest.mjs`, 322 lines, referenced by nothing), and the
+// (`check-assets-selftest.mjs`, then 322 lines, referenced by nothing), and the
 // gate this file tests is one that can stop ALL publishing when it is wrong.
 // So every arm below is a world in which the answer is fixed in advance, and
 // the majority of them are refusals.

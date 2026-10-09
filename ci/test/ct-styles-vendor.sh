@@ -4,7 +4,7 @@
 # stylesheets honest.
 #
 # `client/src/debugger/vendor/frontend/styles/components/*.styl` are
-# byte-verbatim copies of six files from CodeTracer's own
+# byte-verbatim copies of CodeTracer's own
 # `src/frontend/styles/components/`, and `../ct_styles.vendor.json` records
 # where they came from and why they are copies. They are the rules that DRAW a
 # CodeTracer window — the tab strip, the connectors, the panel surface, the
@@ -15,7 +15,8 @@
 # use, because three conventions for one idea is two extra things to learn:
 #
 #   A. LOCAL INTEGRITY (always runs, needs nothing but this repository)
-#      All six files still hash to the sha256s in the manifest, and the
+#      Every vendored file still hashes to its sha256 in the manifest, the
+#      manifest lists exactly the files the port compiles, and the
 #      manifest's commit EQUALS `ci/embed-sdk-pin.env`'s CODETRACER_REF. An
 #      edit here — a helpful tweak, a merge, a formatter — fails.
 #
@@ -74,14 +75,16 @@ pin_file="${CT_STYLES_PIN_FILE:-${repo_root}/ci/embed-sdk-pin.env}"
 # branch unreachable.
 ct_fallback="${CT_STYLES_CT_FALLBACK:-${repo_root}/../codetracer}"
 
-# The six, in `codetracer.styl`'s own import order — which is the order
+# The eight, in `codetracer.styl`'s own import order — which is the order
 # `ct_components_css.nim` compiles them in, and therefore the cascade the
 # shipped page has. Listed here as well so a file added to the port without
 # being added to the manifest fails the count below.
 rels=(
 	"frontend/styles/components/button.styl"
 	"frontend/styles/components/input.styl"
+	"frontend/styles/components/tab.styl"
 	"frontend/styles/components/notifications.styl"
+	"frontend/styles/components/shared_widgets.styl"
 	"frontend/styles/components/data_tables.styl"
 	"frontend/styles/components/golden_layout.styl"
 	"frontend/styles/components/empty_states.styl"

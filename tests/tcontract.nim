@@ -255,7 +255,7 @@ suite "M5c — the published traces are the real noir_space_ship execution":
     # `truncated` is the ONE field in `execution` that is a published claim
     # rather than a measurement of the container, and it is deliberately checked
     # here rather than exempted: `steps` and `frames` stay at the container's
-    # real 1315/80 on the truncated manifest too. A manifest that shrank them to
+    # real 1315/81 on the truncated manifest too. A manifest that shrank them to
     # look truncated would be describing a container that is not the one beside
     # it, which is exactly the "well-formed but wrong" failure this suite exists
     # to catch. What `truncated` says is where the recording STOPS — the
@@ -268,13 +268,27 @@ suite "M5c — the published traces are the real noir_space_ship execution":
       if p.extractFilename != "manifest.json": continue
       inc seen
       let m = parseFile(p)
-      # ct-print --summary on fixtures/trace/noir_space_ship/zk_shields.ct
+      # ct-print --summary on fixtures/trace/noir_space_ship/zk_shields.ct.
+      #
+      # MOVED when that fixture was re-recorded at the 2026-10 trace-format
+      # revision, and both numbers are the re-reading rather than a relaxation:
+      #
+      #   frames 80 -> 81   the 2026-10 writer wraps every recording in a
+      #                     synthetic `<toplevel>` frame at depth 0 whose only
+      #                     child is `main`. The program did not gain a call.
+      #   bytes 147456 -> 102400   the writer's LAYOUT moved. `steps` did not,
+      #                     which is what says the recording did not.
+      #
+      # The previous container was at container version 4 / `meta.dat` schema 3
+      # and the current reader refused it outright, so this re-recording is what
+      # made the fixture readable at all. These two assertions going red is the
+      # mechanism `generator.nim` documents working as intended.
       check m["execution"]["steps"].getInt == 1315
-      check m["execution"]["frames"].getInt == 80
+      check m["execution"]["frames"].getInt == 81
       check m["execution"]["languages"].getElems.mapIt(it.getStr) == @["noir"]
       check m["execution"]["sourceLevel"].getBool
       check m["container"]["bytes"].getInt == readFile(fixture).len
-      check m["container"]["bytes"].getInt == 147456
+      check m["container"]["bytes"].getInt == 102400
       if m["execution"]["truncated"].getBool: inc truncatedSeen
     check seen == 6
     # Exactly one truncated recording, and therefore five that are not: the
@@ -766,7 +780,14 @@ suite "§5 hash index — keying per identifier shape":
     # hex strips `0x`; bech32 begins after the LAST `1`, which is what stops a
     # whole chain of `addr1…` landing in one bucket.
     check hashPrefix("hex", HexHash, 2) == "ab"
-    check hashPrefix("base58", SolAddr, 2) == "9W"
+    # …and the SEGMENT is folded where the member declares it (`shardKey.foldKey`),
+    # because a shard key names a FILE: `idx/hash/{version}/{prefix}.bin`, and
+    # `9W.bin` beside a `9w.bin` is ONE file on a case-insensitive filesystem, at
+    # rc 0, with one shard's entries gone. The IDENTIFIER keeps its case — the
+    # entry below stores `SolAddr` verbatim — so the bucket is coarser and nothing
+    # is lost. Both halves in one arm, so neither can be read as the other.
+    check hashPrefix("base58", SolAddr, 2) == "9w"
+    check identifierIndexKey("base58", SolAddr) == SolAddr
     check hashPrefix("bech32", AdaAddr, 2) == AdaAddr[AdaAddr.rfind("1") + 1 .. ^1][0 .. 1]
     # …and it is the SAME payload the object tree's shard derivation slices, so
     # the index and the object layout cannot disagree about where one starts.
@@ -1228,7 +1249,19 @@ suite "§5 hash index — keying per identifier shape":
     # a new row legitimately moves this count, and being told to re-read it is the
     # intended cost. A floor would absorb the growth and go on asserting a figure
     # nobody had re-measured, which is the failure this arm has now had twice.
-    const PairsChecked = 19_256
+    # 19,256 -> 19,260 when Search-And-Routing §2 gained the `base64url, 44 chars,
+    # `=` padded` row (TON transaction hash / Sui digest). THE +4 IS ATTRIBUTED
+    # RATHER THAN ACCEPTED, which is what the equality is for: `sweepCandidates`
+    # emits single-character repeats per member, so the four new candidates are the
+    # 44-character all-`=` string under base64url's three declared prefixes
+    # (`EQ`/`UQ`/`kQ`, 2 + 42) and under no prefix (44). base64's own 44-character
+    # row was narrowed by the same `=` suffix in the same change and contributes
+    # NOTHING here, because base64 is not `pathSafe` and this loop skips it — which
+    # is why the movement is a clean +4 rather than a difference of two effects.
+    # Everything else the sweep reports is unchanged: 53,935 candidates, 420 with
+    # more than one payload, 462 ambiguous probes, max 2, the same four families,
+    # and zero unreachable shards or pairs.
+    const PairsChecked = 19_260
     #
     # `shardOnly` IS KEPT AND ASSERTED SEPARATELY, rather than deleted as
     # subsumed, because the two can fail independently and a reader who sees only
@@ -1329,13 +1362,44 @@ suite "§5 hash index — keying per identifier shape":
               "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"]:
       check indexProbesOf(q).len == 1
 
-  test "a 44-character string matches base58 AND base64, and §2 says both":
+  test "the 44-character base58/base64 overlap is CLOSED, and by arithmetic":
+    # ── WHAT THIS ARM SAID BEFORE, AND WHY IT CHANGED ─────────────────────────
+    #
+    # It said "a 44-character string matches base58 AND base64, and §2 says
+    # both", and that was true while §2's base64 row read `44 chars` with nothing
+    # else. The row was AMBIGUOUS: 44 base64 characters with one `=` are 43 data
+    # characters and 32 decoded bytes — a digest — while 44 data characters are
+    # 33, which is not a digest of anything this tree routes. The row now declares
+    # `suffixes: ["="]`, narrowing it to the padded 32-byte form.
+    #
+    # THE OVERLAP DISAPPEARS AS A CONSEQUENCE, and the reason is arithmetic rather
+    # than a judgement: `=` is not a digit of base58's alphabet — base58 excludes
+    # `0`, `O`, `I` and `l` and contains no punctuation at all — so no string can
+    # end in `=` and be writable in base58. The two rows are now mutually
+    # exclusive at 44 characters, which is what §2's own prose claimed of the
+    # whole table and was measurably false of it.
     let ms = identifierEncodingsMatching(SolAddr)
     check "base58" in ms
-    check "base64" in ms
-    # base64's alphabet contains `/`, so it has no shard — and skipping it must
-    # not cost the base58 candidate, which is the one the producer wrote.
+    check "base64" notin ms                    # the narrowing, measured
+    check not SolAddr.endsWith("=")
+    check '=' notin identifierEncodingRule("base58").alphabet
+    # BOTH DIRECTIONS, so this is not a claim that base64 stopped matching
+    # anything. A padded 44-character string matches base64 and base64url and NOT
+    # base58, which is the other side of the same exclusion.
+    const Padded = "0EwlvoDba2xuNCUvJaAMHowfgLOQ7m8CAKCdYCJ+94Q="
+    check Padded.len == 44
+    check identifierEncodingsMatching(Padded) == @["base64"]
+    check identifierEncodingsMatching(
+      Padded.replace("+", "-").replace("/", "_")) == @["base64url"]
+    # base64's alphabet contains `/`, so it still has no shard — and skipping it
+    # must not cost the base58 candidate, which is the one the producer wrote.
+    # That is the property the change did NOT touch: the route for a 32-byte
+    # digest is the base64url spelling of the same bytes, added as a §2 row rather
+    # than bought by widening base64's alphabet.
     check not identifierEncodingRule("base64").pathSafe
+    check identifierEncodingRule("base64url").pathSafe
+    check indexProbesOf(Padded).len == 0       # base64 is skipped, as before
+    check indexProbesOf(Padded.replace("+", "-").replace("/", "_")).len == 1
 
   test "a base58 and a bech32 identifier round-trip through a shard":
     let entries = @[
@@ -1506,7 +1570,10 @@ suite "§5 hash index — keying per identifier shape":
     const Ss58 = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
     check Ss58.len == 48
     check identifierEncodingsMatching(Ss58) == @["ss58"]
-    check hashPrefix("ss58", Ss58, 2) == "5G"      # case PRESERVED, not folded
+    # The SEGMENT folds (`shardKey.foldKey` — a shard key names a file) and the
+    # IDENTIFIER does not, which the two lines below assert together.
+    check hashPrefix("ss58", Ss58, 2) == "5g"
+    check identifierIndexKey("ss58", Ss58) == Ss58
     let bytes = encodeHashShard(@[HashEntry(encoding: "ss58", identifier: Ss58,
                                             chain: "polkadot", kind: hkAddress)], 2)
     let dec = decodeHashShard(bytes)
@@ -1520,7 +1587,7 @@ suite "§5 hash index — keying per identifier shape":
     # point of §5.6 is that some queries are admissible under two.
     let probes = indexProbesOf(Ss58)
     check probes.len == 1
-    check hashPrefix(probes[0].encoding, probes[0].identifier, 2) == "5G"
+    check hashPrefix(probes[0].encoding, probes[0].identifier, 2) == "5g"
 
   test "an identifier kind code maps to the kind a registry row declares":
     check identifierKindOf(hkTx) == KindTransaction

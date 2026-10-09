@@ -122,6 +122,117 @@
 #                `mutable` — the source-path is a moving target and the sha256
 #                is the only thing pinning it.
 #
+# ── THIS PIN IS LOAD-BEARING FOR THE PUBLISHED CORPUS. READ BEFORE BUMPING. ──
+#
+# Measured 2026-10-06 against live blocktracer.org. Bumping the wasm below to a
+# CURRENT db-backend would refuse every container this site publishes — about
+# 288,095 pages (163,539 `aztec`, 124,516 `aztec-testnet`, 37
+# `aztec-testnet-frames`). The pages are static HTML and would still render; the
+# INTERACTIVE REPLAY is what would go, everywhere, at once.
+#
+# Why, in one line each:
+#
+#   * the published containers are container version 3 with `meta.dat` SCHEMA 3
+#     (sampled `aztec-testnet` container: 180,224 bytes, 94.5% zero, 5 Zstd
+#     frames);
+#   * the engine pinned below is old enough to read them, which is the ONLY
+#     reason replay works today;
+#   * a current db-backend accepts container {2,3,4,5} — widened by the reader
+#     revision rollout — but its `meta.dat` set is {4,5,6}
+#     (`db-backend/src/ctfs_trace_reader/meta_dat.rs`, `SUPPORTED_VERSIONS`).
+#     SCHEMA 3 IS NOT IN IT.
+#
+# The two axes are independent and that is the whole trap: the container gate
+# was widened and the `meta.dat` gate was not, so "container v3 is accepted
+# now" is true and insufficient. Widening the container gate alone was measured
+# to change seven refusal MESSAGES and zero refusal OUTCOMES.
+#
+# WHAT TO DO ABOUT IT — and it is NOT "migrate the corpus to the newest full
+# format". That was this note's first prescription and it was wrong; corrected
+# 2026-10-07 on the owner's direction.
+#
+# The published recordings are NOT to be re-recorded into a newer version of the
+# FULL profile. They are expected to be superseded by the COMPACT profile, which
+# all recordings are likely to end up using. So the transition is one step and
+# not three, and the two halves move TOGETHER:
+#
+#   * the producer emits compact archives (`CCP-6`), and
+#   * the engine below gains the compact loader (`CCP-5` landed it in the
+#      db-backend; the pinned wasm does not carry it — measured: zero hits for
+#      every compact-specific string in it, against a positive control that
+#      finds the version and magic messages, and a negative control).
+#
+# Neither half is useful alone. Shipping compact archives to this engine breaks
+# them; shipping this engine a compact loader does nothing while the corpus is
+# full-profile v3. That is the real coupling, and it is a smaller one than a
+# version migration: the corpus is REPLACED, not converted.
+#
+# So the only rule this file needs to carry is the safety one:
+#
+#   DO NOT BUMP THE WASM BELOW ON ITS OWN. Bump it together with the publish
+#   that replaces the corpus, or not at all.
+#
+# Consequently the producer-pin bump in `aztec-avm-runtime` is NOT on this path.
+# It would be needed to re-record into the newest full profile, which is the
+# thing nobody is going to do. It is left recorded here only so the next reader
+# does not re-derive it as a blocker: `aztec-ct-writer-wasm`'s source derivation
+# materialises `592fa42c…`, where `header.rs` has `VERSION: u8 = 3` and
+# `meta_dat.rs` has `META_DAT_VERSION: u16 = 3`.
+#
+# Two facts that survive the change of plan, because they are about the data and
+# not about the format:
+#
+#   * the transaction bodies ARE still obtainable — not from the node, whose
+#     deployment has been replaced, but from the keyless public object store,
+#     self-verifyingly (the leading 32 bytes of a body equal the requested hash);
+#   * NOT MEASURED: whether the PRE-STATE can be reconstructed for a retired
+#     rollup. The rows record `preStateReadAt`, `hydrationRounds` and
+#     `hydrated-from-node` against a deployment that no longer exists. Any
+#     republish — compact or otherwise — has to answer that.
+#
+# ── 2026-10-09: THE FIRST HALF OF THAT UNKNOWN IS NOW MEASURED, AND IT IS GOOD ──
+#
+# The bullet above is two questions wearing one sentence, and only the second is
+# still open. Measured today, against the RETIRED deployments' own paths:
+#
+#   * `backfill-bodies.mjs` derives the store path as
+#     `aztec-<l1ChainId>-<rollupVersion>-<rollupAddress>` and its own comment says
+#     it "cannot be guessed" — true of a node, which answers for whatever rollup is
+#     CURRENT, and false of this corpus, which records all three fields in its
+#     `provenance`. `client/fixtures/chain/aztec-testnet` carries l1ChainId
+#     11155111, rollupVersion 1821665230, rollup
+#     0xd73a91bdcf6891c7642f3e460036e1ef2cc23178; `…/aztec` carries 1, 4248422647,
+#     0x91ff8bbd8ebb07893010d50a48a1609e5ebd8e34. So the path for a retired rollup
+#     is DERIVABLE WITHOUT A NODE, from the snapshot that needs re-recording.
+#   * `AztecProtocol/networks`' `network_config.json` still publishes
+#     `txCollectionFileStoreUrls` for both networks (HTTP 200, 3,004 bytes).
+#   * And the retired deployments' bodies are still SERVED: **8 of 8** sampled
+#     testnet transactions and **5 of 5** mainnet, every one HTTP 200 and every one
+#     self-verifying — the leading 32 bytes of each payload equal the hash that was
+#     requested. Sizes 195,116–212,140 bytes.
+#
+# So "the bodies are obtainable" is no longer an inference from §1.2's sample; it
+# holds for the exact deployments this corpus would be re-recorded from, by a path
+# built out of the corpus's own committed provenance.
+#
+# STILL OPEN, AND IT IS THE NARROWER QUESTION: whether the replay runtime can
+# HYDRATE pre-state from those bodies alone. `prestateStrategy` on both snapshots
+# reads `hydrated-from-node`, which names the thing that is gone. Note the corpus
+# already contains a second strategy — `self-contained-circuit` — so the field is
+# not a constant, and `docs/CHAIN-CAPTURE.md` records a runtime replaying
+# "perfectly: it hydrates, reproduces the block's effects, and writes a container
+# that steps". Whether that hydration reaches past the body is the measurement
+# nobody has taken.
+#
+# WHAT THIS CHANGES ABOUT SEQUENCING: the re-record is no longer gated on an
+# unknown with two unknown halves. It is gated on one experiment — replay a single
+# transaction of the retired testnet deployment from a store-fetched body, with no
+# node, and see whether the AVM accepts the seed. Bounded, offline after the fetch,
+# and it answers the republish question for the whole corpus.
+#
+# Until the replacing publish happens, leaving this pin alone is not neglect. It
+# is the thing keeping replay working on every published page.
+#
 # ── Provenance ─────────────────────────────────────────────────────────────
 #
 # origin       https://web-codetracer.pages.dev

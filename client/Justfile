@@ -122,7 +122,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-searchboot
+test: test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-chain-reach test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-searchboot
 
 # The browser's half of search, run without a browser: `nim js -r`, which is how
 # `searchboot.nim` can be tested at all. Its `importjs` boundary procs make the
@@ -240,6 +240,19 @@ test-entry-state:
 # missing — every arm would otherwise pass vacuously on a one-chain tree.
 test-chain-provenance:
     nim c -r --mm:orc --hints:off tests/test_chain_provenance.nim
+
+# tests/test_chain_reach.nim — the chain landing page's Chain-Support-Matrix §4
+# item 4 statement: historical reach and the instruction set recordings are
+# written against, in plain language, read from the chain's own registry row.
+#
+# Drives `components/reach.nim` through the REAL `parseChainProfile` over real
+# registry-row JSON, exhaustively over `ReachKind` plus both non-declared
+# states, with two mutation arms for the drafts that were wrong — a producer's
+# note quoted under a paragraph saying there is no stated boundary, and a bare
+# `block 0 and above` rendered for a row that stated no floor. Needs no tree,
+# so there is nothing here to skip.
+test-chain-reach:
+    nim c -r --mm:orc --hints:off tests/test_chain_reach.nim
 
 # tests/test_capability_tour.nim — that every entry of the demo chain's tour is a
 # real recording of ITS OWN program: distinct containers, per-transaction source

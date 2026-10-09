@@ -200,6 +200,18 @@ html[data-register="debugger"],
 .dbgbanner.warn{background:var(--bt-status-warning-bg);color:var(--bt-status-warning-fg);
   border-bottom-color:var(--bt-status-warning-border);
   border-left-color:var(--bt-status-warning-border)}
+/* The QUALIFIER tone. It is a `.dbgbanner` — same position, same undismissable
+   shape, same rail — because it is the same kind of page-level statement about
+   the trace, which is the precedent the divergence banner sets and the reason a
+   second treatment was not invented for it. What differs is that nothing is
+   wrong: the replay reproduced every published effect and its sparse trees'
+   roots cannot equal a full block's. So it takes the INFORMATIONAL status
+   surface rather than danger or warning, and it reads as narrowing a claim
+   rather than as reporting a fault. Both channels move together — a reader with
+   colour removed still sees a distinct rail weight and a distinct title. */
+.dbgbanner.info{background:var(--bt-status-info-bg);color:var(--bt-status-info-fg);
+  border-bottom-color:var(--bt-status-info-border);
+  border-left-color:var(--bt-status-info-border)}
 .dbgbanner .bannertitle{font-weight:var(--bt-type-h3-weight);white-space:nowrap}
 .dbgbanner .bannertext{color:inherit;max-width:var(--bt-measure-prose)}
 
@@ -286,9 +298,11 @@ html[data-register="debugger"],
    The deleted class names are written below WITHOUT their leading dot, on
    purpose and for the reason this file gives twice already: it is inlined into
    every served page, so a comment spelling a retired selector puts that
-   selector's text back into the bytes `test_debug_route` asserts over. Written
+   selector's text back into the served bytes a suite asserts over. Written
    this way, a `notin` assertion over the dotted spelling of any of them stays
-   true — and `test_debug_route` makes exactly that assertion.
+   true — and `test_ct_components_css` makes exactly that assertion, over
+   `debugRouteCss`, in "the retired BlockTracer pane vocabulary is gone from
+   the served CSS".
 
      deleted (no longer a selector anywhere)   replaced by
      ───────────────────────────────────────   ──────────────────────────────
@@ -297,8 +311,12 @@ html[data-register="debugger"],
      panehead                                  .lm_header
      panetitle                                 .lm_title
      panebody                                  .lm_content
-     panenote                                  .empty-overlay
-                                                 (empty_states.styl)
+     panenote                                  .empty-overlay for a pane's
+                                                 WHOLE-body message
+                                                 (empty_states.styl), .btnote
+                                                 for a note INSIDE a strip —
+                                                 upstream's own header excludes
+                                                 the second from the first
      ln stack                                  .lm_stack
      ln stack > pane                           .lm_content
      ln stack > pane > panehead                (nothing: a stacked panel never
@@ -419,18 +437,21 @@ a.lm_title{display:block;line-height:inherit}
 /* NO CODETRACER COUNTERPART, and upstream says so itself. `empty_states.styl`
    opens by stating its scope as panel-level messages and excluding "inline
    'no rows yet' lines that sit *within* a list alongside real rows … the side
-   inset would indent them out of line with the rows around them". Three notes
+   inset would indent them out of line with the rows around them". FIVE notes
    on this route are that kind: the `.srcrung` caption above the instruction
-   listing, the decoded-input note beside the payload rows, and the no-session
-   prose, whose BLOCK is centred while the prose is deliberately left-aligned.
+   listing, the decoded-input note beside the payload rows, the no-session
+   prose (whose BLOCK is centred while the prose is deliberately left-aligned),
+   and the attribution and coverage notes in the `.srcattr` / `.srccause`
+   strips, which were the last two users of the retired pane-note class.
    `.empty-overlay` centres its text and insets it 2.5rem a side, which is
-   right for "this panel is empty" and wrong for all three — measured on
-   `debugger--metadata-pane`, where the decoded-input paragraph came out
+   right for "this panel is empty" and wrong for every one of them — measured
+   on `debugger--metadata-pane`, where the decoded-input paragraph came out
    centred over four lines.
 
    So they keep BlockTracer's own treatment, under a name that says whose it
    is. This is the same treatment the retired pane-note class carried, and it
-   is unchanged. */
+   is unchanged — the strip notes override the padding and the size, for the
+   reason their own rule gives, and nothing here moved to accommodate them. */
 .btnote{padding:var(--bt-density-card-pad) var(--bt-density-cell-x);
   color:var(--bt-text-muted);font-size:var(--bt-type-body-sm-size);
   line-height:var(--bt-type-body-sm-line);max-width:var(--bt-measure-prose)}
@@ -874,6 +895,72 @@ a.lm_title{display:block;line-height:inherit}
    position family — "you can stop here" is the same question as "you are here"
    asked one step quieter — instead of the accent it shared with hyperlinks. */
 .srcline.hit .m{color:var(--bt-mark-executable)}
+/* A POSITION THE COMPILER KEYED HERE, marked as a qualification of the gutter
+   dot rather than as a replacement for it — see
+   `session_view.SourceLine.compilerAttributed`.
+
+   TWO CHANNELS, NEITHER OF THEM COLOUR ALONE. A dotted underline on the line's
+   number cell, plus the `?` badge below — so the mark survives colour removal
+   and survives a theme, which is the rule every other mark on this row follows
+   (`.ntbar`/`.rnbar` are an edge, `.m`'s glyphs are shapes). It is deliberately
+   quiet: the step IS real and the line IS executable, so a loud treatment would
+   read as an error on a row that carries a correct measurement.
+
+   It does not touch `.m`, `.p`, `.ntbar` or `.rnbar`. Those four cells are
+   already contended for by the executable marker, the position and the two
+   branch rails — the contention `.p` was split out to end — and adding a fifth
+   claimant to any of them would reintroduce exactly that defect. The number
+   cell `.n` carries nothing but the ordinal and is free. */
+/* The pane-level sentence for the `?` marks. `.srcrung`'s position and weight —
+   it is the same kind of statement, one rung finer: that header says which
+   fidelity the position is at, this says how much to trust the position itself.
+   It is emitted on BOTH sides of the rung boundary and never replaces the rung
+   header, so a pane can carry both and they read as two facts rather than as one
+   contradicting the other. */
+/* `.srccause` — WHICH CONTRACT the steps with no line ran in and why none is
+   published — shares these rules rather than getting its own, and the sharing is
+   the design decision. It sits directly under `.srcrung`, which states the RATIO
+   it explains; the two are one thought, and giving the explanation a second
+   surface colour or a second border weight would present them as two unrelated
+   advisories and invite a reader to skip one. No new declaration and no new
+   token: the note that says "how much" and the note that says "why" are the same
+   kind of statement at the same volume. See `session_view.EditorPane.coverageNote`. */
+.srcattr,.srccause{flex:0 0 auto;
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  background:var(--bt-surface-sunken)}
+/* The note inside either strip is a `.btnote` — the class whose own comment
+   above states this exact case, and the class the `.srcrung` caption directly
+   beneath these two already uses. It was the retired pane-note class until
+   this change: the retirement table below had listed that class as deleted and
+   replaced by `.empty-overlay` while it was still live here and in two
+   renderers, and `.empty-overlay` was never the right answer for it — a note
+   inside a strip is precisely what `empty_states.styl`'s own header excludes.
+
+   THE RENDERING IS UNCHANGED, which is why the three overrides are here.
+   `.btnote`'s own rule is written for a note in a pane BODY: card padding, the
+   body-small size, and the prose measure. A strip is one sentence in a
+   bordered band the width of the pane, so it keeps the tighter padding and the
+   label size it has always had, and declines the measure — a 68ch cap inside a
+   full-width band would leave a ragged right edge against a border that runs
+   the whole way. `color` and `line-height` are NOT restated: `.btnote` already
+   declares the same two values, and a second copy is a second thing to keep in
+   step. */
+.srcattr .btnote,.srccause .btnote{
+  padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  font-size:var(--bt-type-label-size);max-width:none}
+.srcline.cattr .n{text-decoration:underline dotted;
+  text-decoration-thickness:var(--bt-stroke-hairline);
+  text-underline-offset:var(--bt-space-3xs)}
+/* The `?` is its OWN element, emitted only on a marked row — see the renderer
+   for why it is not a `data-` attribute on every row. It sits in the rail column
+   beside `.ntbar`/`.rnbar` rather than in `.m`, `.p` or `.n`, so it contends
+   with no existing mark: `.m` already answers "what does the recording say about
+   this line", `.p` answers "are you here", and the two rails answer "which way
+   did it go". This answers a fourth question and gets a fourth channel. */
+.srcline .cattrmark{position:absolute;right:var(--bt-space-2xs);top:0;
+  font-size:var(--bt-type-label-size);line-height:var(--bt-type-body-sm-line);
+  font-weight:var(--bt-type-h3-weight);
+  color:var(--bt-status-warning-fg);pointer-events:none}
 /* The current line RAISES contrast. It used to lower it: the line number and
    the ▶ marker were accent-on-accent — the accent foreground on the accent's
    own tint — which measured 3.83:1 in dark and 5.10:1 in light against 6.61:1
@@ -1552,6 +1639,17 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 
 /* ── state ──────────────────────────────────────────────────────────────── */
 .st{font-size:var(--bt-density-data-size)}
+/* The caption above a POPULATED values pane — what kind of thing these rows are.
+   `.evcap`'s rules and `.instrcap`'s, for their reason. It matters more here than
+   in either of those: the rows a chain recording puts in this pane are the VM's
+   machine columns rather than program variables, and a pane that drew them
+   without saying so would be the mislabelling this campaign removed from
+   `calltrace.json`, reinstated one pane over. */
+.stcap{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  background:var(--bt-surface-sunken);
+  color:var(--bt-text-muted);font-size:var(--bt-type-label-size);
+  line-height:var(--bt-type-body-sm-line);overflow-wrap:anywhere}
 .strow{display:flex;align-items:baseline;gap:var(--bt-space-sm);
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
@@ -1633,6 +1731,22 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 
 /* ── event log: four kinds, distinguished by glyph, weight and rule ─────── */
 .ev{font-size:var(--bt-density-data-size)}
+/* The caption above a POPULATED log — what these rows are, and what the
+   recording carries that is not among them. `.instrcap`'s rules, for the same
+   reason they are `.instrcap`'s: it is a sentence rather than data, so it is not
+   monospace and it WRAPS, and it sits on the sunken surface with a hairline
+   under it so a reader learns that the strip above rows is a different kind of
+   thing from the rows. It is NOT `.empty-overlay`: that is the panel-level
+   empty-state paragraph, which is centred and inset 2.5rem a side because it
+   is the whole of a pane's body, and reusing it here would centre a caption
+   over a dense list. It is not a plain `.btnote` either, for the same reason
+   `.srcattr`'s note overrides one: card padding above a dense list is too
+   much air. */
+.evcap{padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
+  background:var(--bt-surface-sunken);
+  color:var(--bt-text-muted);font-size:var(--bt-type-label-size);
+  line-height:var(--bt-type-body-sm-line);overflow-wrap:anywhere}
 .evrow{display:flex;align-items:baseline;gap:var(--bt-space-sm);
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);

@@ -119,6 +119,32 @@ function findCtPrint() {
 }
 
 const ctPrint = findCtPrint();
+// ── READING A CONTAINER WHOSE VERSION STAMP PREDATES THE GLOBAL-LINE-INDEX
+//    CORRECTION ───────────────────────────────────────────────────────────────
+//
+// OFF BY DEFAULT. `ct-print` refuses such a container by name, because its
+// line-only step positions would come back ONE LINE HIGH under the current
+// decode — silently, with nothing in the bytes to tell the two packings apart.
+// That refusal is correct and this tool does not override it on its own
+// authority.
+//
+// `CT_PRINT_ACCEPT_SHIFTED_GLOBAL_INDEX=1` says the OPERATOR holds the evidence
+// that this corpus's writer already used the corrected packing. For the
+// containers in this repository that evidence exists and is recorded in
+// `codetracer-specs/BlockTracer/Recording-Readers.md` §3.2: the same bytes read
+// under both decodes give identical positions, and all 21 distinct (path, line)
+// pairs of `0x20ed5b91…` land on the one-line BODY of the function they name
+// rather than on the `fn` signature above it, checked against the container's
+// own corroborated Noir text. A one-line-high decode would move all 21.
+//
+// THE DERIVED FILE SAYS SO. `readWithAcceptShiftedGlobalIndex: true` is written
+// into the sidecar when and only when this was used, so a sidecar that rests on
+// an operator's argument is distinguishable afterwards from one the container
+// vouched for itself. The key is ABSENT rather than false on an ordinary read,
+// which is what keeps every already-published sidecar byte-identical.
+const ACCEPT_SHIFTED = process.env.CT_PRINT_ACCEPT_SHIFTED_GLOBAL_INDEX === '1';
+const CT_PRINT_FLAGS = ACCEPT_SHIFTED ? ['--accept-shifted-global-index'] : [];
+
 const snap = JSON.parse(readFileSync(join(dir, 'snapshot.json'), 'utf8'));
 const outDir = join(dir, 'calltrace');
 
@@ -136,7 +162,7 @@ for (const t of snap.transactions) {
   const ct = join(dir, t.container);
   if (!existsSync(ct)) { skipped++; continue; }
 
-  const events = JSON.parse(execFileSync(ctPrint, ['--events', ct],
+  const events = JSON.parse(execFileSync(ctPrint, ['--events', ...CT_PRINT_FLAGS, ct],
     { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 }));
 
   // Walk in stream order, counting Steps, so every frame gets the time
@@ -200,7 +226,43 @@ for (const t of snap.transactions) {
     // "nothing is folded", which is exactly what a `/1` recording's two frames
     // are. The version moves so a reviewer can tell the two apart, not because
     // one of them stopped working.
-    schema: 'avm-call-frames/2',
+    //
+    // `/3` IS NOT ADDITIVE AND THAT IS WHY IT IS A VERSION. `/2` published the
+    // VM's machine columns inside every frame's `args`, so 46 of the 47 frames of
+    // `0x0a807e4e…` claimed to take a `contractAddress` argument — every frame but
+    // the synthetic `<toplevel>`, which carried none. (45 of 47 carried the SAME
+    // one: the pre-migration file holds exactly three distinct `args` lists — the
+    // empty one, one address on 45 frames and a second address on 1. "45" is the
+    // count of identical lists, not the count of frames with an address, and this
+    // comment used to give it as both.) `/3` keeps the
+    // value and moves it to `contractAddress` on the frame, and `args` is now the
+    // function's own arguments or nothing — a `/2` reader looking for the address
+    // in `args` finds an empty list, which is a CHANGE of meaning and not an
+    // addition. Nothing in this repository read `args` (measured: zero consumers
+    // across `client/`, `src/` and `tools/`), so the cost of the bump is zero
+    // today and the version is what keeps it visible.
+    //
+    // THE MIGRATION OF THE 33 COMMITTED SIDECARS HAS FOUR LINE CLASSES, NOT THREE,
+    // and the fourth is the one an exhaustive-sounding summary drops. Classified
+    // over `git show e95e803 -U0 -- '*calltrace/*.json'`, added lines:
+    //
+    //     78  `"contractAddress": "0x…",`      the moved value
+    //     78  `"args": [],`                    the collapsed argument list
+    //     78  `"contractAddress": null,`       <- THE FOURTH CLASS
+    //     33  `"schema": "avm-call-frames/3",` the version bump
+    //
+    // So all 156 frames of the migrated corpus GAINED the field and exactly half
+    // of them declare it empty. Those 78 are not a move and not a collapse: they
+    // are frames that never had a `contractAddress` in `args` — the synthetic
+    // `<toplevel>` of each sidecar — and they acquire an explicit `null` so that
+    // "this frame ran in no contract context" is stated rather than inferred from
+    // an absent key. Removed lines are seven forms, not three: the six of the
+    // dismantled `args` block (`"args": [`, `{`, `"name": …`, `"value": …`, `}`,
+    // `],`) at 78 each, plus 33 `"schema": "avm-call-frames/2",`. The committed
+    // state agrees: 78 `"contractAddress": null` occurrences and 78 with a value,
+    // over 156 of the 203 frame rows in the 35 committed calltrace sidecars (the
+    // other 47 rows are the two files this migration did not touch).
+    schema: 'avm-call-frames/3',
     tx: t.txHash,
     // Republished so the ingest can refuse a stream that disagrees with the
     // manifest it is about to write, without re-deriving anything.
@@ -219,6 +281,11 @@ for (const t of snap.transactions) {
     foldedSteps: folded.reduce((a, f) => a + f.hiddenSteps, 0),
     measuredPostHoc: false,
     measuredBy: 'tools/chain/derive-calltrace.mjs (read from the container)',
+    // Present only when the read rested on the operator's evidence rather than
+    // on the container's own version stamp — see `ACCEPT_SHIFTED` above. Spread
+    // rather than written as `false`, so an ordinary derivation's bytes are
+    // unchanged and absence means "the container vouched for itself".
+    ...(ACCEPT_SHIFTED ? { readWithAcceptShiftedGlobalIndex: true } : {}),
     frame: frames,
   };
   writeFileSync(join(outDir, `${t.txHash}.json`), JSON.stringify(out, null, 1) + '\n');

@@ -257,17 +257,32 @@ suite "the index path still works, and is unchanged by the encoding":
     # §5's promise is "a derivation the producer can do and the browser cannot is
     # not done", so the browser's backend is where it has to be graded. The three
     # arms below are the three non-hex rows a chartered chain uses.
-    let m = parseMeta("2|2|9W,qx,5G")
-    # base58 (a Solana address): the whole string is payload, case PRESERVED.
-    ck m.shardFor("base58", "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM") == "9W"
+    let m = parseMeta("2|2|9w,qx,5g")
+    # base58 (a Solana address): the whole string is payload, and the SHARD NAME is
+    # FOLDED (`shardKey.foldKey`) while the identifier is not. The name is a `.bin`
+    # FILE, and a case-significant one is a single entry on a case-insensitive
+    # filesystem — `9W.bin` beside a `9w.bin` is one file, last writer wins at rc 0,
+    # and the other shard's entries vanish. The identifier keeps its case: the arms
+    # below on `indexKey`/`entryPayload` are where that is asserted.
+    ck m.shardFor("base58", "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM") == "9w"
     # bech32 (a Cardano address): the payload begins after the LAST `1`, which is
-    # what stops every address on the chain landing in one bucket.
+    # what stops every address on the chain landing in one bucket. Its key form
+    # already folds, so this one is unchanged — which is what makes the two above
+    # attributable to the new field rather than to a fold applied to everything.
     ck m.shardFor("bech32", "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer") == "qx"
     # ss58 (a Substrate account): base58's rules, its own length band.
-    ck m.shardFor("ss58", "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY") == "5G"
+    ck m.shardFor("ss58", "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY") == "5g"
     # …and every one of those shards is one the descriptor published, so the
     # client would fetch rather than report a definite absence.
-    for sh in ["9W", "qx", "5G"]: ck m.shardIsPublished(sh)
+    for sh in ["9w", "qx", "5g"]: ck m.shardIsPublished(sh)
+    # AND THE IDENTIFIER SURVIVED THE FOLD, in the same arm, so "the shard folded"
+    # cannot be read as "the identifier folded" — the string's own leading pair still
+    # reads in its published case while the shard name does not. Stated with a slice
+    # rather than by naming `identifierKeyForm`, because the boundary sweep in
+    # `tests/tidentifierencoding.nim` pins the EXACT set of files that reach the case
+    # rule, and a test naming it would widen that population for no derivation.
+    ck "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"[0 .. 1] == "9W"
+    ck "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"[0 .. 1] == "5G"
 
   test "…and the client derives WHICH encoding from the query string alone":
     # No registry, no chain, no request — which is the whole of why the index can
@@ -476,8 +491,15 @@ suite "the index path still works, and is unchanged by the encoding":
     # two admissible producers. `base64url` was findable before the fix because it
     # is declared first; `ss58` was not. Both are now, and the ASYMMETRY was the
     # tell that this was declaration order and not a missing feature.
-    ck hitsEndToEnd(Ton, "base64url", Ton, "EQAA") == 1
-    ck hitsEndToEnd(Ton, "ss58", Ton, "EQAA") == 1
+    # THE SHARD DIRECTORY IS `eqaa` AND NOT `EQAA`: `shardKey.foldKey` folds the
+    # shard segment for every case-significant member, because the segment names a
+    # DIRECTORY and a `.bin` FILE, and a case-significant one is a single entry on a
+    # case-insensitive filesystem. The IDENTIFIER is unfolded — `Ton` is passed
+    # verbatim as the published name and as the query — so this arm still tests the
+    # thing it was written for and now additionally pins that the producer and the
+    # client fold the bucket the same way.
+    ck hitsEndToEnd(Ton, "base64url", Ton, "eqaa") == 1
+    ck hitsEndToEnd(Ton, "ss58", Ton, "eqaa") == 1
 
     # ── THE CONTROL, so the widening did not simply stop filtering. ─────────────
     # A producer declaring `base58` for the 48-character TON string keys the same
@@ -485,7 +507,7 @@ suite "the index path still works, and is unchanged by the encoding":
     # base58's 43–44 and 87–88 bands, so the query does NOT admit base58 and the
     # entry is not an answer. The shard is reached and the entry is excluded: that
     # is the false-presence filter still doing its job at the same payload.
-    ck hitsEndToEnd(Ton, "base58", Ton, "EQAA") == 0
+    ck hitsEndToEnd(Ton, "base58", Ton, "eqaa") == 0
     # …and the reason it is a real control rather than a miss for some other
     # reason: the payload really does match, as the single-encoding spelling shows.
     let b58Shard = encodeHashShard(@[HashEntry(encoding: "base58",
@@ -511,5 +533,5 @@ suite "the index path still works, and is unchanged by the encoding":
     ck a46Probes[0].encodings == @["hex", "ss58"]
 
 echo "assertion count: ", asserted
-doAssert asserted == 146,
-  "assertion count is " & $asserted & ", expected 146 — a case was added or removed."
+doAssert asserted == 148,
+  "assertion count is " & $asserted & ", expected 148 — a case was added or removed."

@@ -17,14 +17,20 @@
 ##
 ## Usage:
 ##   blocktracer-chain-ingest --snapshot DIR --out DIR [--generation G]
-##                            [--scope full|curated]
+##                            [--scope full|curated|curatedIfWhole]
+##
+## `curatedIfWhole` is what the SITE BUILD runs, and it is accepted here so that
+## "why did this capture publish every transaction" is answerable by hand with
+## one command instead of by reading a build log. It prints the scope it CHOSE
+## plus `scopeFellBack`, so the answer is in the output rather than inferred
+## from the counts.
 
 import std/[json, os, parseopt]
 import blocktracer/chain/ingest
 
 proc usage() =
   stderr.writeLine """usage:
-  blocktracer-chain-ingest --snapshot DIR --out DIR [--generation G] [--scope full|curated]"""
+  blocktracer-chain-ingest --snapshot DIR --out DIR [--generation G] [--scope full|curated|curatedIfWhole]"""
 
 proc main() =
   var
@@ -43,8 +49,10 @@ proc main() =
       case v
       of "full": scope = isFull
       of "curated": scope = isCurated
+      of "curatedIfWhole": scope = isCuratedIfWhole
       else:
-        stderr.writeLine "error: --scope must be 'full' or 'curated', got '" & v & "'"
+        stderr.writeLine "error: --scope must be 'full', 'curated' or " &
+          "'curatedIfWhole', got '" & v & "'"
         quit 2
     else: discard
 
@@ -90,7 +98,12 @@ proc main() =
     "snapshot": snapshotDir,
     "out": outDir,
     "chain": ing.chain,
+    # THE SCOPE THAT WAS APPLIED, which under `curatedIfWhole` is not the one
+    # asked for. `scopeFellBack` beside it is what says a choice happened — the
+    # two together answer "what did this publish, and was that decided or
+    # stated", which one field cannot.
     "scope": (if ing.scope == isFull: "full" else: "curated"),
+    "scopeFellBack": ing.scopeFellBack,
     "blocks": ing.blocks,
     "transactions": ing.transactions,
     "withTrace": ing.withTrace,

@@ -30,7 +30,7 @@
 ## `DebugSessionView` from a live session and this module keeps serving the
 ## pre-hydration frame. Nothing between here and the renderers changes.
 
-import std/[algorithm, json, os, tables]
+import std/[algorithm, json, os, strutils, tables]
 import ../reader
 import ../viewutil
 import ./deeplink_landing
@@ -295,11 +295,56 @@ func entryStepWithin*(steps: int): int =
   ## `FixtureStep / FixtureTotalSteps` is where one recording happens to have
   ## been photographed, not a ratio anything measured, and a session that landed
   ## at "9.7% of wherever you are" would be a number with no referent.
+  ##
+  ## ## AND IT IS THE FIXTURE'S RULE ONLY. See `chainEntryStep`.
+  ##
+  ## This proc is reachable from the fixture branch of `demoSession` and from
+  ## nowhere else. That is the whole of the earlier fix's remaining defect: the
+  ## FIRST correction here moved the DENOMINATOR off `FixtureTotalSteps` and
+  ## left the NUMERATOR a constant, so eight published chain transactions went
+  ## on opening at literally step 128 — whatever their length — because 128 is
+  ## below every one of their step counts and the clamp above therefore never
+  ## fired. A clamp that only notices a recording SHORTER than the photograph
+  ## cannot notice that the photograph is of a different program.
   if steps <= 0: 0
   elif steps < FixtureStep: steps
   else: FixtureStep
 
-proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
+func chainEntryStep*(): int =
+  ## Where a session with no `?t=` lands on a REAL CHAIN RECORDING: the front
+  ## of the recording, tick 0.
+  ##
+  ## `FixtureStep` is deliberately not in this expression and must not come
+  ## back into it. 128 is the tick at which one vendored Noir demo was
+  ## photographed — the file's own comment concedes it is "not a ratio anything
+  ## measured" — and every pane of that fixture is consistent with it
+  ## (`executedLines` is the set visited BY 128, `fixtureCalltrace` marks the
+  ## frame open at 112, `fixtureState` computes iteration 2's values). None of
+  ## that is true of a chain transaction: 128 is a coordinate inside a
+  ## different recording, and a page opening there opens nowhere in particular.
+  ##
+  ## Tick 0 is not itself the answer a visitor sees, and it is not meant to be.
+  ## It is the FRONT of the recording, and the two producers below move it
+  ## forward to the first frame this page can actually show:
+  ##
+  ##   * `withSourcePositions` scans forward from here to the first step that
+  ##     carries a `(path, line)` — on `0x0a807e4e…` that is tick 14,
+  ##     `FeeJuice::public_dispatch` at `main.nr:203`, and `focus` then makes
+  ##     the contract's own `main.nr` the open document. Landing at 128 made
+  ##     that scan start PAST the positioned region (14..107), find nothing
+  ##     forward, and fall into the backward scan — which is why the best page
+  ##     in the product used to open on the LAST positioned step of its own
+  ##     execution, inside a one-line `avm.nr` oracle shim.
+  ##   * `withInstructionListing` marks row 0, which is tick 0, which is the
+  ##     first instruction the recording executed.
+  ##
+  ## So the rule is "open at the front and let whichever pane owns the rows
+  ## move to the first one it has", and both moves already existed — they were
+  ## being entered from the wrong side.
+  0
+
+proc fixtureControls(positioned, live: bool; steps: int;
+                     entryStep = -1): DebugControlsPane =
   ## `positioned` is "the panes carry a step"; `live` is "the engine can move
   ## it". They are different on the static route, where the first is true and
   ## the second is false, and the toolbar's enablement follows the second —
@@ -319,7 +364,22 @@ proc fixtureControls(positioned, live: bool; steps: int): DebugControlsPane =
     result.buttons.add ControlButton(action: a, enabled: live)
   result.positioned = positioned
   result.totalSteps = steps
-  result.step = (if positioned: entryStepWithin(steps) else: 0)
+  # `entryStep` IS THE CALLER'S, and the default is the fixture's rule.
+  #
+  # A negative `entryStep` means "you decide", which is the fixture's case and
+  # the only case that wants `entryStepWithin`. Every other caller states the
+  # tick it wants, so a producer cannot acquire the fixture's photograph by
+  # forgetting to opt out of it — which is exactly how 128 reached eight chain
+  # transactions.
+  # NO CLAMP HERE, deliberately. `withInstructionListing` and
+  # `withSourcePositions` clamp against the length of the stream they are about
+  # to render, which is the only length that can be wrong about; the manifest's
+  # `steps` is a second number and a second clamp against it would be a second
+  # producer of one coordinate. See `withInstructionListing`'s own note.
+  result.step =
+    if not positioned: 0
+    elif entryStep >= 0: entryStep
+    else: entryStepWithin(steps)
   # Short, because this now renders in the identity bar beside the controls it
   # describes rather than in a pane of its own — and because the step counter
   # sits next to it (`.dcsteps`), so repeating "step 128 of 1315" here spent a
@@ -419,6 +479,17 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
   # where there is no manifest at all, which is the fixture's own case.
   let steps = if totalSteps > 0: totalSteps else: FixtureTotalSteps
 
+  # WHERE A SESSION WITH NO `?t=` LANDS, DECIDED ONCE, BY WHICH KIND OF
+  # RECORDING THIS IS.
+  #
+  # `sourceLevel` is the manifest's own bit and it is already the discriminator
+  # every pane below uses: true takes the vendored fixture's panes, false takes
+  # the chain's. The landing step has to follow the same split, because the
+  # fixture's 128 is a coordinate inside the fixture's recording and means
+  # nothing anywhere else (`chainEntryStep`). `-1` is "use the fixture's rule"
+  # — see `fixtureControls`.
+  let entryStep = if sourceLevel: -1 else: chainEntryStep()
+
   case v.headline
   of taReady, taDivergent:
     # `spFetching`, not `spReady`: this is the PRE-HYDRATION frame. The panes
@@ -431,9 +502,9 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
     # The SAME derivation the controls use, so the URL coordinate the page
     # reports and the step the toolbar shows cannot come apart — they were two
     # spellings of `FixtureStep`, which agreed only because both were wrong in
-    # the same way.
-    result.timeCoordinate =
-      if timeCoordinate > 0: timeCoordinate else: entryStepWithin(steps)
+    # the same way. It is read back OFF the controls now rather than recomputed
+    # beside them, which is one derivation rather than two that agree.
+    result.timeCoordinate = timeCoordinate
     result.integrity =
       if v.headline == taDivergent: siDivergent else: siValidated
     if v.headline == taDivergent:
@@ -481,14 +552,38 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
       # The three pane notes below were the same claim restated three times.
       # They now say what each pane does not have and why, without deciding on
       # the chain's behalf what it will never publish.
+      # ── AND IT NAMES NO CHAIN, which is the correction of 2026-10-08. ──────
+      #
+      # The sentence this replaces said "**Aztec** publishes a commitment to a
+      # contract's compiled artifact rather than the artifact itself". That is
+      # true of Aztec and this constructor serves EVERY chain: measured on the
+      # first Ethereum mainnet transaction this tree ingested, the published
+      # page told a visitor looking at a USDT transfer on Ethereum a fact about
+      # Aztec's contract-class model. A page that names the wrong chain is not
+      # over-specific, it is wrong, and it is wrong in the one pane whose whole
+      # job is to explain why there is no source.
+      #
+      # The mechanism differs per chain and the SHAPE does not: a chain
+      # publishes the bytecode that ran, source is obtained from somewhere else,
+      # and something has to tie the two together — an `artifactHash`
+      # commitment on Aztec, a verification registry plus the compiler the
+      # contract was verified with on an EVM chain. What is true on all of them
+      # is that the tying-together did not happen here, and that is now what it
+      # says.
+      #
+      # IT STILL DOES NOT DECIDE ON THE CHAIN'S BEHALF THAT NO SOURCE EXISTS —
+      # the property the previous correction landed and which is kept. "Nothing
+      # resolved" is a statement about this recording; "there is none" would be
+      # a claim about the chain, and on Ethereum it would additionally be false
+      # for most verified contracts.
       result.editor = EditorPane(availability: srcUnverified,
         reason: "No source resolved for the code this transaction ran, so " &
                 "this recording is at instruction level: every step is a " &
-                "program counter into the contract's bytecode. Aztec publishes " &
-                "a commitment to a contract's compiled artifact rather than " &
-                "the artifact itself, so source has to be fetched off-chain " &
-                "and checked against that commitment — which has not happened " &
-                "for this contract. Stepping is complete either way.")
+                "program counter into the contract's bytecode. A chain " &
+                "publishes the bytecode that ran and not the source it was " &
+                "built from, so source has to be obtained separately and " &
+                "proved against that bytecode — which has not happened for " &
+                "this contract. Stepping is complete either way.")
       # NOT "no function names". They HAVE names — the engine answers this
       # recording's call trace with `<toplevel>` and `enqueued-call-0` — and
       # for as long as this sentence said otherwise, the one pane that promised
@@ -509,7 +604,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
         "Calls and storage writes are recorded against program counters " &
         "rather than source lines."
       result.controls = fixtureControls(positioned = true, live = false,
-                                        steps = steps)
+                                        steps = steps, entryStep = entryStep)
     else:
       # SOURCE LEVEL, and the only state in this constructor that knows what
       # language it is looking at. `languages` is set HERE, with the panes it
@@ -555,7 +650,12 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
       result.eventLog = fixtureEventLog(
         v.outcome in {ooReverted, ooFailedWithEffects})
       result.controls = fixtureControls(positioned = true, live = false,
-                                        steps = steps)
+                                        steps = steps, entryStep = entryStep)
+    # ONE COORDINATE, READ OFF THE CONTROLS THAT OWN IT. Both arms above have
+    # just built them, and an explicit `?t=` still wins — that is the visitor
+    # asking for a position, which outranks any landing rule.
+    if timeCoordinate <= 0:
+      result.timeCoordinate = result.controls.step
   of taOnDemand:
     result.phase = spAwaitingGeneration
     result.unavailableReason = availabilityNote(taOnDemand)
@@ -1083,6 +1183,402 @@ proc withCallFrames*(session: var DebugSessionView; node: JsonNode) =
   session.calltrace.note =
     "Frames are recorded and carry the names this recording gives them. " &
     "Nothing resolved a source position, so they carry no file or line."
+
+const StorageWriteOracles* = ["storage_write", "storage_write_opcode"]
+  ## The frame names that ARE a storage write rather than a call to one.
+  ##
+  ## Named here, as a set of two, because the AVM's write reaches the recording
+  ## through one oracle whose Noir wrapper and whose opcode shim both appear as
+  ## frames on some recordings. The wrappers ABOVE them —
+  ## `PublicContext::storage_write`, `PublicContext::raw_storage_write`,
+  ## `PublicMutable::write` — are calls that lead to a write and are rendered as
+  ## calls: marking each of them would draw one write as four, which is the
+  ## "count inflated by the nesting" shape. The innermost frame is the write.
+  ##
+  ## MATCHED ON THE WHOLE NAME, never as a substring: `raw_storage_write`
+  ## contains `storage_write` and is a wrapper, so a `contains` test would mark
+  ## exactly the rows this list exists to leave alone.
+
+proc shortSourceLabel(path: string; line: int): string =
+  ## `avm.nr:118` — the file's own name and the line, for a row that has room
+  ## for neither the 118-character absolute build path the container interned
+  ## nor nothing at all. The full path is in the Code pane's tab and in the
+  ## frame's own row; this is the detail column of an event.
+  if path.len == 0: return ""
+  var base = path
+  let slash = path.rfind('/')
+  if slash >= 0: base = path[slash + 1 .. ^1]
+  if line > 0: base & ":" & $line else: base
+
+proc withEventLog*(session: var DebugSessionView; node: JsonNode;
+                   reverted: bool) =
+  ## Populate the Event Log from the recording's own call stream.
+  ##
+  ## ## THE PANE THE SPEC CALLS THE MOST VALUABLE THING IN THE PRODUCT, EMPTY
+  ##
+  ## `Debugger-Integration.md` §4.2: an event log "merging calls/returns,
+  ## storage writes, events, reverts … Every entry is a navigation target:
+  ## clicking moves the debugger to the exact step that produced it. This is the
+  ## single most valuable interaction in the product." On every chain
+  ## transaction this repository publishes it rendered one sentence and no rows,
+  ## while `calltrace.json` sat beside the container carrying 47 frames with a
+  ## step apiece — the coordinates the entries are supposed to be.
+  ##
+  ## So this is a RENDERER change and not a recorder one: every field below is
+  ## read off an object the tree already publishes.
+  ##
+  ## ## WHAT IS IN THE STREAM, AND WHAT IS NOT — measured, not assumed
+  ##
+  ## The stream is the recording's calls, its returns and its storage writes.
+  ## It is NOT the ten reproduced effects and it is NOT the six `logEvents` the
+  ## capture counts, and the pane says so rather than implying it has them:
+  ##
+  ##   * `effects.matched: 10` / `mismatches: []` is a COUNT. The differential
+  ##     oracle compared the replay's effects against the block's and published
+  ##     how many agreed; no per-effect record exists anywhere in the corpus, so
+  ##     there is nothing to make ten rows out of. Ten rows synthesised from a
+  ##     count is the confident wrong answer this product may not ship.
+  ##   * the container's `logEvents` are `elkTraceLogEvent` PROVENANCE
+  ##     annotations the recorder writes — `ct.mapping-rung`,
+  ##     `ct.step-producer`, `ct.chain-provenance`, `ct.merkle-root-divergence`,
+  ##     `ct.private-half`, `ct.source-mapping-ceiling`, `ct.source-provenance`.
+  ##     They carry no step, they are not program output, and the page already
+  ##     states every one of them in the metadata pane and the Raw block. An
+  ##     `event` row per annotation would put the page's own footnotes into the
+  ##     execution's timeline.
+  ##
+  ## ## THE REFUSALS
+  ##
+  ## A pane that already has rows is left alone — the vendored fixture fills its
+  ## own, and this is the chain floor, never an overwrite of a rung above it.
+  ## A payload that decodes to nothing leaves the pane's sentence exactly as it
+  ## was, which is the page this route has always served.
+  if not session.hasFrame: return
+  if session.eventLog.rows.len > 0: return
+  if node == nil or node.kind != JObject: return
+  let arr = node{"frame"}
+  if arr == nil or arr.kind != JArray or arr.len == 0: return
+
+  var rows: seq[EventRow]
+  var writes = 0
+  for f in arr:
+    let name = f{"name"}.getStr
+    if name.len == 0: continue
+    let isWrite = name in StorageWriteOracles
+    if isWrite: inc writes
+    rows.add EventRow(
+      kind: (if isWrite: evStorageWrite else: evCall),
+      step: f{"step"}.getInt,
+      label: name,
+      # THE DETAIL IS THE FRAME'S OWN SOURCE POSITION, and where it has none it
+      # is empty rather than filled with something else. `args` is deliberately
+      # NOT read: the container's `Call` events carry the AVM's
+      # `contractAddress` machine column and nothing else, which is a fact about
+      # the execution context and not this function's arguments — see
+      # `tools/chain/lib/calltrace_frames.mjs`. Printing it as an argument here
+      # would put `Reader<N>::read(contractAddress)` in the timeline.
+      detail: shortSourceLabel(f{"path"}.getStr(""), f{"line"}.getInt(0)))
+
+  if rows.len == 0: return
+
+  # THE CURRENT ROW IS THE INNERMOST FRAME CONTAINING THE POSITION, which is the
+  # same rule `withCallFrames` applies and for the same reason: every AVM-context
+  # recording has two frames spanning the whole stream, so "contains the
+  # position" marks both and the pane would highlight `<toplevel>`.
+  if session.controls.positioned:
+    let pos = session.controls.step
+    var innermost = -1
+    for i in 0 ..< arr.len:
+      if i >= rows.len: break
+      let endStep = arr[i]{"endStep"}
+      let ends = (if endStep == nil or endStep.kind == JNull: high(int)
+                  else: endStep.getInt)
+      if rows[i].step <= pos and pos <= ends: innermost = i
+    if innermost >= 0: rows[innermost].current = true
+
+  # THE REVERT, AND ONLY ON A TRANSACTION THAT REVERTED. Same rule as
+  # `fixtureEventLog`'s: `ooPartial` is not a revert, and rendering a failed
+  # constraint against a succeeded transaction would be the pane inventing an
+  # event the trace never carried. It carries no step of its own — the recording
+  # ends, it does not record a step for ending — so it takes the last frame's.
+  if reverted:
+    rows.add EventRow(kind: evRevert, step: rows[^1].step,
+      label: "reverted",
+      detail: "the transaction reverted; the recording is complete up to here")
+
+  session.eventLog.rows = rows
+  withEventAnchors(session.eventLog)
+  # THE SENTENCE STAYS AND BECOMES A CAPTION, because with rows on screen it is
+  # no longer "why this pane is empty" but "what these rows are and what they
+  # are not". `renderEventLog` draws a non-empty note above the rows exactly as
+  # `renderSource` draws `listingCaption` above a listing.
+  session.eventLog.note =
+    $rows.len & " recorded entries — every call this recording opened, in the " &
+    "order it opened them, and " & $writes & " storage " &
+    (if writes == 1: "write" else: "writes") & ". Each row's step is its " &
+    "coordinate in the recording. The replay's reproduced effects are " &
+    "published as a count rather than one record each, so they are in the " &
+    "transaction pane and not in this timeline."
+
+proc markCompilerAttributed*(session: var DebugSessionView;
+                             positions, callFrames: JsonNode): int
+                            {.discardable.} =
+  ## Mark the lines whose source position is the COMPILER'S ANSWER rather than
+  ## evidence that the line ran, and return how many were marked.
+  ##
+  ## The two shapes, why each is sound, and the measurement behind each are on
+  ## `session_view.SourceLine.compilerAttributed`. What is here is the
+  ## derivation; nothing in it is specific to a contract, a chain or a hash.
+  ##
+  ## ## THE SECOND RULE'S PREMISE, SPELLED OUT, BECAUSE ITS SOUNDNESS IS THE
+  ## WHOLE VALUE OF THE MARK
+  ##
+  ## Two lines of ONE file, each visited by the recording in exactly ONE
+  ## contiguous run of steps, both runs inside the span of ONE frame declared in
+  ## that file at or above the lower of the two lines — i.e. inside one
+  ## invocation of one function that lexically contains both. If the HIGHER
+  ## line's run ends before the LOWER line's run begins, no forward control flow
+  ## through that invocation explains it, and no loop explains it either: a loop
+  ## revisits, which would give one of the two a second run and disqualify it
+  ## here. So at least one of the two positions is not where the execution was.
+  ##
+  ## BOTH ARE MARKED AND NEITHER IS CORRECTED. The recording does not say which
+  ## of the two the compiler moved, and picking one would be this producer
+  ## inventing the discriminator the container lacks. Marking both understates
+  ## (one of them IS right) and that is the direction to err in — a reader who
+  ## checks the call tree beside it has what they need, and the call tree is
+  ## published on the same page.
+  ##
+  ## ## WHAT THE FRAME SCOPING IS FOR, measured rather than reasoned
+  ##
+  ## Without it the rule fires SIX times per container and five are ordinary:
+  ## `avm.nr:114` (`storage_read`) before `avm.nr:103` (`avm_return`),
+  ## `type_packing.nr:103` (`unpack`) before `:98` (`pack`), `main.nr:203`
+  ## (`public_dispatch`) before `:148` (`_increase_public_balance`). Calling one
+  ## function in a file and then another one above it is normal. Requiring a
+  ## single frame that lexically contains both runs removes all five and leaves
+  ## exactly one hit on each of the two containers in this corpus — the
+  ## `main.nr:223` / `main.nr:214` pair. The floor and the ceiling were both
+  ## measured; the rule is not calibrated to produce one answer.
+  if not session.hasFrame: return 0
+  if session.editor.availability != srcSourceLevel: return 0
+  if session.editor.documents.len == 0: return 0
+  let pos = decodeStepPositions(positions)
+  if not pos.has or pos.positioned <= 0: return 0
+
+  # ── rule 1: `quote { … }` template bodies ─────────────────────────────────
+  var suspect = initTable[string, seq[int]]()
+  proc suspectAdd(path: string; line: int) =
+    if not suspect.hasKey(path): suspect[path] = @[]
+    if line notin suspect[path]: suspect[path].add line
+  for d in session.editor.documents:
+    if d.path == ListingPath: continue
+    var text: seq[string]
+    for l in d.lines: text.add l.text
+    for r in findQuoteBodies(text, profileForDocument(d.path, d.language)):
+      for line in r.firstLine .. r.lastLine: suspectAdd(d.path, line)
+
+  # ── rule 2: a pair of positions one invocation cannot have produced ───────
+  #
+  # The runs, per (path, line). A run is broken by ANY other position, including
+  # an unpositioned step, because the question is "was this line left and
+  # returned to", and a step elsewhere is a departure however it is labelled.
+  var firstRun = initTable[(string, int), (int, int)]()
+  var multi: seq[(string, int)]
+  var prev = ("", -1)
+  for i in 0 ..< pos.steps:
+    if pos.pathId[i] < 0: prev = ("", -1); continue
+    let key = (pos.paths[pos.pathId[i]], pos.line[i])
+    if key == prev and firstRun.hasKey(key) and firstRun[key][1] == i - 1:
+      firstRun[key] = (firstRun[key][0], i)
+    elif firstRun.hasKey(key):
+      if key notin multi: multi.add key        # a second run: disqualified
+    else:
+      firstRun[key] = (i, i)
+    prev = key
+  for k in multi: firstRun.del k
+
+  # The frames, as (path, declaredLine, firstStep, lastStep).
+  var frames: seq[(string, int, int, int)]
+  if callFrames != nil and callFrames.kind == JObject:
+    let arr = callFrames{"frame"}
+    if arr != nil and arr.kind == JArray:
+      for f in arr:
+        let p = f{"path"}.getStr("")
+        let l = f{"line"}.getInt(0)
+        if p.len == 0 or l <= 0: continue
+        let e = f{"endStep"}
+        frames.add (p, l, f{"step"}.getInt,
+                    (if e == nil or e.kind == JNull: high(int) else: e.getInt))
+
+  var keys: seq[(string, int)]
+  for k in firstRun.keys: keys.add k
+  keys.sort()
+  for a in 0 ..< keys.len:
+    for b in a + 1 ..< keys.len:
+      if keys[a][0] != keys[b][0]: continue      # same file only
+      let lowLine = min(keys[a][1], keys[b][1])
+      let highLine = max(keys[a][1], keys[b][1])
+      let lowRun = firstRun[(keys[a][0], lowLine)]
+      let highRun = firstRun[(keys[a][0], highLine)]
+      # The higher line's run must finish STRICTLY before the lower one's begins.
+      if not (highRun[1] < lowRun[0]): continue
+      var contained = false
+      for f in frames:
+        if f[0] != keys[a][0]: continue
+        if f[1] > lowLine: continue              # declared below the pair
+        if f[2] <= highRun[0] and lowRun[1] <= f[3]: contained = true; break
+      if not contained: continue
+      suspectAdd(keys[a][0], lowLine)
+      suspectAdd(keys[a][0], highLine)
+
+  # ── the mark ──────────────────────────────────────────────────────────────
+  # …AND ON A LINE A RECORDED FRAME POINTS AT, executed or not.
+  #
+  # A frame's declared position is a jump target — the Call Trace row carries it
+  # and a `src:` deep link resolves against it — so a frame sitting inside a
+  # `quote { … }` template sends a reader to a macro body whether or not the
+  # recording placed a STEP on that line. `serde/src/serialization.nr:260` is
+  # exactly that on `0x0a807e4e…`: `derive_deserialize`'s frame is there, the
+  # positions stream is not, and without this the one surface that would have
+  # taken a visitor to the wrong place carried no mark at all.
+  var pointedAt = initTable[string, seq[int]]()
+  for f in frames:
+    if not pointedAt.hasKey(f[0]): pointedAt[f[0]] = @[]
+    if f[1] notin pointedAt[f[0]]: pointedAt[f[0]].add f[1]
+
+  for d in session.editor.documents.mitems:
+    if not suspect.hasKey(d.path): continue
+    for l in d.lines.mitems:
+      # Either the recording placed a step here, or a frame points here. A
+      # suspect line that is neither is not a claim anybody is being invited to
+      # misread — the gutter is unmarked and nothing links to it — and marking it
+      # would spread a caveat over code the page says nothing about, turning the
+      # count this returns into a number about the FILE rather than about the
+      # recording.
+      if not l.executed and
+         not (pointedAt.hasKey(d.path) and l.number in pointedAt[d.path]):
+        continue
+      if l.number notin suspect[d.path]: continue
+      l.compilerAttributed = true
+      inc result
+
+proc withMachineColumns*(session: var DebugSessionView;
+                         instructions, callFrames: JsonNode) =
+  ## Fill the Values pane with the VM's machine state at the session's step.
+  ##
+  ## ## THE PANE THAT WAS EMPTY WITH A TRUE REASON, AND HAD SOMETHING TO SAY
+  ##
+  ## The standing sentence is right as far as it goes: "This recording carries no
+  ## variable names. The contract's artifact resolved and its debug symbols carry
+  ## the source map, but their variable table is empty." Measured, and still
+  ## true — Aztec publishes these contracts compiled with
+  ## `debug_info.variables` empty, so there is no program local to name.
+  ##
+  ## What was NOT true is the implication a reader takes from an empty pane:
+  ## that the recording says nothing about state at this step. It says five
+  ## things, and the tree publishes four of them per step already — the
+  ## program counter, the opcode, the L2 gas meter and the execution context
+  ## are `instructions.json`'s four parallel columns, and which contract's
+  ## context a frame ran in is `calltrace.json`'s `contractAddress`. Those are
+  ## the AVM's own machine columns (`VariableName` records in the container:
+  ## `contractAddress`, `opcode`, `contextId`, `l2Gas`, `daGas`), and they are
+  ## exactly what a visitor stepping a bytecode recording wants to watch.
+  ##
+  ## ## WHY THIS IS NOT THE DEFECT IT LOOKS LIKE
+  ##
+  ## Publishing the AVM's machine columns as though they were program locals is
+  ## the defect `tools/chain/lib/calltrace_frames.mjs` was just corrected for —
+  ## 46 of the 47 frames of `0x0a807e4e…` published `contractAddress` as a
+  ## function ARGUMENT, which is every frame but the synthetic `<toplevel>`.
+  ## (This said "45 of 47". Measured on the pre-migration file: 45 frames share
+  ## the SAME one-entry `args` list and a 46th carries a different address, so 45
+  ## is the count of IDENTICAL LISTS and not the count of frames with an address.
+  ## A figure that is a denominator in one sentence and a population in the next
+  ## is the kind that survives review.) The
+  ## difference is the label, and the label is the whole of it: these rows are
+  ## headed as the VM's machine state, each one typed by what it is, and the
+  ## pane's note keeps saying that no program local was recorded. A row saying
+  ## `l2Gas: 641,654 (AVM machine column)` is a measurement; the same number
+  ## offered as a local would be a fabrication.
+  ##
+  ## ## THE REFUSALS
+  ##
+  ## A pane that already has values is left alone — the vendored fixture computes
+  ## its own from the recorded program, and this is the chain floor.
+  ##
+  ## An unpositioned session fills nothing: the columns are per step, and without
+  ## a step there is no "at this step" to read them at. That is also why this
+  ## runs after the two producers that settle the coordinate.
+  ##
+  ## A listing that decodes to nothing, or one whose length cannot hold the
+  ## session's step, fills nothing — the same refusal `withListingBesideSource`
+  ## makes, and for its reason: a column read at the wrong index is a value
+  ## belonging to another step.
+  if not session.hasFrame: return
+  if session.state.values.len > 0: return
+  if not session.controls.positioned: return
+  let listing = decodeInstructionListing(instructions)
+  if not listing.hasListing: return
+  let step = session.controls.step
+  if step < 0 or step >= listing.stepCount: return
+  let s = listing.steps[step]
+  # `changed` IS A RELATION BETWEEN TWO POSITIONS and is computed against the
+  # PREVIOUS step, which is the position a forward step arrived from. At step 0
+  # there is no previous position, so nothing is marked — an unmarked column is
+  # "no claim", and marking everything changed at the front of a recording would
+  # make the mark mean "this is the first frame" on every rung-3 page.
+  let prev = (if step > 0: listing.steps[step - 1] else: s)
+  let moved = step > 0
+
+  # WHICH CONTRACT'S CONTEXT, from the frame the session is standing in — the
+  # innermost frame containing the step, which is the same rule `withCallFrames`
+  # and `withEventLog` apply. Absent where the recording attached none, and it is
+  # NOT defaulted to the transaction's own contract: that would be this pane
+  # asserting a context the recording did not state.
+  var contractAddress = ""
+  if callFrames != nil and callFrames.kind == JObject:
+    let arr = callFrames{"frame"}
+    if arr != nil and arr.kind == JArray:
+      for f in arr:
+        let ends = f{"endStep"}
+        let e = (if ends == nil or ends.kind == JNull: high(int) else: ends.getInt)
+        if f{"step"}.getInt <= step and step <= e:
+          let a = f{"contractAddress"}.getStr("")
+          if a.len > 0: contractAddress = a
+
+  var vals: seq[StateValue]
+  if contractAddress.len > 0:
+    vals.add StateValue(name: "contractAddress", typ: "AVM machine column",
+                        value: contractAddress)
+  if s.hasProgramCounter:
+    vals.add StateValue(name: "pc", typ: "bytecode offset",
+                        value: pcText(s.pc, 4).strip(),
+                        changed: moved and prev.pc != s.pc)
+  vals.add StateValue(name: "opcode", typ: "AVM machine column",
+                      value: opcodeText(listing, s.opcode) & " (" & $s.opcode & ")",
+                      changed: moved and prev.opcode != s.opcode)
+  vals.add StateValue(name: "contextId", typ: "AVM machine column",
+                      value: $s.context,
+                      changed: moved and prev.context != s.context)
+  if listing.hasGas:
+    vals.add StateValue(name: "l2Gas", typ: "AVM machine column",
+                        value: $s.l2Gas,
+                        changed: moved and prev.l2Gas != s.l2Gas)
+  if vals.len == 0: return
+  session.state.values = vals
+  # THE NOTE KEEPS ITS CLAIM AND GAINS THE ONE IT WAS MISSING. `renderState`
+  # prints the note beside the rows, so this is read where it is true: the rows
+  # are the VM's, no program local was recorded, and the reason is one level in.
+  # Whatever the branch above wrote about the variable table is kept verbatim —
+  # it is the more specific sentence and this producer cannot re-derive it.
+  let was = session.state.note
+  session.state.note =
+    "The rows below are the AVM's own machine columns at this step, read from " &
+    "the recording. They are not program variables. " &
+    (if was.len > 0: was
+     else: "This recording carries no variable names, so there are no locals " &
+           "to name.")
 
 proc withInstructionListing*(session: var DebugSessionView; node: JsonNode) =
   ## Give an instruction-level pane the instructions.

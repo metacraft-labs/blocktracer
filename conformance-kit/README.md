@@ -41,6 +41,58 @@ It reaches no network, needs no checkout and needs no Nim toolchain: the contrac
 is compiled into the binary, and every file it opens is under the directory you
 named or the directory it publishes into.
 
+### If the containers you publish are stored pre-compressed
+
+A published container may be stored **pre-compressed**, with a `Content-Encoding`
+carried as object metadata, so the browser's own transparent decompression is the
+only decompressor in the path. Add `--container-encoding br` to publish that way:
+
+```sh
+blocktracer-conformance --snapshot path/to/my-snapshot --container-encoding br
+```
+
+Three things to know, because each of them will otherwise look like the tool
+misbehaving:
+
+- **Your snapshot's container must still be a plain container.** Pre-compression
+  is a *publication* step, not a recording one. An already-encoded container in a
+  snapshot tree is refused by name (`S5-CONTAINER-NOT-PREENCODED`), because
+  compressing it a second time would publish a manifest describing the inner
+  stream as the raw container, and the length check cannot see that.
+- **`container.bytes` still means the RAW container.** The manifest gains
+  `encoding`, `storedBytes` and `storedHash` beside it, which describe the
+  **object at rest**. A consumer that negotiates — every browser, and
+  `curl --compressed` — compares against `bytes`/`hash` and never learns an
+  encoding was involved.
+- **A read that does *not* negotiate gets the at-rest bytes, and the kit says so
+  distinctly.** It is not a malformed container and the kit will not call it one:
+  it names the scheme, gives both byte figures side by side, and says the remedy
+  is to negotiate or to decompress. If `brotli` is not on your `PATH` the kit
+  still verifies the object at rest exactly — by length and hash — and reports the
+  raw-container figures as **NOT MEASURED** with the reason, which is never
+  counted as a pass.
+
+### Where the decompressor is, and why that is not an implementation detail
+
+`blocktracer-client-conformance` reads through the **client SDK**, and the SDK holds
+no codec and no subprocess — deliberately, and it is enforced by an import lint
+rather than by convention. Its whole read path is one closure whose entire input is
+a path, and that closure belongs to the *consumer*.
+
+So the kit supplies the decompressor the way a browser does: in its own transport,
+outside the SDK. In a browser that is `Content-Encoding` negotiation; here it is a
+read closure that inflates an object whose manifest declares a scheme. Either way
+the SDK is handed the raw container and never learns an encoding was involved.
+
+Two consequences worth knowing:
+
+- `--no-negotiate` reads the at-rest bytes deliberately. That is the control — it is
+  what an un-negotiating consumer of your published tree will see — and the report
+  tells it apart from a malformed container.
+- With no `brotli` on `PATH`, the kit passes the at-rest bytes through, verifies them
+  exactly against `storedBytes`/`storedHash`, and reports the raw figures as NOT
+  MEASURED. A partial verdict with a named gap, never a pass.
+
 ## The three phases, because the order is not the one you expect
 
 The command prints this legend before it runs, and it is here too because the
@@ -117,9 +169,9 @@ contract. Between them every member you **may leave out** appears present in one
 and absent in the other — which is how you learn, without reading §5.2b line by line,
 which those are. The **52** members the contract requires of every container appear in
 both, because a tree short of one of them is not a conforming tree and could not be
-shipped here as an example of one. (The census is 137 members: 52 required
+shipped here as an example of one. (The census is 138 members: 52 required
 everywhere, 6 required on some rows and not others — `container` on a traced row,
-`refusalReason` on an untraced one — and 79 optional. The 85 that are not required
+`refusalReason` on an untraced one — and 80 optional. The 86 that are not required
 everywhere are the ones shown both ways.)
 
 **`minimal/`** is the floor: one block, one untraced transaction, every member the

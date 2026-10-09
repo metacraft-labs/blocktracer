@@ -45,6 +45,14 @@
 ##
 ## Usage:
 ##   blocktracer-conformance --snapshot DIR [--out DIR] [--generation G] [--keep]
+##                           [--container-encoding identity|br]
+##
+## `--container-encoding br` publishes `/t/**/trace.ct` PRE-COMPRESSED, with its
+## `Content-Encoding` recorded on the manifest and (on the S3/R2 backend) as object
+## metadata — `CTFS-Compact-Profile.milestones.org` CCP-6. Running the three checks over
+## the result is how they are SHOWN to read such an archive rather than asserted to, and
+## it is where the DISTINCT diagnosis for an un-negotiated read is exercised. The default
+## is identity, for §1c's rollout reason: reader support ships before any writer emits it.
 ##
 ## Exits 0 when all three checks are clean, 1 when any refuses, 2 on a usage error
 ## or a missing snapshot tree.
@@ -58,13 +66,16 @@ import std/[os, strutils]
 import blocktracer/chain/ingest
 import blocktracer/chain/contract_rules
 import blocktracer/validator
+import blocktracer/contract/container_encoding
 import blocktracer/contract/version
 import blocktracer_client/store
 import blocktracer_client/conformance
+import blocktracer/verify/negotiating_store
 
 proc usage() =
   stderr.writeLine """usage:
-  blocktracer-conformance --snapshot DIR [--out DIR] [--generation G] [--keep]"""
+  blocktracer-conformance --snapshot DIR [--out DIR] [--generation G] [--keep]
+                          [--container-encoding identity|br]"""
 
 proc citedRule(msg: string): string =
   ## The rule this refusal cites, or "". The set is the contract's, so a message
@@ -128,15 +139,31 @@ proc main() =
     generation = "1"
     keep = false
     pending = ""
+    encodingFlag = ""
+      ## ── HOW THE PUBLISHED CONTAINER IS STORED (CCP-6) ─────────────────────
+      ##
+      ## Empty is `identity` and is the default: the object at rest IS the
+      ## container, which is how every tree this repository has published is
+      ## stored. `--container-encoding br` publishes it PRE-COMPRESSED with its
+      ## `Content-Encoding` recorded, which is the state CCP-6 exists to make
+      ## real — and running this kit over the result is how the three checks
+      ## are SHOWN to read a pre-compressed archive rather than asserted to.
+      ##
+      ## It is a flag and not the default for this campaign's own rollout rule
+      ## (`ctfs-container.md` §1c): reader support ships everywhere before any
+      ## writer emits it, and the delivery layer that must serve the header is
+      ## `Chain-Delivery` DEL-1b's, measured not to exist yet.
 
   proc assign(k, v: string) =
     case k
     of "snapshot", "s": snapshotDir = v
     of "out", "o": outDir = v
     of "generation", "g": generation = v
+    of "container-encoding": encodingFlag = v
     else: discard
 
-  const valueFlags = ["snapshot", "s", "out", "o", "generation", "g"]
+  const valueFlags = ["snapshot", "s", "out", "o", "generation", "g",
+                      "container-encoding"]
   var i = 1
   while i <= paramCount():
     let a = paramStr(i)
@@ -164,6 +191,18 @@ proc main() =
 
   if snapshotDir.len == 0:
     usage(); quit 2
+
+  # ── THE ENCODING IS PARSED BEFORE ANYTHING IS PUBLISHED ────────────────────
+  #
+  # By name, from the closed set, with an unknown value REFUSED rather than read
+  # as identity — CCP-1 §1c, and the one failure mode a permissive default here
+  # produces is a tree published with compressed bytes and no header, which no
+  # consumer can parse and none can diagnose.
+  let encParsed = parseContainerEncoding(encodingFlag)
+  if not encParsed.ok:
+    stderr.writeLine "error: " & encParsed.why
+    quit 2
+  let containerEncoding = encParsed.enc
 
   # ── THE SUBJECT IS NORMALISED AT PARSE, AND THAT IS A DEFECT REPAIR ─────────
   #
@@ -227,6 +266,9 @@ proc main() =
   echo "snapshot:  " & snapshotDir
   echo "published: " & published
   echo "contract:  " & $ContractVersion
+  echo "container: " & (if containerEncoding == ceIdentity: "stored raw (identity)"
+                        else: "stored PRE-COMPRESSED, Content-Encoding " &
+                              $containerEncoding & " (CCP-6)")
   echo ""
   # ── WHAT THE THREE PHASES CHECK, BEFORE ANY OF THEM RUNS ────────────────────
   #
@@ -260,7 +302,8 @@ proc main() =
   var ing: IngestResult
   try:
     ing = ingestSnapshot(IngestConfig(outDir: published, snapshotDir: snapshotDir,
-                                      generation: generation, scope: isFull))
+                                      generation: generation, scope: isFull,
+                                      containerEncoding: containerEncoding))
     echo "[1/3] snapshot   OK  chain=" & ing.chain & " blocks=" & $ing.blocks &
       " transactions=" & $ing.transactions & " traced=" & $ing.withTrace &
       " divergent=" & $ing.divergent
@@ -271,7 +314,19 @@ proc main() =
 
   if not failed:
     # ── 2. published -> verdict, producer side ────────────────────────────────
-    let errs = validateTreeFindings(published)
+    let rep = validateTreeReport(published)
+    let errs = rep.findings
+    # ── AND WHAT NEITHER CHECK LOOKED AT (CCP-6) ────────────────────────────
+    #
+    # A recorder team reads this output as the answer to "does my tree validate",
+    # so a check that could not be RUN has to appear in it. Today's occupant is
+    # the raw container figures behind a pre-compressed object: check 2 needs
+    # `brotli` on PATH and check 3 structurally cannot decode at all (the Client
+    # SDK's boundary bans `osproc`). Neither is a finding about the tree, and
+    # neither may be rendered as a pass. Printed between the two verdicts it
+    # belongs to, not folded into either.
+    for f in rep.notMeasured:
+      echo "[2/3] producer   NOT MEASURED  " & f.errorLine
     if errs.len == 0:
       echo "[2/3] producer   OK  " & published & " conforms to contract version " &
         $ContractVersion
@@ -291,7 +346,21 @@ proc main() =
       failed = true
 
     # ── 3. published -> verdict, consumer side ────────────────────────────────
-    let r = consumerConformance(localTree(published))
+    # ── CHECK 3 READS IT THE WAY A BROWSER WOULD (CCP-6) ────────────────────
+    #
+    # `localTree` is a `readFile` and negotiates nothing, so against a
+    # pre-compressed publication it would hand the SDK the object at rest and the
+    # consumer report would be a partial verdict on every trace. The transport is
+    # the CONSUMER's — that is the seam `store.nim` is built around — so the kit
+    # supplies the equivalent of a browser's `Content-Encoding` handling here,
+    # outside the SDK package, which holds no codec and must not.
+    #
+    # Under `--container-encoding identity`, which is the default, this is
+    # `localTree` and nothing else: the wrapper only acts on an object whose own
+    # manifest declares a scheme.
+    let r = consumerConformance(negotiatingLocalTree(published))
+    for m in r.notMeasured:
+      echo "[3/3] consumer   NOT MEASURED  " & m
     if r.ok:
       echo "[3/3] consumer   OK  blocks=" & $r.blocksChecked &
         " transactions=" & $r.transactionsChecked &

@@ -112,8 +112,20 @@ const OWN_CAPTURE_SNAPSHOTS = Object.freeze([
   'tests/fixtures/chain-snapshots/aztec-mainnet-live/snapshot.json',
 ]);
 
+/** The one tree whose recording a CURRENT reader can open.
+ *
+ *  Not a capture and not a template. Every other container in this repository declares
+ *  `meta.dat` schema version 3, which every current reader refuses by name, so the checks that
+ *  compare a container's own measurements against the row's claim about it had no subject at
+ *  all. This tree is that subject — a vendored v4 container in a conformant snapshot around it.
+ *  `fixtures/chain-health/readable-container/MAKING.md` states what it is, what it is NOT, and
+ *  every command that produced it. */
+const READABLE_CONTAINER_SNAPSHOTS = Object.freeze([
+  'fixtures/chain-health/readable-container/snapshot.json',
+]);
+
 const ALL_COMMITTED_SNAPSHOTS = Object.freeze([
-  ...OWN_CAPTURE_SNAPSHOTS, ...KIT_TEMPLATE_SNAPSHOTS,
+  ...OWN_CAPTURE_SNAPSHOTS, ...KIT_TEMPLATE_SNAPSHOTS, ...READABLE_CONTAINER_SNAPSHOTS,
 ]);
 
 /** The three of those the migration tool must not promote. See the hold-out test below. */
@@ -1001,29 +1013,36 @@ test('no committed row claims a permanent body loss the store was never asked ab
   const root = new URL('../../', import.meta.url).pathname;
   const all = ALL_COMMITTED_SNAPSHOTS.map((p) => join(root, p));
   ck(`the corpus is the whole tree's — ${all.length} snapshot(s), and every one exists`,
-     all.length === 8 && all.every((p) => existsSync(p)));
+     all.length === 9 && all.every((p) => existsSync(p)));
 
   // ── AND IT IS A PARTITION, STATED, SO THE SCOPED RULE BELOW CANNOT WIDEN BACK ──────
   //
   // One rule in this file — the `counts.captureSessions` sweep — ranges over the CAPTURES
   // rather than over every committed snapshot, because that member is producer-internal
   // and §5 does not name it. A scope is only a scope if it cannot move quietly, so: the
-  // two lists partition this one, the exempt half is exactly the kit's template trees
-  // (derived from the path, not from membership of a list), and both sizes are asserted.
-  // Dropping a capture into `conformance-kit/` to dodge a rule moves both numbers.
+  // three lists partition this one, each exempt class is derived from the PATH rather than
+  // from membership of a list, and every size is asserted. Dropping a capture into
+  // `conformance-kit/` or `fixtures/chain-health/` to dodge a rule moves two numbers.
   const kitPrefix = 'conformance-kit/';
+  const readablePrefix = 'fixtures/chain-health/';
   ck(`the corpus splits into ${OWN_CAPTURE_SNAPSHOTS.length} capture(s) this repository's `
-     + `own producers wrote and ${KIT_TEMPLATE_SNAPSHOTS.length} hand-authored kit `
-     + `template(s), and the two make up the whole of it`,
+     + `own producers wrote, ${KIT_TEMPLATE_SNAPSHOTS.length} hand-authored kit template(s) `
+     + `and ${READABLE_CONTAINER_SNAPSHOTS.length} readable-container fixture(s), and the `
+     + `three make up the whole of it`,
      OWN_CAPTURE_SNAPSHOTS.length === 6 && KIT_TEMPLATE_SNAPSHOTS.length === 2
+     && READABLE_CONTAINER_SNAPSHOTS.length === 1
      && OWN_CAPTURE_SNAPSHOTS.length + KIT_TEMPLATE_SNAPSHOTS.length
-        === ALL_COMMITTED_SNAPSHOTS.length);
-  ck('…and the exempt half is exactly what lives under conformance-kit/, so the exemption '
-     + 'is a PATH rule rather than a membership list somebody can add a capture to',
+        + READABLE_CONTAINER_SNAPSHOTS.length === ALL_COMMITTED_SNAPSHOTS.length);
+  ck('…and each exempt class is exactly what lives under its own directory, so the '
+     + 'exemption is a PATH rule rather than a membership list somebody can add a capture to',
      KIT_TEMPLATE_SNAPSHOTS.every((p) => p.startsWith(kitPrefix))
-     && OWN_CAPTURE_SNAPSHOTS.every((p) => !p.startsWith(kitPrefix))
+     && READABLE_CONTAINER_SNAPSHOTS.every((p) => p.startsWith(readablePrefix))
+     && OWN_CAPTURE_SNAPSHOTS.every((p) => !p.startsWith(kitPrefix)
+                                       && !p.startsWith(readablePrefix))
      && ALL_COMMITTED_SNAPSHOTS.filter((p) => p.startsWith(kitPrefix)).length
-        === KIT_TEMPLATE_SNAPSHOTS.length);
+        === KIT_TEMPLATE_SNAPSHOTS.length
+     && ALL_COMMITTED_SNAPSHOTS.filter((p) => p.startsWith(readablePrefix)).length
+        === READABLE_CONTAINER_SNAPSHOTS.length);
 
   // ── AND THE LIST IS THE WHOLE TREE'S, WHICH THE `existsSync` ARM CANNOT SAY ────────
   //
@@ -1413,7 +1432,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // sentence is now CHECKED: each term is read out of the suite that owns it, and the
   // arithmetic is checked as arithmetic.
   //
-  // THE ELEVEN DECLARATIONS ARE IN FOUR DIFFERENT PATTERNS, which is why each has its own
+  // THE THIRTEEN DECLARATIONS ARE IN FIVE DIFFERENT PATTERNS, which is why each has its own
   // rather than one generic sweep. A generic regex over the phrasings is the false-green
   // this file exists to refuse: it would silently match most of them and score the rest as
   // absent. If a suite rephrases its declaration this arm goes RED, which is correct — the
@@ -1435,7 +1454,29 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ['identifier-encoding-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['object-set-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['snapshot-contract-selftest.mjs', /asserted !== (\d+)\) \{/],
-    ['chain-health-selftest.mjs', /asserted !== (\d+)\) \{/],
+    // THE FIFTH PATTERN, and it is a different shape for a reason rather than by accident.
+    // `chain-health-selftest` runs a different number of arms in each of two host
+    // configurations — the container reader `ct-print` is present or it is not — so it declares
+    // a host-independent BASE plus one figure per configuration, and checks the base plus the
+    // configuration it actually ran in. The term below, and the Justfile header's and CI's
+    // copies of it, are the BASE: the only one of the three figures that is the same on every
+    // host, and therefore the only one a static cross-check can state.
+    ['chain-health-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    ['yield-method-selftest.mjs', /asserted !== (\d+)\) \{/],
+    // THE SECOND SUITE IN PATTERN FIVE, and it is there for the same reason as the
+    // first: `ct-corpus-census-selftest` runs two of its eight arms only when a
+    // container reader is present, so it declares a host-independent BASE plus one
+    // figure per configuration and the term below is the BASE. That the pattern now
+    // has two members is the point of having declared it as a pattern rather than as
+    // a one-off.
+    ['ct-corpus-census-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // THE THIRD SUITE IN PATTERN FIVE. `eth-rpc-transcript-selftest` declares a
+    // `BASE_ARMS` like the two above, but for a different reason: it has no host
+    // configurations at all — every arm is offline and needs only node — so the base IS
+    // the total. The spelling is shared because the cross-check reads a spelling and not
+    // a rationale, and a fourth pattern for a figure that is already stated in the third
+    // would be a pattern per suite.
+    ['eth-rpc-transcript-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1447,7 +1488,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# ELEVEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  const m = /# FOURTEEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
@@ -1456,7 +1497,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's eleven terms are the suites' own declarations, in recipe order — `
+    ck(`the header's fourteen terms are the suites' own declarations, in recipe order — `
        + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
@@ -1575,7 +1616,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   ck(`every suite has a ci.yml step whose comment states its count exactly once — `
      + `${ciProblems.length} problem(s)`, ciProblems.length === 0);
   if (ciProblems.length) console.error(`    ${ciProblems.join('\n    ')}`);
-  ck(`…and ci.yml's eleven counts are the suites' own — [${ciTerms.join(', ')}] vs `
+  ck(`…and ci.yml's fourteen counts are the suites' own — [${ciTerms.join(', ')}] vs `
      + `[${terms.join(', ')}]`,
      ciTerms.length === terms.length && ciTerms.every((n, i) => n === terms[i]));
 }
@@ -1708,11 +1749,18 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       the row that reaches it is built through `classifyRefusal` like every other, and the
 //       unreached-member count widened from five to six because no chain captured here has a
 //       recorder with a capability gap to report.
-//   +1  an ELEVENTH suite joined `chain-selftest`, and the `declared` array's per-suite arm
-//       is a loop, so a suite adds exactly one assertion here — the one that reads its own
-//       count out of it. The three cross-checks that follow (the header's arithmetic, the
-//       recipe body's order, ci.yml's copy) are aggregates and do not grow with it.
-expectCount(230);
+//   +1  a TWELFTH suite joined `chain-selftest` — the one that applies the yield method to
+//       the two committed readings, which until then were read by nothing at all — and the
+//       `declared` array's per-suite arm is a loop, so a suite adds exactly one assertion
+//       here: the one that reads its own count out of it. The three cross-checks that
+//       follow (the header's arithmetic, the recipe body's order, ci.yml's copy) are
+//       aggregates and do not grow with it. The ELEVENTH, one line above this in the
+//       history, cost exactly the same one.
+//   +1  a FOURTEENTH suite joined `chain-selftest` — `eth-rpc-transcript-selftest`, over the
+//       committed Ethereum JSON-RPC input set and the endpoint that replays it — and it
+//       costs the same single assertion for the same reason: the `declared` loop reads one
+//       more suite's own count. The THIRTEENTH cost exactly the same one.
+expectCount(233);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

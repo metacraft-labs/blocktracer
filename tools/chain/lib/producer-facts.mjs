@@ -71,3 +71,43 @@ export const costVectorForRow = (fee) => [{
   token: 'FeeJuice',
   refundable: false,
 }];
+
+/**
+ * THE VM'S MACHINE COLUMNS — the five variable names an AVM container interns, which are
+ * a fact about the VIRTUAL MACHINE and not about any Noir function.
+ *
+ * ── WHY THIS LIST EXISTS ────────────────────────────────────────────────────────────────
+ *
+ * The recorder attaches these to the step stream and to every `Call` event, so a consumer
+ * that reads a `Call`'s `args` straight through publishes them as the CALLEE'S ARGUMENTS.
+ * That is what `calltrace.json` did: across the 47 frames of
+ * `aztec-testnet-frames/0x0a807e4e…` there were exactly three distinct `args` lists and
+ * 45 of 47 were the same one — `[{ "name": "contractAddress", "value": "0x…03" }]` — so
+ * `Reader<N>::read`, `<impl Add for u128>::add`, `poseidon2_permutation` and
+ * `Option<T>::unwrap` were all published as taking a `contractAddress` argument. None of
+ * them does. It is the contract whose context the frame ran in, stamped onto every frame,
+ * and it is the "plausible but wrong" shape: nothing about it looks like an absence.
+ *
+ * The information is real and is NOT discarded — it moves to `contractAddress` on the
+ * frame, where it says what it is. What `args` publishes afterwards is the empty list,
+ * which is the truth: these contracts are compiled with `debug_info.variables` empty
+ * (measured on the FeeJuice artifact this transaction proved), so no function's arguments
+ * were ever captured.
+ *
+ * ── WHY A NAMED SET AND NOT A HEURISTIC ─────────────────────────────────────────────────
+ *
+ * "An argument list identical on every frame is not an argument list" was considered and
+ * is FALSE of this corpus — `<toplevel>` carries none and `context2` carries the second
+ * contract's address — so a same-on-every-frame rule would have declined to fire on the
+ * very recording that motivated it. These five are what the container declares
+ * (`VariableName` records, measured: `contractAddress`, `opcode`, `contextId`, `l2Gas`,
+ * `daGas`, in both containers that carry positions), they are declared here where this
+ * chain's other producer facts are declared, and `calltrace-fold-selftest.mjs` asserts the
+ * split fires on each of them and on nothing else.
+ */
+export const AVM_MACHINE_COLUMNS = Object.freeze([
+  'contractAddress', 'opcode', 'contextId', 'l2Gas', 'daGas',
+]);
+
+/** The machine column a frame's execution CONTEXT is named by, promoted out of `args`. */
+export const FRAME_CONTEXT_COLUMN = 'contractAddress';

@@ -66,9 +66,9 @@ proc main() =
                        traceSourcesDir: sources, tourDir: tourDir)
   let n = generate(cfg)
   echo "Wrote demo tree to " & outDir & " (" & $n & " transactions)."
-  echo "Traces: real CTFS containers recorded by `nargo trace` (Noir tracer fork" &
-       " @ 906af2f42d)."
-  echo "        M5c tree: " & fixture & " (1315 steps, 80 calls), one container" &
+  echo "Traces: real CTFS containers recorded by `nargo trace` (recorder pin" &
+       " /nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir), container version 5."
+  echo "        M5c tree: " & fixture & " (1315 steps, 81 calls), one container" &
        " behind six executions."
   if tourDir.len > 0:
     echo "        capability tour: " & $readTour(tourDir).len & " programs from " &

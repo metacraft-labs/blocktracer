@@ -158,6 +158,30 @@ type
       ## of a given encoding may look like. `identifierIndexKey` is the one
       ## consumer.
     pathSafe*: bool
+    foldKey*: bool
+      ## Whether the SHARD SEGMENT and the §5 index SHARD FILE NAME fold case —
+      ## a narrower question than `IdentifierCaseRule.keyForm`, with a different
+      ## answer for four members, and the field exists because the two were
+      ## conflated and the conflation destroys data.
+      ##
+      ## A shard name is a FILENAME. `hashPrefix` names
+      ## `idx/hash/{version}/{prefix}.bin`, so two case-differing base58
+      ## identifiers name `Ab.bin` and `aB.bin`, which on a case-insensitive
+      ## filesystem are ONE file: the last writer wins, rc is 0, nothing warns,
+      ## and the other shard's entries vanish. §5.0a makes a prefix miss "a
+      ## confident claim that NOTHING published begins with those digits", so a
+      ## lost shard is a FALSE ABSENCE rather than a visible break.
+      ##
+      ## The object tree's half is a shard-DIRECTORY merge and is arithmetic
+      ## rather than anecdote: 58^4 = 11,316,496 case-sensitive base58 shard keys
+      ## over 35^4 = 1,500,625 folded buckets, P(at least one collision) 1.0000
+      ## by 10,000 identifiers.
+      ##
+      ## **NOTHING LOSES INFORMATION, and that is why this is a separate field.**
+      ## The leaf name and every index ENTRY carry `identifierKeyForm`, which
+      ## still preserves case for these members; only the bucket gets coarser.
+      ## Folding the IDENTIFIER — `case.keyForm` — would invent a different
+      ## account, which is the defect the case rule exists to prevent.
 
   IdentifierCaseRule* = object
     ## What one encoding implies for CASE — read from the shared file, never
@@ -187,6 +211,17 @@ type
       ## The §2 row this is, quoted, so the set is reviewable against the spec.
     prefixes*: seq[string]
       ## Literal prefixes the identifier must carry, or empty for none.
+    suffixes*: seq[string]
+      ## Literal suffixes the identifier must END with, or empty for none.
+      ##
+      ## It exists for exactly one distinction and the distinction is a DECODE
+      ## LENGTH. §2's `base64, 44 chars` row does not say whether it means 44
+      ## characters with one `=` (43 data characters, 32 bytes — a digest) or 44
+      ## data characters (33 bytes, which is not a digest of anything this tree
+      ## routes). Both are 44 characters and both are writable in the alphabet,
+      ## so a length band cannot tell them apart and the row was ambiguous for as
+      ## long as it existed. `suffixes: ["="]` narrows it to the padded 32-byte
+      ## form; `identifierIndexKey` refuses the other BY NAME.
     minPayload*, maxPayload*: int
       ## The payload length range, in characters of this member's own alphabet.
 
@@ -411,6 +446,63 @@ proc parseIdentifierEncodings(): tuple[kinds: seq[IdentifierKind],
         "display form is FOLDED — bech32, where a mixed-case string is not an " &
         "address at all — and a rule that reads as a decision while making none " &
         "is worse than the absent one the arm above refuses.")
+    # ── `shardKey.foldKey`, AND ITS TWO-SIDED CROSS-FIELD RULE ──────────────────
+    #
+    # It is read here rather than beside the other four `shardKey` fields because
+    # the rule that checks it needs `keyForm` and `alphabet`, and a check written
+    # before its premises is a check that cannot fire.
+    #
+    # ABSENT IS NOT FALSE, for `pathSafe`'s reason. A member that forgot to answer
+    # would keep the collision — `Ab.bin` and `aB.bin`, one file on a
+    # case-insensitive filesystem, last writer wins, rc 0, no warning — which is
+    # §5.0a's false absence, the one outcome the index may never produce.
+    if sk{"foldKey"} == nil or sk{"foldKey"}.kind != JBool:
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' does not say whether its SHARD KEY " &
+        "folds case (`shardKey.foldKey`). Absent is not false: a shard name is " &
+        "a FILENAME, so an unfolded case-significant segment means `Ab.bin` and " &
+        "`aB.bin` are one file on a case-insensitive filesystem — the last " &
+        "writer wins, nothing errors, and the other shard's entries vanish, " &
+        "which is the FALSE ABSENCE Search-And-Routing.md §5.0a forbids.")
+    let foldKey = sk{"foldKey"}.getBool
+    # DIRECTION ONE: a member that has already folded must not declare a second
+    # fold. `keyForm: lower` means `identifierPayload` is already lowercase, so
+    # `foldKey: true` would be a field stating a decision with no effect — and a
+    # reader would then have no way to tell which of the two fields is doing the
+    # work when one of them changes.
+    if keyForm == "lower" and foldKey:
+      raise newException(ValueError,
+        "identifier encoding '" & id & "' declares keyForm 'lower' and " &
+        "shardKey.foldKey true. The key form has already folded, so the shard " &
+        "fold is a no-op dressed as a decision: a later reader cannot tell " &
+        "which field holds the layout. A member whose key form folds declares " &
+        "shardKey.foldKey false.")
+    # DIRECTION TWO, AND IT IS THE LOAD-BEARING HALF: a member that preserves case
+    # must fold the shard key exactly when its alphabet can produce two distinct
+    # identifiers whose segments differ only in case — i.e. when the alphabet
+    # contains SOME letter in both cases. Derived from the alphabet rather than
+    # listed, so adding a member cannot omit itself from the rule.
+    if keyForm == "preserve":
+      var cased = false
+      for c in alphabet:
+        if c in {'a' .. 'z'} and toUpperAscii(c) in seenChar: cased = true; break
+        if c in {'A' .. 'Z'} and toLowerAscii(c) in seenChar: cased = true; break
+      if cased and not foldKey:
+        raise newException(ValueError,
+          "identifier encoding '" & id & "' preserves case in its key form and " &
+          "declares shardKey.foldKey false, while its alphabet (" & alphabet &
+          ") contains a letter in BOTH cases. Two distinct identifiers of this " &
+          "member can therefore differ only in the case of their shard " &
+          "segment, which names one directory and one `.bin` file on a " &
+          "case-insensitive filesystem. The leaf and the index entry keep the " &
+          "case-significant identifier; the BUCKET has to fold.")
+      if not cased and foldKey:
+        raise newException(ValueError,
+          "identifier encoding '" & id & "' declares shardKey.foldKey true " &
+          "while its alphabet (" & alphabet & ") contains no letter in both " &
+          "cases, so no two identifiers of this member can collide by case and " &
+          "the fold can never do anything. A rule that reads as a decision " &
+          "while making none is the defect the displayForm arm above refuses.")
     # EVERY MEMBER MUST CARRY A `shapes` LIST, and an ABSENT one is not an empty
     # one. Absent means nobody answered; empty means "this member is not
     # recognised from a bare string", which is `decimal`'s deliberate answer and
@@ -453,7 +545,37 @@ proc parseIdentifierEncodings(): tuple[kinds: seq[IdentifierKind],
             "PREFIX LIST already says — spelling it as a member instead makes " &
             "a rule that reads as a restriction while imposing none.")
         prefixes.add v
+      # ABSENT IS NOT EMPTY, for `pathSafe`'s reason one level down. A row that
+      # forgot to answer would admit whatever its length band admits, which is
+      # exactly the ambiguity this field was added to close — so a missing list
+      # fails the BUILD rather than reading as "nothing to require".
+      if s{"suffixes"} == nil or s{"suffixes"}.kind != JArray:
+        raise newException(ValueError,
+          "identifier encoding '" & id & "' declares a shape ('" & row &
+          "') with no `suffixes` list. Absent is not empty: a row that did not " &
+          "answer would admit whatever its length band admits, and the band is " &
+          "what cannot tell a 44-character padded 32-byte digest from a " &
+          "44-character unpadded 33-byte value. An EMPTY list is the legal " &
+          "answer for every row that requires nothing.")
+      var suffixes: seq[string]
+      for sfx in s{"suffixes"}.getElems:
+        let v = sfx.getStr
+        if v.len == 0:
+          raise newException(ValueError,
+            "identifier encoding '" & id & "' declares an empty suffix in a " &
+            "shape. An empty suffix matches everything, which is what an empty " &
+            "SUFFIX LIST already says — spelling it as a member instead makes " &
+            "a rule that reads as a restriction while imposing none.")
+        if v.len > hi:
+          raise newException(ValueError,
+            "identifier encoding '" & id & "' declares a shape ('" & row &
+            "') requiring the suffix '" & v & "', which is longer than the " &
+            "row's own maximum payload of " & $hi & ". No string can satisfy " &
+            "both, so the row admits nothing — a shape that matches nothing is " &
+            "a row of §2 this build cannot recognise.")
+        suffixes.add v
       shapes.add IdentifierShapeRule(row: row, prefixes: prefixes,
+                                     suffixes: suffixes,
                                      minPayload: lo, maxPayload: hi)
     seenEncodings.add id
     result.encodings.add IdentifierEncoding(id: id, shapeRows: rows,
@@ -462,7 +584,8 @@ proc parseIdentifierEncodings(): tuple[kinds: seq[IdentifierKind],
                              payloadAfterLast: sk{"payloadAfterLast"}.getStr,
                              pad: pad,
                              alphabet: alphabet,
-                             pathSafe: sk{"pathSafe"}.getBool),
+                             pathSafe: sk{"pathSafe"}.getBool,
+                             foldKey: sk{"foldKey"}.getBool),
       caseRule: IdentifierCaseRule(significant: cs{"significant"}.getBool,
                                    keyForm: keyForm,
                                    displayForm: displayForm))
@@ -575,6 +698,19 @@ func identifierEncodingRule*(encoding: string): ShardKeyRule =
     "and belongs in tools/chain/identifier-encodings.json with the row it " &
     "comes from and the shardKey rule it implies.")
 
+func identifierShapeRules*(encoding: string): seq[IdentifierShapeRule] =
+  ## The §2 rows a token implies, from the shared file — the `shapes` half of
+  ## what `identifierEncodingRule` returns the `shardKey` half of.
+  ##
+  ## A non-member raises, for `identifierEncodingRule`'s reason. An EMPTY result
+  ## is a legal answer and `decimal` gives it: a bare number is §3's local
+  ## inference at zero requests, so recognising it as an index key would cost a
+  ## fetch for an answer that needs none.
+  for e in IdentifierEncodings:
+    if e.id == encoding: return e.shapes
+  raise newException(ValueError,
+    "'" & encoding & "' is not an identifier encoding, so there are no §2 shape " &
+    "rows for it. The encodings are: " & identifierEncodingList() & ".")
 
 func isShardableIdentifierEncoding*(id: string): bool =
   ## Can a member of the set be a shard path SEGMENT?
@@ -697,16 +833,54 @@ func identifierPayload*(encoding, identifier: string): string =
     let i = result.rfind(rule.payloadAfterLast)
     if i >= 0: result = result[i + rule.payloadAfterLast.len .. ^1]
 
+func identifierShardPayload*(encoding, identifier: string): string =
+  ## **The payload as a FILENAME** — `identifierPayload`, then the declared
+  ## `shardKey.foldKey` applied. The one derivation `shardKeyFor` slices for the
+  ## object tree's shard directory and `hashPrefix` slices for the §5 index's
+  ## `.bin` name, so those two cannot disagree about a bucket.
+  ##
+  ## ## Why this is a second function and not a widening of `identifierPayload`
+  ##
+  ## Because `identifierPayload` has three other consumers and the fold is wrong
+  ## for all three, which was MEASURED rather than reasoned:
+  ##
+  ##   * `identifierIndexKey` checks the payload against the declared alphabet,
+  ##     and that check is the §5 index's refusal. base58's alphabet deliberately
+  ##     excludes `0`, `O`, `I` and `l`; a folded `O` is `o`, which IS a base58
+  ##     digit, so folding there turns "this string is not writable in base58"
+  ##     into a silent acceptance. Driven on this tree, `identifierIndexKey` on
+  ##     an `O`-leading and an `I`-leading base58 string both refuse by name, and
+  ##     a fold inside `identifierPayload` is what would stop them.
+  ##   * `identifierEncodingsMatching` runs the same alphabet test through
+  ##     `matchesShape`, so the same acceptance would widen the CLIENT's
+  ##     classification of a query it should decline.
+  ##   * `entryPayload` is what an index shard's contents are matched against, and
+  ##     a folded comparison would return an entry of a different identifier as a
+  ##     hit — a false PRESENCE that navigates, which §5 forbids as squarely as
+  ##     the absence this field removes.
+  ##
+  ## So the fold is scoped to the two sites where the payload becomes a NAME, and
+  ## everything that asks "which identifier is this" still gets the unfolded
+  ## answer. That is the whole difference between a coarser bucket and lost data.
+  result = identifierPayload(encoding, identifier)
+  if identifierEncodingRule(encoding).foldKey:
+    result = result.toLowerAscii
+
 func matchesShape(rule: IdentifierShapeRule, enc: IdentifierEncoding,
                   identifier, payload: string): bool =
-  ## Does one §2 row admit this string? Prefix, then payload length, then
-  ## alphabet — in that order, because the prefix is what tells the later two
+  ## Does one §2 row admit this string? Prefix, then SUFFIX, then payload length,
+  ## then alphabet — in that order, because the prefix is what tells the later two
   ## which part of the string is payload at all.
   if rule.prefixes.len > 0:
     var carried = false
     for p in rule.prefixes:
       if identifier.startsWith(p): carried = true; break
     if not carried: return false
+  if rule.suffixes.len > 0:
+    var ended = false
+    for sfx in rule.suffixes:
+      if identifier.endsWith(sfx): ended = true; break
+    if not ended: return false
   if payload.len < rule.minPayload or payload.len > rule.maxPayload:
     return false
   for c in payload:
@@ -856,6 +1030,49 @@ func identifierIndexKey*(encoding, identifier: string): string =
         "which is the one outcome Search-And-Routing.md §5 forbids outright. " &
         "If the identifier is right, the chain's registry row declares the " &
         "wrong encoding for its kind.")
+  # ── THE DECODE-LENGTH REFUSAL, WHICH IS §2's `44 chars` AMBIGUITY CLOSED ────
+  #
+  # Scoped to exactly the band a declared suffix narrows, and it fires for
+  # nothing else: an identifier that satisfies a row's prefixes AND its payload
+  # length band and then fails that row's declared suffix is inside the row's
+  # reach and on the wrong side of the narrowing. No other row in the closed set
+  # declares a suffix, so no other member can reach this arm at all.
+  #
+  # WHY IT IS A REFUSAL AND NOT A DECLINE. `identifierEncodingsMatching` already
+  # returns nothing for such a string, which is right for a CLIENT classifying a
+  # query — §5.0a's "a row `shapesOf` declines to recognise" is a distinct,
+  # reported outcome there. But this function is on the PRODUCER's side: a chain
+  # that declared `base64url` and handed us a 44-character string with no `=` has
+  # handed us 33 decoded bytes where the row means 32, and keying it into the
+  # digest shard would publish an entry no client will ever probe for. Silence
+  # there is the vacuity this seam keeps producing; a named refusal says which
+  # length was wrong.
+  for shape in identifierShapeRules(encoding):
+    if shape.suffixes.len == 0: continue
+    if payload.len < shape.minPayload or payload.len > shape.maxPayload: continue
+    if shape.prefixes.len > 0:
+      var carried = false
+      for p in shape.prefixes:
+        if result.startsWith(p): carried = true; break
+      if not carried: continue
+    var ended = false
+    for sfx in shape.suffixes:
+      if result.endsWith(sfx): ended = true; break
+    if not ended:
+      raise newException(ValueError,
+        "'" & identifier & "' is " & $payload.len & " characters of identifier " &
+        "encoding '" & encoding & "', which is inside the band of §2's row '" &
+        shape.row & "' — and that row requires the suffix '" &
+        shape.suffixes.join("' or '") & "', which this identifier does not " &
+        "carry. THE SUFFIX IS A DECODE LENGTH: " & $payload.len &
+        " base64-family characters ending in '=' are " &
+        $((payload.len - 1) * 3 div 4) & " decoded bytes — a 32-byte digest — " &
+        "while " & $payload.len & " unpadded characters are " &
+        $(payload.len * 3 div 4) & ", which is not a digest this tree routes. " &
+        "The §5 hash index refuses it rather than keying it into the digest " &
+        "shard, where nothing would ever probe for it. If the value really is " &
+        "that length, the chain's registry row declares the wrong encoding for " &
+        "its kind.")
 
 func declaredOrLegacy*(token: string): string =
   ## The encoding to derive with, given what a registry row declared.

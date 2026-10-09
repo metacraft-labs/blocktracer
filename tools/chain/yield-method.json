@@ -1,0 +1,489 @@
+{
+  "_comment": [
+    "HOW A CHAIN'S TRACE YIELD IS MEASURED, fixed before a chain has a number to defend.",
+    "`tools/chain/lib/yield.mjs` reads this file; `tools/chain/yield-method-selftest.mjs` reads",
+    "it to check the module and the committed readings against it.",
+    "",
+    "── WHY THE METHOD IS DATA AND WHY IT IS FIXED FIRST ────────────────────────────────────",
+    "",
+    "A yield figure is the number that decides whether a chain ships, which makes it the",
+    "number most exposed to being chosen after the fact. Two ways of choosing it produce a",
+    "figure that looks fine:",
+    "",
+    "  * A SAMPLE OF TRANSACTIONS MEASURES THE SAMPLER. If the transactions inside a window",
+    "    are chosen, the denominator becomes a function of what succeeded. Data-Contract.md",
+    "    §5.2 already requires a snapshot to enumerate every transaction it saw INCLUDING the",
+    "    ones it could not trace, each carrying a reason — so the honest denominator is",
+    "    available for free and a chosen one has no excuse.",
+    "  * A SINGLE AGGREGATE HIDES TWO WINDOWS MOVING IN OPPOSITE DIRECTIONS. The per-window",
+    "    figures over the observable population on the one chain measured here ranged from",
+    "    50.5% to 100.0%. Reported only as the 78.4% total, neither end of that spread would",
+    "    have existed, and the spread is the finding.",
+    "",
+    "The method is therefore a file rather than a paragraph: a rule a new chain reads before",
+    "it measures cannot be adjusted by the chain that measured.",
+    "",
+    "── THE IDS ARE `Y-` AND THEY ARE ASSERTED DISJOINT FROM TWO OTHER SETS ─────────────────",
+    "",
+    "`snapshot-contract.json` carries the CONTRACT's rules (`S5-*`) and `health-checks.json`",
+    "the recording-health findings (`H-*`). This is a third kind of statement and must stay",
+    "one: the contract says what a producer must write, health says whether what it wrote is",
+    "worth publishing, and this says how a reading over it is COUNTED. The selftest requires",
+    "all three id sets to be pairwise disjoint, with an anti-vacuity guard on each side, for",
+    "the reason the health file gives: a rule stated twice is two answers to one question.",
+    "",
+    "── THE CLASSIFICATION IS NOT RESTATED HERE ────────────────────────────────────────────",
+    "",
+    "Which outcomes are traced, which are untraced and which mean the chain published no",
+    "execution at all is `snapshot-format.json`'s `outcomes`, read through",
+    "`lib/snapshot-format.mjs`'s `SNAPSHOT_OUTCOMES`. This file names EXCLUSIONS by the",
+    "population they remove and never by outcome token, and `lib/yield.mjs` imports the",
+    "partition rather than declaring one. A second classifier is a second place for the",
+    "denominator to drift, and `chain-health.mjs` already reads the same partition for its",
+    "own census.",
+    "",
+    "── WHY A WINDOW IS AN ABSOLUTE RANGE AND NEVER A DEPTH ────────────────────────────────",
+    "",
+    "MEASURED, not cautious. The five windows below were chosen against a tip of 76,024 on",
+    "2026-09-10 and stated for a while as depths — 125 / 7,825 / 30,825 / 51,125 / 75,824",
+    "blocks below tip. The tip was 87,073 on 2026-09-18. A re-run that picks windows \"at the",
+    "same depths\" therefore measures five windows about eleven thousand blocks away from the",
+    "ones the reading is over, and reports the difference as a change in the producer — which",
+    "is precisely the failure the pinning rule exists to prevent. A depth is a reading taken",
+    "against a moving tip; the reproducible identity is the range.",
+    "",
+    "── WHAT A RE-RUN MAY AND MAY NOT MOVE, AND WHY THE COLUMNS ARE SPLIT ──────────────────",
+    "",
+    "A re-run's columns are not all the same kind of claim. `chainColumns` are facts about",
+    "what the chain published and cannot move between two runs over the same absolute range.",
+    "`runColumns` are facts about this run's attempt and can. So a re-run whose CHAIN columns",
+    "are identical and whose RUN columns moved is a different event from one whose chain",
+    "columns moved, and the verdicts below keep them apart:",
+    "",
+    "  MEASURED 2026-09-18, and it is the case this split exists for. A re-run of the five",
+    "  windows on the host that holds them reported 208 traced of 343, not 211. Three",
+    "  transactions that replayed in the reading refused, all three named, all three with a",
+    "  recorded observation beside them: the driver was spawned directly against a body proxy",
+    "  and died with signal SIGSEGV after the VM had already simulated the transaction. That",
+    "  host runs the WASM build of the VM because the prebuilt native addon will not execute",
+    "  on its CPU. Every chain column was identical. So the reading is NOT reproduced — 208",
+    "  is not 211 and the method must never say it is — and the producer is NOT broken, and",
+    "  `differs-environmentally` is the verdict that says both. A method with only",
+    "  `reproduced` and `not-reproduced` has to lie in one direction or the other.",
+    "",
+    "── TWO PROPERTIES OF THE RECORD RATHER THAN OF THE CHAIN, CARRIED RATHER THAN FIXED ───",
+    "",
+    "Both are under `carried` below, both are echoed by the module, and both bound what a",
+    "re-run can claim. The first is why `provenanceCoverage` is declared per chain and",
+    "checked: a reading whose windows do not all carry a replay ledger can assert \"the same",
+    "windows reproduce\" against recorded provenance for some of them and against nothing for",
+    "the rest, and the honest form is to say which."
+  ],
+  "format": "blocktracer/yield-method@1",
+
+  "reading": {
+    "artifactFormat": "blocktracer/historic-replay-yield@1",
+    "comparisonFormat": "blocktracer/baseline-rerun@1",
+    "windowsRequired": 5,
+    "_note": [
+      "`windowsRequired` is a FLOOR on the number of windows a reading publishes, not a",
+      "ceiling. Five is what the chain measured here and what the method asks of a chain",
+      "whose history admits five; a chain whose replayable reach is a few days has fewer",
+      "distinct eras than windows and declares the shortfall under `pinned` rather than",
+      "padding the set with windows that differ by hours."
+    ]
+  },
+
+  "rules": {
+    "Y-WHOLE-WINDOWS": {
+      "question": "Is every transaction in each window counted, or only the ones that produced a trace?",
+      "healthy": "Each window's `transactions` equals the enumerated row count for its absolute block range, and equals the sum of the populations the reading classifies those rows into.",
+      "fires": "a window's `transactions` differs from the enumerated count, or from the sum of its populations",
+      "why": "The failure this rule exists for is not arithmetic, it is that the denominator becomes the numerator. A count of rows that produced a trace, divided by itself, is 100% of a chain. The enumeration is the only quantity a run cannot influence, and §5.2 requires a producer to publish it, so the honest denominator is free."
+    },
+    "Y-DENOMINATORS-NAMED": {
+      "question": "Does every published fraction say which population it is over, and is each excluded population named?",
+      "healthy": "The reading publishes one fraction per applied exclusion plus one over every transaction; each exclusion names the population it removes and its size; and each published percentage equals the one derived from those sizes.",
+      "fires": "a published percentage is not the derived one, an exclusion has no named population, or fewer than two fractions are published",
+      "why": "Two denominators is the FLOOR, not the count: a chain with more than one exclusion has more than two, and the chain measured here has three because it has two distinct exclusions. All of them are honest; quoting one without saying which is not. The equality with the derived figure is what stops a percentage being typed."
+    },
+    "Y-ABSENT-IS-NOT-A-FAILURE": {
+      "question": "Is a transaction the chain never published as a public execution counted as a failure to trace?",
+      "healthy": "Rows whose outcome is in the format's chain-absent population are removed by a NAMED exclusion and are not in the untraced count. Rows that carry a refusal reason ARE in it.",
+      "fires": "a chain-absent row is counted as untraced, or an untraced row carrying a reason is excluded from the denominator",
+      "why": "Trace-Artifacts.md §6's `absent` means the chain published no such execution — the chain's limit, not the producer's — so counting it as a failure understates every chain that has a private half and rewards a chain for having one. A refusal with a reason is the opposite case: it is ours, and dropping it from the denominator is the chosen denominator this method exists to forbid. The two look alike in a tally and are opposite in kind."
+    },
+    "Y-PER-WINDOW-PUBLISHED": {
+      "question": "Are the per-window counts published beside the total?",
+      "healthy": "Every pinned window has its own row, and the totals equal the sum of those rows column by column.",
+      "fires": "a pinned window has no row, a row names an unpinned window, or a total is not the sum of its column",
+      "why": "A total alone cannot show two windows moving in opposite directions, and a per-window arm is the only thing that can: two equal and opposite moves leave every total untouched. The rule is column-by-column rather than on the headline, because a headline built from a moved column and a compensating one is exactly the artefact being refused."
+    },
+    "Y-WINDOWS-PINNED": {
+      "question": "Are the windows the ones this chain pinned, named by absolute range?",
+      "healthy": "The reading's window set equals the pinned set for its chain, exactly, as absolute ranges; and the reading's per-window recorded provenance matches the declared coverage.",
+      "fires": "a window is substituted, added or dropped; or the declared provenance coverage is not what the reading carries",
+      "why": "A window substituted for another invalidates the comparison, so a re-run over a different set is NON-COMPARABLE rather than a failed repeat — those are different findings and collapsing them turns a methodological error into an apparent regression. The provenance clause is here because a window with no replay ledger carries no runtime commit and no timestamp, so a claim that it reproduced rests on nothing; declaring the coverage is what stops the claim being made for the whole set."
+    },
+    "Y-EXPECTED-VARIABLE": {
+      "question": "Did this chain state which variable it expected to dominate BEFORE it measured?",
+      "healthy": "The chain's entry declares exactly one `expectedDominantVariable` from the closed vocabulary, with the date it was declared and the reasoning.",
+      "fires": "no expectation is declared, or the declared variable is outside the vocabulary",
+      "why": "So the measurement can contradict the expectation instead of confirming a story written afterwards. It is also why no chain inherits another's answer: the one chain measured here found depth NOT MONOTONE — its third-deepest window beat its second-shallowest — while its two deepest windows were its two worst. That is a reading from five windows on one testnet. What generalises is the design; the answer about which variable dominated does not."
+    },
+    "Y-BOUNDED-RANGE": {
+      "question": "Was the reading taken against a bounded historic range rather than against production traffic?",
+      "healthy": "Every window lies wholly inside the chain's declared `historicRange`, and every window's last block is below the finalized head recorded with the reading.",
+      "fires": "a window falls outside the declared range, or reaches the finalized head or beyond it",
+      "why": "A window that includes the tip is measuring live traffic: its transactions are still being served from a mempool, its bodies are warm, and a re-run over the same range a day later is a different set of transactions in the same block numbers. Recording the range is what makes the reading repeatable at all, and the finalized head is the mechanical boundary — above it the chain can still reorganise."
+    }
+  },
+
+  "comparison": {
+    "chainColumns": ["transactions", "firstInBlock", "notFirstInBlock", "privateOnly", "withPublicHalf"],
+    "runColumns": ["replayed", "divergent", "traced", "refused", "bodyUnavailable", "notAttempted"],
+    "chainColumnsNote": [
+      "WHAT `chainColumns` CLAIMS, AND THE TWO WAYS THE CLAIM IS NARROWER THAN IT READS.",
+      "Both were measured against this repository rather than imagined, and both are here",
+      "because the cost of the claim being wrong falls on the PRODUCER: a chain column that",
+      "moves for a reason outside the producer is reported `not-reproduced`, which is an",
+      "accusation, and it is the opposite failure from the one the split was built to avoid.",
+      "",
+      "  1. `privateOnly` — AND THEREFORE `withPublicHalf`, WHICH IS DERIVED FROM IT — IS NOT",
+      "     A PURE CHAIN FACT. `ingest-range.mjs` files a row `private-only` when",
+      "     `seen.publicCalls === 0`, and `publicCalls` is `tx.numberOfPublicCalls()` taken off",
+      "     a body the off-chain file store served and `Tx.fromBuffer` decoded",
+      "     (`lib/body-proxy.mjs`). So the column is a function of what that store served for",
+      "     the hash and of which upstream decoder is installed, not only of what the chain",
+      "     published. This is not hypothetical: before the `private-only` outcome existed,",
+      "     every one of these 64 rows was `runtime-refused` off a driver `TypeError`, so the",
+      "     column read 0 for the same chain over the same ranges — see",
+      "     `migrate-refusal-reasons.mjs`, which exists to move them. `body-proxy.mjs` also",
+      "     anticipates \"a body written by a different serialisation\" and files it",
+      "     `truncated`, which moves the row to `bodyUnavailable` and moves `privateOnly` and",
+      "     `withPublicHalf` with it. A producer or store upgrade therefore reads as",
+      "     `not-reproduced` under this split, and that verdict blames the wrong thing.",
+      "  2. NOTHING ANCHORS THE CHAIN'S IDENTITY. Comparability is decided by `sameWindows`,",
+      "     which compares integer ranges and nothing else; neither artifact records a genesis",
+      "     hash, a chain id, or a block hash at any window boundary. `Y-BOUNDED-RANGE` bounds",
+      "     a REORG — every window below the finalized head recorded with that reading — and",
+      "     says nothing about the two runs having seen the same history. A reset testnet, a",
+      "     redeployed devnet or a node serving a different chain moves `transactions` over",
+      "     the same block numbers, and the only verdict available for it is",
+      "     `not-reproduced`. The honest verdict would be a second kind of `non-comparable`,",
+      "     and adding one needs an identity field in the artifact rather than a rule here.",
+      "",
+      "Three of the five columns — `transactions`, `firstInBlock`, `notFirstInBlock` — are",
+      "sound given the same history: they come off the block enumeration and are properties of",
+      "the block. The split is therefore kept, because the alternative is having no mechanical",
+      "separator at all, and these two limits are recorded so a chain reading them knows what",
+      "`not-reproduced` does and does not establish."
+    ],
+    "verdicts": {
+      "non-comparable": "the window sets differ, so the two readings are over different things. NOT a regression and not a repeat.",
+      "reproduced": "every column of every window is the baseline's.",
+      "differs-environmentally": "every chain column is the baseline's, some run column is not, and the attribution below reconciles — over the total AND inside every window. This is NOT `reproduced`: the figure is not the baseline's and may not be quoted as it.",
+      "not-reproduced": "anything else — a chain column moved, or a run column moved and the attribution does not reconcile."
+    },
+    "attribution": {
+      "requires": [
+        "every differing transaction named by hash",
+        "its block named, and inside one of the pinned windows",
+        "a recorded observation, not an inference",
+        "the count of named transactions equal to the total movement in the traced column",
+        "and, in EVERY window, the largest absolute movement in any run column equal to the number of transactions named inside that window"
+      ],
+      "_note": [
+        "The fourth clause is what stops an attribution being a sentence. Three transactions",
+        "named against a movement of five is a partial explanation presented as a complete",
+        "one, and the arithmetic catches it without anyone reading the prose.",
+        "",
+        "THE FIFTH CLAUSE WAS ADDED BECAUSE THE FOURTH ON ITS OWN WAS A FALSE GREEN, and it",
+        "was measured by planting it rather than reasoned about. `traced` is a SUM over",
+        "`tracedColumns`, so rows moving BETWEEN two of them — five `replayed` becoming five",
+        "`divergent` — leave `traced` untouched in that window and leave the total movement at",
+        "whatever the other windows contributed. Five unexplained divergences (a real",
+        "execution that DISAGREED with the block, the strongest signal this pipeline emits)",
+        "were accepted as `differs-environmentally` with the note \"all attributed\". It is the",
+        "same cancellation `Y-PER-WINDOW-PUBLISHED` refuses one level up, arriving between two",
+        "columns instead of between two windows.",
+        "",
+        "It is a MAX and not a sum because one transaction leaving `replayed` for `refused`",
+        "moves three columns by one and is one transaction; and an EQUALITY and not a ceiling",
+        "because a transaction named in a window where nothing moved is an attribution to a",
+        "window that had none.",
+        "",
+        "`bodyUnavailable` and `notAttempted` are in `runColumns` for the same reason: they",
+        "were in neither list, so a re-run in which the body store served forty fewer bodies",
+        "compared as identical. They are `declinedColumns` here and a re-run artifact is not a",
+        "reading, so `checkReading`'s own column sweep never sees one."
+      ]
+    }
+  },
+
+  "expectedVariableVocabulary": [
+    "depth",
+    "era",
+    "contract-population",
+    "endpoint-retention",
+    "artifact-availability",
+    "coverage-gaps",
+    "none"
+  ],
+
+  "pinned": {
+    "aztec-testnet": {
+      "pinnedOn": "2026-09-10",
+      "historicRange": { "from": 1, "to": 75971 },
+      "historicRangeRecordedBy": "tools/chain/measurements/published-object-set.json, whose provenance records the contiguity walk over 1..75,971",
+      "windows": [[1, 200], [24700, 24899], [45000, 45199], [68000, 68199], [75700, 75899]],
+      "blocksPerWindow": 200,
+      "tipAtPinning": 76024,
+      "finalizedAtPinning": 75979,
+      "expectedDominantVariable": null,
+      "expectationDeclaredInAdvance": false,
+      "expectationNotDeclaredBecause": [
+        "THIS CHAIN CANNOT SATISFY `Y-EXPECTED-VARIABLE` AND SAYING SO IS THE POINT. It was",
+        "measured before the method was written down, so any expectation entered here now",
+        "would be a story written afterwards — which is the one thing that rule exists to",
+        "forbid. `Y-EXPECTED-VARIABLE` is therefore reported NOT MEASURED for this chain and",
+        "is never reported as passed, the same accounting `health-checks.json` uses for a",
+        "question its tool cannot yet answer.",
+        "",
+        "It is also worth being exact about what this chain's five windows did and did not",
+        "establish, because the tempting summary is wrong in a way that would propagate. Over",
+        "the observable population the per-window figures were 50.5 / 71.4 / 100.0 / 95.7 /",
+        "100.0 %, shallowest last. So depth is NOT MONOTONE — the window 30,825 blocks down",
+        "at the time traced 100% while the one 7,825 down traced 95.7% — AND the two deepest",
+        "windows are markedly the two worst. Both halves are true and only the pair is",
+        "honest. \"Depth is not the variable\" drops the second half; \"yield falls with depth\"",
+        "drops the first. A chain arriving here with either as a prior would be inheriting a",
+        "conclusion drawn from five windows on one testnet, which is why the vocabulary is",
+        "declared per chain and checked per chain rather than defaulted."
+      ],
+      "exclusions": [
+        {
+          "id": "not-first-in-block",
+          "removes": "notFirstInBlock",
+          "structural": true,
+          "why": "replaying transaction k needs the state left by the k before it, and no node method serves intra-block intermediate state — it exists only inside the sequencer. Permanent, and unrelated to age."
+        },
+        {
+          "id": "private-only",
+          "removes": "privateOnly",
+          "structural": true,
+          "why": "the execution has no public half at all: the private half ran in a wallet, was proved there, and only its effects were published. Permanent, and the chain's limit rather than the producer's — Trace-Artifacts.md §6's `absent`, published with no refusal reason and never counted as a failure to trace."
+        }
+      ],
+      "declinedColumns": ["refused", "bodyUnavailable", "notAttempted"],
+      "tracedColumns": ["replayed", "divergent"],
+      "denominators": [
+        {
+          "id": "all-transactions",
+          "member": "transactions",
+          "yieldMember": "tracedOverAllTransactions",
+          "excludes": []
+        },
+        {
+          "id": "first-in-block",
+          "member": "firstInBlock",
+          "yieldMember": "tracedOverFirstInBlock",
+          "excludes": ["not-first-in-block"]
+        },
+        {
+          "id": "observable",
+          "member": "withPublicHalf",
+          "yieldMember": "tracedOverFirstInBlockWithPublicHalf",
+          "excludes": ["not-first-in-block", "private-only"]
+        }
+      ],
+      "denominatorsNote": [
+        "THREE, NOT TWO, and the count is a consequence of the exclusions rather than a",
+        "choice. `transactions` is everything the chain published; each further denominator",
+        "removes one named structural exclusion. The member column is the name the reading",
+        "publishes the population under and the yieldMember column is the name it publishes",
+        "the fraction under, so both directions are checkable: the member must equal",
+        "`transactions` minus the excluded populations, and the fraction must equal the one",
+        "derived from it. Neither is transcribed."
+      ],
+      "provenanceCoverage": {
+        "windowsWithRecordedReplayLedger": 4,
+        "windowsWithout": [[75700, 75899]],
+        "_note": [
+          "The window with no replay ledger contributes 92 of the 211 traced — the largest",
+          "share of the total — and its `ledger` carries only `fetch`: no replay object, so",
+          "no runtime commit, no timestamp and no attempted/refused record. \"The same five",
+          "windows reproduce the reading\" is therefore assertable against recorded",
+          "provenance for FOUR of the five and against nothing for the fifth. That is not a",
+          "reason to drop the window — dropping it would be choosing windows by how well",
+          "they are documented — it is a reason not to quote its provenance as though it",
+          "existed."
+        ]
+      }
+    },
+    "eth": {
+      "pinnedOn": "2026-09-30",
+      "_whyThisIsCommittedBeforeAnyReading": [
+        "THE EXPECTATION BELOW IS DECLARED IN ADVANCE, AND `IN ADVANCE` IS A FACT ABOUT THE",
+        "COMMIT GRAPH RATHER THAN ABOUT THIS FILE. A file can assert its own timeliness and",
+        "a commit cannot, so this entry is committed on its own, before any reading of this",
+        "chain exists to be committed after it. `expectationDeclaredInAdvance: true` is",
+        "checkable here; the ORDER is checkable in git, and that is the half that matters.",
+        "",
+        "This chain is the first subject `Y-EXPECTED-VARIABLE` has ever had. The only other",
+        "chain in this file declares `false` and says why, so the rule has never been reported",
+        "as passed for anything."
+      ],
+      "historicRange": { "from": 1, "to": 26000000 },
+      "historicRangeRecordedBy": "tools/chain/measurements/evm-endpoint-capability.json, whose `endpoints[0].archive` records the depth sweep — state answered at 0, 1, 1,000, 200,000, 1,000,000, 4,370,000, 9,069,000, 12,965,000, 15,537,394, 17,034,870, 19,426,587, 22,431,084 and 26,000,000, with the proof's decoded balance and nonce agreeing with the flat reads at six of those depths and six DISTINCT values across them",
+      "windows": [[4370100, 4370101], [12500000, 12500001], [13000000, 13000001], [17100000, 17100001], [19500000, 19500001], [22500000, 22500001]],
+      "blocksPerWindow": 2,
+      "windowsNote": [
+        "SIX WINDOWS OF TWO BLOCKS, AND BOTH NUMBERS ARE CONSEQUENCES RATHER THAN CHOICES.",
+        "",
+        "SIX, because `reading.windowsRequired` is a FLOOR and this chain's expected dominant",
+        "variable is `era` — so the window set has to have one window per era the recorder can",
+        "tell apart, plus one in the era it cannot. There are exactly six: the five rungs of",
+        "`spec_from_block_header`'s ladder, and everything below the lowest rung, which that",
+        "ladder collapses into its lowest token. A five-window set would have had to drop one",
+        "of them, and dropping the collapsed rung would have removed the only window that can",
+        "refute the expectation.",
+        "",
+        "TWO BLOCKS, because a window is a COST here and not a sample size. The producer's",
+        "declared strategy is `replay-preceding`, which replays indices 0..k-1 for each target",
+        "k, so a block of N transactions costs about N-squared-over-two transaction executions.",
+        "Ethereum mainnet's measured 249-359 transactions per block puts one whole block at",
+        "31,000-64,000 executions. Twelve blocks enumerate 2,139 transactions — measured, not",
+        "estimated — which is a real denominator at a tractable size. Nothing is sampled WITHIN",
+        "a window; each is whole.",
+        "",
+        "Per-window enumeration measured 2026-09-30: 77+240, 130+112, 17+370, 130+94,",
+        "364+223, 189+193. The 17-transaction block at 13,000,000 is the cheapest subject in",
+        "the set by an order of magnitude and is not why that window was chosen; it is where",
+        "the London rung is."
+      ],
+      "tipAtPinning": 26092740,
+      "finalizedAtPinning": 26092451,
+      "expectedDominantVariable": "era",
+      "expectationDeclaredInAdvance": true,
+      "expectedOn": "2026-09-30",
+      "expectationReasoning": [
+        "ERA, AND THE PREMISE IS READ OUT OF THE RECORDER'S SOURCE RATHER THAN GUESSED.",
+        "",
+        "`codetracer-evm-recorder`'s `spec_from_block_header` selects the EVM revision to",
+        "replay under by testing four optional header fields, newest first: `requests_hash` ->",
+        "PRAGUE, `excess_blob_gas` -> CANCUN, `withdrawals_root` -> SHANGHAI,",
+        "`base_fee_per_gas` -> LONDON, and otherwise BERLIN. Its own doc comment says so:",
+        "\"Blocks before London have none of the above fields and are treated as BERLIN (a safe",
+        "conservative default).\"",
+        "",
+        "That default is the prediction. Berlin activated at block 12,244,000 in April 2021,",
+        "and EVERY block below it — Frontier, Homestead, Tangerine Whistle, Spurious Dragon,",
+        "Byzantium, Constantinople, Petersburg, Istanbul — infers BERLIN too. Berlin is not a",
+        "conservative superset of those: EIP-2929 repriced every state-accessing opcode and",
+        "EIP-2930 introduced access lists. So a 2017 transaction replayed under Berlin gas is",
+        "being executed under a rule set that did not exist when it settled, and the divergence",
+        "that produces is a property of the ERA the transaction is in and of nothing else.",
+        "",
+        "MEASURED IN ADVANCE, over the six windows, so the premise is a reading and not a",
+        "claim (2026-09-30): the ladder infers BERLIN / BERLIN / LONDON / SHANGHAI / CANCUN /",
+        "PRAGUE. Five of the six are the era the block was actually mined in. The first is not:",
+        "block 4,370,100 was mined 2017-10-16 under Byzantium and infers BERLIN. So exactly one",
+        "window sits on the collapsed rung, and it is window one.",
+        "",
+        "WHAT WOULD REFUTE IT, stated now so the reading cannot be fitted to it afterwards:",
+        "if window one's yield is not markedly the worst of the six, `era` is not the dominant",
+        "variable and this declaration was wrong. Two nearby outcomes would NOT confirm it and",
+        "must not be reported as confirmation — a monotone fall across all six windows is",
+        "`depth`, and a uniform failure in every window is neither.",
+        "",
+        "AND NO CHAIN INHERITS ANOTHER'S ANSWER. The other chain in this file measured depth",
+        "NOT MONOTONE while its two deepest windows were its two worst; that is a reading from",
+        "one testnet and it is not evidence about this chain. What is shared is the method."
+      ],
+      "exclusions": [],
+      "exclusionsNote": [
+        "ZERO, AND THAT IS A STATEMENT ABOUT ETHEREUM RATHER THAN AN OMISSION — WHICH MAKES",
+        "THIS CHAIN THE FIRST ONE THE METHOD'S TWO-DENOMINATOR FLOOR DOES NOT FIT. See the",
+        "`eth-has-no-structural-exclusion` entry under `carried`.",
+        "",
+        "Both of the exclusions the other chain declares are refused for this one, on the",
+        "rule's own terms:",
+        "",
+        "`not-first-in-block` is NOT structural here. The other chain declares it structural",
+        "because \"no node method serves intra-block intermediate state — it exists only inside",
+        "the sequencer\", and on Ethereum with an archive that is simply false: the state before",
+        "transaction k is produced by replaying 0..k-1 from the parent, which is what",
+        "`replay-preceding` IS. Transaction k is expensive, not unreachable. Declaring it an",
+        "exclusion would remove rows this pipeline could trace and did not, which",
+        "`Y-ABSENT-IS-NOT-A-FAILURE` calls \"a choice about what to count\" in as many words.",
+        "",
+        "`private-only` has no population at all. Ethereum mainnet publishes an execution for",
+        "every transaction it settles; there is no private half anywhere on this chain, so the",
+        "chain-absent population is empty by construction rather than by measurement.",
+        "",
+        "A row this pipeline declines therefore stays in the denominator, which is the only",
+        "denominator this chain has and the strictest reading available."
+      ],
+      "declinedColumns": ["refused", "bodyUnavailable", "notAttempted"],
+      "tracedColumns": ["replayed", "divergent"],
+      "denominators": [
+        {
+          "id": "all-transactions",
+          "member": "transactions",
+          "yieldMember": "tracedOverAllTransactions",
+          "excludes": []
+        }
+      ],
+      "denominatorsNote": [
+        "ONE, AND THE METHOD'S FLOOR IS TWO, SO A READING OF THIS CHAIN WILL RAISE",
+        "`Y-DENOMINATORS-NAMED` UNTIL THE METHOD OR THIS ENTRY CHANGES. That is recorded here",
+        "rather than worked around, because both available workarounds are worse than the",
+        "finding:",
+        "",
+        "  * declaring a second denominator that excludes nothing publishes ONE FRACTION TWICE",
+        "    UNDER TWO NAMES, and the rule's whole purpose is that a quoted percentage says",
+        "    which population it is over. Two names for one population is the same defect the",
+        "    rule forbids, arrived at from the other side — and it would pass the gate, because",
+        "    the derived-fraction check only bites when an exclusion is non-empty.",
+        "  * declaring a structural exclusion this chain does not have is refused by",
+        "    `Y-ABSENT-IS-NOT-A-FAILURE` and would be false besides.",
+        "",
+        "So the entry is honest and the rule's floor is the thing that needs revisiting. The",
+        "floor is correct as a floor for a chain WITH a structurally unobservable population",
+        "and it is not a property of every chain, which is what `carried` is for."
+      ],
+      "provenanceCoverage": {
+        "windowsWithRecordedReplayLedger": 0,
+        "windowsWithout": [[4370100, 4370101], [12500000, 12500001], [13000000, 13000001], [17100000, 17100001], [19500000, 19500001], [22500000, 22500001]],
+        "_note": [
+          "NONE, because no reading of this chain exists yet and no window has been replayed.",
+          "Declared as zero rather than left absent: an absent coverage member and a coverage",
+          "of zero are different facts, and the first would let a later reading quote a",
+          "provenance nothing established."
+        ]
+      }
+    }
+  },
+
+  "carried": [
+    {
+      "id": "eth-has-no-structural-exclusion",
+      "measuredOn": "2026-09-30",
+      "note": "`Y-DENOMINATORS-NAMED`'s floor of two denominators is NOT SATISFIABLE WITHOUT REDUNDANCY by a chain that has no structurally unobservable population, and Ethereum mainnet is the first such chain to reach this file. The rule's own refusal names the second denominator as \"every transaction that was structurally observable at all\"; on Ethereum that population IS every transaction, because every settled transaction has a public execution and every one of them is replayable from its block's parent state given the archive this project measured. `tools/chain/lib/yield.mjs` fires the floor on `dens.length < 2` unconditionally, so the rule will raise on the first reading of this chain. The two escapes are both worse: a second denominator excluding nothing publishes one fraction under two names — which the gate ACCEPTS, because its derived-fraction check only bites when an exclusion is non-empty, so the redundancy would pass silently; and inventing a structural exclusion is refused by `Y-ABSENT-IS-NOT-A-FAILURE` and would be untrue. Recorded rather than patched because the floor is right for a chain with two populations and is not a property of every chain, and because a chain with ONE honest denominator is the strictest reading available rather than the laxest.",
+      "bounds": "whether `Y-DENOMINATORS-NAMED`'s floor is a property of the method or of the chain it was written from; it is currently spelled as the former"
+    },
+    {
+      "id": "attempted-is-per-pass-not-cumulative",
+      "measuredOn": "2026-09-18",
+      "note": "`ledger.replay.attempted` counts ONE PASS and is not a total. The replay loop opens by skipping any row already `replayed` or `divergent`, so a resumed pass attempts only what is still undecided — which, in a range whose successes are already recorded, is exactly the refused set. It therefore equals `refused` in every window that has a replay ledger, and the 45000-45199 window reads `attempted: 0` beside `replayed: 21`, which reads as a contradiction and is not one. THE CORPUS HOLDS BOTH PASSES OVER ONE WINDOW, which is why this is a measurement and not a caution: `historic-replay-yield.json` window 1-200 reads `attempted: 45` (resumed, equal to its refused) and `baseline-rerun.json` window 1-200 reads `attempted: 91` (a first pass into an empty state directory, equal to 43 replayed + 2 divergent + 46 refused). An auditor who quotes the field as \"how many were tried\" is wrong by the number already traced.",
+      "bounds": "nothing counted by this method may be taken from `attempted`; every published figure is counted from the rows"
+    },
+    {
+      "id": "the-largest-window-has-no-replay-provenance",
+      "measuredOn": "2026-09-18",
+      "note": "See `provenanceCoverage` above. Four of five windows name runtime dfb9ebe23246...; the fifth names nothing. The figure it contributes is counted from rows and is not in doubt; what is absent is the record of the run that produced it.",
+      "bounds": "how widely a re-run may claim to have reproduced `the same windows`"
+    }
+  ]
+}

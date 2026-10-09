@@ -1,60 +1,124 @@
 {
  "format": "blocktracer/chain-health@1",
  "tool": "tools/chain/chain-health.mjs",
- "generatedAt": "2026-09-18T18:39:19.013Z",
+ "generatedAt": "2026-09-27T22:59:35.187Z",
  "checksRequested": [
   "H-READ-NONE",
   "H-SOURCE-ABSENT",
+  "H-SOURCE-RATCHET",
   "H-OUTCOME-REASON-JOINT",
   "H-RECORDER-UNATTRIBUTED",
-  "H-CONTAINER-UNREADABLE"
+  "H-CONTAINER-UNREADABLE",
+  "H-CONTAINER-SCHEMA-SKEW",
+  "H-STEPS-DISAGREE",
+  "H-CALLS-DISAGREE",
+  "H-EVENTS-DISAGREE",
+  "H-PATHS-NOT-IN-BUNDLE",
+  "H-BUNDLE-LANGUAGE-SKEW",
+  "H-POSITIONS-VALUE-SKEW"
  ],
  "containerReader": null,
+ "containerReaderBuild": null,
+ "containerSchemaConsumers": [
+  {
+   "id": "pinned-reader",
+   "what": "the Nim CTFS reader this repository's derivations shell out to - the `ct-print` binary built from `codetracer-trace-format-nim`, named by CT_PRINT",
+   "audience": "this repository's own derivations: instructions/, positions/ and calltrace/ sidecars are produced by it",
+   "accepts": [
+    4,
+    5
+   ],
+   "refusesByName": [
+    3
+   ],
+   "statedBy": "codetracer-trace-format-nim src/codetracer_trace_writer/meta_dat.nim - `SupportedMetaDatVersions = [4, 5]` and `LastShiftedGlobalIndexVersion = 3`, the latter refused by name ahead of the generic version mismatch",
+   "readFrom": {
+    "repo": "codetracer-trace-format-nim",
+    "revision": "cf132be",
+    "on": "2026-09-28"
+   },
+   "note": "The refusal is BY NAME and it is deliberate rather than a version bump's side effect: a version-3 writer packed a line-only step position as prefixSum[path_id] + line where a current writer packs prefixSum[path_id] + (line - 1). Both land inside the trace's address space, so a version-3 step decoded under the current rule comes back ONE LINE HIGH instead of failing. Refusing is the only outcome that does not silently mis-place every source position."
+  },
+  {
+   "id": "shipped-engine",
+   "what": "the replay engine this repository ships to a visitor - `pkg/db_backend_bg.wasm`, fetched and asserted by sha256",
+   "audience": "a visitor's browser: this is the program that actually steps a published recording on the site",
+   "accepts": [
+    3
+   ],
+   "refusesByName": [],
+   "statedBy": "codetracer src/db-backend/src/ctfs_trace_reader/meta_dat.rs - `SUPPORTED_VERSIONS: &[u16] = &[3]`; its sibling src/backend-manager/src/meta_dat.rs states `SUPPORTED_META_DAT_VERSIONS: &[u16] = &[3]`",
+   "readFrom": {
+    "repo": "codetracer",
+    "revision": "afe86214b",
+    "on": "2026-09-28",
+    "pin": "842c7164dd667085719705b15488f7d5ced1302afde7a5146bc52d08c7634120"
+   },
+   "note": "ACCEPTING IS NOT THE SAME AS READING CORRECTLY, and this consumer is the reason the finding cannot be folded into one verdict. The pinned reader's analysis of version 3 is that its line-only step positions are packed one line high relative to the current rule. If that analysis is right, this consumer does not refuse those containers - it decodes them, and every source position it produces is one line off. The sweep reports the skew and does not adjudicate the analysis: settling which consumer is right is not this repository's call to make alone, and it is recorded under `carried` as such."
+  }
+ ],
  "carried": [
   {
-   "id": "reader-schema-disagreement",
+   "id": "corpus-predates-the-line-index-correction",
    "measuredOn": "2026-09-18",
-   "note": "All 52 real containers in this repository declare `meta.dat` schema version 3. The Nim reader accepts versions 4 and 5 and refuses 3 BY NAME — a version-3 writer packed a line-only step position as `prefixSum[path_id] + line`, a current writer packs `prefixSum[path_id] + (line - 1)`, and both land inside the trace's address space, so a step read under the current decode comes back one line high rather than failing. The two Rust readers are pinned at version 3 and accept them. The supported sets are disjoint: the two readers cannot open each other's containers, and this corpus sits on the superseded side. Nothing here settles which reader a sweep should believe.",
+   "note": "52 of the 53 real containers in this repository declare `meta.dat` schema version 3, and every current reader refuses that version BY NAME. (CENSUS CORRECTED: this entry said `All 52` while the corpus held 52. It holds 53 - 56 committed `.ct` files, three of them the conformance kit's 229-byte placeholders with no CTFS magic and so not containers at all - and the 53rd, `fixtures/chain-health/readable-container`, declares version 4, which is the whole reason it exists.) A version-3 writer packed a line-only step position as `prefixSum[path_id] + line`; a current writer packs `prefixSum[path_id] + (line - 1)`. Both land inside the trace's address space, so a version-3 step read under the current decode comes back ONE LINE HIGH rather than failing - which is why the schema version is the only possible discriminator and why readers refuse instead of decoding. The Nim reader accepts [4, 5]; the two Rust readers are at META_DAT_VERSION = 4 with SUPPORTED_VERSIONS = [4, META_DAT_VERSION_EXTENDED_FLAGS]. THEY AGREE. So the version-3 subset is readable by nothing current, and the remedy is to re-record it rather than to reconcile readers. The committed instructions/, positions/ and calltrace/ sidecars were derived by a reader build that accepted version 3, and nothing in the tree records which one. CORRECTED 2026-09-18, same day: this entry first said the readers supported DISJOINT sets with Rust pinned at 3. That was read from a checkout of the sibling repository standing 199 commits behind its mainline; the Rust readers had already moved to 4. A claim about another repository's constant is only as current as the checkout it was read from. RE-MEASURED 2026-09-28, AND THE SENTENCE `THEY AGREE` DOES NOT HOLD AT THE CHECKOUTS IN THIS WORKSPACE: the Nim reader accepts [4, 5] and BOTH Rust readers state 3 - `SUPPORTED_VERSIONS = &[3]` and `SUPPORTED_META_DAT_VERSIONS = &[3]` - so the sets are disjoint again, as this entry originally said. Which of the two readings is current depends on which checkout each was read from, and that is the whole lesson: the reading above names no revision, so it cannot be told apart from a stale one. The third entry in this list carries the re-measurement WITH the revision of each checkout beside it, and `containerSchema.consumers` is where the accepted sets are recorded for the tool to use. Neither reading is deleted here. The consequence for this corpus is unchanged either way: the reader this repository's derivations run refuses all 52 of the version-3 containers, which is every container here but one. RE-MEASURED 2026-10-04 (CRR-4), AND BOTH THE POPULATION AND THE READER SET ABOVE ARE STALE. The POPULATION: `git ls-files '*.ct'` returns 55 paths, 3 of them the conformance kit's 229-byte ASCII placeholders and 52 of them containers; a census by `find` returns 84 and counts 29 GENERATED artefacts (25 published containers under `client/dist/`, 3 under `conformance-kit-release/`, and this repository's one recorded fixture), which is where the larger figures quoted here and in CRR-4 come from. The READER SET: the Nim reader no longer accepts [4, 5] - it reads `meta.dat` schema 6 ONLY, and container version 5 only, as of the 2026-10 trace-format revision. So the refusal now holds on ALL 52 tracked containers rather than on 52 of 53: the version-4 subject this entry names as the exception was itself refused from 2026-10-01, which took all 31 reader-dependent arms of `chain-health-selftest.mjs` out of service. THE REMEDY LANDED AND IT IS NOT A RE-RECORDING: that subject's container is no longer committed at all. `tools/chain/make-readable-container.mjs` records it at test time from the sibling writer's own fixture generator, so it follows the writer rather than lagging it - metacraft-dev-guidelines/policies/repo-requirements.md §4.3, 'a test that needs a recording records it on the fly'. The 52 tracked containers are unchanged and still refused; what changed is that the one subject the comparisons need is now produced rather than preserved.",
    "bounds": "every check marked needsContainer"
   },
   {
    "id": "reader-exit-status-is-not-a-verdict",
    "measuredOn": "2026-09-18",
-   "note": "The Nim reader prints its refusal and exits 0. Over the 52 real containers it did that 52 times. A sweep keyed on exit status would have reported 52 of 52 opened having opened none. `containerReader.opened` therefore requires two clauses, and the signature that spells the second one lives in this file.",
+   "note": "The Nim reader prints its refusal and exits 0. Over the 52 real containers it did that 52 times. A sweep keyed on exit status would have reported 52 of 52 opened having opened none. `containerReader.opened` therefore requires two clauses, and the signature that spells the second one lives in this file. RE-MEASURED 2026-09-28 with a reader built from a current checkout of the reader repository: it exits 1 on 55 of the 56 committed `.ct` files - 52 with `Error: meta.dat present but corrupt: ... schema version 3 ...` and 3, the conformance template's 229-byte placeholders, with `ct-print: not a recognised .ct file: no CTFS magic` - and 0 on the one version-4 container it opens. (The figures first written here were `58` and `6`: an on-disk count taken while the gitignored `conformance-kit-release/` copy of the kit's three placeholders was present and before the version-4 container landed, 52 + 6. The committed census is 56 files / 53 containers / 3 placeholders.) ZERO containers exit 0 while refusing. So the exit-0 refusal was a property of one build rather than of the reader. THE TWO-CLAUSE RULE IS KEPT ANYWAY: it costs one regular-expression test, the behaviour it guards against was real on the build that was on disk when this file was written, and nothing in either repository forbids its return. A rule dropped because today's binary does not need it is a rule that has to be rediscovered by the next sweep that reports a clean pass over a corpus it could not read.",
    "bounds": "how `containersOpened` and `containersRefused` are counted"
+  },
+  {
+   "id": "the-two-consumers-of-a-container-disagree",
+   "measuredOn": "2026-09-28",
+   "note": "THE PINNED READER AND THE SHIPPED ENGINE ACCEPT DISJOINT SCHEMA VERSION SETS, so `is this container readable` has two answers and they are opposite over this corpus. Measured by reading each consumer's own constant, with the checkout revision recorded beside it because a claim about another repository's constant is only as current as the checkout it was read from - the correction on the entry above this one was exactly that mistake. PINNED READER, `codetracer-trace-format-nim` at cf132be: `SupportedMetaDatVersions = [4, 5]` and `LastShiftedGlobalIndexVersion = 3`, the latter refused BY NAME ahead of the generic version mismatch. SHIPPED ENGINE, `codetracer` at afe86214b - the source of the replay wasm this repository pins by sha256 in `client/hydrate/engine-pin.txt`: `SUPPORTED_VERSIONS = &[3]` in the db-backend reader and `SUPPORTED_META_DAT_VERSIONS = &[3]` in the session manager's. {4,5} and {3} share no member. 52 of the 53 containers in this repository declare 3, so the pinned reader refuses those 52 and the shipped engine accepts them - and the shipped engine is the one a visitor's browser runs. The 53rd declares 4 and the two consumers swap sides on it, which is the same skew seen from the other end rather than an exception to it. THAT IS WHY THE SKEW FINDING IS REPORTED PER CONSUMER AND NEVER FOLDED INTO ONE VERDICT: a single answer would have to pick which consumer matters, and the two are for different audiences.",
+   "bounds": "H-CONTAINER-SCHEMA-SKEW, which reports one finding per consumer and never a combined one"
   }
  ],
  "corpus": {
-  "snapshots": 8,
+  "snapshots": 9,
   "totals": {
-   "rowsExamined": 997,
-   "tracedRows": 45,
+   "rowsExamined": 998,
+   "tracedRows": 46,
    "untracedRows": 944,
    "chainAbsentRows": 8,
    "unclassifiedRows": 0,
-   "containersNamed": 45,
+   "containersNamed": 46,
    "containersOpened": 0,
    "containersRefused": 0,
-   "sourceLevelRows": 1,
-   "stepsPositionedRows": 4,
-   "sourceBundleRows": 4,
-   "artifacts": 38,
-   "artifactsResolved": 4,
-   "attributedRows": 44,
+   "sourceLevelRows": 2,
+   "stepsPositionedRows": 5,
+   "sourceBundleRows": 5,
+   "artifacts": 39,
+   "artifactsResolved": 5,
+   "attributedRows": 45,
    "unattributedRows": 1,
    "jointScopeRows": 925,
    "declaredRungs": {
+    "1": 1,
     "2": 2,
     "3": 41,
     "none": 2
    },
+   "containerSchemaCensus": {},
+   "bundleLanguagesUnknown": {
+    "example-lang": 1
+   },
    "checksNotRun": [
-    "H-CONTAINER-UNREADABLE"
+    "H-CALLS-DISAGREE",
+    "H-CONTAINER-SCHEMA-SKEW",
+    "H-CONTAINER-UNREADABLE",
+    "H-EVENTS-DISAGREE",
+    "H-PATHS-NOT-IN-BUNDLE",
+    "H-POSITIONS-VALUE-SKEW",
+    "H-STEPS-DISAGREE"
    ]
   },
   "checkCoverage": {
    "H-SOURCE-ABSENT": {
-    "ranIn": 6,
+    "ranIn": 7,
     "notRunIn": 2,
     "reasons": [
      "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
@@ -62,13 +126,13 @@
    },
    "H-OUTCOME-REASON-JOINT": {
     "ranIn": 4,
-    "notRunIn": 4,
+    "notRunIn": 5,
     "reasons": [
      "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
     ]
    },
    "H-RECORDER-UNATTRIBUTED": {
-    "ranIn": 6,
+    "ranIn": 7,
     "notRunIn": 2,
     "reasons": [
      "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
@@ -76,9 +140,58 @@
    },
    "H-CONTAINER-UNREADABLE": {
     "ranIn": 0,
-    "notRunIn": 8,
+    "notRunIn": 9,
     "reasons": [
-     "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first."
+     "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    ]
+   },
+   "H-CONTAINER-SCHEMA-SKEW": {
+    "ranIn": 0,
+    "notRunIn": 9,
+    "reasons": [
+     "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    ]
+   },
+   "H-STEPS-DISAGREE": {
+    "ranIn": 0,
+    "notRunIn": 9,
+    "reasons": [
+     "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    ]
+   },
+   "H-CALLS-DISAGREE": {
+    "ranIn": 0,
+    "notRunIn": 9,
+    "reasons": [
+     "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    ]
+   },
+   "H-EVENTS-DISAGREE": {
+    "ranIn": 0,
+    "notRunIn": 9,
+    "reasons": [
+     "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    ]
+   },
+   "H-PATHS-NOT-IN-BUNDLE": {
+    "ranIn": 0,
+    "notRunIn": 9,
+    "reasons": [
+     "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    ]
+   },
+   "H-BUNDLE-LANGUAGE-SKEW": {
+    "ranIn": 4,
+    "notRunIn": 5,
+    "reasons": [
+     "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
+    ]
+   },
+   "H-POSITIONS-VALUE-SKEW": {
+    "ranIn": 0,
+    "notRunIn": 9,
+    "reasons": [
+     "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
     ]
    },
    "H-READ-NONE": {
@@ -86,6 +199,14 @@
     "notRunIn": 0,
     "reasons": [],
     "scope": "the sweep as a whole"
+   },
+   "H-SOURCE-RATCHET": {
+    "ranIn": 1,
+    "notRunIn": 0,
+    "reasons": [],
+    "scope": "the sweep as a whole",
+    "chainsCompared": 6,
+    "chainsWithdrawn": []
    }
   },
   "sourceCensusByChain": {
@@ -133,6 +254,15 @@
     "sourceBundleRows": 0,
     "artifacts": 0,
     "artifactsResolved": 0
+   },
+   "readable-container": {
+    "snapshots": 1,
+    "tracedRows": 1,
+    "sourceLevelRows": 1,
+    "stepsPositionedRows": 1,
+    "sourceBundleRows": 1,
+    "artifacts": 1,
+    "artifactsResolved": 1
    },
    "aztec-mainnet": {
     "snapshots": 1,
@@ -240,11 +370,28 @@
   },
   {
    "check": "H-READ-NONE",
-   "says": "no recording was opened on this sweep — 45 container(s) are named by rows and 0 were opened — while 1 requested check(s) can only be answered by opening one: H-CONTAINER-UNREADABLE. Those checks are NOT RUN. This is the tool saying it could not answer, not that the answer is bad.",
+   "says": "no recording was OPENED on this sweep — 46 container(s) are named by rows, 0 were probed and refused, and 0 opened. 7 requested check(s) could not be answered in any tree: H-CONTAINER-UNREADABLE, H-CONTAINER-SCHEMA-SKEW, H-STEPS-DISAGREE, H-CALLS-DISAGREE, H-EVENTS-DISAGREE, H-PATHS-NOT-IN-BUNDLE, H-POSITIONS-VALUE-SKEW. Anything that needs a recording to actually open is unanswered here. This is the tool saying what it could and could not answer, not that the answer is bad.",
    "needsContainerRequested": [
-    "H-CONTAINER-UNREADABLE"
+    "H-CONTAINER-UNREADABLE",
+    "H-CONTAINER-SCHEMA-SKEW",
+    "H-STEPS-DISAGREE",
+    "H-CALLS-DISAGREE",
+    "H-EVENTS-DISAGREE",
+    "H-PATHS-NOT-IN-BUNDLE",
+    "H-POSITIONS-VALUE-SKEW"
    ],
-   "containersNamed": 45,
+   "answeredFromRefusals": [],
+   "unansweredInEveryTree": [
+    "H-CONTAINER-UNREADABLE",
+    "H-CONTAINER-SCHEMA-SKEW",
+    "H-STEPS-DISAGREE",
+    "H-CALLS-DISAGREE",
+    "H-EVENTS-DISAGREE",
+    "H-PATHS-NOT-IN-BUNDLE",
+    "H-POSITIONS-VALUE-SKEW"
+   ],
+   "containersNamed": 46,
+   "containersRefused": 0,
    "containersOpened": 0
   }
  ],
@@ -277,8 +424,17 @@
      "3": 2
     },
     "jointScopeRows": 81,
+    "containerSchemaCensus": {},
+    "bundleLanguagesUnknown": {},
     "checksNotRun": [
-     "H-CONTAINER-UNREADABLE"
+     "H-CONTAINER-UNREADABLE",
+     "H-CONTAINER-SCHEMA-SKEW",
+     "H-STEPS-DISAGREE",
+     "H-CALLS-DISAGREE",
+     "H-EVENTS-DISAGREE",
+     "H-PATHS-NOT-IN-BUNDLE",
+     "H-BUNDLE-LANGUAGE-SKEW",
+     "H-POSITIONS-VALUE-SKEW"
     ]
    },
    "checkStatus": {
@@ -299,7 +455,35 @@
     },
     "H-CONTAINER-UNREADABLE": {
      "ran": false,
-     "why": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first."
+     "why": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+     "ran": false,
+     "why": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    },
+    "H-STEPS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    },
+    "H-CALLS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    },
+    "H-EVENTS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+     "ran": false,
+     "why": "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+     "ran": false,
+     "why": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
     }
    },
    "findings": [
@@ -437,8 +621,16 @@
      "3": 24
     },
     "jointScopeRows": 841,
+    "containerSchemaCensus": {},
+    "bundleLanguagesUnknown": {},
     "checksNotRun": [
-     "H-CONTAINER-UNREADABLE"
+     "H-CONTAINER-UNREADABLE",
+     "H-CONTAINER-SCHEMA-SKEW",
+     "H-STEPS-DISAGREE",
+     "H-CALLS-DISAGREE",
+     "H-EVENTS-DISAGREE",
+     "H-PATHS-NOT-IN-BUNDLE",
+     "H-POSITIONS-VALUE-SKEW"
     ]
    },
    "checkStatus": {
@@ -459,7 +651,36 @@
     },
     "H-CONTAINER-UNREADABLE": {
      "ran": false,
-     "why": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first."
+     "why": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+     "ran": false,
+     "why": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    },
+    "H-STEPS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    },
+    "H-CALLS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    },
+    "H-EVENTS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+     "ran": true,
+     "scope": 1,
+     "raised": 0
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+     "ran": false,
+     "why": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
     }
    },
    "findings": [
@@ -1375,9 +1596,17 @@
      "3": 6
     },
     "jointScopeRows": 0,
+    "containerSchemaCensus": {},
+    "bundleLanguagesUnknown": {},
     "checksNotRun": [
      "H-OUTCOME-REASON-JOINT",
-     "H-CONTAINER-UNREADABLE"
+     "H-CONTAINER-UNREADABLE",
+     "H-CONTAINER-SCHEMA-SKEW",
+     "H-STEPS-DISAGREE",
+     "H-CALLS-DISAGREE",
+     "H-EVENTS-DISAGREE",
+     "H-PATHS-NOT-IN-BUNDLE",
+     "H-POSITIONS-VALUE-SKEW"
     ]
    },
    "checkStatus": {
@@ -1397,7 +1626,36 @@
     },
     "H-CONTAINER-UNREADABLE": {
      "ran": false,
-     "why": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first."
+     "why": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+     "ran": false,
+     "why": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    },
+    "H-STEPS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    },
+    "H-CALLS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    },
+    "H-EVENTS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+     "ran": true,
+     "scope": 1,
+     "raised": 0
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+     "ran": false,
+     "why": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
     }
    },
    "findings": [
@@ -1454,9 +1712,18 @@
      "2": 1
     },
     "jointScopeRows": 0,
+    "containerSchemaCensus": {},
+    "bundleLanguagesUnknown": {},
     "checksNotRun": [
      "H-OUTCOME-REASON-JOINT",
-     "H-CONTAINER-UNREADABLE"
+     "H-CONTAINER-UNREADABLE",
+     "H-CONTAINER-SCHEMA-SKEW",
+     "H-STEPS-DISAGREE",
+     "H-CALLS-DISAGREE",
+     "H-EVENTS-DISAGREE",
+     "H-PATHS-NOT-IN-BUNDLE",
+     "H-BUNDLE-LANGUAGE-SKEW",
+     "H-POSITIONS-VALUE-SKEW"
     ]
    },
    "checkStatus": {
@@ -1476,7 +1743,35 @@
     },
     "H-CONTAINER-UNREADABLE": {
      "ran": false,
-     "why": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first."
+     "why": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+     "ran": false,
+     "why": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    },
+    "H-STEPS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    },
+    "H-CALLS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    },
+    "H-EVENTS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+     "ran": false,
+     "why": "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+     "ran": false,
+     "why": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
     }
    },
    "findings": [
@@ -1532,8 +1827,18 @@
      "none": 2
     },
     "jointScopeRows": 2,
+    "containerSchemaCensus": {},
+    "bundleLanguagesUnknown": {
+     "example-lang": 1
+    },
     "checksNotRun": [
-     "H-CONTAINER-UNREADABLE"
+     "H-CONTAINER-UNREADABLE",
+     "H-CONTAINER-SCHEMA-SKEW",
+     "H-STEPS-DISAGREE",
+     "H-CALLS-DISAGREE",
+     "H-EVENTS-DISAGREE",
+     "H-PATHS-NOT-IN-BUNDLE",
+     "H-POSITIONS-VALUE-SKEW"
     ]
    },
    "checkStatus": {
@@ -1554,13 +1859,42 @@
     },
     "H-CONTAINER-UNREADABLE": {
      "ran": false,
-     "why": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first."
+     "why": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+     "ran": false,
+     "why": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    },
+    "H-STEPS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    },
+    "H-CALLS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    },
+    "H-EVENTS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+     "ran": true,
+     "scope": 1,
+     "raised": 0
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+     "ran": false,
+     "why": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
     }
    },
    "findings": [],
    "readerNotes": [],
    "rows": [
-    {"txHash":"0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1","outcome":"replayed","traced":true,"sourceLevel":true,"stepsPositioned":4,"sourceBundles":true,"declaredRung":3,"artifacts":2,"artifactsResolved":1,"container":"ct/0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.ct","attributedBy":"recordedBy"},
+    {"txHash":"0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1","outcome":"replayed","traced":true,"sourceLevel":true,"stepsPositioned":4,"sourceBundles":true,"declaredRung":3,"artifacts":2,"artifactsResolved":1,"container":"ct/0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.ct","attributedBy":"recordedBy","bundleLanguageUnknown":"example-lang"},
     {"txHash":"0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2","outcome":"replayed","traced":true,"container":"ct/0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2.ct","attributedBy":"provenance.runtimeCommit"},
     {"txHash":"0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3","outcome":"divergent","traced":true,"container":"ct/0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3.ct","attributedBy":"provenance.runtimeCommit"},
     {"txHash":"0xd4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4","outcome":"refused","traced":false,"refusalReason":"runtime-refused","joint":"admissible"},
@@ -1590,10 +1924,19 @@
     "unattributedRows": 0,
     "declaredRungs": {},
     "jointScopeRows": 1,
+    "containerSchemaCensus": {},
+    "bundleLanguagesUnknown": {},
     "checksNotRun": [
      "H-SOURCE-ABSENT",
      "H-RECORDER-UNATTRIBUTED",
-     "H-CONTAINER-UNREADABLE"
+     "H-CONTAINER-UNREADABLE",
+     "H-CONTAINER-SCHEMA-SKEW",
+     "H-STEPS-DISAGREE",
+     "H-CALLS-DISAGREE",
+     "H-EVENTS-DISAGREE",
+     "H-PATHS-NOT-IN-BUNDLE",
+     "H-BUNDLE-LANGUAGE-SKEW",
+     "H-POSITIONS-VALUE-SKEW"
     ]
    },
    "checkStatus": {
@@ -1612,7 +1955,35 @@
     },
     "H-CONTAINER-UNREADABLE": {
      "ran": false,
-     "why": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first."
+     "why": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+     "ran": false,
+     "why": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    },
+    "H-STEPS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    },
+    "H-CALLS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    },
+    "H-EVENTS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+     "ran": false,
+     "why": "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+     "ran": false,
+     "why": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
     }
    },
    "findings": [],
@@ -1645,9 +2016,18 @@
      "3": 8
     },
     "jointScopeRows": 0,
+    "containerSchemaCensus": {},
+    "bundleLanguagesUnknown": {},
     "checksNotRun": [
      "H-OUTCOME-REASON-JOINT",
-     "H-CONTAINER-UNREADABLE"
+     "H-CONTAINER-UNREADABLE",
+     "H-CONTAINER-SCHEMA-SKEW",
+     "H-STEPS-DISAGREE",
+     "H-CALLS-DISAGREE",
+     "H-EVENTS-DISAGREE",
+     "H-PATHS-NOT-IN-BUNDLE",
+     "H-BUNDLE-LANGUAGE-SKEW",
+     "H-POSITIONS-VALUE-SKEW"
     ]
    },
    "checkStatus": {
@@ -1667,7 +2047,35 @@
     },
     "H-CONTAINER-UNREADABLE": {
      "ran": false,
-     "why": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first."
+     "why": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+     "ran": false,
+     "why": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    },
+    "H-STEPS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    },
+    "H-CALLS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    },
+    "H-EVENTS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+     "ran": false,
+     "why": "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+     "ran": false,
+     "why": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
     }
    },
    "findings": [
@@ -1711,6 +2119,98 @@
    ]
   },
   {
+   "path": "fixtures/chain-health/readable-container",
+   "chain": "readable-container",
+   "snapshotFormat": "blocktracer/chain-snapshot@2",
+   "summary": {
+    "rowsExamined": 1,
+    "tracedRows": 1,
+    "untracedRows": 0,
+    "chainAbsentRows": 0,
+    "unclassifiedRows": 0,
+    "containersNamed": 1,
+    "containersOpened": 0,
+    "containersRefused": 0,
+    "sourceLevelRows": 1,
+    "stepsPositionedRows": 1,
+    "sourceBundleRows": 1,
+    "artifacts": 1,
+    "artifactsResolved": 1,
+    "attributedRows": 1,
+    "unattributedRows": 0,
+    "declaredRungs": {
+     "1": 1
+    },
+    "jointScopeRows": 0,
+    "containerSchemaCensus": {},
+    "bundleLanguagesUnknown": {},
+    "checksNotRun": [
+     "H-OUTCOME-REASON-JOINT",
+     "H-CONTAINER-UNREADABLE",
+     "H-CONTAINER-SCHEMA-SKEW",
+     "H-STEPS-DISAGREE",
+     "H-CALLS-DISAGREE",
+     "H-EVENTS-DISAGREE",
+     "H-PATHS-NOT-IN-BUNDLE",
+     "H-POSITIONS-VALUE-SKEW"
+    ]
+   },
+   "checkStatus": {
+    "H-SOURCE-ABSENT": {
+     "ran": true,
+     "scope": 1,
+     "raised": 0
+    },
+    "H-OUTCOME-REASON-JOINT": {
+     "ran": false,
+     "why": "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
+    },
+    "H-RECORDER-UNATTRIBUTED": {
+     "ran": true,
+     "scope": 1,
+     "raised": 0
+    },
+    "H-CONTAINER-UNREADABLE": {
+     "ran": false,
+     "why": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+     "ran": false,
+     "why": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    },
+    "H-STEPS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    },
+    "H-CALLS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    },
+    "H-EVENTS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+     "ran": true,
+     "scope": 1,
+     "raised": 0
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+     "ran": false,
+     "why": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
+    }
+   },
+   "findings": [],
+   "readerNotes": [],
+   "rows": [
+    {"txHash":"0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1","outcome":"replayed","traced":true,"sourceLevel":true,"stepsPositioned":10,"sourceBundles":true,"declaredRung":1,"artifacts":1,"artifactsResolved":1,"container":"ct/0x5ead4ab1e00000000000000000000000000000000000000000000000000000a1.ct","attributedBy":"recordedBy"}
+   ]
+  },
+  {
    "path": "tests/fixtures/chain-snapshots/aztec-mainnet-live",
    "chain": "aztec-mainnet",
    "snapshotFormat": "blocktracer/chain-snapshot@1",
@@ -1732,11 +2232,20 @@
     "unattributedRows": 0,
     "declaredRungs": {},
     "jointScopeRows": 0,
+    "containerSchemaCensus": {},
+    "bundleLanguagesUnknown": {},
     "checksNotRun": [
      "H-SOURCE-ABSENT",
      "H-OUTCOME-REASON-JOINT",
      "H-RECORDER-UNATTRIBUTED",
-     "H-CONTAINER-UNREADABLE"
+     "H-CONTAINER-UNREADABLE",
+     "H-CONTAINER-SCHEMA-SKEW",
+     "H-STEPS-DISAGREE",
+     "H-CALLS-DISAGREE",
+     "H-EVENTS-DISAGREE",
+     "H-PATHS-NOT-IN-BUNDLE",
+     "H-BUNDLE-LANGUAGE-SKEW",
+     "H-POSITIONS-VALUE-SKEW"
     ]
    },
    "checkStatus": {
@@ -1754,7 +2263,35 @@
     },
     "H-CONTAINER-UNREADABLE": {
      "ran": false,
-     "why": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first."
+     "why": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+     "ran": false,
+     "why": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against."
+    },
+    "H-STEPS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against."
+    },
+    "H-CALLS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against."
+    },
+    "H-EVENTS-DISAGREE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against."
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+     "ran": false,
+     "why": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle."
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+     "ran": false,
+     "why": "the scope is empty — 0 row(s) in this tree are subject to it, so it measured nothing"
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+     "ran": false,
+     "why": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against."
     }
    },
    "findings": [],

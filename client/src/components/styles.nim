@@ -759,7 +759,7 @@ pre.raw{max-height:var(--bt-layout-code-max-height);overflow:auto;background:var
 
    One rung quieter than the value it qualifies, which is the same relationship
    `.notice .reason` above gives the §14 treatments and `.nostate
-   .panenote.reason` gives the debugger's empty states. Three places, one
+   .btnote.reason` gives the debugger's no-session prose. Three places, one
    relationship. `measure` caps it at the prose width so a three-sentence
    capture account does not set a 900px line inside a two-column grid. */
 /* The note row spans the grid — see `debugger_css`'s `.mddl dd.rownote` for

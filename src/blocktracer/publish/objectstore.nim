@@ -79,6 +79,23 @@ type
     ## the publisher reads its tree from disk, so there is nothing to copy.
     key*: string
     srcPath*: string
+    contentEncoding*: string
+      ## ── THE OBJECT METADATA, AND IT IS WHY "PRE-COMPRESSED" IS REAL (CCP-6)
+      ##
+      ## `""` for every object this repository has ever published, and that is the
+      ## default: the bytes at rest ARE the object and no header describes them.
+      ##
+      ## A non-empty value is the HTTP `Content-Encoding` the store must record AS
+      ## METADATA ON THE OBJECT, so the bytes are compressed at rest AND
+      ## transparent in the browser rather than one or the other. Set it and
+      ## forget to store it and you have the worst of both: compressed bytes
+      ## served as identity, which every consumer fails on and none can diagnose.
+      ##
+      ## `S3ObjectStore` records it (R2 and S3 both carry `Content-Encoding` per
+      ## object). `LocalObjectStore` CANNOT and says so rather than dropping it
+      ## silently — a directory has no per-file metadata, which is exactly why the
+      ## Cloudflare Pages half of the delivery path needs a `_headers` rule and why
+      ## that is `Chain-Delivery` DEL-1b's deliverable and not this one's.
 
   ObjectStore* = ref object of RootObj
 
@@ -160,6 +177,34 @@ method putIfAbsent*(s: LocalObjectStore, key, data: string): bool =
     discard posix.write(fd, data.cstring, data.len)
   discard posix.close(fd)
   true
+
+method putMany*(s: LocalObjectStore, items: seq[BulkItem]) =
+  ## The per-object loop the base type already does — PLUS a refusal, which is the
+  ## whole reason this override exists (CCP-6).
+  ##
+  ## A DIRECTORY HAS NO PER-FILE METADATA, so this backend cannot record a
+  ## `Content-Encoding`. The base implementation would have written the compressed
+  ## bytes and silently dropped the header, producing the one state that is worse
+  ## than either choice: an object that is compressed at rest and advertised as
+  ## identity. A browser fetching it gets bytes it will not decompress, every kit
+  ## gets bytes it cannot parse, and nothing anywhere says why.
+  ##
+  ## So it REFUSES, naming the remedy. The remedy is not "store it raw" — that
+  ## would be this backend deciding a policy its caller set — it is the Cloudflare
+  ## Pages `_headers` rule that makes a static directory able to advertise an
+  ## encoding, which is `Chain-Delivery` DEL-1b's deliverable. Until that exists,
+  ## a pre-compressed publish targets the S3/R2 backend, which carries the
+  ## metadata on the object itself.
+  for it in items:
+    if it.contentEncoding.len > 0:
+      raise newException(CatchableError,
+        "LocalObjectStore cannot store a Content-Encoding: it is a directory and has " &
+        "no per-object metadata, so '" & it.key & "' would be written compressed and " &
+        "served as identity — which no consumer can parse and none can diagnose. " &
+        "Publish pre-compressed objects to the S3/R2 backend, which records " &
+        "Content-Encoding per object; a static Pages tree needs a `_headers` rule " &
+        "instead, which is Chain-Delivery DEL-1b's deliverable")
+    s.put(it.key, readFile(it.srcPath))
 
 method del*(s: LocalObjectStore, key: string) =
   let p = s.pathOf(key)
@@ -412,23 +457,43 @@ method putMany*(s: S3ObjectStore, items: seq[BulkItem]) =
   ## A NON-ZERO EXIT RAISES. `publishChain` flushes at every rank boundary and
   ## flips `current.json` only after the last flush returns, so a failed batch
   ## propagates out before the pointer can advertise content that is not there.
+  ##
+  ## ── AND IT IS ONE `cp` PER ENCODING, NOT ONE PER BATCH (CCP-6) ────────────
+  ##
+  ## `--content-encoding` is a property of the COMMAND, so a single recursive cp
+  ## stamps every object it transfers with the same value. A batch holding both a
+  ## pre-compressed container and an identity JSON document therefore cannot be one
+  ## call: the only two ways to make it one are to stamp the JSON with an encoding
+  ## it does not have, or to leave the container without the one it does, and both
+  ## produce objects that every consumer fails on and none can diagnose.
+  ##
+  ## So the batch is PARTITIONED by encoding and each group gets its own cp. For
+  ## every tree this repository publishes today that is exactly one group with no
+  ## flag, i.e. byte-for-byte the call this method always made.
   if items.len == 0: return
-  let stage = getTempDir() / "bt-bulk-" & $getpid() & "-" & $epochTime().int64 & "-" &
-              $(cast[uint](items[0].key.hash) mod 1_000_000'u)
-  createDir stage
-  defer: removeDir stage
+  var byEncoding = initOrderedTable[string, seq[BulkItem]]()
   for it in items:
-    let dst = stage / it.key
-    createDir parentDir(dst)
-    try:
-      createHardlink(it.srcPath, dst)
-    except CatchableError:
-      copyFile(it.srcPath, dst)
+    if not byEncoding.hasKey(it.contentEncoding):
+      byEncoding[it.contentEncoding] = @[]
+    byEncoding[it.contentEncoding].add it
   let dest = "s3://" & s.bucket & "/" &
     (if s.prefix.len > 0: s.prefix.strip(chars = {'/'}) & "/" else: "")
-  let (outp, code) = s.run(@["s3", "cp", stage, dest, "--recursive",
-    "--only-show-errors"] & s.endpointArgs())
-  if code != 0:
-    raise newException(CatchableError,
-      "aws s3 cp --recursive failed for " & $items.len & " object(s) (exit " &
-      $code & "): " & outp.strip())
+  for enc, group in byEncoding:
+    let stage = getTempDir() / "bt-bulk-" & $getpid() & "-" & $epochTime().int64 & "-" &
+                $(cast[uint](group[0].key.hash) mod 1_000_000'u)
+    createDir stage
+    defer: removeDir stage
+    for it in group:
+      let dst = stage / it.key
+      createDir parentDir(dst)
+      try:
+        createHardlink(it.srcPath, dst)
+      except CatchableError:
+        copyFile(it.srcPath, dst)
+    var args = @["s3", "cp", stage, dest, "--recursive", "--only-show-errors"]
+    if enc.len > 0: args.add ["--content-encoding", enc]
+    let (outp, code) = s.run(args & s.endpointArgs())
+    if code != 0:
+      raise newException(CatchableError,
+        "aws s3 cp --recursive" & (if enc.len > 0: " --content-encoding " & enc else: "") &
+        " failed for " & $group.len & " object(s) (exit " & $code & "): " & outp.strip())

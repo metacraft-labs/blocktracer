@@ -37,6 +37,25 @@
 ## store. Hiding a chain behind a registry omission is a linking control, not an
 ## access control, which is the reason a staging-only chain belongs in a
 ## separate store rather than in production's with no registry row.
+##
+## ## The four surfaces, and why each omission arm carries a floor
+##
+## "Absent from the environment's surfaces" is four claims, not one: the chain
+## inventory, the route enumeration, the sitemap and search. They are checked
+## separately because they are produced separately — the sitemap is a FILTER of
+## the enumeration and could omit a chain for its own reasons, and search's
+## chain scope is not derived from the enumeration at all: it is rendered from
+## the registry, so it is the surface that would still name an unlisted chain if
+## the registry were read from the wrong origin.
+##
+## Every omission arm is floored before it is read. An assertion of the form
+## `for x in surface: check not names(x)` is satisfied by an EMPTY surface, which
+## is how an omission assertion reports success about nothing. So each arm first
+## requires the surface to be non-empty and to name the chain the environment
+## DOES carry, and each is paired with a control environment (`carried`) that
+## differs from the subject in one registry row and nothing else — same store,
+## same data origin, same code path. Without the control the absence is
+## attributable to anything; with it, it is attributable to the row.
 
 import std/[unittest, json, strutils, tables]
 
@@ -178,6 +197,32 @@ suite "per-chain data origin — staging shows production, except for one chain"
     .withDataOrigin(prodStore)
     .withChainOrigin("solo", stgStore)
 
+  # The registry of an environment that carries only what production carries —
+  # used by the arm below, which is the case with NO per-chain entry at all.
+  let appProdOnly = newTree()
+  appProdOnly.registryOf(["aztec"])
+
+  test "THE ZERO-CONFIGURATION CASE: a data origin, and no per-chain entry at all":
+    # This is the target state Deployment-And-Operations.md §6c.2 describes, not
+    # the transitional one: staging
+    # differs from production in the SOFTWARE and reads production's published
+    # tree. One call, no per-chain configuration, nothing copied. The arms below
+    # then add the one exception and measure that it is one.
+    let plain = newDataRoot("", appProdOnly.store("app:staging-plain"))
+      .withDataOrigin(prodStore)
+    check plain.origins.len == 0
+    check chains(plain) == @["aztec"]
+    for slug in chains(plain):
+      check plain.originName(slug) == prodStore.name
+      # …and the PAGE, not only the field: the generation rendered is the one
+      # production published, so the bytes came from there and not from the
+      # application origin, which publishes no `/d/**` at all.
+      check chainInfo(plain, slug).generation == "g-prod-77"
+      check blockHashes(plain, chainInfo(plain, slug)).len == 1
+    # A chain nobody has configured resolves there too, so the fall-through is
+    # total and a chain added to the registry tomorrow needs no origin decision.
+    check plain.originName("a-chain-added-next-week") == prodStore.name
+
   test "the resolution order is override, then data origin, then application":
     check staging.originName("aztec") == prodStore.name
     check staging.originName("solo") == stgStore.name
@@ -243,12 +288,46 @@ suite "per-chain data origin — a chain absent from the registry is not served"
   let shared = newTree()
   shared.addChain("aztec", "g-prod-77", "0xaa")
   shared.addChain("solo", "g-staging-3", "0xcc")   # …in the SAME store
+  # AND THE STORE CARRIES A REGISTRY OF ITS OWN, LISTING BOTH. This is what makes
+  # the asymmetry below a measurement instead of a sentence: `chains` reads the
+  # registry from the APPLICATION origin, so "an environment cannot acquire a
+  # chain by being pointed at a tree that has one" is only tested if the tree it
+  # is pointed at HAS one to offer. A shared bucket really does hold both
+  # environments' registries — they are published under the same prefix — so
+  # this is the arrangement rather than a contrivance.
+  shared.registryOf(["aztec", "solo"])
 
   let sharedStore = shared.store("data:shared-bucket")
   let production = newDataRoot("", prodApp.store("app:production"))
     .withDataOrigin(sharedStore)
 
+  # THE CONTROL FOR EVERY OMISSION BELOW, and the reason each of them is a
+  # measurement. `carried` differs from `production` in ONE byte of one object:
+  # its registry lists `solo` as well as `aztec`. Same store, same data origin,
+  # same code path. So a surface that omits the slug under `production` and
+  # names it under `carried` is omitting it BECAUSE of the registry row, and a
+  # surface that names it under neither is a surface that names nothing —
+  # which is how an omission assertion passes over an empty sequence.
+  let carriedApp = newTree()
+  carriedApp.registryOf(["aztec", "solo"])
+  let carried = newDataRoot("", carriedApp.store("app:carried"))
+    .withDataOrigin(sharedStore)
+
   test "the inventory omits it":
+    check chains(production) == @["aztec"]
+    check "solo" notin renderRoute(production, "/chains")[1]
+    # …and the control: the same store, listed, appears.
+    check chains(carried) == @["aztec", "solo"]
+    check "solo" in renderRoute(carried, "/chains")[1]
+
+  test "the data origin's OWN registry lists both, and the inventory still does not":
+    # The asymmetry, stated as the difference between two reads of the same key.
+    # `d/**` comes from the data origin; `registry/chains.v1.json` never does.
+    check sharedStore.getJson("registry/chains.v1.json").node["chains"].len == 2
+    # The same store, read as an APPLICATION origin, lists both — so the registry
+    # it holds is legible and the omission is not a parse failure.
+    check chains(newDataRoot("", sharedStore)) == @["aztec", "solo"]
+    # …and reached as a DATA origin it contributes no chain at all.
     check chains(production) == @["aztec"]
 
   test "its routes 404 rather than rendering":
@@ -258,10 +337,51 @@ suite "per-chain data origin — a chain absent from the registry is not served"
     # The chain production DOES list is unaffected, so the 404 is about the
     # slug and not about the dispatcher being broken.
     check renderRoute(production, "/aztec")[0] == 200
+    # …and the control: the same route over the same bytes, listed, renders.
+    check renderRoute(carried, "/solo")[0] == 200
 
   test "no enumerated route names it":
-    for route in staticRoutes(production):
+    # FLOORED FIRST. `for route in staticRoutes(...)` over an empty sequence
+    # satisfies "no route names it" without looking at anything. So the
+    # enumeration is required to be non-empty and to name the chain production
+    # DOES carry before the omission is read out of it.
+    let routes = staticRoutes(production)
+    check routes.len > 0
+    check "/aztec" in routes
+    for route in routes:
       check not route.startsWith("/solo")
+    # …and the control: listed, the same walk enumerates its pages.
+    let withSolo = staticRoutes(carried)
+    check "/solo" in withSolo
+    check withSolo.len > routes.len
+
+  test "the sitemap omits it":
+    # The third surface Deployment-And-Operations.md §6c.2 names. `sitemapRoutes`
+    # is the subset of the route
+    # enumeration that is SUBMITTED, so it could in principle omit a chain for
+    # its own reasons — the floor below is what distinguishes "not submitted
+    # because unlisted" from "not submitted at all".
+    let submitted = sitemapRoutes(production)
+    check submitted.len > 0
+    check "/aztec" in submitted
+    for route in submitted:
+      check not route.startsWith("/solo")
+    check "/solo" in sitemapRoutes(carried)
+
+  test "search's chain scope omits it":
+    # The fourth surface, and the one that is NOT a filter of the enumeration:
+    # `/search` renders "which chains would be checked" straight from the
+    # registry, so a chain absent from the registry is absent from the set a
+    # query is resolved against. Rendered rather than derived, because the
+    # property is what the page tells a visitor.
+    let searched = renderRoute(production, "/search")
+    check searched[0] == 200
+    check "aztec" in searched[1]
+    check "solo" notin searched[1]
+    # …and the control, which is the whole reason the line above is evidence.
+    let searchedCarried = renderRoute(carried, "/search")
+    check "aztec" in searchedCarried[1]
+    check "solo" in searchedCarried[1]
 
   test "AND ITS DATA IS STILL FETCHABLE BY PATH — which is why a registry omission is not containment":
     # The load-bearing negative result. Nothing the application does can make a
@@ -273,6 +393,19 @@ suite "per-chain data origin — a chain absent from the registry is not served"
     # containment decision is a STORAGE one: a chain production must not carry
     # goes in a different store, which is exactly what `withChainOrigin` above
     # expresses and what this check exists to keep from being forgotten.
+    #
+    # ITS OWN PREMISE FIRST, BECAUSE THIS ARM IS A NEGATIVE. "The bytes are
+    # still fetchable" is trivially true of a chain that was never omitted, so
+    # an arm that only reached for the bytes would pass just as well against a
+    # registry that listed `solo` all along — and would then be asserting
+    # nothing about omission at all. The sibling arms above do assert the
+    # omission, but a reader of THIS arm should not have to go and find them,
+    # and a future edit to the fixture should break this arm rather than
+    # quietly empty it. So the premise is stated here, in the arm that depends
+    # on it.
+    check "solo" notin chains(production)
+    check renderRoute(production, "/solo")[0] == 404
+    # …and only now the negative result itself.
     check sharedStore.get("d/solo/current.json").found
     check sharedStore.get("d/solo/block/0xcc.json").found
     # Whereas a store that never held it cannot serve it, registry or no

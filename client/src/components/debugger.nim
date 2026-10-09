@@ -206,7 +206,8 @@ proc paneChrome(title, id, cls, body: string; weight = 1.0): string =
           raw paneTab(title, id, linked = false, isDefault = true)
       tdiv(class = "lm_items"):
         tdiv(class = "lm_content btdefault " & cls, id = id):
-          raw body
+          tdiv(class = "component-container"):
+            raw body
 
 proc paneNote(note: string): string =
   ## What a pane says when it has nothing to show. The review brief's
@@ -221,13 +222,22 @@ proc paneNote(note: string): string =
   ## stylesheet's header states its scope as panel-level messages and
   ## explicitly excludes "inline 'no rows yet' lines that sit *within* a list
   ## alongside real rows … the side inset would indent them out of line with
-  ## the rows around them". Three notes on this route are exactly that — the
+  ## the rows around them". FIVE notes on this route are exactly that — the
   ## `.srcrung` caption above the listing, the decoded-input note beside the
-  ## payload rows, and the no-session prose, whose block is centred while the
-  ## prose itself is deliberately left-aligned. They carry `.btnote`, which is
-  ## BlockTracer's and says so. Applying the shared treatment to them was
-  ## measured and reverted: `empty_states.styl` centres its text, and the
-  ## decoded-input paragraph came out centred over four lines.
+  ## payload rows, the no-session prose (whose block is centred while the prose
+  ## itself is deliberately left-aligned), and the attribution and coverage
+  ## notes in the `.srcattr` / `.srccause` strips above the source documents.
+  ## They carry `.btnote`, which is BlockTracer's and says so. Applying the
+  ## shared treatment to them was measured and reverted: `empty_states.styl`
+  ## centres its text, and the decoded-input paragraph came out centred over
+  ## four lines.
+  ##
+  ## The last two arrived at `.btnote` by a correction rather than by design:
+  ## they were the last users of the retired pane-note class, which
+  ## `debugger_css.nim`'s retirement table had already listed as deleted and
+  ## replaced by `.empty-overlay`. Both halves of that were wrong — the class
+  ## was still live in markup and in a rule, and `.empty-overlay` is not what
+  ## a note inside a strip wants, by upstream's own line quoted above.
   ui:
     p(class = "empty-overlay"): text note
 
@@ -534,9 +544,25 @@ proc renderPositionHead(pos: DebugControlsPane): string =
   ##
   ## Nothing at all when the session is not positioned. `spAwaitingGeneration`,
   ## `srcAbsent` ("this execution ran no contract code") and a pre-positioning
-  ## frame have no head to draw, and a head reading "step 0" would be the
-  ## confident-but-wrong answer this product may not ship.
-  if not pos.positioned or pos.step <= 0 or pos.totalSteps <= 0: return ""
+  ## frame have no head to draw.
+  ##
+  ## `step <= 0` USED TO BE PART OF THAT GUARD AND IS NOT ANY MORE, and the
+  ## reason it was there is the reason it has to go. Its comment read: "a head
+  ## reading 'step 0' would be the confident-but-wrong answer this product may
+  ## not ship" — true while the landing rule could not produce tick 0, so a 0
+  ## here meant "nobody set a position" and `positioned` was the field it was
+  ## standing in for. `demo_session.chainEntryStep` makes tick 0 the ordinary
+  ## landing of every instruction-level recording, and tick 0 IS a position: it
+  ## is the first instruction the recording executed, the listing marks its row,
+  ## and the toolbar and the share anchor both report it. Keeping the guard
+  ## suppressed a TRUE sentence on eight published pages — the one sentence the
+  ## pane exists to say — which is the same defect the guard was written against,
+  ## pointing the other way.
+  ##
+  ## `positioned` is now the whole of the "is there a position" test, which is
+  ## what that field means, and `totalSteps <= 0` still refuses a head with no
+  ## denominator to state.
+  if not pos.positioned or pos.totalSteps <= 0: return ""
   ui:
     tdiv(class = "srcpos", `aria-current` = "true"):
       # `aria-hidden` on the glyph and the sentence beside it carrying the
@@ -899,9 +925,25 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
         raw toggle
         nav(class = "srctabs"):
           for d in p.documents:
-            a(class = "srctab" & (if d.path == activePath: " on" else: ""),
+            # `ct-tab` is APPENDED, never prepended: `test_debug_route` matches
+            # the literal `class="srctab`, so the first class stays put. The nav
+            # above keeps `class="srctabs"` alone, for the four suites named there.
+            #
+            # THIS IS THE ONLY TAB STRIP STILL DRAWN BY BLOCKTRACER'S OWN RULES.
+            # The pane tabs are already CodeTracer's `lm_tab` (golden_layout) and
+            # the frame selector is deliberately its BUTTON component
+            # (`ct-button-image-md-secondary`, asserted in test_debug_route),
+            # because a frame control is a control and not a tab. So of the
+            # "three idioms in one screenshot" the first review round found, this
+            # strip was the only one that was a divergence rather than a choice.
+            #
+            # `data-selected` as well as `.on`: tab.styl carries the selected
+            # treatment on the attribute and `.on` is BlockTracer's spelling, so
+            # emitting both leaves neither side's rules dark.
+            a(class = "srctab ct-tab" & (if d.path == activePath: " on" else: ""),
               href = "#" & docAnchor(d.path),
-              title = d.path):
+              title = d.path,
+              `data-selected` = (if d.path == activePath: "true" else: "false")):
               text tabLabel(d.path, allPaths)
         raw opener
 
@@ -977,6 +1019,12 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
                        (if ln.current: " cur" else: "") &
                        (if ln.executed: " hit" else: "") &
                        (if ln.breakpoint: " bp" else: "") &
+                       # THE DEBUG MAP'S ANSWER, MARKED AS THAT AND NOT AS
+                       # EVIDENCE. See `SourceLine.compilerAttributed`. A class
+                       # of its own rather than a variant of `hit`: the step is
+                       # real and the gutter dot is earned, so this ADDS a
+                       # qualification instead of withdrawing a measurement.
+                       (if ln.compilerAttributed: " cattr" else: "") &
                        notTakenClasses(ln.notTaken, p.flow.selected) &
                        ranClasses(ln.ran, p.flow.selected),
                id = ln.anchor, `data-line` = $ln.number,
@@ -1009,6 +1057,31 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
             # stands AND the arm two earlier passes declined. Two edges side by
             # side state two facts; one edge fought over by two rules states
             # whichever rule was written last.
+            # THE ATTRIBUTION MARK, AND IT IS AN ELEMENT RATHER THAN AN
+            # ATTRIBUTE ON THE ROW.
+            #
+            # It was `data-compiler-attributed` valued on every row, for
+            # `aria-current`'s reason — countable in both directions. Two things
+            # were wrong with that. It changed the markup of EVERY line of every
+            # page, which three exact-string assertions in `test_debug_route`
+            # correctly caught and which is ~30 bytes times every line times 348
+            # pages on a product whose page weight is already a finding. And the
+            # `aria-current` argument does not carry over: `false` is ARIA's own
+            # spelling of "not the current item", whereas a `data-` attribute
+            # reading `false` on every unmarked row is a claim nobody asked for.
+            #
+            # An element emitted only where the mark holds is the idiom this row
+            # already uses for the two branch rails immediately below, and it
+            # carries the ACCESSIBLE NAME the attribute could not: a reader who
+            # gets the DOM and not the pixels is told what the mark means rather
+            # than left to look up an attribute. Countability survives — the
+            # marked rows are `.cattr` on the row and `.cattrmark` inside it, and
+            # the unmarked total is the `srcline` count minus that.
+            if ln.compilerAttributed:
+              span(class = "cattrmark",
+                   `aria-label` = "this position is where the compiler keyed " &
+                                  "the code, not necessarily where it ran"):
+                text "?"
             if ln.notTaken.len > 0:
               span(class = "ntbar")
             # The affirmative rail. Same position as `.ntbar` and never at the
@@ -1287,7 +1360,43 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
                    "documents in this pane."
     else: ""
 
-  if not listing: return renderFlowRail(p.flow) & rung & wrap
+  # THE ATTRIBUTION CAVEAT, above the documents and on BOTH sides of the rung
+  # boundary — see `EditorPane.attributionNote` for why it is not appended to
+  # `reason`. It is about the `?`-marked SOURCE lines, so a reader on the source
+  # document is the one who most needs it, and that is the document `reason` is
+  # never read on.
+  let attribution =
+    if p.attributionNote.len == 0: ""
+    else: (block:
+      ui:
+        tdiv(class = "srcattr", `aria-live` = "polite"):
+          p(class = "btnote"): text p.attributionNote)
+
+  # THE CAUSE OF THE STEPS WITH NO LINE, DIRECTLY UNDER THE RATIO THAT STATES
+  # THEM, and on both sides of the rung boundary for the reason `rung` itself is:
+  # a reader standing in the source is the one who has not yet stepped off the
+  # edge, and is therefore the one the sentence is most useful to.
+  #
+  # IMMEDIATELY AFTER `rung` AND BEFORE `attribution`, and the order is the
+  # argument. `rung` says "86 of 459, and the other 373 continue in the listing";
+  # this says WHICH CONTRACT those 373 are and why no line exists for them. They
+  # are one thought split over two elements, and putting the attribution caveat
+  # — which is about lines that ARE marked — between them would separate the
+  # question from its answer with an unrelated paragraph.
+  #
+  # Its own element rather than more text inside `rung`'s `<p>`: the two are
+  # independently reachable (a pane can have a boundary and no per-contract
+  # record, and `unpositionedCauseNote` returns "" then), and one note carrying
+  # two paragraphs' worth of prose is the shape a reader skips.
+  let cause =
+    if p.coverageNote.len == 0: ""
+    else: (block:
+      ui:
+        tdiv(class = "srccause", `aria-live` = "polite"):
+          p(class = "btnote"): text p.coverageNote)
+
+  if not listing:
+    return renderFlowRail(p.flow) & rung & cause & attribution & wrap
 
   # ── the instruction listing's own chrome ──────────────────────────────────
   #
@@ -1324,7 +1433,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
              title = "BlockTracer cannot accept supplied sources yet. " &
                      "The instructions below are what this recording carries."):
         text "Supply sources"
-  renderPositionHead(pos) & rung & why & wrap
+  renderPositionHead(pos) & rung & cause & attribution & why & wrap
 
 const MaxIndentDepth* = 8
   ## The depth the indentation ladder in `debugger_css.nim` has rules for.
@@ -1673,8 +1782,27 @@ proc renderState*(p: StatePane): string =
   if p.values.len == 0:
     return paneNote(if p.note.len > 0: p.note else:
       "Variable values come from the execution trace.") & origin
+  # THE NOTE ABOVE THE ROWS, when there are both — and here it is LOAD-BEARING
+  # rather than merely informative.
+  #
+  # The rows a chain recording puts in this pane are the AVM's machine columns
+  # (`demo_session.withMachineColumns`), not program locals. Drawn without the
+  # sentence that says so, `contractAddress` / `opcode` / `contextId` / `l2Gas`
+  # read exactly like a variable table — which is the same mislabelling that put
+  # `Reader<N>::read(contractAddress)` in `calltrace.json`, reproduced in the one
+  # pane whose whole subject is what a value IS. So the caption is not optional
+  # decoration for this population; it is the difference between a measurement
+  # and a fabrication, and `renderState` reached it only through the EMPTY branch.
+  #
+  # Same shape as `.instrcap` and `.evcap`, for their reason.
+  proc stCaption(note: string): string =
+    if note.len == 0: return ""
+    ui:
+      p(class = "stcap"): text note
+
   ui:
     tdiv(class = "st"):
+      raw stCaption(p.note)
       for v in p.values:
         # Same clamped, linear ladder as the call trace: a value nested deeper
         # than the ladder is marked, never silently drawn at the wrong depth.
@@ -1741,8 +1869,30 @@ proc renderEventLog*(p: EventLogPane): string =
       span(class = "evdetail"): text r.detail
     glyph & kind & step & label & detail
 
+  # THE NOTE ABOVE THE ROWS, when there are both.
+  #
+  # It used to be reachable ONLY through the empty branch above, which made it
+  # strictly "why this pane has nothing" — and that was the whole truth while no
+  # chain recording could fill the pane. It is not any more: a populated log has
+  # something to say that the rows cannot, namely what the recording carries
+  # that is NOT in them (`demo_session.withEventLog` spells it out — the
+  # reproduced effects are a count, not ten records). A pane that silently
+  # dropped that sentence the moment it acquired rows would read as a complete
+  # timeline, which is the overclaim.
+  #
+  # Same shape as `renderSource`'s `listingCaption`: `.evcap` above the scroll
+  # region, one sentence, not monospace, and it wraps.
+  # Built through its own proc because the pane parameter is named `p` and the
+  # DSL's paragraph element is also `p` — the parameter shadows it inside this
+  # proc, so the element has to be emitted where it does not.
+  proc evCaption(note: string): string =
+    if note.len == 0: return ""
+    ui:
+      p(class = "evcap"): text note
+
   ui:
     tdiv(class = "ev"):
+      raw evCaption(p.note)
       for r in p.rows:
         let cls = "evrow k-" & $r.kind & (if r.current: " cur" else: "")
         if r.href.len > 0:
@@ -2256,7 +2406,14 @@ proc renderMetadata*(m: MetadataPane): string =
         # travels on `title` (readable on hover) and on `data-copy` (what
         # hydration reads when it turns this into a copy button).
         span(class = "identifier mdhash", title = m.hash,
-             `data-copy` = m.hash): text truncHash(m.hash, 10, 8)
+             # The DEFAULT 6/4, not 10/8. `tx-detail/wide/light/L1/4` was this
+             # same defect on the explorer side: one hash appeared at three
+             # lengths on one page because the hero passed 10/8 while every
+             # other call took the defaults. Its resolution is recorded in
+             # reviews/ledger.json -- the hero took the defaults, leaving the
+             # page exactly two forms, one truncation rule and the full value.
+             # The debugger pane had inherited the same split.
+             `data-copy` = m.hash): text truncHash(m.hash)
       # The hash IN FULL, below the truncation, exactly as the metadata page's
       # hero renders it (`pages/tx.nim`: a truncated `h1` over a full-hash
       # lead). §7.2 section 1 asks for "hash with copy", and after §7.0 this
@@ -2412,7 +2569,8 @@ proc renderStack(node: LayoutNode; s: DebugSessionView): string =
       tdiv(class = "lm_content " & (if isDefault: "btdefault " else: "") &
                    paneClass(child.pane),
            id = paneId(child.pane)):
-        raw paneBody(child.pane, s)
+        tdiv(class = "component-container"):
+          raw paneBody(child.pane, s)
     panels.addHtml panel
   ui:
     tdiv(class = "ln lm_stack " & weightClass(node.weight)):

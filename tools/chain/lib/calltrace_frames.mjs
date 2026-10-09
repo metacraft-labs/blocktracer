@@ -12,6 +12,8 @@
 // and the order `session_view.selfCost` walks. Nothing is dropped, reordered or
 // summarised: a fold is a MARK on a frame, never its removal.
 
+import { AVM_MACHINE_COLUMNS, FRAME_CONTEXT_COLUMN } from './producer-facts.mjs';
+
 /** A `Return` arrived with nothing open, or a `Call` named a function the container never declared. */
 export class MalformedCallStream extends Error {}
 
@@ -25,6 +27,39 @@ export class MalformedCallStream extends Error {}
  * the self-test can supply a rule that matches nothing (or everything) without
  * editing the policy file.
  */
+const decodeArgValue = (a) =>
+  a.value?.text ?? (a.value?.i !== undefined ? String(a.value.i) : null);
+
+/**
+ * A `Call`'s arguments, with the VM's machine columns removed.
+ *
+ * An argument whose name the container never interned stays as `null` exactly as it did
+ * before — an unnamed argument is a real argument the container could not name, and
+ * dropping it would lose a row rather than relabel one.
+ */
+function argsOf(e, varNames) {
+  return (e.args ?? [])
+    .map((a) => ({ name: varNames[a.variable_id] ?? null, value: decodeArgValue(a) }))
+    .filter((a) => a.name === null || !AVM_MACHINE_COLUMNS.includes(a.name));
+}
+
+/**
+ * Which contract's context this frame ran in, from the machine column that says so.
+ *
+ * `null` where the container attached none, which is the honest answer and is what every
+ * frame of a container with no such column will carry. Never defaulted to the transaction's
+ * own contract: that would be this producer asserting a context the recording did not
+ * state, on exactly the frames where it did not state one.
+ */
+function frameContextOf(e, varNames) {
+  for (const a of e.args ?? []) {
+    if ((varNames[a.variable_id] ?? null) !== FRAME_CONTEXT_COLUMN) continue;
+    const v = decodeArgValue(a);
+    if (v !== null) return v;
+  }
+  return null;
+}
+
 export function buildFrames(events, { rules, foldRuleFor }) {
   // The interning tables, in the order the container declares them.
   //
@@ -160,10 +195,19 @@ export function buildFrames(events, { rules, foldRuleFor }) {
         step,
         path,
         line: path === null ? null : (fn.line ?? null),
-        args: (e.args ?? []).map((a) => ({
-          name: varNames[a.variable_id] ?? null,
-          value: a.value?.text ?? (a.value?.i !== undefined ? String(a.value.i) : null),
-        })),
+        // THE VM'S MACHINE COLUMNS ARE NOT THIS FUNCTION'S ARGUMENTS, and until
+        // this split they were published as them — see `AVM_MACHINE_COLUMNS` in
+        // `producer-facts.mjs` for the measurement and for why the list is named
+        // rather than guessed at.
+        //
+        // The split is by the argument's own NAME against that declared set, so
+        // a container that one day attaches a real local keeps it: anything not
+        // in the set stays in `args` untouched, which is the direction that must
+        // not be lost. The one column that says something about the FRAME — which
+        // contract's context it ran in — is promoted to its own field, so no
+        // information is dropped and none of it is mislabelled.
+        args: argsOf(e, varNames),
+        [FRAME_CONTEXT_COLUMN]: frameContextOf(e, varNames),
         endStep: null,
         // Internal, and stripped before the frame is written out — see `strip`.
         ownSteps: 0,
@@ -271,6 +315,8 @@ function strip(f) {
     path: f.path,
     line: f.line,
     args: f.args,
+    // Beside `args` and never inside it — see `AVM_MACHINE_COLUMNS`.
+    [FRAME_CONTEXT_COLUMN]: f[FRAME_CONTEXT_COLUMN] ?? null,
     endStep: f.endStep,
     foldedBy: f.foldedBy ?? null,
     foldWhy: f.foldWhy ?? null,

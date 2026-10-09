@@ -725,9 +725,12 @@ export async function run({ browser, site, j }) {
  * It used to, and that was wrong in a way worth writing down. A recording
  * that published no source cannot have an origin chain over any of its
  * values: the classifier works by parsing the right-hand side of the source
- * assignment that produced the value, and there is no source to parse. Every
- * chain capture this explorer publishes is in that state — `sourceBundles` is
- * empty and `execution.sourceLevel` is false on all of them — and it is not a
+ * assignment that produced the value, and there is no source to parse. Counted
+ * over `client/dist`: the corpus holds TEN chain captures; `execution.sourceLevel`
+ * is false on all ten, and `sourceBundles` is empty on EIGHT of them — the other
+ * two declare a bundle for a partly-positioned recording. So the origin chain is
+ * unavailable on every chain capture, and on eight of them there is not even text
+ * to parse. It is not a
  * defect but a property of a rung-3 recording of a contract class that
  * publishes no debug information.
  *

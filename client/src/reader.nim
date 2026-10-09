@@ -132,6 +132,18 @@ type
       ## TRACE should read it from that trace's manifest, which is the only
       ## place the question has one answer.
     profileName*, traceSchema*: string
+    chainProfile*: ChainProfile
+      ## WHAT THE REGISTRY ROW DECLARES ABOUT THE CHAIN — its historical reach,
+      ## its history floor, its ordering kind, its instruction-set identity.
+      ##
+      ## Named `chainProfile` and not `profile` because `profileName` above is a
+      ## different thing entirely: that is the RECORDING profile the recorder was
+      ## pinned to. Two fields called `profile` on one object, meaning the
+      ## recorder's settings and the chain's capabilities, is the kind of
+      ## collision a reader resolves wrongly once and then trusts.
+      ##
+      ## Carried from the session, which pinned it; see `ChainSession.profile`
+      ## for why it is resolved once per render and not per read.
     provenanceKind*, provenanceLabel*, provenanceDetail*: string
       ## Where this chain's data came from, as the tree states it. Empty
       ## `provenanceKind` means the generation published none, which for this
@@ -300,6 +312,133 @@ type
       ## `demo_session.withSourcePositions`. Both 0 on a recording older than
       ## the fields, which compares equal to nothing and so admits nothing.
 
+  ArtifactAsking* = enum
+    ## WHETHER ANYBODY LOOKED FOR THIS CONTRACT'S ARTIFACT, AND WHAT THEY FOUND.
+    ##
+    ## "There is no source" is three different sentences and a page that cannot
+    ## tell them apart will pick the flattering one. The published tree CAN tell
+    ## them apart, which is the whole reason this enum is a fold and not a guess:
+    ## `native.replay.artifacts` carries one entry per executed contract,
+    ## resolved or not, and an unresolved entry carries `candidatesConsidered`
+    ## and `rejected` beside its `reason`.
+    aaUnasked = "unasked"
+      ## No entry for this address at all. Nobody looked — which is the capture's
+      ## own limitation and NOT a statement about what the world publishes.
+      ## Every capture taken before off-chain artifact resolution existed is
+      ## here, and saying "not published" of one would be an overclaim.
+    aaNoCandidate = "no-candidate"
+      ## Asked, and there was nothing to test: zero candidate artifacts were
+      ## found for the class. "We looked and nothing is published under this
+      ## class id", which is a real negative and is not the same as `aaUnasked`.
+    aaRejected = "rejected"
+      ## Asked, candidates were found, and every one failed the proof — the
+      ## artifact hash, the dispatch bytes or the class id did not recompute.
+      ## The strongest negative the pipeline can produce.
+    aaResolved = "resolved"
+      ## An artifact was proved for this contract. Note that this says nothing
+      ## about whether the RECORDING positions its steps — see
+      ## `SourceCoverageView.positioned` for why those must not be conflated.
+
+  ContractRung* = object
+    ## One executed contract, how many steps it ran, and how many it positioned.
+    ##
+    ## Folded from `native.replay.contractRungs`, which `ingest.nim` republishes
+    ## as "the per-contract detail `sourceLevel` was computed from — so a reader
+    ## can see WHICH contract held a transaction at rung 3, rather than only that
+    ## one did". Until now nothing outside the Raw JSON block read it.
+    address*: string
+    rung*: int                 ## 1 source text, 2 debug symbols, 3 bytecode only
+    steps*, positioned*: int
+    asking*: ArtifactAsking
+    candidatesConsidered*, candidatesRejected*: int
+
+  ContractCoverageView* = object
+    ## WHICH CONTRACT THE UNPOSITIONED STEPS BELONG TO, AND WHY IT HAS NO SOURCE.
+    ##
+    ## ## The defect this exists to close
+    ##
+    ## It is the same defect, and the same shape, as the one `ReplayScopeView`
+    ## closed one type down. `aztec-testnet-frames/0x0a807e4e…` resolves source
+    ## for 86 of its 459 steps, and the Code pane said exactly that: the RATIO,
+    ## and not the CAUSE. The cause is true, specific and creditable — a SECOND
+    ## contract in the same transaction ran 351 of the 373 unpositioned steps and
+    ## positions none of them, because what the node serves for its class is
+    ## bytecode plus a commitment to the compiled artifact rather than the
+    ## artifact, and off-chain resolution ran for it and matched nothing — and
+    ## the only place a visitor could read any of it was `contractRungs[1]`
+    ## inside the collapsed "Raw (chain-native)" JSON. That is 81% of the
+    ## execution explained nowhere a reader will look.
+    ##
+    ## ## Why the fold is here
+    ##
+    ## Beside `sourceCoverage` and `replayScope`, over the same `native`, for the
+    ## same §7.1 reason: the Code pane's caption, the metadata row and anything
+    ## that ever wants it read ONE derivation and cannot come to disagree.
+    ##
+    ## ## What it refuses to say
+    ##
+    ## `has` is false on a transaction with no per-contract record, and the
+    ## caption's producer draws nothing at all then. A page that inferred "one
+    ## contract, so the shortfall is its own" from an ABSENT array would be
+    ## manufacturing the cause it exists to report.
+    has*: bool
+    contracts*: seq[ContractRung]      ## in published order
+    unpositioned*: seq[int]            ## indices with steps > 0, positioned == 0
+    partial*: seq[int]                 ## indices with 0 < positioned < steps
+    shortfall*: int
+      ## The steps no contract positioned, summed over the per-contract records.
+      ##
+      ## Derived HERE rather than taken from `stepsUnpositioned` so the two can
+      ## be compared instead of one standing in for the other: they are written
+      ## by the same capture but by different code paths, and a caption that
+      ## accounts for the shortfall contract by contract may only claim to
+      ## account for it when the arithmetic closes.
+
+  EffectMismatch* = object
+    ## One published effect the replay did not reproduce, with both readings.
+    field*, published*, replayed*: string
+
+  ReplayScopeView* = object
+    ## WHAT THE REPLAY WAS CHECKED AGAINST, AND WHAT IT WAS NOT.
+    ##
+    ## THE DEFECT THIS EXISTS TO CLOSE. `native.replay` has carried
+    ## `rootsAnyAgree: false` and a four-entry `roots` array on every published
+    ## Aztec transaction since the chain was first ingested, and the manifest
+    ## beside it says `validation.status: "match"`. Both are true and they are
+    ## about different things — the oracle is `published-effects`, so "match"
+    ## means the replay reproduced the block's published effects, and says
+    ## nothing about state-tree roots. But the ONLY place a visitor could read
+    ## either was the collapsed "Raw (chain-native)" JSON: outside it the strings
+    ## "divergent" and "disagree" occurred three times per page and all three
+    ## were inside CSS comments in the inlined stylesheet. A page whose own data
+    ## records that four of four state roots differ, and which says so nowhere a
+    ## reader will look, is the overclaim this repository exists to prevent —
+    ## even though no individual sentence on it is false.
+    ##
+    ## So the fold is here, beside `sourceCoverage`, over the same `native` and
+    ## for the same §7.1 reason: the transaction page, the debugger's banner and
+    ## any list row that ever wants it read ONE derivation.
+    ##
+    ## `has` is false on a transaction with no replay record at all, which is
+    ## every untraced row. An absent record and a record saying nothing
+    ## disagreed must not read the same way.
+    has*: bool
+    effectsMatched*, effectsMismatched*: int
+    effectsReproduced*: bool
+    rootsTotal*, rootsAgreeing*: int
+      ## Counted from the array rather than read off `rootsAnyAgree`, which is
+      ## one bit and cannot say "one of four". `rootsAnyAgree` is still the
+      ## fallback where the array is absent — see the fold.
+    differingTrees*: seq[string]
+      ## The trees that do not agree, in published order, named so the banner
+      ## can say WHICH rather than only HOW MANY.
+    mismatches*: seq[EffectMismatch]
+      ## The effects that did not reproduce. Empty on a reproducing replay, and
+      ## also empty on a capture written before `ingest.nim` republished them —
+      ## which is why `effectsMismatched` is carried separately: a count with no
+      ## records is "we know two differed and not which", and that is a
+      ## different page from "none differed".
+
   TxRow* = object
     ## One row of the shared transactions table (block detail, tx list).
     hash*: string
@@ -370,12 +509,26 @@ type
     canonical*: bool
     finality*: string
     native*: JsonNode
+    replay*: ReplayScopeView
+      ## What the replay was checked against, and what it was not — the fold
+      ## `ReplayScopeView` documents. Over the same `native` as `sources` below
+      ## and for the same reason.
     sources*: SourceCoverageView
       ## The same fold as `TxRow.sources`, over the same `native`, produced by
       ## the same proc. §7.1's rule — the metadata is "rendered in two places …
       ## from one source, and the two cannot be allowed to diverge" — applies to
       ## this fact as much as to the rest, and the transaction page, the
       ## debugger's metadata pane and every list row now read one derivation.
+    contracts*: ContractCoverageView
+      ## WHICH contract the unpositioned steps belong to and why it has no
+      ## source — the fold `ContractCoverageView` documents, over the same
+      ## `native` as the two fields above and for the same §7.1 reason.
+      ##
+      ## Not on `TxRow`, deliberately, and the asymmetry with `sources` is the
+      ## point: `sources` is a BADGE a list column shows, so it has to ride on
+      ## every row. This is a paragraph naming a contract, which no list column
+      ## has room for and no list reader has asked for. It is read by the one
+      ## surface that owes the explanation, which is the Code pane.
 
 func newDataRoot*(dir: string): DataRoot =
   DataRoot(dir: dir, store: localTree(dir))
@@ -491,6 +644,7 @@ proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
     recorderId: s.pin.recorder.id, recorderVersion: s.pin.recorder.version,
     recorderBuild: s.pin.recorder.build,
     profileName: s.pin.profile.name, traceSchema: s.pin.traceSchema,
+    chainProfile: s.profile,
     provenanceKind: s.provenanceKind, provenanceLabel: s.provenanceLabel,
     provenanceDetail: s.provenanceDetail)
 
@@ -702,6 +856,114 @@ proc sourceCoverage*(native: JsonNode): SourceCoverageView =
       if everyResolvedIsCorroborated: scCorroborated else: scSingleDistributor
     result.postHoc = everyResolvedIsPostHoc
 
+proc contractCoverage*(native: JsonNode): ContractCoverageView =
+  ## Join `native.replay.contractRungs` with `native.replay.artifacts`, per
+  ## contract, into WHICH contract the unpositioned steps belong to and WHY it
+  ## has none — the fold `ContractCoverageView` documents.
+  ##
+  ## ## The join is on the address and nothing else
+  ##
+  ## Both arrays are published per executed contract and both carry `address`,
+  ## but they are written by different halves of the runtime — `contractRungs`
+  ## by the recorder measuring its own stream, `artifacts` by the resolver — and
+  ## neither is required to be ordered like the other or to be the same length.
+  ## Joining by INDEX would silently attribute one contract's resolution attempt
+  ## to another, which on a two-contract transaction is a 50% chance of naming
+  ## the wrong contract as the unpublished one. A rung with no matching artifact
+  ## entry is `aaUnasked`, which is the honest answer and is a DIFFERENT answer
+  ## from "not published".
+  ##
+  ## ## Every distinction here is one the tree makes
+  ##
+  ## Nothing is inferred from the chain's name, the contract's address or the
+  ## rung number. `aaNoCandidate` and `aaRejected` are separated by
+  ## `candidatesConsidered`, which the resolver publishes because the difference
+  ## matters: zero candidates means nothing is published for the class, and a
+  ## rejected candidate means something is published and could not be proved to
+  ## be this class. Both are "looked for"; only one is "and found something".
+  if native.isNil or native.kind != JObject: return
+  let replay = native{"replay"}
+  if replay.isNil or replay.kind != JObject: return
+  let rungs = replay{"contractRungs"}
+  if rungs.isNil or rungs.kind != JArray or rungs.len == 0: return
+  let artifacts = replay{"artifacts"}
+  result.has = true
+  for r in rungs:
+    if r.isNil or r.kind != JObject: continue
+    var c = ContractRung(
+      address: r{"address"}.getStr,
+      rung: r{"rung"}.getInt(0),
+      steps: r{"steps"}.getInt(0),
+      positioned: r{"positioned"}.getInt(0),
+      asking: aaUnasked)
+    if artifacts != nil and artifacts.kind == JArray:
+      for a in artifacts:
+        if a.isNil or a.kind != JObject: continue
+        if a{"address"}.getStr != c.address or c.address.len == 0: continue
+        if a{"resolved"}.getBool:
+          c.asking = aaResolved
+        else:
+          c.candidatesConsidered = a{"candidatesConsidered"}.getInt(0)
+          let rej = a{"rejected"}
+          c.candidatesRejected =
+            if rej != nil and rej.kind == JArray: rej.len else: 0
+          # ZERO CANDIDATES IS THE SEPARATE ANSWER, and it is the one this
+          # corpus actually produces. `rejected: []` beside
+          # `candidatesConsidered: 0` says the resolver ran and found nothing to
+          # test; the same empty `rejected` beside a non-zero count would say
+          # candidates were tested and the tree does not record which failed, so
+          # the COUNT is what the branch turns on and the list is only detail.
+          c.asking =
+            if c.candidatesConsidered > 0: aaRejected else: aaNoCandidate
+        break
+    let i = result.contracts.len
+    result.contracts.add c
+    if c.steps > c.positioned:
+      result.shortfall += c.steps - c.positioned
+      if c.positioned == 0: result.unpositioned.add i
+      else: result.partial.add i
+
+proc replayScope*(native: JsonNode): ReplayScopeView =
+  ## Fold `native.replay` into what the replay was and was not checked against.
+  ##
+  ## Total over the published record, and every branch is a distinction the TREE
+  ## makes: nothing here is inferred from a chain's name or from the manifest's
+  ## one-word `validation.status`.
+  ##
+  ## ## Why the roots are COUNTED and not read off `rootsAnyAgree`
+  ##
+  ## `rootsAnyAgree` is one bit. "None of four agree" and "one of four agrees"
+  ## are different pages — the first says the replay rebuilt a different world,
+  ## the second says it rebuilt part of the same one — and a bit cannot tell
+  ## them apart. The array is the evidence, `agrees` is per entry, and the count
+  ## is the fold. The bit is kept only as the FALLBACK for a capture written
+  ## before the array existed, and there it can say `rootsTotal = 0`, which
+  ## compares equal to nothing and so claims nothing.
+  if native.isNil or native.kind != JObject: return
+  let replay = native{"replay"}
+  if replay.isNil or replay.kind != JObject: return
+  result.has = true
+  result.effectsMatched = replay{"effectsMatched"}.getInt(0)
+  result.effectsMismatched = replay{"effectsMismatched"}.getInt(0)
+  result.effectsReproduced = replay{"effectsReproduced"}.getBool
+  let roots = replay{"roots"}
+  if roots != nil and roots.kind == JArray:
+    for e in roots:
+      if e.kind != JObject: continue
+      inc result.rootsTotal
+      if e{"agrees"}.getBool: inc result.rootsAgreeing
+      else:
+        let tree = e{"tree"}.getStr
+        if tree.len > 0: result.differingTrees.add tree
+  let mm = replay{"effectMismatches"}
+  if mm != nil and mm.kind == JArray:
+    for e in mm:
+      if e.kind != JObject: continue
+      let f = e{"field"}.getStr
+      if f.len == 0: continue
+      result.mismatches.add EffectMismatch(field: f,
+        published: e{"published"}.getStr, replayed: e{"replayed"}.getStr)
+
 proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   ## The transaction-detail projection. The SDK assembles the three data-plane
   ## layers; this maps them onto the fields the page shows.
@@ -724,6 +986,15 @@ proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   result.payloadTarget = v.facts.payloadTarget
   result.native = v.facts.native
   result.sources = sourceCoverage(v.facts.native)
+  # The same fold, over the same object, for the same §7.1 reason — see
+  # `ReplayScopeView`. Read here rather than by the page so the transaction
+  # page, the debugger's banner and any list row cannot come to disagree about
+  # what the replay was checked against.
+  result.replay = replayScope(v.facts.native)
+  # …and the third fold over the same object, for the third time for the same
+  # reason: the Code pane's cause caption may not re-derive from the JSON what
+  # the ratio beside it was derived from here.
+  result.contracts = contractCoverage(v.facts.native)
   result.canonical = v.canonical
   result.finality = v.finality
   for e in v.execTraces:
@@ -815,6 +1086,17 @@ type
       ## manifest does not say, which is every real-chain one today.
     languages*: seq[string]
     validationStatus*: string
+    validationOracle*: string
+      ## WHICH DIFFERENTIAL ORACLE PRODUCED `validationStatus`, published in the
+      ## manifest and until now read by nobody on the session path.
+      ##
+      ## It is the difference between "the replay was checked" and "the replay
+      ## was checked against THIS". `published-effects` means the replay's
+      ## effects were compared against the effects the block published — a
+      ## narrow, real claim — and it is the claim a page must show beside a
+      ## `match`, because a reader who is told only "match" will read it as the
+      ## broad one. The same manifest records four state-tree roots that do not
+      ## agree; both are true, and only one of them was reaching the page.
     sourceBundle*: JsonNode        ## the recommended bundle's raw node, or nil
     sourceBundleReason*: string    ## why there is none
     instructions*: JsonNode
@@ -845,7 +1127,7 @@ type
       ## listing, a listing wins over a paragraph. Nil here is not a failure —
       ## it is every capture taken before an artifact could be resolved.
     callFrames*: JsonNode
-      ## The frames the recording opened (`avm-call-frames/1` or `/2`), or nil.
+      ## The frames the recording opened (`avm-call-frames/1`, `/2` or `/3`), or nil.
       ##
       ## `/2` adds the fold marks — `foldedBy`, `foldWhy`, `hiddenDescendants`,
       ## `hiddenSteps` — which say which subtrees the pane starts with CLOSED and
@@ -903,6 +1185,7 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
     elif t.kind == trkOnDemand: tvPending
     else: tvNone
   if t.hasValidation: result.validationStatus = $t.validation.status
+  if t.hasManifest: result.validationOracle = t.manifest.validationOracle
 
   # ONLY FOR A TRACE THERE IS SOMETHING TO OPEN. An `absent` or `on-demand`
   # resolution derives no artifact address, so asking would be a request built

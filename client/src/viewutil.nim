@@ -632,6 +632,160 @@ proc sourcesRow*(v: SourceCoverageView): MetaRow =
   MetaRow(label: "Sources", value: sourcesState(v),
           badge: sourcesClass(v), note: sourcesNote(v))
 
+func contractOrdinal(i: int): string =
+  ## "a second", for the contract at published index `i`.
+  ##
+  ## An ordinal rather than "contract 2 of 2" because the fact a reader is
+  ## missing is not the index — it is that the steps they cannot place belong to
+  ## a DIFFERENT contract than the one whose source they are looking at, and an
+  ## English ordinal says that where an index reads like a database row.
+  case i
+  of 0: "the first"
+  of 1: "a second"
+  of 2: "a third"
+  of 3: "a fourth"
+  of 4: "a fifth"
+  else: "contract #" & $(i + 1)
+
+func rungClause(rung: int): string =
+  ## What the recording's own rung number means for a contract that positions
+  ## nothing. Total over the integer, including the values this corpus does not
+  ## contain — a note that silently said nothing for an unexpected rung would be
+  ## a caption that disappears exactly where it is most surprising.
+  if rung >= 3:
+    "the recording puts it at rung 3, the bytecode ceiling. What was available " &
+    "for that contract was its bytecode and a commitment to the compiled " &
+    "artifact, not the artifact itself, so there are no debug symbols, no file " &
+    "map, and nothing to key a program counter against."
+  elif rung == 2:
+    "the recording puts it at rung 2, so a debug map was available for it and " &
+    "this recording keyed none of its steps through one."
+  elif rung == 1:
+    "the recording puts it at rung 1 — source text was available for it — and " &
+    "it still positions none of its steps, which this recording does not explain."
+  else:
+    "the recording states no rung for it, so why its steps are unplaced is not " &
+    "something this capture records."
+
+func askingClause(c: ContractRung): string =
+  ## WAS THE ARTIFACT LOOKED FOR — the distinction the whole note turns on.
+  ##
+  ## "There is no source" said flatly is the flattering version of three
+  ## different facts, and the published tree separates all three. Saying "not
+  ## published" of a contract nobody asked about is an overclaim against the
+  ## world; saying "nobody looked" of a class that was searched and is genuinely
+  ## unpublished withholds a real, creditable negative result. So each arm names
+  ## which one it is, in as many words.
+  case c.asking
+  of aaNoCandidate:
+    "Off-chain artifact resolution DID run for this contract and found nothing " &
+    "to test: " & $c.candidatesConsidered & " candidate artifact(s) were " &
+    "considered against the class's artifact hash. So this is \"no artifact is " &
+    "published for this class\", not \"nobody looked\"."
+  of aaRejected:
+    "Off-chain artifact resolution DID run for this contract: " &
+    $c.candidatesConsidered & " candidate artifact(s) were considered and none " &
+    "was proved to be this class" &
+    (if c.candidatesRejected > 0: " (" & $c.candidatesRejected & " recorded as " &
+                                 "rejected)" else: "") &
+    ". So this is \"looked for and not published\", not \"nobody looked\"."
+  of aaResolved:
+    "An artifact WAS proved for this contract, so its source exists and is " &
+    "published; this recording simply never keyed its steps through the debug " &
+    "map. That is a limit of the capture, not of what the world publishes."
+  of aaUnasked:
+    "This capture records no artifact resolution for it at all, so the source " &
+    "is missing here because nobody looked — which is NOT a finding that none " &
+    "is published."
+
+proc unpositionedCauseNote*(cc: ContractCoverageView;
+                            positionedSteps, positionedOf: int): string =
+  ## WHY the steps this pane cannot place have no source line, per contract.
+  ##
+  ## The sentence `EditorPane.coverageNote` carries, and the whole reason that
+  ## field exists — see `reader.ContractCoverageView` for the defect, which is
+  ## the roots-banner defect a second time: a true, specific, creditable cause
+  ## legible only inside the collapsed Raw JSON, for 81% of one recording's
+  ## execution.
+  ##
+  ## ## THE THREE REFUSALS, and each one is a page that must not grow a note
+  ##
+  ##   * **No per-contract record.** `has` is false, so there is nothing to
+  ##     attribute the shortfall to. A note built from an absent array would be
+  ##     manufacturing the cause it claims to report.
+  ##   * **No rung boundary in the pane.** `positionedSteps` and `positionedOf`
+  ##     are the pane's own coverage, and the same pair gates `renderSource`'s
+  ##     `.srcrung` header. A pane at one fidelity has no "other steps" for this
+  ##     to be about: an all-source pane has none, and an all-listing pane's
+  ##     whole chrome is already the explanation, so a second paragraph there
+  ##     would restate `reason` in different words.
+  ##   * **No contract fell short at all.** `unpositioned` and `partial` are both
+  ##     empty, so the per-contract record attributes the pane's shortfall to
+  ##     nothing and there is no cause in it to report. A transaction whose one
+  ##     contract positions every step lands here, which is what makes "a
+  ##     transaction with all steps positioned grows no note" a consequence of
+  ##     the rule rather than a special case bolted onto it.
+  ##
+  ## ## Why the `partial`-only page gets a note too
+  ##
+  ## `0x20ed5b91…` has ONE contract, a rung boundary, and 22 steps its own
+  ## resolved debug map does not key. That is a different and much weaker fact
+  ## than an unpublished second contract — nothing is missing from the world, only
+  ## from the map — and it was buried in the same place, `contractRungs[0].reason`
+  ## inside the collapsed Raw JSON. Naming it is the same fix, and withholding it
+  ## because it is the milder cause would leave this note answering "why" on one
+  ## page and declining to on the page beside it.
+  ##
+  ## ## The arithmetic is asserted, not assumed
+  ##
+  ## `cc.shortfall` is summed from the per-contract records and the pane's own
+  ## shortfall is `positionedOf - positionedSteps`. They are written by the same
+  ## capture through different code paths, so the note claims to ACCOUNT FOR the
+  ## pane's unplaced steps only where the two agree, and states the partial
+  ## accounting where they do not. A caption that says "the other 373" while
+  ## naming 350 of them is the same class of overclaim as the ratio-without-cause
+  ## it replaces.
+  if not cc.has: return ""
+  if positionedSteps <= 0 or positionedOf <= positionedSteps: return ""
+  if cc.unpositioned.len == 0 and cc.partial.len == 0: return ""
+  let unplaced = positionedOf - positionedSteps
+  let closes = cc.shortfall == unplaced
+  var s =
+    if closes:
+      "Why the other " & $unplaced & " step(s) have no source line. "
+    else:
+      "Of the " & $unplaced & " step(s) with no source line, the recording's " &
+      "per-contract record accounts for " & $cc.shortfall & ". "
+  for k, i in cc.unpositioned:
+    let c = cc.contracts[i]
+    s.add $c.steps & (if k == 0 and closes: " of them ran in " else: " ran in ") &
+      contractOrdinal(i) & " contract of this same transaction, " &
+      truncHash(c.address, lead = 10, tail = 8) &
+      ", which positions none of its " & $c.steps & " steps: " &
+      rungClause(c.rung) & " " & askingClause(c) & " "
+  if cc.partial.len > 0:
+    var placed: seq[string]
+    var rest = 0
+    for i in cc.partial:
+      placed.add truncHash(cc.contracts[i].address, lead = 10, tail = 8)
+      rest += cc.contracts[i].steps - cc.contracts[i].positioned
+    # THE REMAINDER IS NAMED TOO, because "the other N" minus the contract above
+    # leaves a number a reader can subtract, and leaving it unexplained would
+    # reproduce this note's own defect one level down. Its cause is a DIFFERENT
+    # one — a debug map that resolved and does not key every region — and saying
+    # so is what keeps the paragraph above from reading as the whole story.
+    #
+    # "The remaining" only where something preceded it: on a transaction whose
+    # shortfall is ENTIRELY unkeyed regions this is the first and only clause, and
+    # "the remaining 22" with nothing subtracted from is a sentence that implies a
+    # missing contract the recording does not have.
+    s.add (if cc.unpositioned.len > 0: "The remaining " else: "All ") &
+      $rest & " step(s) are inside " & placed.join(", ") &
+      ", whose artifact DID resolve: they sit in regions its own debug map does " &
+      "not key, so the source for them is published and this recording carries " &
+      "no line to put them on."
+  s.strip()
+
 # ── the transaction's facts, produced ONCE ─────────────────────────────────
 #
 # Page-Descriptions §7.1 puts the transaction's metadata inside the debugging

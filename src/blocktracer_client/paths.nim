@@ -87,7 +87,7 @@ export ChainIdentifierEncoding, encodingFor, declaredOrLegacy,
        isIdentifierEncoding, identifierEncodingList,
        KindTransaction, KindAddress, KindBlock, LegacyUndeclaredEncoding
 export identifierKeyForm, identifierDisplayForm, identifierPayload,
-       identifierCaseRule, IdentifierCaseRule
+       identifierShardPayload, identifierCaseRule, IdentifierCaseRule
 
 proc registryPath*(contractVersion = ContractVersion): string =
   ## `/registry/chains.v{N}.json` — version in the name (§2.9).

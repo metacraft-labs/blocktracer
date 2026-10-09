@@ -1,0 +1,342 @@
+{
+ "format": "blocktracer/evm-endpoint-capability@1",
+ "_comment": [
+  "WHICH EVM INSTANCE THIS PROJECT PUBLISHES, CHOSEN ON MEASURED ENDPOINT CAPABILITY,",
+  "AND THE TWO BLOCKERS THAT STOP IT SHORT OF A TRACE.",
+  "",
+  "Chain-Support-Matrix.md §4 charters five EVM instances for public beta — eth, sep,",
+  "arb1, oeth and base — and says nothing about which to build first. This reading is",
+  "the answer, taken from the endpoints rather than from the ordering of that table.",
+  "",
+  "-- WHY THE CAPABILITY THAT DECIDED IT IS NOT THE ONE A READER EXPECTS -------------",
+  "",
+  "The obvious discriminator is `debug_traceTransaction{prestateTracer}`, and it is the",
+  "wrong one, because it is not what the recorder this project builds against asks for.",
+  "`codetracer-evm-recorder`'s `src/replay.rs` pins a `foundry-fork-db` fork at the",
+  "target block's PARENT, replays every preceding transaction in the block with a no-op",
+  "inspector, and only then replays the target with the tracing inspector. It asks a",
+  "node for account and storage reads at a past block and for nothing else — no tracer",
+  "of any kind. So the capability that decides the instance is a full ARCHIVE, and the",
+  "member of it that separates the candidates is `eth_getProof`, which `base` refuses at",
+  "depth while answering every flat state read.",
+  "",
+  "That is also why the strategy token below is `replay-preceding` and not",
+  "`prestate-trace`. §1.4's `replay-preceding` row reads `Execute the block from its",
+  "parent state, in order` and requires `archive`; that is `replay.rs` sentence for",
+  "sentence. Declaring `prestate-trace` would name a tracer the producer never calls.",
+  "",
+  "-- THE THREE REFUSAL CLASSES ARE KEPT APART, AND A FOURTH HAD TO BE ADDED ---------",
+  "",
+  "`-32601` absent, policy (`-32602` / `-32600` / 403 / 429), and `-32000`-class",
+  "`pruned` — present but not retained. The fourth is a TRANSPORT failure (HTTP 5xx, a",
+  "TLS timeout, a WAF block) and it is not a refusal at all: it is the run not being",
+  "answered. `endpoints[].notMeasured` is where an endpoint whose control does not",
+  "discriminate goes, rather than into any of the three.",
+  "",
+  "Every endpoint below was asked `thisMethodDoesNotExist` in the same session as its",
+  "other probes, so a blind proxy cannot be read as an answer. ONE endpoint failed that",
+  "control and is reported NOT MEASURED rather than as a negative.",
+  "",
+  "-- AND HTTP 400 IS NOT THE SIGNAL ON THE WINNING ENDPOINT -------------------------",
+  "",
+  "`eth.drpc.org` returns HTTP **400** with a well-formed JSON-RPC error body for every",
+  "refusal, including `-32601`. A prober that classified on the HTTP code would read",
+  "every one of its refusals as a transport failure and every one of its distinctions as",
+  "lost. Read the body."
+ ],
+ "measuredOn": "2026-09-30",
+ "measuredBy": "curl 8.x and python3 urllib over plain HTTP from the workstation; no chain CLI and no key",
+ "supersedes": {
+  "reading": "the 2026-09-28 endpoint survey this project's delivery planning quoted",
+  "note": [
+   "Its raw responses were not on this host, so nothing here is transcribed from it —",
+   "every figure below was re-taken. Where the two agree it is said so; where they do",
+   "not, the difference is named with its cause. The 2026-09-28 tip of 26,076,583 reads",
+   "26,092,740 here, which is 16,157 blocks in ~2.1 days — about 7,700/day against the",
+   "~7,200/day a 12-second slot predicts, so the two readings are of one chain moving",
+   "rather than of two chains."
+  ]
+ },
+
+ "decision": {
+  "instance": "eth",
+  "network": "Ethereum Mainnet",
+  "caip2": "eip155:1",
+  "chainIdMeasured": "0x1",
+  "endpoint": "https://eth.drpc.org",
+  "prestateStrategy": "replay-preceding",
+  "prestateStrategyBasis": [
+   "DERIVED FROM THE RECORDER'S CODE, not chosen from §1.4's preference order.",
+   "`codetracer-evm-recorder` @ origin/dev `src/replay.rs:35 replay_transaction` builds a",
+   "`SharedBackend` pinned at `(block_number - 1)`, loops `for (i, prior_tx) in",
+   "transactions.iter().enumerate()` committing every transaction below the target's",
+   "index, then switches inspectors for the target. Its cost is O(block) per block, which",
+   "is §1.4's own cost column for this row.",
+   "",
+   "THE PRESTATE-CLASS CONSEQUENCE, STATED RATHER THAN LEFT TO FALL OUT. The ledger that",
+   "groups chains by prestate class carries the `evm` row as `undetermined`, and an",
+   "`undetermined` row joins no class at all. Declaring `replay-preceding` puts the EVM",
+   "family in a class whose other reachable member is Flow — §1.4 calls",
+   "`replay-preceding` \"the universal fallback for account-model chains\" and both chains",
+   "have a reachable archive. Declaring `prestate-trace` instead would have paired it with",
+   "Starknet or PolkaVM. The pair is the decision; this is the half of it this reading",
+   "gets to take."
+  ],
+  "why": [
+   "It is the only endpoint probed that serves the COMPLETE read-set `replay-preceding`",
+   "needs — balance, nonce, code, storage, PROOF and call, at depth — and it serves it to",
+   "genesis. `base` answers five of the six and refuses the sixth; `publicnode` refuses",
+   "all six as policy; Sepolia has no free archive at all on either endpoint that answered.",
+   "",
+   "And `eth` is §4's own Reference chain, so the instance measurement and the charter",
+   "agree. That is a coincidence worth stating as one: the choice was made on the",
+   "`eth_getProof` column, and it would have selected `eth` over `base` even if §4 had",
+   "ordered them the other way."
+  ],
+  "rejected": [
+   {"instance": "sep", "why": "NO FREE ARCHIVE, measured on both endpoints that answered its control. `publicnode` returns `-32603 state at block #3502093 is pruned` for balance, nonce, code and storage alike, and `-32602 distance to target block exceeds maximum proof window` for `eth_getProof`; `1rpc.io/sepolia` answers balance and code at that depth and refuses nonce as pruned and proof as beyond the window. A chain whose prestate is not served cannot be replayed from its parent state, whatever its transaction count."},
+   {"instance": "base", "why": "Free archive for every FLAT state read at block 33,554,432 — balance, nonce, code, storage and `eth_call` all answered — and `eth_getProof` refused with `-32603 no state found for block number 33554432`. The refusal is specific to the proof path while the flat reads answer, which is a real and narrow endpoint property rather than a blanket absence, and it is enough: `foundry-fork-db` is the component that would meet it."},
+   {"instance": "arb1", "why": "MEASURABLY THE CHEAPEST SUBJECT AND THE WRONG SEMANTICS. 2-9 transactions per block against Ethereum's 249-359 — an order of magnitude less replay work per block, which matters because the site's curated ingest needs a whole block traced (see `blockers.B3`). But the recorder replays with mainnet revm (`ctx.build_mainnet_with_inspector`), and Arbitrum Nitro has its own gas model, an ArbOS system transaction at index 0 and L1 data fees that mainnet revm does not model. Publishing its rows as T2 real-VM traces would be a fidelity claim nothing measured. Recorded here because the cost argument is genuine and someone will re-derive it."},
+   {"instance": "oeth", "why": "30-52 transactions per block, between Arbitrum and Ethereum, and the same semantic objection as arb1: an OP deposit transaction at index 0 and an L1 fee term mainnet revm does not carry."},
+   {"instance": "flow-evm (chainId 747)", "why": "NOT A CHARTERED INSTANCE. It answers archive reads at 0x1000000 and its control is clean, and it cannot serve as a SECOND, independent EVM subject — it is the same chain family and therefore the same prestate-class ledger row as `eth`. Probed to keep the row honest, not as a candidate."}
+  ]
+ },
+
+ "endpoints": [
+  {
+   "url": "https://eth.drpc.org",
+   "chainId": "0x1",
+   "clientVersion": "Geth/v10.0.0/drpc",
+   "tip": 26092740,
+   "finalized": 26092451,
+   "control": {"method": "thisMethodDoesNotExist", "code": -32601, "message": "method is not available", "httpStatus": 400, "discriminates": true},
+   "archive": {
+    "verdict": "FULL, to genesis",
+    "served": ["eth_getBalance", "eth_getTransactionCount", "eth_getCode", "eth_getStorageAt", "eth_getProof", "eth_call", "eth_getBlockReceipts"],
+    "depthsProbed": [0, 1, 1000, 200000, 1000000, 4370000, 9069000, 12965000, 15537394, 17034870, 19426587, 22431084, 26000000],
+    "allAnswered": true,
+    "proofNodeCount": {"atBlock0": 4, "atBlock1000000": 5, "atBlock4370000": 8, "atBlock9069000AndAbove": 9},
+    "twoSidedControl": [
+     "AGREEMENT ACROSS METHODS AND DISAGREEMENT ACROSS DEPTH, because either alone is",
+     "satisfiable by a constant. At six depths — 1,000,000 / 4,370,000 / 12,965,000 /",
+     "15,537,394 / 22,431,084 / 26,000,000 — `eth_getProof`'s decoded `balance` and `nonce`",
+     "equal `eth_getBalance` and `eth_getTransactionCount` at the same block, 6 of 6; and",
+     "the six balances are 6 DISTINCT values and the six nonces 6 distinct values",
+     "(90 / 654 / 715 / 885 / 1553 / 5956). A blind or cached answer satisfies the first",
+     "clause and fails the second.",
+     "",
+     "The proof's own node count rising 4 -> 5 -> 8 -> 9 with the age of the trie is a",
+     "third, unasked-for corroboration: the depth of the account trie at each block is not",
+     "a quantity a constant response carries."
+    ],
+    "subjectAccount": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+   },
+   "tracers": {
+    "prestateTracer": {
+     "verdict": "SERVED at 2.5 years' depth",
+     "subject": "0xe036317789153cf3245044fcac96b78ff00048e02ad4b649e1b1a2ac5d858912",
+     "subjectBlock": 16800000,
+     "subjectIndexInBlock": 0,
+     "subjectDate": "2023-03-10T20:47:23Z",
+     "responseBytes": 38737,
+     "accounts": 3,
+     "longestCodeChars": 38434,
+     "note": "Re-confirmed, and this is the 2026-09-28 survey's own subject. That survey recorded 10,284 chars of code and storage per account; this reading gets 38,434 chars and NO storage on any of the three accounts. The difference is not the endpoint changing — it is which transaction was probed: a transaction that reverts in the router's deadline check (the output decodes to `UniswapV2Router: EXPIRED`) touches no storage. Recorded rather than reconciled away, because the earlier figure is not reproducible from the hash beside it."
+    },
+    "callTracer": {"verdict": "SERVED", "responseBytes": 968},
+    "trace_replayTransaction": {"verdict": "SERVED, with stateDiff", "responseBytes": 716},
+    "structLog": {
+     "verdict": "REFUSED — POLICY",
+     "code": 5,
+     "message": "Error: -32602, Tracer object with 'tracer' param is required for debug_traceTransaction",
+     "probedTwice": "with the recorder's own options object, and with `{}`; byte-identical refusal",
+     "whyItMatters": "This is exactly the shape `src/trace_fetcher.rs:fetch_struct_logs` sends — `GethDebugTracingOptions` with a populated `config` and NO `tracer`. See `blockers.B2`."
+    }
+   },
+   "defects": [
+    {
+     "id": "ua-gate-on-the-archive-method-only",
+     "measured": "REPRODUCIBLE, three passes, 180 requests",
+     "what": [
+      "`eth_getStorageAt` at depth returns HTTP 403 for User-Agent `Python-urllib/3.11` and",
+      "HTTP 200 for an ABSENT User-Agent, for `reqwest/0.12` and for `curl/8.5.0` — while",
+      "`eth_chainId` returns 200 for `Python-urllib/3.11` in the same session. So the gate is",
+      "joint on method and agent, and the sequence 60/60 403, then 60/60 200, then 60/60 403",
+      "rules out a rate limit or a transient.",
+      "",
+      "WHY IT IS RECORDED RATHER THAN WORKED AROUND: a prober using a default-UA HTTP client",
+      "reads this as `the archive is policy-refused`, which is the same sentence `publicnode`",
+      "returns for a genuinely different reason. It cost this session one wrong reading. The",
+      "recorder is unaffected — alloy sends reqwest's UA, measured 200 — and so is a Node",
+      "producer, measured 200 on node 22.23.2 `fetch` with and without an explicit UA."
+     ]
+    }
+   ],
+   "throughput": {"probe": "200 sequential archive eth_getStorageAt at block 0x1000000", "ok": 200, "errors": 0, "elapsedSeconds": 37.8, "ratePerSecond": 5.3}
+  },
+  {
+   "url": "https://ethereum-rpc.publicnode.com",
+   "chainId": "0x1",
+   "clientVersion": "Geth/v1.17.1-stable-16783c16/linux-amd64/go1.25.7",
+   "tip": 26092740,
+   "control": {"method": "thisMethodDoesNotExist", "code": -32601, "message": "the method thisMethodDoesNotExist does not exist/is not available", "discriminates": true},
+   "archive": {
+    "verdict": "REFUSED — POLICY, all six methods identically",
+    "code": -32602,
+    "message": "Archive requests require a personal token. Get one at: https://www.allnodes.com/publicnode…",
+    "methodsRefused": ["eth_getBalance", "eth_getTransactionCount", "eth_getCode", "eth_getStorageAt", "eth_getProof", "eth_call"]
+   },
+   "tracers": {"structLog": {"verdict": "ABSENT", "code": -32601, "message": "the method debug_traceTransaction does not exist/is not available"}},
+   "note": "The endpoint that distinguishes two classes on its own: policy for the archive and absence for the tracer, in one session, against a control that answers -32601 for a method that exists nowhere. This reproduces the 2026-09-28 reading exactly, including the client version."
+  },
+  {
+   "url": "https://mainnet.base.org",
+   "chainId": "0x2105",
+   "clientVersion": "reth/v2.5.2-5877708/x86_64-unknown-linux-gnu/base/v1.4.2",
+   "tip": 52004160,
+   "control": {"method": "thisMethodDoesNotExist", "code": -32601, "message": "rpc method is unsupported", "discriminates": true},
+   "archive": {
+    "verdict": "FLAT READS SERVED, PROOF PRUNED — and the split is the finding",
+    "depthProbed": 33554432,
+    "served": ["eth_getBalance", "eth_getTransactionCount", "eth_getCode", "eth_getStorageAt", "eth_call"],
+    "refused": [{"method": "eth_getProof", "code": -32603, "message": "no state found for block number 33554432", "class": "pruned"}]
+   },
+   "note": "The 2026-09-28 survey recorded this endpoint as `free ARCHIVE … and no tracer anywhere`, which is true of the flat reads and hides the one column that decides the instance."
+  },
+  {
+   "url": "https://mainnet.evm.nodes.onflow.org",
+   "chainId": "0x2eb",
+   "clientVersion": "flow-evm-gateway@v1.5.7",
+   "tip": 80124673,
+   "control": {"method": "thisMethodDoesNotExist", "code": -32601, "discriminates": true},
+   "archive": {"verdict": "reads answered at 0x1000000", "served": ["eth_getBalance", "eth_getCode", "eth_getStorageAt"]},
+   "note": "Probed for completeness. Not a candidate — a Flow-EVM row is the SAME chain family as `eth` and therefore the same prestate-class ledger row, so it can never count as a second, independent subject."
+  },
+  {
+   "url": "https://1rpc.io/eth",
+   "chainId": "0x1",
+   "control": {"method": "thisMethodDoesNotExist", "code": -32601, "discriminates": true},
+   "tracers": {"structLog": {"verdict": "REFUSED — POLICY", "code": -32600, "message": "Method debug_traceTransaction not allowed"}}
+  },
+  {
+   "url": "https://rpc.ankr.com/eth",
+   "notMeasured": [
+    "THE CONTROL DOES NOT DISCRIMINATE, so nothing about this endpoint is reported.",
+    "`thisMethodDoesNotExist` returns `-32000 Unauthorized: You must authenticate your",
+    "request with an API…` — the same answer it gives `debug_traceTransaction`. An endpoint",
+    "that refuses a nonexistent method and a real one identically cannot distinguish",
+    "absence from policy for anything, so its `debug_traceTransaction` refusal is not",
+    "evidence that the method is absent OR that it is gated."
+   ]
+  },
+  {
+   "url": "https://eth.llamarpc.com",
+   "notMeasured": ["HTTP 525 on every request — a TLS handshake failure at the edge. A transport failure is the run not being answered, which is not one of the three refusal classes and is not recorded as one."]
+  }
+ ],
+
+ "transactionsPerBlock": {
+  "_note": [
+   "MEASURED because the site's curated ingest needs a whole block traced (blockers.B3),",
+   "which makes transactions-per-block a cost, not a statistic. Five blocks per chain at",
+   "tip and tip-500 / -1,000 / -5,000 / -20,000."
+  ],
+  "eth": {"samples": [249, 359, 288, 356, 346], "min": 249},
+  "sep": {"samples": [137, 146, 88, 134, 142], "min": 88},
+  "base": {"samples": [165, 163, 153, 186, 217], "min": 153},
+  "oeth": {"samples": [30, 33, 32, 37, 52], "min": 30},
+  "arb1": {"samples": [9, 5, 2, 6, 4], "min": 2},
+  "sepoliaSweeps": {
+   "_note": "1,000 consecutive blocks at 11,813,000 and 400 consecutive at four epoch starts, to find out whether a light block exists anywhere. It does — and Sepolia has no archive to replay it from.",
+   "at11813000x1000": {"min": 28, "median": 145, "max": 321},
+   "at1500000x400": {"min": 0, "median": 0, "max": 2},
+   "at3500000x400": {"min": 0, "median": 23, "max": 86},
+   "at5500000x400": {"min": 0, "median": 73, "max": 214},
+   "at7500000x400": "NOT MEASURED — HTTP 429"
+  }
+ },
+
+ "blockers": {
+  "_note": [
+   "THE INSTANCE IS REACHABLE AND A TRACE IS NOT. Both blockers below were measured, both",
+   "have a two-sided control, and neither is in the delivery layer — which is the part of",
+   "this campaign that was expected to be the obstacle and is not."
+  ],
+  "B1": {
+   "id": "no-on-chain-replay-entry-point-in-the-recorder",
+   "verdict": "TERMINAL for a traced row, and it is in a third repository",
+   "subject": "codetracer-evm-recorder",
+   "revisionsRead": ["64cb02f (origin/dev at 2026-09-30T19:14Z, the revision built)", "7aeed58 (origin/dev at 2026-09-30T20:0xZ, after 10 commits arrived mid-build)"],
+   "measured": [
+    "THE BINARY HAS ONE SUBCOMMAND AND IT IS NOT REPLAY. `codetracer-evm-recorder --help`",
+    "lists `record` and `help`; `replay --help` answers `error: unrecognized subcommand",
+    "'replay'`. `src/main.rs`'s `enum Commands` has exactly one variant, `Record(RecordArgs)`,",
+    "and `RecordArgs` takes a `.sol` path, `--out-dir`, `--function`, `--from` and `--value` —",
+    "no transaction hash, no RPC URL, no address. The README documents",
+    "`codetracer-evm-recorder replay <tx-hash> --out-dir <dir>`.",
+    "",
+    "AND IT IS NOT A MISSING SUBCOMMAND, WHICH IS THE READING TO AVOID. `src/replay.rs`'s",
+    "`replay_transaction` returns `inspector::ExecutionData`; `recorder.rs`'s two writing",
+    "entry points are `record_from_structlog` and `record_from_structlog_multi_contract`,",
+    "which take STRUCTLOGS. Nothing converts one to the other. Swept over the whole crate:",
+    "the only mention of `replay` outside `src/replay.rs` itself is `pub mod replay;` in",
+    "`src/lib.rs`. So `ExecutionData` reaches no container writer, and the gap is a join",
+    "rather than a route.",
+    "",
+    "ACROSS EVERY PUBLISHED BRANCH, NOT JUST THE TIP. `git show <branch>:src/main.rs | grep",
+    "Replay` over all 13 `refs/remotes/origin/*`: zero hits. And the 10 commits that landed",
+    "on `origin/dev` during the build touch `.github/workflows/*`, `flake.nix`, `repro.lock`",
+    "and `repro.nim` and NO `.rs` file, so the build at 64cb02f is the current tip for this",
+    "purpose.",
+    "",
+    "POSITIVE CONTROL, so the absence is not read off a broken build: the same binary",
+    "records `examples/ERC20.sol` — solc 0.8.33, anvil 1.5.1-dev from its own devShell,",
+    "878 struct log entries fetched, a 143,360-byte `ERC20.ct` written, rc 0. The recorder",
+    "works. What it has no route to is a transaction it did not itself create."
+   ],
+   "remedy": "Join `ExecutionData` to a container writer and give it a subcommand. It is work in `codetracer-evm-recorder`, and that repository's own roadmap owns it.",
+   "notOurBranch": "This reading was taken from `codetracer-evm-recorder`; nothing in it was changed."
+  },
+  "B2": {
+   "id": "the-structlog-shape-the-other-path-asks-for-is-served-by-nobody",
+   "verdict": "would block the structlog route even once B1's wiring existed — so the remedy chooses the revm route for a measured reason",
+   "measured": [
+    "`src/trace_fetcher.rs` asks for `debug_traceTransaction` with the DEFAULT tracer: a",
+    "`GethDebugTracingOptions` carrying a populated `config` and no `tracer`. Five free",
+    "Ethereum-mainnet endpoints, each with its control in the same session:",
+    "  eth.drpc.org                 POLICY   code 5 wrapping -32602, `Tracer object with 'tracer' param is required`",
+    "  ethereum-rpc.publicnode.com  ABSENT   -32601",
+    "  1rpc.io/eth                  POLICY   -32600 `Method debug_traceTransaction not allowed`",
+    "  rpc.ankr.com/eth             NOT MEASURED — its control does not discriminate",
+    "  eth.llamarpc.com             NOT MEASURED — HTTP 525, a transport failure",
+    "So zero of the three measurable endpoints serve it, in two distinct classes.",
+    "",
+    "THE CONSEQUENCE IS A DESIGN INPUT AND NOT A SECOND WALL. `replay.rs`'s revm route needs",
+    "no tracer at all — only the archive reads `eth.drpc.org` serves in full, proved above.",
+    "So B1's remedy is to join `ExecutionData` to a writer, NOT to route the structlog",
+    "fetcher, and that ordering is measured rather than preferred."
+   ]
+  },
+  "B3": {
+   "id": "the-curated-ingest-cannot-publish-a-chain-with-an-untraced-row-in-its-window",
+   "verdict": "would block an all-untraced Ethereum snapshot from reaching the site even with a conforming tree",
+   "measured": [
+    "`client/src/static_export.nim:621-623` ingests every `client/fixtures/chain/*/` with",
+    "`scope: isCurated`, and `src/blocktracer/chain/ingest.nim:1362-1380` RAISES for any row",
+    "in the published window whose outcome is neither `replayed` nor `divergent`.",
+    "`curationWindow` (`ingest.nim:407`) has two shapes and an Ethereum mainnet capture with",
+    "no recording reaches neither: with `recorded.len == 0` it looks for maximal runs of",
+    "consecutive blocks that settled NO transaction, and on Ethereum mainnet there are none,",
+    "so `runs.len == 0`, `found` stays false, and the ingest raises.",
+    "",
+    "WHAT THAT MEANS FOR THE WINDOW SIZE ONCE B1 IS FIXED: the cheapest publishable subject",
+    "is ONE WHOLE BLOCK traced, not one transaction. `replay-preceding` replays indices",
+    "0..k-1 for each target k, so a block of N transactions costs ~N²/2 transaction",
+    "executions. At Ethereum's measured 249-359 that is 31,000-64,000 executions for one",
+    "block. This is the number that makes the transactionsPerBlock table above a cost rather",
+    "than a statistic, and it is why `arb1`'s 2-9 was worth recording even though its",
+    "semantics rule it out."
+   ]
+  }
+ }
+}

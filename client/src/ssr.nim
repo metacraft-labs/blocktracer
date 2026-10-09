@@ -116,12 +116,11 @@ proc debugSessionFor*(r: DataRoot, info: ChainInfo, hash: string): DebugSessionV
   ## reach the same session; they differ in what the visitor asked for" — and
   ## so the source-bundle preference is applied in one place.
   ##
-  ## TAKES AN ALREADY-OPENED CHAIN, for the reason `ChainInfo.store`'s own
-  ## comment gives about origins and `reader.chainInfo` gives about
-  ## generations: the pin exists so that one rendered page cannot mix two of
-  ## them, and a producer that re-opens the chain for itself is a second pin
-  ## inside one page. The slug-taking overload below is the composition root
-  ## for a caller that has no chain open yet.
+  ## TAKES THE PIN rather than a slug. `renderTx` and `renderDebug` each want
+  ## both this session AND the chain's own facts, so a slug here meant THREE
+  ## `current.json` reads for one transaction page — the dispatcher's existence
+  ## check, the renderer's, and this one — and three chances for one page to
+  ## straddle a generation flip.
   let chain = info.slug
   let v = txView(r, info, hash)
   let t = traceView(r, info, hash)
@@ -209,6 +208,66 @@ proc debugSessionFor*(r: DataRoot, info: ChainInfo, hash: string): DebugSessionV
   # document — and `tools/journeys/lib/corpus.mjs`'s `hasSource` moved with it: a
   # page holding both kinds of document is not "no source".
   withListingBesideSource(result, t.instructions)
+  # ── AND WHICH OF THE MARKED LINES ARE THE COMPILER'S ANSWER RATHER THAN
+  #    EVIDENCE ────────────────────────────────────────────────────────────────
+  #
+  # `Source-Resolution.md` §7's last row asks for the boundary between what this
+  # recording can show and what it cannot to be "visible in the source pane
+  # rather than silent", and the rung boundary is not the only such boundary. A
+  # position also comes from a COMPILED DEBUG MAP, and a compiler may key one
+  # instruction sequence to any of the source spans that produced it: twelve
+  # steps of `0x0a807e4e…` sit on `main.nr:223`, inside a branch its own call
+  # tree shows was not taken, and two frames land inside `comptime quote { … }`
+  # templates. An unmarked wrong line is the one defect this product may not
+  # have, so the lines are marked and the pane says how many and why.
+  #
+  # AFTER the pane is final: it walks the pane's documents and its executed set,
+  # so it must run once nothing can still replace either.
+  let attributed = markCompilerAttributed(result, t.positions, t.callFrames)
+  if attributed > 0:
+    # APPENDED to whatever the rung boundary already said, never in place of it.
+    # Both sentences are about the same pane and both are true; the listing's own
+    # note explains the steps with NO source line, and this explains the ones
+    # whose source line is the map's answer.
+    result.editor.attributionNote =
+      $attributed & " line(s) in this pane are marked with a `?`: the position " &
+      "is where the compiler KEYED the compiled code, not somewhere the " &
+      "recording proves the execution reached. Either the line is inside a " &
+      "`comptime quote { … }` template — code emitted from there, not run there " &
+      "— or it is one of a pair of positions inside a single call whose step " &
+      "order this recording cannot have produced in that order, so at least one " &
+      "of the two is not where the execution was and the recording does not say " &
+      "which. Where a marked line disagrees with the Call Trace beside it, the " &
+      "call tree is the stronger evidence: it names the frames the recording " &
+      "actually opened."
+  # ── …AND WHY THE STEPS IT MARKS NOWHERE HAVE NO LINE ──────────────────────
+  #
+  # THE SAME DEFECT AS THE ROOTS BANNER, AND IT WAS STILL STANDING FOR 81% OF
+  # THIS RECORDING. The header above this says "This recording resolves source
+  # for 86 of its 459 steps", which is the RATIO. The CAUSE was published too,
+  # and it is specific and creditable: `native.replay.contractRungs[1]` records a
+  # SECOND contract in the same transaction that ran 351 of the 373 unplaced
+  # steps and positions none of them, at rung 3, because what a node serves for
+  # its class is bytecode plus a commitment to the compiled artifact and not the
+  # artifact — and off-chain resolution RAN for it and matched nothing. Every
+  # word of that was legible only inside the collapsed "Raw (chain-native)"
+  # JSON, which is exactly where the roots disagreement was before the banner.
+  #
+  # PROPORTIONATE, AND DELIBERATELY NOT A BANNER. The roots banner is about the
+  # whole recording's standing as evidence, so it sits above every pane and
+  # cannot be dismissed. This is about one pane's rows, so it is a caption in
+  # that pane, in the `.srcrung`/`.srcattr` idiom already beside it. A second
+  # `role="status"` competing with the first would cost the first its weight.
+  #
+  # AFTER `markCompilerAttributed` for the same reason that runs where it does:
+  # the pane's coverage counts are what the note is about and the ladder above
+  # settles them, so nothing may still replace the pane when this reads them.
+  # `viewutil.unpositionedCauseNote` owns every refusal — no per-contract record,
+  # no rung boundary, or no contract that positioned nothing — so a transaction
+  # with one contract, and one that positions everything, get "" here rather than
+  # an empty paragraph, and the rule lives with the prose it gates.
+  result.editor.coverageNote = unpositionedCauseNote(
+    v.contracts, result.editor.positionedSteps, result.editor.positionedOf)
   # THE CALL TRACE, AND IT IS NOT PART OF THAT CONTEST. The three calls above
   # compete for the CODE pane — a bundle beats positions beats a listing — and
   # this fills a different pane from a different object, so it runs outside the
@@ -221,12 +280,98 @@ proc debugSessionFor*(r: DataRoot, info: ChainInfo, hash: string): DebugSessionV
   # which is the two-producers-of-one-coordinate defect the listing's own
   # comment describes.
   withCallFrames(result, t.callFrames)
+  # THE EVENT LOG, FROM THE SAME OBJECT AND AFTER IT. Not a fifth rung and not a
+  # second reader of the sidecar's shape: it reads the frames' names, steps and
+  # positions — which `withCallFrames` has just proved decodable — and turns the
+  # ones that ARE events into events.
+  #
+  # AFTER `withCallFrames` because the row it marks `current` is resolved against
+  # `controls.step`, and the clamp that settles that coordinate runs inside the
+  # listing above. Running before it would mark a row for a step the page then
+  # corrects, which is the two-producers-of-one-coordinate defect the listing's
+  # own comment describes.
+  #
+  # The outcome is passed, not derived here: whether a transaction reverted is
+  # the transaction's own published fact and `demo_session.fixtureEventLog`
+  # already reads it from the same place with the same rule.
+  withEventLog(result, t.callFrames,
+               reverted = v.outcome in {ooReverted, ooFailedWithEffects})
+  # THE VALUES PANE, AND IT RUNS LAST OF THE PANE PRODUCERS. It reads the
+  # instruction stream's four parallel columns AT THE SESSION'S STEP, so it must
+  # run after everything that can still move that coordinate — the listing's
+  # clamp and the positions' landing rule both do. A column read at a step the
+  # page then corrects is a value belonging to another step, which is the whole
+  # class of defect this pane's own note exists to avoid.
+  withMachineColumns(result, t.instructions, t.callFrames)
+  # ── WHAT THE REPLAY WAS CHECKED AGAINST, ON THE PAGE ────────────────────────
+  #
+  # `Page-Descriptions.md` §8 and `Trace-Artifacts.md` §5 put the divergence
+  # banner above the debugger with no dismiss control, and this repository
+  # already draws it correctly for the one transaction whose effects did not
+  # reproduce. What it drew NOTHING for is the case where the verdict stands and
+  # is narrower than a reader will take it to be: every published Aztec
+  # transaction records `rootsAnyAgree: false` with a four-entry `roots` array,
+  # and the manifest beside it says `validation.status: "match"` with
+  # `validation.oracle: "published-effects"`. Both are true. Only one was
+  # visible, and the other was legible ONLY inside the collapsed Raw JSON —
+  # outside it, the words "divergent" and "disagree" appeared three times per
+  # page and every one of the three was inside a CSS comment.
+  #
+  # So this states the oracle and the roots in the same undismissable position,
+  # following the divergence banner's precedent rather than inventing a second
+  # treatment. It qualifies a verdict; it does not replace one, which is why it
+  # is a separate pair of fields and not a new `SessionIntegrity` member — see
+  # `session_view.DebugSessionView.scopeTitle`.
+  #
+  # THE NUMBERS ARE NOT RE-DERIVED HERE. `v.replay` is `reader.replayScope`'s
+  # fold over the same `native` the Raw block prints, so the banner and the JSON
+  # under it cannot disagree.
+  if v.replay.has and v.replay.rootsTotal > 0 and
+     v.replay.rootsAgreeing < v.replay.rootsTotal:
+    result.scopeTitle =
+      if v.replay.rootsAgreeing == 0: "State roots disagree"
+      else: "Some state roots disagree"
+    var d = ""
+    if t.validationOracle.len > 0 and result.integrity == siValidated:
+      # THE ORACLE'S OWN NAME, spelled as the narrow claim it is. Only where the
+      # verdict is the validated one: on a divergent trace the banner above this
+      # already says the replay disagreed, and repeating "the check passed" under
+      # it would be the page arguing with itself.
+      d = "This replay was checked against " &
+          (if t.validationOracle == "published-effects":
+             "the effects the block published, and it reproduced " &
+             $v.replay.effectsMatched & " of " &
+             $(v.replay.effectsMatched + v.replay.effectsMismatched) & " of them"
+           else: "the '" & t.validationOracle & "' oracle") & ". "
+    d.add "It was NOT checked against the block's state-tree roots, and " &
+          (if v.replay.rootsAgreeing == 0: "none of the "
+           else: $(v.replay.rootsTotal - v.replay.rootsAgreeing) & " of the ") &
+          $v.replay.rootsTotal & " roots the capture recorded agree with the " &
+          "chain's: " & v.replay.differingTrees.join(", ") & ". Replay hydrates " &
+          "only the leaves this execution touched, so the trees it rebuilds are " &
+          "sparse and their roots cannot equal a full block's — the surprising " &
+          "outcome would be a match. What that costs is narrow and worth " &
+          "stating: this recording is evidence about the execution, and not a " &
+          "proof of the block's resulting state."
+    result.scopeDetail = d
+  # …AND THE DIVERGENCE BANNER NAMES WHAT DIVERGED. It used to say a replay
+  # "disagreed with the chain's own result" and stop, on a transaction whose own
+  # published record names both disagreeing fields. The records are in
+  # `native.replay.effectMismatches`; where a capture predates them the count
+  # still reaches the sentence, so "two differed and the tree does not say which"
+  # is distinguishable from "none differed".
+  if result.integrity == siDivergent and v.replay.has:
+    var named: seq[string]
+    for m in v.replay.mismatches: named.add m.field
+    if named.len > 0:
+      result.integrityDetail.add " What differed: " & named.join(", ") & "."
+    elif v.replay.effectsMismatched > 0:
+      result.integrityDetail.add " " & $v.replay.effectsMismatched &
+        " published effect(s) differed; this capture does not record which."
 
 proc debugSessionFor*(r: DataRoot, chain, hash: string): DebugSessionView =
-  ## `debugSessionFor` for a caller that has not opened the chain — it opens
-  ## it, pins it, and hands the pin to the one above. One `openChain`, which
-  ## is what it always was; the overload exists so a caller that ALREADY has
-  ## the pin does not pay for a second one.
+  ## For a caller with no session in hand (a test, a tool, the home page's
+  ## featured-session walk). Opens the chain once.
   debugSessionFor(r, chainInfo(r, chain), hash)
 
 proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
@@ -254,6 +399,10 @@ proc demoSessionFor*(r: DataRoot): Option[DebugSessionView] =
     let info = chainInfo(r, chain)
     for h in blockHashes(r, info):
       for txh in readBlockDetail(r, info, h).transactions:
+        # The pin this walk already opened, not a fresh `openChain` per
+        # transaction: the home page's featured-session search visits every
+        # transaction of every block, so a slug here re-read `current.json`
+        # once per candidate.
         var s = debugSessionFor(r, info, txh)
         # `hasFrame`, not `phase == spReady`: the static route serves a
         # positioned frame with the replay engine still unfetched, and the
@@ -443,8 +592,12 @@ proc renderTxList*(r: DataRoot, chain: string, fromHeight: int): string =
     provenance = provenanceMarker(info))
 
 proc renderBlock*(r: DataRoot, info: ChainInfo, hash: string): string =
-  ## Renders from the generation `info` pins. See `renderRoute`'s note on why
-  ## the dispatcher opens the chain and every renderer below takes the pin.
+  ## TAKES THE PIN, NEVER RE-RESOLVES IT. See `renderRoute`'s "one open per
+  ## navigation" note: the dispatcher has already opened this chain to answer
+  ## whether the block exists, and a second `chainInfo` here would re-read
+  ## `current.json` inside one render — which is both a wasted round trip and
+  ## the one way `ChainInfo`'s "one rendered page cannot mix generations" can
+  ## be broken (existence checked in generation N, page rendered from N+1).
   let chain = info.slug
   let detail = readBlockDetail(r, info, hash)
   var txs: seq[TxRow]
@@ -475,6 +628,11 @@ proc renderBlock*(r: DataRoot, info: ChainInfo, hash: string): string =
     canonical = SiteDomain & "/" & chain & "/block/" & hash,
     provenance = provenanceMarker(info))
 
+proc renderBlock*(r: DataRoot, chain, hash: string): string =
+  ## For a caller with no session in hand (a test, a tool). Opens the chain
+  ## once and renders from that one pin.
+  renderBlock(r, chainInfo(r, chain), hash)
+
 proc addressCode(r: DataRoot, info: ChainInfo, address: string,
                  rows: seq[TxRow]): seq[SourceBundleView] =
   for h in codeHashesAt(r, info, address, rows):
@@ -483,6 +641,9 @@ proc addressCode(r: DataRoot, info: ChainInfo, address: string,
 proc renderAddress*(r: DataRoot, info: ChainInfo, address, segmentId: string): string =
   ## §9. One block-range segment of an address's history, with Debug on every
   ## row — and the code bound to the address, where any is.
+  ##
+  ## Takes the pin: see `renderBlock` above for why re-resolving it here would
+  ## be a second `current.json` read inside one render.
   let chain = info.slug
   let v = addressView(r, info, address, segmentId)
   let rows = addressRows(r, info, v)
@@ -504,8 +665,13 @@ proc renderAddress*(r: DataRoot, info: ChainInfo, address, segmentId: string): s
     canonical = SiteDomain & route,
     provenance = provenanceMarker(info))
 
+proc renderAddress*(r: DataRoot, chain, address, segmentId: string): string =
+  ## For a caller with no session in hand (a test, a tool).
+  renderAddress(r, chainInfo(r, chain), address, segmentId)
+
 proc renderAddressCode*(r: DataRoot, info: ChainInfo, address: string): string =
-  ## §10. The verified-source browser for the code at an address.
+  ## §10. The verified-source browser for the code at an address. Takes the
+  ## pin, for `renderBlock`'s reason.
   let chain = info.slug
   let v = addressView(r, info, address)
   let rows = addressRows(r, info, v)
@@ -527,6 +693,10 @@ proc renderAddressCode*(r: DataRoot, info: ChainInfo, address: string): string =
     robots = $routeClass(route),
     canonical = SiteDomain & route,
     provenance = provenanceMarker(info))
+
+proc renderAddressCode*(r: DataRoot, chain, address: string): string =
+  ## For a caller with no session in hand (a test, a tool).
+  renderAddressCode(r, chainInfo(r, chain), address)
 
 proc renderTx*(r: DataRoot, info: ChainInfo, hash: string): string =
   ## `/{chain}/tx/{hash}` — Page-Descriptions §7.0, whose whole point is that
@@ -561,6 +731,8 @@ proc renderTx*(r: DataRoot, info: ChainInfo, hash: string): string =
   ##     no JavaScript, so the frame served here is what every visitor sees,
   ##     and "no state renders less than the pre-hydration page" holds because
   ##     the pre-hydration page is all there is.
+  ##
+  ## Takes the pin: see `renderBlock` for why.
   let chain = info.slug
   let v = txView(r, info, hash)
   let short = hash[0 ..< min(10, hash.len)]
@@ -598,7 +770,12 @@ proc renderTx*(r: DataRoot, info: ChainInfo, hash: string): string =
       # the band rule objected to, wearing a smaller element.
       provenance = "")
 
+proc renderTx*(r: DataRoot, chain, hash: string): string =
+  ## For a caller with no session in hand (a test, a tool).
+  renderTx(r, chainInfo(r, chain), hash)
+
 proc renderDebug*(r: DataRoot, info: ChainInfo, hash: string): string =
+  ## Takes the pin: see `renderBlock` for why.
   let chain = info.slug
   let s = debugSessionFor(r, info, hash)
   debugLayout(
@@ -614,27 +791,8 @@ proc renderDebug*(r: DataRoot, info: ChainInfo, hash: string): string =
     # See `renderTx` above: this shell's provenance is the metadata pane's row.
     provenance = "")
 
-# ── the slug-taking overloads ──────────────────────────────────────────────
-#
-# Each opens the chain, pins it, and hands the pin to the renderer above. That
-# is ONE `openChain` and it is what these renderers always did; the pair exists
-# so that `renderRoute` — which has to open the chain anyway, to answer whether
-# the route exists at all — can render through the pin it already holds rather
-# than making the renderer resolve `current.json` a second time.
-
-proc renderBlock*(r: DataRoot, chain, hash: string): string =
-  renderBlock(r, chainInfo(r, chain), hash)
-
-proc renderAddress*(r: DataRoot, chain, address, segmentId: string): string =
-  renderAddress(r, chainInfo(r, chain), address, segmentId)
-
-proc renderAddressCode*(r: DataRoot, chain, address: string): string =
-  renderAddressCode(r, chainInfo(r, chain), address)
-
-proc renderTx*(r: DataRoot, chain, hash: string): string =
-  renderTx(r, chainInfo(r, chain), hash)
-
 proc renderDebug*(r: DataRoot, chain, hash: string): string =
+  ## For a caller with no session in hand (a test, a tool).
   renderDebug(r, chainInfo(r, chain), hash)
 
 proc renderNotFound*(r: DataRoot): string =
@@ -780,30 +938,6 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
   ## and `sitemapRoutes` enumerate from the tree, so every route exported or
   ## submitted carries an identifier the producer wrote. A hand-typed or
   ## externally-linked URL is what reaches the state above.
-  ##
-  ## ── THE CHAIN IS OPENED ONCE PER NAVIGATION, AND THE PIN IS WHAT IS PASSED
-  ##    DOWN ───────────────────────────────────────────────────────────────
-  ##
-  ## Every entity branch below has to open the chain before it can answer
-  ## whether the route exists at all — `hasBlock`, `hasTx` and
-  ## `addressSegmentPaths` each take a `ChainInfo`, because an object's NAME
-  ## depends on the chain's declared identifier encoding and that declaration
-  ## is in the session. So the branch opens it, and then renders through the
-  ## SAME `ChainInfo` rather than passing the slug on to a renderer that would
-  ## open it again.
-  ##
-  ## That is not an optimisation, it is the generation pin. `chainInfo`
-  ## resolves `d/{chain}/current.json` and pins the generation "for the rest of
-  ## this render"; two resolutions inside one navigation are two pins, and a
-  ## reorg landing between them produces a page whose EXISTENCE CHECK was
-  ## answered by one generation and whose CONTENT came from another — a block
-  ## that `hasBlock` found in generation 1 rendered from generation 2's height
-  ## map, with no `cdReorganisedAway` treatment on it because each half was
-  ## individually consistent. `test_explorer_breadth`'s "the pointer was read
-  ## once per navigation, not once per session" counts exactly this, and the
-  ## `MUTATION BITE` directly below it is why the answer is one read per
-  ## navigation and NOT a cached pointer: caching across navigations is what
-  ## §5.1 forbids, and it reinstates the stale render.
   let p = path.strip(chars = {'/'})
   if p.len == 0:
     return (200, renderHome(r), "text/html")
@@ -832,6 +966,23 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
       return (200, renderBlockList(r, parts[0], -1), "text/html")
     if parts[1] == "txs":
       return (200, renderTxList(r, parts[0], -1), "text/html")
+  # ── ONE OPEN PER NAVIGATION, AND THE PIN IS HANDED DOWN ───────────────────
+  #
+  # Every entity branch below needs the chain opened TWICE over — once to decide
+  # whether the object exists (that is what makes the branch a 200 rather than a
+  # 404) and once to render from. Both used to call `chainInfo`, so one
+  # navigation read `d/{chain}/current.json` twice: MEASURED on
+  # `/reorgchain/block/{hash}` as 18 object reads of which 4 were the second
+  # `openChain`'s (`current.json`, `g/{gen}/root.json`, `g/{gen}/summary.json`,
+  # `registry/chains.v1.json`), and the transaction routes read it three times
+  # because `debugSessionFor` opened it again under the renderer.
+  #
+  # That is not only a wasted round trip. `ChainInfo`'s contract is "one rendered
+  # page cannot mix generations" (`reader.nim`), and `session.nim` names the way
+  # it breaks: "a second component resolving the chain again". A publish that
+  # flipped the pointer between the two opens would check existence in one
+  # generation and render the page from the next. So the branch opens once and
+  # passes the pin to the renderer, which no longer resolves one of its own.
   of 3:
     case parts[1]
     of "block":
@@ -849,6 +1000,10 @@ proc renderRoute*(r: DataRoot, path: string): tuple[status: int, body: string, c
     else: discard
   of 4:
     if parts[1] == "tx" and parts[3] == "debug":
+      # Nested rather than one compound condition so the pin is opened once and
+      # is in scope for the renderer. A `tx/…/debug` path whose transaction is
+      # absent still falls through to the 404 below, exactly as it did: no `if`
+      # after this one matches `parts[1] == "tx"`.
       let info = chainInfo(r, parts[0])
       if hasTx(r, info, parts[2]):
         return (200, renderDebug(r, info, parts[2]), "text/html")

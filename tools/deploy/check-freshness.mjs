@@ -13,7 +13,7 @@
 // question. It asks: does every same-origin URL a published page names resolve
 // to non-empty bytes? That is an EXISTENCE claim, and existence is not
 // freshness. A publish tree carrying last week's `hydrate.js` under the right
-// name passes every one of A1–A5 — the reference resolves, the file is not
+// name passes every one of A1–A6 — the reference resolves, the file is not
 // empty, a page names it, the tree has an index. Every number it prints would
 // be a true number about the wrong bytes.
 //

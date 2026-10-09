@@ -644,7 +644,7 @@ Exact `client/Justfile` targets (run from `client/`; verified):
 
 | Command | What it does |
 |---------|--------------|
-| `cd client && just test` | every `test-*` target in `client/Justfile` — read the `test:` line there rather than this cell, which listed four of the ten |
+| `cd client && just test` | every `test-*` target in `client/Justfile` — **fifteen** of them. Read the `test:` line there rather than this cell, which listed four of them and then said "of the ten". The repository root's `just test` now DELEGATES to this recipe rather than naming a subset: it used to name three of the fifteen, and the twelve it omitted included `test-instruction-listing`, which carries the strongest landing assertions here. A membership list kept in two files diverged three separate times, so there is now one list and it is the `test:` line in `client/Justfile` |
 | `cd client && just test-instruction-listing` | `tests/test_instruction_listing.nim` — the Code pane's honest floor, over the COMMITTED captures through the real producers. A recording no source resolved for renders the program counters it carries; the mnemonics are earned per recording (the opcode table must reproduce that recording's own program counters or the rows show numbers); exactly one row is marked and it is the step the toolbar counts; no branch glyph and no lexer reaches a listing; a source-level session is untouched; and the island a hydrated session re-renders from carries the whole listing rather than the served window |
 | `cd client && just test-explorer-breadth` | `tests/test_explorer_breadth.nim` — M9's three verifications (renders from published files only, pointer objects are not cached across navigations, address history pages with constant per-page cost) plus the two product rules over EVERY rendered page. Built `-d:release`: one case walks a synthetic address of 100,000 transactions from its first page to its last |
 | `cd client && just test-debug-route` | `tests/test_debug_route.nim` — M8a/M8b: the route, the arrangement against `LayoutNode`, the source renderer's stable line ids, §7.0's availability-decides-the-landing rule, and the stored crawl-surface baseline. No debugger on the Nim path |
@@ -789,3 +789,79 @@ sudo and GARM through a `super-admins`-scoped passwordless `garm-admin` wrapper.
 hold production credentials; this host is a deliberate, operator-approved
 exception, written down so a future reader knows it was chosen and not
 overlooked.
+
+## 7. Private repositories in CI — the mechanism, and why nothing here uses it
+
+**Added 2026-10-01.** Recorded because the absence looks like an oversight and
+is not, and because an agent that hits a `Repository not found` here will
+otherwise rediscover the whole thing from a stale PR's logs, as I did.
+
+### Nothing this repository fetches is private
+
+Measured 2026-10-01 — all eight flake inputs answer `"private": false`:
+
+```
+metacraft-labs/aztec-avm-runtime      metacraft-labs/isonim
+metacraft-labs/codetracer             metacraft-labs/nim-everywhere
+metacraft-labs/codetracer-design-system   NixOS/nixpkgs
+metacraft-labs/codetracer-trace-format    numtide/flake-utils
+```
+
+CI clones no sibling, checks out no submodule, and references no app token.
+The one private repo anywhere near this tree is
+`metacraft-labs/tree-sitter-nim`, reachable only through **codetracer's**
+`.gitmodules`, and `flake.nix` pins that input `submodules=0` precisely so it
+is never fetched — with the measurement that nothing here reads anything under
+`libs/`, and the built site differs in one file of 932.
+
+So the app-token plumbing below is **deliberately not wired into any job**.
+Adding it would make six currently-passing jobs depend on a GitHub App
+installation for no present benefit, and a missing or mis-scoped installation
+would fail them.
+
+### If that stops being true
+
+The mechanism is the one codetracer uses, and the two secrets it needs
+(`CI_TOKEN_PROVIDER_APP_ID`, `CI_TOKEN_PROVIDER_PRIVATE_KEY`) are **already
+provisioned on this repository** — unused, which is why they are easy to miss.
+
+```yaml
+- id: app-token
+  uses: actions/create-github-app-token@v1
+  with:
+    app-id: ${{ secrets.CI_TOKEN_PROVIDER_APP_ID }}
+    private-key: ${{ secrets.CI_TOKEN_PROVIDER_PRIVATE_KEY }}
+
+- uses: actions/checkout@v4
+  with:
+    submodules: recursive              # only if you actually need them
+    token: ${{ steps.app-token.outputs.token }}
+```
+
+Note `secrets.` for the app id here. codetracer reads it from `vars.`; on this
+repository it is a secret, and `vars.CI_TOKEN_PROVIDER_APP_ID` is empty, which
+fails as an unhelpful "app id not provided".
+
+For a **nix** fetch of a private input — the case that would arise if the
+codetracer pin ever went back to `submodules=1` — the token has to reach nix,
+not just git. codetracer's GitLab CI does this, and the Actions equivalent is:
+
+```yaml
+- run: |
+    mkdir -p ~/.config/nix
+    echo "access-tokens = github.com=${{ steps.app-token.outputs.token }}" >> ~/.config/nix/nix.conf
+```
+
+`git config --global url."https://x-access-token:$TOKEN@github.com/".insteadOf`
+covers the `git@github.com:`, `ssh://git@github.com/` and `https://github.com/`
+forms, and is what codetracer uses for submodule URLs that are not HTTPS.
+
+### What NOT to conclude from a red check
+
+A `tree-sitter-nim` "Repository not found" in a CI log is almost certainly a
+**stale** result from a branch that predates `3a405f9` (*"flake: stop fetching
+codetracer's submodules, one of which is a private repo"*). `gh pr checks`
+reports the last verdict a branch produced, not a current one — PRs #22 and #23
+carried such results from 2026-09-28 and were closed as superseded on
+2026-10-01. Check the result's date and whether the branch contains `3a405f9`
+before treating it as a live blocker.

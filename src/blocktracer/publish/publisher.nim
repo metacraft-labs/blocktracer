@@ -365,6 +365,38 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
     for it in batch: confirmed.add it.key
     batch.setLen 0
 
+  # ── THE OBJECT'S OWN ENCODING, READ FROM ITS OWN MANIFEST (CCP-6) ─────────
+  #
+  # A container stored pre-compressed must be uploaded with the matching
+  # `Content-Encoding` as object metadata, and the one place that fact is written
+  # down is the `manifest.json` sitting beside it — the same document a consumer
+  # reads it from, which is what keeps the two from disagreeing. There is no
+  # tree-level marker on purpose: a second copy of the fact is a second thing to
+  # go stale, and §2.8's determinism model already treats `t/**` as addressed by
+  # its inputs.
+  #
+  # AN UNREADABLE MANIFEST RAISES, and it does not return "". That would be the
+  # permissive default this campaign has now named four times, and here it is the
+  # most expensive form of it: the object would be uploaded with its compressed
+  # bytes and no header, which is the one state no consumer can parse and none
+  # can diagnose.
+  proc encodingOf(key: string): string =
+    if classOf(key) != ocTraceContainer: return ""
+    let mpath = treeDir / key.parentDir / "manifest.json"
+    if not fileExists(mpath):
+      # Rank order puts the manifest in the same tree as the container, on disk,
+      # whatever the upload order is — so its absence is a malformed tree and not
+      # a race. `validateTree` says so too; this says it before anything is sent.
+      raise newException(CatchableError,
+        "refusing to upload " & key & ": no manifest.json beside it, so whether the " &
+        "object carries a Content-Encoding cannot be known. An object uploaded with " &
+        "compressed bytes and no header is unparseable by every consumer")
+    let m = parseJson(readFile(mpath))
+    m{"container"}{"encoding"}.getStr("")
+
+  proc item(key, srcPath: string): BulkItem =
+    BulkItem(key: key, srcPath: srcPath, contentEncoding: encodingOf(key))
+
   for key in keys:
     let cls = classOf(key)
     if cls == ocCurrent:
@@ -401,7 +433,7 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
             # objects it is stopping among are new or superseded.
             if opts.maxContentUploads > 0 and contentPuts >= opts.maxContentUploads:
               halted = true; break
-            batch.add BulkItem(key: key, srcPath: srcPath)
+            batch.add item(key, srcPath)
             inc contentPuts
             result.contentRefreshed.add key
         else:
@@ -409,7 +441,7 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
       else:
         if opts.maxContentUploads > 0 and contentPuts >= opts.maxContentUploads:
           halted = true; break
-        batch.add BulkItem(key: key, srcPath: srcPath)
+        batch.add item(key, srcPath)
         inc contentPuts
         result.contentUploaded.add key
     of stContentHash:
@@ -438,7 +470,7 @@ proc publishChain*(store: ObjectStore, treeDir, chain: string,
       else:
         if opts.maxContentUploads > 0 and contentPuts >= opts.maxContentUploads:
           halted = true; break
-        batch.add BulkItem(key: key, srcPath: srcPath)
+        batch.add item(key, srcPath)
         inc contentPuts
         result.contentUploaded.add key
     of stUnconditional:

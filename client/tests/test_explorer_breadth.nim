@@ -769,6 +769,13 @@ suite "M9 — test_pointer_objects_are_not_cached_across_navigations":
     var pointerReads = 0
     for path in log.paths:
       if path == "d/" & RChain & "/current.json": inc pointerReads
+    # TWO navigations, ONE open each. It was FOUR until `renderRoute` began
+    # handing the pin it opened for the existence gate to the renderer instead
+    # of letting the renderer open the chain a second time — see `ssr.nim`'s
+    # "ONE OPEN PER NAVIGATION" note. The full ordered read log for this store
+    # is 28 paths, 14 per navigation; it was 36 before, and the four it lost
+    # were the second `openChain`'s `root.json`, `summary.json` and registry
+    # read on each navigation plus the duplicate pointer read itself.
     check pointerReads == 2
 
   test "MUTATION BITE: caching the pointer reinstates the stale render":

@@ -1285,10 +1285,14 @@ type
     started: bool            ## the DAP handshake has been issued
     live: bool               ## the engine has answered and the panes are live
     sourceFilesGiven: int    ## files of the recording's source put in the VFS
-      ## Zero is a legitimate answer and a load-bearing one. A chain capture
-      ## publishes no source (`sourceBundles` empty, `execution.sourceLevel`
-      ## false on all eight in the corpus), so its island is empty and the
-      ## origin classifier necessarily has nothing to parse. Recording the
+      ## Zero is a legitimate answer and a load-bearing one. Most chain captures
+      ## publish no source, so the island is empty and the origin classifier
+      ## necessarily has nothing to parse. Re-counted over `client/dist`: the
+      ## corpus holds TEN chain captures, not eight; `execution.sourceLevel` is
+      ## false on all ten, and `sourceBundles` is empty on EIGHT of them — the
+      ## other two declare a bundle, because a partly-positioned recording may
+      ## publish its text while still refusing the all-or-nothing claim.
+      ## Recording the
       ## count keeps "the chain found nothing" distinguishable from "the engine
       ## was never given a line", which are different sentences to put in front
       ## of a visitor and were previously the same one.

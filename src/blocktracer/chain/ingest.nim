@@ -94,6 +94,7 @@
 
 import std/[json, os, algorithm, strutils, tables, times]
 import ../contract/[model, ids, version, identifier_encoding, chain_profile]
+import ../publish/encoding
 import ./refusal_reasons
 import ./snapshot_format
 import ./contract_rules
@@ -178,14 +179,69 @@ type
     ## transaction is still said, still tested, and still what this ingest emits
     ## the moment the scope is `isFull` — which is the scope
     ## `test_chain_provenance` grades those states in.
+    ## `isCuratedIfWhole` IS THE ANSWER FOR A BUILD THAT CANNOT CHOOSE IN
+    ## ADVANCE, and it exists because the two above are a decision about a
+    ## CAPTURE being taken by a file that only knows about a DIRECTORY.
+    ##
+    ## `static_export.nim` runs one scope over every capture in the tree. Under
+    ## `isCurated` a capture that has no window in which every transaction opens
+    ## does not publish a smaller chain — it FAILS THE WHOLE SITE BUILD, with a
+    ## message whose own prescribed remedy ("ingest this capture with
+    ## scope=isFull") names an option the site build does not offer. Measured
+    ## 2026-10-08 on the Ethereum mainnet capture, which is one block holding 208
+    ## transactions of which the replay reached one: `just export` aborted at
+    ## `ingest.nim(1390)` and published nothing, including the three chains that
+    ## were already fine.
+    ##
+    ## That is the sentence "a second real chain is a directory, not a code
+    ## change" failing by exactly one line, and the line is this enum. A
+    ## single-transaction-per-block chain satisfies `isCurated` by accident of
+    ## its block shape; a chain whose blocks settle two hundred transactions
+    ## cannot, however good its recordings are.
+    ##
+    ## So this member asks the question the two above assume the answer to: CAN
+    ## the curated promise be kept over this capture? It is decided where both
+    ## facts already sit — the window, and the outcomes inside it — and the
+    ## fallback is `isFull`, which is the remedy the refusal already prescribed.
+    ## `IngestResult.scope` reports what was CHOSEN and `scopeFellBack` says
+    ## whether a choice was made, so a build log cannot quietly change what a
+    ## chain publishes.
+    ##
+    ## IT IS NOT A SOFTER `isCurated`. Nothing about the published rows changes:
+    ## a capture for which the curated promise holds publishes exactly the
+    ## curated tree, byte for byte, and one for which it does not publishes
+    ## exactly the full tree — including every honest sentence `isFull` has
+    ## always written about a transaction it could not replay.
     isFull = "full"
     isCurated = "curated"
+    isCuratedIfWhole = "curatedIfWhole"
 
   IngestConfig* = object
     outDir*: string       ## the tree being written (shared with the demo generator)
     snapshotDir*: string  ## a directory holding snapshot.json and ct/
     generation*: string   ## "" => "1"
     scope*: IngestScope   ## see `IngestScope`; the zero value is `isFull`
+    containerEncoding*: ContainerEncoding
+      ## ── HOW `/t/**/trace.ct` IS STORED (CCP-6) ─────────────────────────────
+      ##
+      ## `ceIdentity`, the zero value, writes the container's own bytes and the
+      ## manifest carries no encoding field — byte-identical to every tree this
+      ## repository has ever published.
+      ##
+      ## `ceBrotli` writes the object PRE-COMPRESSED and records
+      ## `container.encoding` / `storedBytes` / `storedHash` beside the raw
+      ## figures, so the bytes are compressed AT REST and transparent in the
+      ## browser rather than one or the other.
+      ##
+      ## THE DEFAULT IS NOT TIMIDITY AND IT IS THIS CAMPAIGN'S OWN RULE.
+      ## `ctfs-container.md` §1c: reader support ships everywhere before any
+      ## writer emits it. Storing compressed bytes is correct only once the
+      ## delivery layer SERVES the `Content-Encoding` — DEL-1b's work, measured
+      ## not to exist today (no `_headers`, `_routes.json`, `_redirects` or
+      ## `cloudflare_ruleset` anywhere in this tree or in `infra`; §4.1 item 8
+      ## measured `identity` and `--compressed` byte-identical with the same
+      ## sha256). Flipping this before that lands would hand compressed bytes to
+      ## every existing consumer with nothing telling them so.
 
   IngestResult* = object
     chain*: string
@@ -203,6 +259,13 @@ type
     observedBlocks*: int
     observedTransactions*: int
     windowFrom*, windowTo*: int
+    scopeFellBack*: bool
+      ## Whether `isCuratedIfWhole` CHOSE `isFull` because the curated promise
+      ## could not be kept over this capture. False both when the scope was
+      ## stated outright and when the probe found the promise holds, which are
+      ## two different things that a caller can tell apart by reading `scope` —
+      ## what this field adds is "a decision happened here", which is the part a
+      ## build log must not be silent about.
 
 const
   # THE SLUG IS DATA, NOT A CONSTANT. It comes out of the snapshot's provenance,
@@ -1333,7 +1396,45 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   var window = CurationWindow(lo: (if allHeights.len > 0: allHeights[0] else: 0),
                               hi: (if allHeights.len > 0: allHeights[^1] else: 0),
                               found: true, why: "")
-  if cfg.scope == isCurated:
+
+  # ── `isCuratedIfWhole`: ASK WHETHER THE CURATED PROMISE CAN BE KEPT ────────
+  #
+  # Decided HERE and not inside `curationWindow`, for the reason the invariant
+  # re-check below gives about itself: the promise is a property of the window
+  # AND of the outcomes inside it, and `curationWindow` sees only heights. A
+  # capture whose blocks each settle one transaction gets `isCurated`; one whose
+  # blocks settle many gets `isFull`, which is the remedy the two refusals below
+  # already prescribe in words.
+  #
+  # THE PROBE IS THE REFUSALS' OWN PREDICATE, run without raising. Writing it as
+  # a second rule would be a second answer to "is this capture curatable", and
+  # the two would drift the first time either refusal moved — so the same two
+  # conditions are asked, in the same order, and the ONLY difference is that
+  # this one answers in data.
+  #
+  # `curationWindow` is therefore called twice on the path that probes, and that
+  # is deliberate rather than overlooked: it is a pure function of four seqs
+  # called with the same four, so the probe and the binding below cannot come to
+  # different answers. Hoisting it would put the window in scope before the
+  # scope that decides whether there IS one.
+  var scope = cfg.scope
+  var scopeFellBack = false
+  if cfg.scope == isCuratedIfWhole:
+    let probe = curationWindow(allHeights, recordedHeights, tracelessHeights,
+                               positionedHeights)
+    var whole = probe.found
+    if whole:
+      for t in snap["transactions"]:
+        let h = t["blockNumber"].getInt
+        if h < probe.lo or h > probe.hi: continue
+        let o = t["outcome"].getStr
+        if o != "replayed" and o != "divergent":
+          whole = false
+          break
+    scope = if whole: isCurated else: isFull
+    scopeFellBack = not whole
+
+  if scope == isCurated:
     window = curationWindow(allHeights, recordedHeights, tracelessHeights,
                             positionedHeights)
     if not window.found:
@@ -1359,7 +1460,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # that is precisely the thing a curated build promises does not happen. It is
   # cheap and it is at the composition of the two facts — the window and the
   # outcomes — rather than inside the proc that produced only one of them.
-  if cfg.scope == isCurated:
+  if scope == isCurated:
     for t in snap["transactions"]:
       let h = t["blockNumber"].getInt
       if h < window.lo or h > window.hi: continue
@@ -1669,6 +1770,23 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         "effectsMatched": orNull(t["effects"]{"matched"}),
         "effectsMismatched": orNull(t["effects"]{"mismatched"}),
         "effectsReproduced": orNull(t["effects"]{"reproduced"}),
+        # WHICH EFFECTS DIFFERED, not merely how many — republished verbatim as
+        # the capture wrote them, `{field, published, replayed, matches}` apiece.
+        #
+        # The COUNT was already here and the RECORDS were being dropped in
+        # transit, on the one transaction in the corpus that has any: the
+        # divergence banner told a reader the replay "disagreed with the chain's
+        # own result" while the capture beside it named `transactionFee` and
+        # `publicDataWrites[2].value` and gave both readings of each. A banner
+        # that cannot say what differed asks a reader to take the disagreement on
+        # trust, which is the opposite of what a differential oracle is for.
+        #
+        # ABSENT IS VALID and is not the same as empty. A capture written before
+        # this key still publishes `effectsMismatched`, so "two differed and this
+        # tree does not record which" stays distinguishable from "none differed"
+        # (`reader.replayScope`, `ssr.debugSessionFor`). `orNull` is what makes
+        # the absence a value rather than a nil dereference inside `pretty`.
+        "effectMismatches": orNull(t["effects"]{"mismatches"}),
         # THE ROOTS DELIBERATELY DO NOT AGREE, and the divergence travels into
         # the tree rather than being dropped in transit. Replay hydrates only the
         # leaves the execution touched, so the trees it rebuilds are sparse and
@@ -1813,7 +1931,50 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           " states containerBytes " & $t["containerBytes"].getInt & " and its container at " &
           (cfg.snapshotDir / t["container"].getStr) & " is " & $ctBytes.len &
           " bytes. " & ruleStatement("S5-CONTAINER-BYTES"))
-      cfg.writeBytes(dir / "trace.ct", ctBytes)
+      # ── DOUBLE ENCODING IS REFUSED, AND THE RULE IS CONDITIONAL (CCP-6) ─────
+      #
+      # The snapshot's `ct/` holds what the RECORDER wrote, and pre-compression is
+      # a PUBLICATION step. Hand this reader an already-encoded object while
+      # publication is set to encode and it compresses it a second time, writing a
+      # manifest that describes the inner stream as the raw container. The length
+      # check above cannot see it: `containerBytes` is measured against the same
+      # file, so it agrees.
+      #
+      # IT IS CONDITIONAL ON THE PUBLICATION ENCODING AND ON NOTHING ELSE, which
+      # is what the shipped conformance template forced and is worth recording
+      # rather than discovering twice. The first version of this check demanded
+      # the CTFS magic unconditionally — and
+      # `conformance-kit/template/complete/ct/*.ct` are 229-byte ASCII
+      # placeholders with no magic at all, deliberately, so `just conformance`
+      # with no argument (the kit checking itself) would have been refused by a
+      # rule invented to catch a hazard that does not exist under identity. A
+      # snapshot container under identity is whatever the producer wrote; this
+      # reader has never claimed otherwise and must not start here.
+      if cfg.containerEncoding != ceIdentity and not looksLikeContainer(ctBytes):
+        raise newException(ValueError,
+          RuleContainerNotPreEncoded &
+          "the snapshot's container for " & shortHash(txHash) & " at " &
+          (cfg.snapshotDir / t["container"].getStr) &
+          " does not begin with the container magic, and this publication is set to store " &
+          "containers with Content-Encoding '" & $cfg.containerEncoding & "'. " &
+          "Compressing it again would publish a manifest describing the inner stream " &
+          "as the raw container, and nothing downstream could tell. A recorder writes a " &
+          "CONTAINER here; pre-compression is a publication step. " &
+          ruleStatement("S5-CONTAINER-NOT-PREENCODED"))
+      # ── THE OBJECT AT REST, WHICH MAY BE THE COMPRESSED ONE (CCP-6) ─────────
+      #
+      # `ctBytes` stays the RAW container everywhere below: it is what
+      # `container.bytes` / `container.hash` describe, what a negotiating consumer
+      # holds, and what the format reader parses. `storedCt` is what goes on disk.
+      # Two names because they are two facts, and because the campaign that added
+      # this spent its first two weeks with "at rest", "on the wire" and "as the
+      # loader sees it" sharing one.
+      let encoded = encodeContainer(ctBytes, cfg.containerEncoding)
+      if not encoded.ok:
+        raise newException(ValueError,
+          "cannot publish the container for " & shortHash(txHash) & ": " & encoded.why)
+      let storedCt = encoded.data
+      cfg.writeBytes(dir / "trace.ct", storedCt)
 
       # ---- the source bundles, when the recording measured itself as source
       # level ---------------------------------------------------------------
@@ -2285,11 +2446,26 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         recorder: txRRef, profile: pRef,
         # EMPTY IS THE HONEST ANSWER FOR A RUNG-3 RECORDING, and it is empty by
         # construction rather than by decision: `bundles` is only ever filled on
-        # the branch above, which cannot be taken unless the capture measured
-        # `sourceLevel` true AND a bundle file with contents was found for it.
+        # the branch above, which cannot be taken unless a bundle file with
+        # contents was found for a recording that either measured `sourceLevel`
+        # true or POSITIONED SOME OF ITS STEPS. (That comment said "measured
+        # `sourceLevel` true" alone and had gone stale: the third arm — a live
+        # capture that placed 86 of 108 steps — was added to the gate above and
+        # not to this sentence, which is why `languages` below was still keyed on
+        # the wrong one of the two.)
         sourceBundles: bundles,
-        container: ContainerRef(file: "trace.ct", bytes: ctBytes.len,
-                                blockSize: 4096, hash: contentHashSha1(ctBytes)),
+        # `bytes`/`hash` are the RAW container — what the loader sees. The three
+        # stored-* fields are the object at rest and are OMITTED under identity,
+        # so this manifest is byte-identical to the one this line wrote before
+        # CCP-6 unless pre-compression was asked for. See `ContainerRef`.
+        container: ContainerRef(
+          file: "trace.ct", bytes: ctBytes.len,
+          blockSize: 4096, hash: contentHashSha1(ctBytes),
+          encoding: (if cfg.containerEncoding == ceIdentity: ""
+                     else: $cfg.containerEncoding),
+          storedBytes: (if cfg.containerEncoding == ceIdentity: 0 else: storedCt.len),
+          storedHash: (if cfg.containerEncoding == ceIdentity: ""
+                       else: contentHashSha1(storedCt))),
         execution: ExecutionSummary(
           steps: t["recording"]["steps"].getInt,
           frames: t["recording"]{"callsOpened"}.getInt,
@@ -2302,9 +2478,30 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
           # and the source pane is held on the instruction-level floor in every
           # other case.
           sourceLevel: measuredSourceLevel,
-          # The language is named only when there are positions to attach it to,
-          # and it is the language the BUNDLES state rather than one named here.
-          languages: (if measuredSourceLevel: bundleLanguages else: @[])),
+          # THE LANGUAGES THE BUNDLES THIS MANIFEST POINTS AT CARRY — exactly
+          # that set, which is what `Data-Contract.md` §5.3 requires of the
+          # field, and nothing else.
+          #
+          # It was `if measuredSourceLevel: bundleLanguages else: @[]`, and the
+          # gate was the wrong one. `measuredSourceLevel` is the capture's
+          # all-or-nothing bit — every executed step of every contract
+          # positioned — which no real chain capture sets; `bundleLanguages` is
+          # collected above as the bundles are WRITTEN, so it is non-empty
+          # exactly when this manifest names a bundle. The two came apart the
+          # moment a partly-positioned recording was allowed to publish its
+          # text: `sourceBundles` named a 32-file Noir bundle whose own
+          # `language` is `"noir"`, and the manifest three lines below it
+          # declared `languages: []`. A manifest that points at a bundle and
+          # denies knowing what language it is written in is the field saying
+          # the opposite of its own evidence.
+          #
+          # THE EMPTY DIRECTION IS UNCHANGED AND STILL REACHABLE, which is what
+          # keeps this from being a blanket claim: a recording with no bundle
+          # publishes `[]` because `bundleLanguages` is empty, and a bundle whose
+          # producer states no language contributes nothing to it (see
+          # `bundleLanguages` at its accumulation site). So "the reader names
+          # none" is still visible in the published object.
+          languages: bundleLanguages),
         validation: ValidationSummary(
           status: (if reproduced: vsMatch else: vsDivergent),
           strength: matched),
@@ -2857,7 +3054,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # a check has to read prose to learn a fact. The published set and the set
       # it was chosen out of are both here, so "is this chain curated, and out of
       # what" is answered by the tree.
-      "scope": $cfg.scope,
+      # THE SCOPE WRITTEN HERE IS THE ONE THAT WAS APPLIED, never the one that
+      # was asked for. Under `isCuratedIfWhole` those differ, and a tree that
+      # published every transaction while declaring `curatedIfWhole` would be a
+      # tree whose own statement about itself needed a second lookup to
+      # interpret. `curatedIfWhole` is a BUILD's instruction and never a
+      # published value; `scopeFellBack` on the result is where a build log
+      # learns a choice was made.
+      "scope": $scope,
       "publishedWindow": {"from": window.lo, "to": window.hi},
       "observedBlocks": observedBlocks,
       "observedTransactions": observedTransactions,
@@ -2927,7 +3131,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     "head": {"height": headB.height, "hash": headB.hash},
     "finalized": {"height": finalizedHeight, "hash": finalizedHash}})
 
-  IngestResult(chain: chain, scope: cfg.scope,
+  IngestResult(chain: chain, scope: scope, scopeFellBack: scopeFellBack,
                blocks: blockRows.len, transactions: txCount,
                withTrace: withTrace, divergent: divergentCount,
                pruned: prunedCount, containerBytes: totalContainerBytes,

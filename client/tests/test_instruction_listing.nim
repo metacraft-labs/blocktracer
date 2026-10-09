@@ -29,6 +29,10 @@ import std/[unittest, os, json, strutils, algorithm, tables]
 
 import ../src/ssr
 import ../src/reader
+# For `unpositionedCauseNote`, whose three refusals suite 7 drives directly: the
+# rule that decides whether the Code pane grows a cause caption lives with the
+# prose it gates, so that is where it has to be exercised.
+import ../src/viewutil
 import ../src/debugger/avm_opcodes
 import ../src/debugger/demo_session
 import ../src/debugger/instruction_listing
@@ -145,6 +149,37 @@ proc occurrences(hay, needle: string): int =
     if j < 0: break
     inc result
     i = j + needle.len
+
+const RawOpen = "<pre class=\"raw\">"
+
+proc outsideRaw(html: string): string =
+  ## The document with every `<pre class="raw">…</pre>` region deleted.
+  ##
+  ## ## Why a whole class of finding needs this helper
+  ##
+  ## This repository's recurring defect is not a false sentence. It is a TRUE,
+  ## specific, important fact that is published, reachable, and legible only
+  ## inside the collapsed "Raw (chain-native)" JSON — so a check of the form
+  ## `fact in html` passes on a page where no visitor will ever read it. It has
+  ## happened twice: the four disagreeing state-tree roots (outside the raw block
+  ## the words "divergent" and "disagree" occurred three times per page and all
+  ## three were in stylesheet comments), and then `contractRungs[1]`, which
+  ## explained 81% of one recording's execution from inside the same `<pre>`.
+  ##
+  ## So "the page says it" is asserted against THIS, never against `html`. A
+  ## renderer that reverts to printing the fact only in the JSON fails here and
+  ## passes every `in html` check ever written.
+  ##
+  ## Deleting rather than locating: a document may hold several raw blocks (the
+  ## transaction payload and the receipt are two), and "before the first one" is
+  ## not the same region as "outside all of them".
+  result = html
+  while true:
+    let start = result.find(RawOpen)
+    if start < 0: break
+    let stop = result.find("</pre>", start)
+    doAssert stop > start, "an unterminated " & RawOpen & " in the rendered page"
+    result = result[0 ..< start] & result[stop + "</pre>".len .. ^1]
 
 # ---------------------------------------------------------------------------
 
@@ -585,13 +620,37 @@ suite "4 — the prose sits beside the listing, and says what is true now":
                                    suffix).body
             ck "no debug symbols, no file map and no source text" notin body
             ck "The chain publishes no source for this contract" notin body
+            # AND IT NAMES NO CHAIN. Added 2026-10-08 with the sentence it
+            # grades. The previous wording said "Aztec publishes a commitment
+            # to a contract's compiled artifact", and this constructor serves
+            # every chain: the first Ethereum mainnet transaction ingested into
+            # this tree rendered that sentence on a USDT transfer. The arm is
+            # written as an absence over the SERVED BODY of every transaction
+            # of every chain in the tree, because the defect was not that the
+            # sentence was unreachable — it was reachable and correct here, and
+            # false one chain over.
+            # THE RETIRED CLAUSE AND NOT THE WORD "Aztec". The first draft of
+            # this arm banned `"Aztec publishes"` and bit immediately — on
+            # `demo_session.nim`'s OTHER Aztec sentence, "the variable table is
+            # empty — Aztec publishes these contracts compiled without variable
+            # debug information", which is reached only where an Aztec
+            # artifact's symbols DID resolve and is true where it appears. A ban
+            # wide enough to catch a correct sentence is a ban that gets
+            # loosened later by whoever is in a hurry.
+            ck "Aztec publishes a commitment" notin body
 
   test "what it says instead is about THIS recording, and names the route out":
     for s in subjects:
       let body = debugBody(s)
       ck body.contains("No source resolved for the code this transaction ran")
-      ck body.contains("commitment to a contract's compiled artifact")
-      ck body.contains("fetched off-chain and checked against that commitment")
+      # CHANGED 2026-10-08, and the expectation was STALE rather than the code
+      # wrong: these three clauses pinned a sentence that named Aztec, and the
+      # thing they were really grading — that the pane explains the gap in
+      # terms of a mechanism rather than declaring the source nonexistent — is
+      # graded by the chain-neutral wording just as well. See
+      # `demo_session.nim`'s note at the sentence itself.
+      ck body.contains("publishes the bytecode that ran and not the source")
+      ck body.contains("obtained separately and proved against that bytecode")
       ck body.contains("which has not happened for this contract")
       ck body.contains("Stepping is complete")
 
@@ -611,7 +670,19 @@ suite "4 — the prose sits beside the listing, and says what is true now":
     ck occurrences(html, "class=\"srcpos\"") == 1
 
   test "assertion count":
-    expectCount(4172)
+    # 4172 -> 6116 on 2026-10-09, and the whole delta is ONE new assertion
+    # multiplied by the walk it sits in. The retired-claim arm above walks every
+    # (chain, block, transaction, route) quadruple in the tree and carried two
+    # absences per quadruple; it now carries three. So the previous
+    # contribution was 2N and the new one is 3N, the delta IS N, and N = 6116 -
+    # 4172 = 1944 — 972 published (chain, block, transaction) triples at two
+    # routes each (`/tx/<h>` and `/tx/<h>/debug`).
+    #
+    # The figure is RAISED and no assertion was removed to pay for it. The new
+    # absence is "Aztec publishes a commitment" — a sentence that was correct on
+    # the chain it was written for and false on the first Ethereum transaction
+    # this tree ingested; see `demo_session.nim` at the sentence itself.
+    expectCount(6116)
 
 suite "5 — source and instructions coexist; neither is hard-coded":
   asserted = 0
@@ -929,27 +1000,54 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
        pane.documents[0].lines[0].number
 
   test "MUTATION BITE: a landing past the end of the recording is corrected":
-    # `entryStepWithin` lands a trace shorter than the fixture's step on `steps`
-    # itself, which under the session's zero-based numbering is one PAST the end.
-    # The listing is the only place that knows how long the recording is, so it
-    # is where the landing is resolved — and the session's own coordinate is
-    # corrected with it, because a page may not report a position outside its own
-    # recording.
+    # WHAT THIS ARM USED TO PROVE, AND WHY ITS SUBJECT IS GONE.
+    #
+    # `entryStepWithin` landed a trace shorter than the fixture's step on
+    # `steps` itself, which under the session's zero-based numbering is one PAST
+    # the end, and the clamp here corrected it. The arm's own premise was
+    # `found > 0` — "the capture HAS a recording short enough for the landing
+    # rule to overshoot".
+    #
+    # `chainEntryStep` removed the overshoot at its source: a chain recording
+    # now lands at the FRONT of its own stream and the producers move it forward
+    # to the first row they have, so no chain landing can be past the end and
+    # `found` would be 0 on every subject. Keeping `found > 0` would have turned
+    # a fixed defect into a red gate; deleting the arm would have dropped the
+    # invariant with the defect. So the invariant stays and the CLAMP is
+    # exercised directly, on a coordinate this route really can be handed — an
+    # explicit `?t=` past the end, which is a visitor's URL and not a landing
+    # rule and is still clamped here.
     ck subjects.len > 0
-    var found = 0
     for s in subjects:
       let session = debugSessionFor(root, s.chain, s.tx)
       ck session.controls.step < s.steps       # never past the end
       ck session.timeCoordinate == session.controls.step
-      if session.controls.step == s.steps - 1 and s.steps < 128: inc found
+      # …and it is the FRONT, which is what the landing rule now says.
+      ck session.controls.step == 0
       # …and the row it names exists and is marked.
       var marked: seq[int]
       for ln in session.editor.documents[0].lines:
         if ln.current: marked.add ln.number
       ck marked == @[session.controls.step]
-    # The capture HAS a recording short enough for the landing rule to overshoot,
-    # so this is not a rule with no subject.
-    ck found > 0
+    # THE CLAMP ITSELF, exercised on the shipped proc. A hydrated session, or a
+    # `?t=` a visitor typed, can still hand this route a tick outside the
+    # recording, and the correction has to stay — so the subject is a real
+    # session with its coordinate moved past the end and nothing else changed.
+    var clamped = 0
+    for s in subjects:
+      let info = chainInfo(root, s.chain)
+      let tv = traceView(root, info, s.tx)
+      var over = debugSessionFor(root, s.chain, s.tx)
+      # Back to the pre-listing state, then past the end.
+      over.editor = EditorPane(availability: srcUnverified)
+      over.controls.step = s.steps + 7
+      over.timeCoordinate = s.steps + 7
+      ck over.controls.step >= s.steps        # the input really is past the end
+      withInstructionListing(over, tv.instructions)
+      if over.controls.step == s.steps - 1 and over.timeCoordinate == s.steps - 1:
+        inc clamped
+    ck clamped == subjects.len
+    ck clamped > 0
 
   test "MUTATION BITE: a tick outside the recording marks nothing":
     # The join must not wrap, clamp or land on the last row. A hydrated session
@@ -971,7 +1069,21 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
     ck marked == 1
 
   test "assertion count":
-    expectCount(880)
+    # 880 -> 943, and the whole growth is the rewritten landing arm, per subject
+    # over the 31 instruction-level recordings this tree publishes:
+    #
+    #   +31  `session.controls.step == 0` — the landing rule, asserted per page
+    #        rather than inferred from the absence of an overshoot
+    #   +31  `over.controls.step >= s.steps` — the clamp's input really is past
+    #        the end, which is the premise the old arm got from a short recording
+    #        and now has to plant
+    #    +2  `clamped == subjects.len` and `clamped > 0`
+    #    -1  the retired `found > 0`, whose premise the landing rule makes false
+    #
+    # 880 + 31 + 31 + 2 - 1 = 943. Stated as arithmetic rather than transcribed,
+    # because a count that moved by a number nobody can decompose is a count that
+    # will be "corrected" to whatever the next run prints.
+    expectCount(943)
 
 suite "7 — a recording at TWO fidelities says where it is at both of them":
   asserted = 0
@@ -1034,6 +1146,111 @@ suite "7 — a recording at TWO fidelities says where it is at both of them":
       # can act on rather than a label.
       ck body.contains(">" & $sess.editor.positionedSteps & "<")
       ck body.contains(">" & $sess.editor.positionedOf & "<")
+
+  test "the CAUSE of the unplaced steps is on the page, outside the Raw JSON":
+    # THE HEADER ABOVE GIVES THE RATIO. THIS IS THE CAUSE, and it is the same
+    # defect the roots banner closed, standing for 81% of one recording:
+    # `native.replay.contractRungs[1]` records a SECOND contract that ran 351 of
+    # `0x0a807e4e…`'s 373 unplaced steps and positions none of them, at rung 3,
+    # with off-chain artifact resolution having RUN for it and matched nothing.
+    # Every word of that was legible only inside the collapsed
+    # "Raw (chain-native)" `<pre>`.
+    #
+    # ASSERTED AGAINST `outsideRaw`, NEVER AGAINST THE WHOLE DOCUMENT. The raw
+    # block contains the manifest verbatim, so every address and every count this
+    # arm looks for is in the page whether the caption is drawn or not — which is
+    # exactly how the defect survived. See `outsideRaw`.
+    ck positionedSubjects.len > 0
+    for s in positionedSubjects:
+      let sess = debugSessionFor(root, s.chain, s.tx)
+      let visible = outsideRaw(debugBody(s))
+      # THE CONTROL FOR THE STRIPPER ITSELF. A helper that deleted the whole
+      # document would make every assertion below fail, and one that deleted
+      # nothing would make them all vacuous. Both are excluded: the raw block is
+      # gone and the pane is still there.
+      ck RawOpen notin visible
+      ck visible.contains("class=\"srcrung")
+
+      ck sess.editor.coverageNote.len > 0
+      ck occurrences(visible, "class=\"srccause\"") == 1
+      ck visible.contains(sess.editor.coverageNote)
+      # …AND IT IS THE RECORDING'S OWN NUMBERS, not a sentence that happens to be
+      # long. The shortfall the caption accounts for is read off the fold, and the
+      # fold's per-contract arithmetic is asserted to close against the pane's own
+      # coverage — a caption that said "the other 373" while naming 350 of them
+      # would be this repository's defect inverted.
+      let cc = txView(root, chainInfo(root, s.chain), s.tx).contracts
+      ck cc.has
+      ck cc.shortfall == sess.editor.positionedOf - sess.editor.positionedSteps
+      ck cc.unpositioned.len + cc.partial.len > 0
+      # EVERY CONTRACT THE SHORTFALL IS ATTRIBUTED TO IS NAMED, by address, where
+      # a visitor can read it. Truncated as the product truncates every other
+      # identifier it shows.
+      for i in cc.unpositioned & cc.partial:
+        ck visible.contains(truncHash(cc.contracts[i].address,
+                                     lead = 10, tail = 8))
+        ck visible.contains($cc.contracts[i].steps)
+      # AND IT DISTINGUISHES "WE DID NOT LOOK" FROM "WE LOOKED AND IT IS NOT
+      # PUBLISHED", which is the whole point of folding `artifacts` in beside
+      # `contractRungs`. The recording knows the difference; the visitor gets it.
+      for i in cc.unpositioned:
+        case cc.contracts[i].asking
+        of aaNoCandidate, aaRejected:
+          ck visible.contains("not \"nobody looked\"")
+        of aaUnasked:
+          ck visible.contains("nobody looked")
+        of aaResolved:
+          ck visible.contains("An artifact WAS proved")
+
+      # THE ROOTS BANNER IS HELD TO THE SAME STANDARD, and it did not have an
+      # assertion of this shape — which is how a fix whose whole subject is "the
+      # fact was only in the raw JSON" could have regressed into the raw JSON.
+      ck sess.scopeTitle.len > 0
+      ck visible.contains(sess.scopeTitle)
+      ck visible.contains(sess.scopeDetail)
+      ck occurrences(visible, "role=\"status\"") >= 1
+
+  test "MUTATION BITE: a page whose cause is unknowable grows no caption":
+    # THE NOTE MUST BE CONDITIONAL ON THE TREE KNOWING THE CAUSE, and there are
+    # three ways it does not. An unconditional caption would satisfy every
+    # assertion above and name a contract on a page whose record names none.
+    #
+    # Driven through the shipped producer over the real pane's own coverage, so
+    # what is graded is the refusal and not a lookalike.
+    ck positionedSubjects.len > 0
+    for s in positionedSubjects:
+      let sess = debugSessionFor(root, s.chain, s.tx)
+      let real = txView(root, chainInfo(root, s.chain), s.tx).contracts
+      let steps = sess.editor.positionedSteps
+      let ofSteps = sess.editor.positionedOf
+
+      # THE CONTROL: the real fold over the real coverage does produce one.
+      ck unpositionedCauseNote(real, steps, ofSteps).len > 0
+
+      # 1 — NO PER-CONTRACT RECORD. `has` false is every capture whose runtime
+      #     never wrote `contractRungs`, which is most of this corpus.
+      ck unpositionedCauseNote(ContractCoverageView(), steps, ofSteps).len == 0
+      # 2 — NO RUNG BOUNDARY. A pane at one fidelity has no "other steps" for
+      #     this to be about, and `renderSource` draws no `.srcrung` there either.
+      ck unpositionedCauseNote(real, 0, 0).len == 0
+      ck unpositionedCauseNote(real, ofSteps, ofSteps).len == 0
+      # 3 — NO CONTRACT FELL SHORT. A transaction that positions every step of
+      #     every contract it ran. Built by emptying the two index lists, which
+      #     is the state the fold produces for exactly that recording.
+      var complete = real
+      complete.unpositioned = @[]
+      complete.partial = @[]
+      ck unpositionedCauseNote(complete, steps, ofSteps).len == 0
+
+      # …AND THE PAGES THAT LAND IN THOSE STATES REALLY EXIST, so the three
+      # refusals are not rules with no subject: every rung-3 recording in this
+      # tree draws no `.srccause`, and neither does the source-level fixture.
+    ck subjects.len > 0
+    ck sourceLevelSubjects.len > 0
+    for s in subjects:
+      ck occurrences(outsideRaw(debugBody(s)), "class=\"srccause\"") == 0
+    for s in sourceLevelSubjects:
+      ck occurrences(outsideRaw(debugBody(s)), "class=\"srccause\"") == 0
 
   test "MUTATION BITE: a recording with no boundary grows no header":
     # The note must be conditional on the recording having two fidelities. An
@@ -1108,6 +1325,17 @@ suite "7 — a recording at TWO fidelities says where it is at both of them":
         ck probe.positionedSteps > 0
         ck probe.positionedOf > probe.positionedSteps
         ck occurrences(dbgc.renderSource(probe), "class=\"srcrung") == 1
+        # AND THE CAUSE OF THE UNPLACED STEPS SURVIVES WITH IT, for the same
+        # reason and with the same consequence if it did not. It is folded from
+        # the transaction's MANIFEST — `contractRungs` joined with `artifacts` —
+        # which is a separate object the page does not carry, so a hydrated pane
+        # cannot recompute it any more than it can recompute the coverage above.
+        # Without this the explanation is on the served frame and deleted on the
+        # visitor's first step: the header would say "86 of 459" to somebody who
+        # can no longer find out why.
+        ck probe.coverageNote == pane.coverageNote
+        ck probe.coverageNote.len > 0
+        ck occurrences(dbgc.renderSource(probe), "class=\"srccause\"") == 1
       # …and the two sides say DIFFERENT things, which is what makes it a
       # TRANSITION rather than a disclaimer that happens to be on the page.
       let instrHtml = dbgc.renderSource(atInstr)
@@ -1195,4 +1423,24 @@ suite "7 — a recording at TWO fidelities says where it is at both of them":
     # did not carry it rendered the boundary on the served page and lost it on
     # the hydrated one — the half where a reader crosses the boundary by
     # stepping. The fourteen assertions per subject are what noticed.
-    expectCount(131)
+    #
+    # 131 -> 225 when the CAUSE of the unplaced steps joined the ratio. Stated as
+    # arithmetic rather than transcribed, because a count that moved by a number
+    # nobody can decompose is a count that will be "corrected" to whatever the
+    # next run prints. The subjects are read off the tree: 2 partly-positioned
+    # recordings, 31 instruction-level ones, 6 source-level fixture pages.
+    #
+    #   +12  the island round trip, 3 new `ck`s x 2 probes x 2 subjects: the note
+    #        is equal across the seam, non-empty, and renders one `.srccause`
+    #   +32  "the CAUSE … outside the Raw JSON" — 1 floor, then per subject
+    #        12 fixed (2 stripper controls, 3 about the caption, 3 about the fold's
+    #        arithmetic, 4 holding the roots banner to the same standard) plus one
+    #        pair per contract the shortfall is attributed to (1 and 2) plus one
+    #        asking-verdict assertion per unpositioned contract (0 and 1):
+    #        1 + (12+2+0) + (12+4+1) = 1 + 14 + 17
+    #   +50  "a page whose cause is unknowable grows no caption" — 1 floor,
+    #        5 refusals x 2 subjects, 2 population floors, then one assertion per
+    #        page that must NOT carry the caption: 1 + 10 + 2 + 31 + 6
+    #
+    # 131 + 12 + 32 + 50 = 225.
+    expectCount(225)

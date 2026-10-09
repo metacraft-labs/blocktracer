@@ -53,6 +53,60 @@ marketing site on identity.
 Dark-first, dense, information-maximal. A visitor who knows the desktop app must
 recognise this as the same tool.
 
+> **PRIMARY GOAL (2026-10-06, project owner): the debugger panels must match
+> CodeTracer's.** Everything else in this brief is secondary to that, including
+> the explorer register's Webflow direction above — which is a marketing
+> prototype, not the application, and must not be read as the reference for
+> anything in the debugger register.
+>
+> **The reference is a CodeTracer BUILT FROM SOURCE at a pinned commit, read as
+> data rather than prose.** `tools/design/codetracer-panel-baseline.json` is
+> written by `tools/design/extract-codetracer-baseline.mjs` from the CSS
+> CodeTracer's own toolchain emitted, and records the rev it was built at.
+> Regenerate it; do not hand-edit it. What it records at `af70456c` — the same
+> commit `ct_styles.vendor.json` vendors the component stylesheets from:
+>
+> | selector | reference (built at `af70456c`) |
+> | --- | --- |
+> | `.component-container` | `SpaceGrotesk`, size `inherit`, line-height `1.5em`, weight 400 |
+> | `.data-table` | `SpaceGrotesk`, size `inherit`, weight 400, letter-spacing `-0.00875em`, colour `#f3f3f3` |
+> | `.table-column-names` | `SpaceGrotesk`, size `0.875em`, weight 400 |
+>
+> **Build the reference. Do not read an installed one, and do not parse Stylus.**
+> This has been got wrong twice. First from `/Applications/CodeTracer.app`, where
+> every number was wrong because the bundle predated a fix — a stale reference is
+> worse than none, since it reports drift when BlockTracer is right. Then from
+> the Stylus source, which gave the right values but needed a hand-written parser
+> for an indentation-sensitive language (it flattened nested rules) and left
+> tokens UNRESOLVED, recording `colors-ui-text-primary-body` where the product
+> renders `#f3f3f3`. A build emits what a browser will actually see.
+>
+> Build `codetracer-electron`, not `.#default`: the default package pulls in the
+> BPF monitor, whose `libbpf` is Linux-only and refuses to evaluate on darwin.
+> The Electron app builds on both.
+>
+> **The case that earned the rule.** That bundle set `.component-container` in
+> `"FiraCode"` at 14px/24px, and this brief duly demanded it. `FiraCode` is not a
+> family CodeTracer declares. `components/status_bar.styl` records that the
+> design system declares exactly four `@font-face` families — `SpaceGrotesk`,
+> `SpaceMono`, `FiraMono`, `FontAwesome` — that "FiraCode is not one of them, and
+> no FiraCode file exists in the tree", and that it was "dead text in 21 places"
+> which fell back to Chrome's default **proportional serif**. Demanding it would
+> have had BlockTracer adopt a bug CodeTracer had already fixed.
+>
+> **So the panels are sans, not mono, and relative, not pixel.** Panel chrome is
+> `SpaceGrotesk` at `inherit`/`1.5em`; mono belongs to code and terminal surfaces,
+> where the face is `SpaceMono` — which is what BlockTracer already uses, and is
+> what `codetracer-design-system` names. On this point BlockTracer was right and
+> the installed build was wrong.
+>
+> **What the reviewer must do with this.** Where a reference screenshot is named
+> in a view's block below, the first finding is whether the panel texture
+> matches — face, size, line height, letter spacing, panel background and the
+> inset left edge — before any aesthetic judgement. "Looks professional" is not
+> parity, and a view that looks good but does not match is still a P1.
+
+
 Shared across both: type scale ratios, spacing scale, radii, focus-ring
 treatment, motion durations and the accent hue family. What differs is density,
 surface colour and default theme.
@@ -218,6 +272,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - THE PROVENANCE MARKER, on a chain-scoped page: a badge naming what this data IS — `Synthetic demo data` in the neutral tone, or `Real Aztec <network> data` in the affirmative tone. It is the only thing on the page that tells a reader whether the hashes in front of them exist on any network, so it is graded as CONTENT and not as decoration: missing, naming the wrong chain, carrying a tone that contradicts its label, or unreadable against its surface in either theme is a P1. WHICH FORM IT TAKES DEPENDS ON THE PAGE, and all three are correct — revised 2026-08-31, when a band on every page was replaced by a band only where something is abnormal: (a) a full-width `.notice` BAND with the producer's sentences, on a page whose data is SYNTHETIC and which has no facts grid of its own — a block, an address, a list, a chain overview; (b) a compact `.provchip` badge above the breadcrumb, on those same pages when the data is REAL; (c) a `Data` ROW at the top of the transaction facts grid, on any page that has one, carrying the badge and the producer's sentences. Exactly ONE of the three is present on any page — two markers is a finding, and so is none. Do not report the absence of a BAND on a real-chain page as missing provenance: that is the change, and the chip or the row is where to look.
   - On a SITE-LEVEL page — `/about`, `/search`, `/chains`, 404 — the provenance marker is correctly ABSENT in ALL THREE of its forms, because those pages show no chain's data and the component returns nothing rather than inventing a claim on a producer's behalf. Its absence there is not a finding, and reporting it as one is the error this item exists to prevent in the other direction.
 - A head/finalized/blocks/transactions/coverage stat row, each figure labelled — the registry and pointer facts a visitor needs before reading either list.
+- HOW FAR BACK THIS CHAIN CAN BE DEBUGGED, between the stat row and the capability tour: a plain-language statement of the chain's historical reach, the position of its history floor, the producer's own words about how that boundary was established — marked as a quotation, because it has a different author from the rest of the section — and the instruction set its recordings are written against. Added 2026-10-09 for Chain-Support-Matrix §4 item 4, which makes such a statement a condition of listing a chain at all and which no surface in this product satisfied. It is rendered from the chain's registry row and is present for EVERY chain, including one whose row declares no reach — a region that vanished when a chain declared nothing would make the weakest chains the ones that say least about themselves. It states NO debug tier: §1.2 makes tier per transaction and the published tree carries no chain-wide tally, so a tier here would be the invented badge the anti-requirements below forbid.
 - THE CAPABILITY TOUR, above both tables: a heading (`What this debugger can show`), a sentence saying each entry is a small Noir program recorded into its own container, and one row per program carrying its title as a link into that program's debugging session, a one-sentence summary, its capability tags and its step/call counts. Added 2026-09-01, and the ORDERING is the claim being graded: it sits between the stat row and `Latest blocks`, because a visitor arriving on a synthetic chain is not here to read a ledger of hashes that exist nowhere — the band above this line says so — and filing the reason for the page under two tables of furniture is the defect. This region is present ONLY on the demo chain; see `chain-overview--testnet` and `--mainnet`, whose anti-requirements name its absence.
 - Latest blocks — the newest ~10 with per-block transaction counts and a finality badge per row.
 - Latest transactions — the shared transactions table, with the Debug affordance as the FIRST column of every row (rule 1).
@@ -1198,6 +1253,9 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - The identity bar carries identity, controls, scrubber, status, phase rail and two actions. Judge whether it reads as grouped or as a strip of unrelated objects, and say where it wraps at laptop width.
 - Continuity with the CodeTracer desktop app — same pane vocabulary, same density. Control PLACEMENT deliberately diverges (the desktop app puts the toolbar in a pane); judge the placement on its own terms, not against the desktop app, and judge the vocabulary against it.
 - Small-text legibility: the tool rubric rewards density, but 11 px text at low contrast is a P2 under it, not a win.
+- SETTLED, and raising it is not a finding: the TWO tab treatments on this screen are CodeTracer's own. Its `lm_active` pane tab is a filled panel-coloured box with rounded top corners (golden_layout.styl); its design-system `.ct-tab` is an underline (tab.styl). Both are vendored verbatim. Unifying them would make this page more internally consistent than the application it is graded against, which is a divergence wearing the costume of a fix.
+- SETTLED, and raising it is not a finding: the flow rail carries TWO marks under the frame numbers, and they are two different facts — `.frhere` is where the SESSION is and never moves, `.frdot` is which pass is on screen and the rail moves it. A bar under the selected frame is therefore not a tab accent bleeding into a control. Collapsing them would tell a reader who looked at pass 1 that the session had gone there.
+- SETTLED, and raising it is not a finding: identifier rows (Fee payer, Target, cost pairs, decoded arguments) render the value in FULL so one click selects the whole of it, and they already carry the copy affordance — the built page emits `class="identifier copyable"` on them. Where a long value WRAPS is a fair observation; that it is not truncated is not.
 
 ### View: `debugger--metadata-pane`
 

@@ -45,12 +45,24 @@
     "",
     "── TWO MEASURED FACTS ABOUT READING THESE CONTAINERS, CARRIED RATHER THAN FIXED ─────────",
     "",
-    "Both were measured on 2026-09-18 over the 52 real containers in this repository, and both",
-    "bound what a container-opening check can currently claim. They are repeated in the tool's",
-    "header and in every artifact it writes, because a reader who meets the figures needs to",
-    "meet these at the same time.",
+    "Both were measured on 2026-09-18 over the 52 real containers this repository then held, and",
+    "both bound what a container-opening check can currently claim. They are repeated in the",
+    "tool's header and in every artifact it writes, because a reader who meets the figures needs",
+    "to meet these at the same time.",
     "",
-    "  1. ALL 52 DECLARE `meta.dat` SCHEMA VERSION 3. The Nim reader accepts versions 4 and 5",
+    "THE CENSUS IS 53 NOW, NOT 52, AND THE ONE IT GAINED IS THE POINT. Re-measured from the",
+    "bytes (`CTMD` magic, u16 LE schema version at +4, u16 LE flags at +6): this repository",
+    "commits 56 `.ct` files, of which 53 are containers — the other three are the conformance",
+    "kit's `template/complete/ct/*.ct`, 229-byte ASCII placeholders with NO CTFS magic, so they",
+    "carry no schema version to read. Of the 53, 52 declare `meta.dat` schema version 3 and ONE",
+    "declares version 4: `fixtures/chain-health/readable-container`, committed 2026-09-28 so that",
+    "a check which opens a recording would have a subject. Flag words: 42 x 0x1f00, 1 x 0x1fd0,",
+    "10 x 0x0fd0, so `FlagHasColumnAwareSteps` (bit 4) is set on 11 of the 53. Every figure below",
+    "that says 52 is about the version-3 subset, which is what it was always about; what changed",
+    "is that the subset is no longer the whole corpus.",
+    "",
+    "  1. ALL 52 OF THOSE DECLARE `meta.dat` SCHEMA VERSION 3 — 52 of the current 53 still do.",
+    "     The Nim reader accepts versions 4 and 5",
     "     and refuses 3 by name, stating that a version-3 writer packed a line-only step",
     "     position as `prefixSum[path_id] + line` where a current writer packs",
     "     `prefixSum[path_id] + (line - 1)` — so a step read under the current decode comes",
@@ -64,21 +76,54 @@
     "     read. `containerReader.refusalSignature` below is the consequence: a container",
     "     counts as OPENED only when the reader exits 0 AND its output does not match that",
     "     signature, and the rule lives in this file rather than in the tool so the two",
-    "     clauses cannot drift apart."
+    "     clauses cannot drift apart. RE-MEASURED 2026-09-28: a reader built from a current",
+    "     checkout exits **1** on 55 of the 56 committed `.ct` files and 0 on the one container",
+    "     it can open. (The `58` this line used to give was an on-disk count taken before the",
+    "     version-4 container landed and while the gitignored `conformance-kit-release/` copy of",
+    "     the kit's three placeholders was on disk: 52 + 6. The committed census is 56.) The",
+    "     exit-0 refusal",
+    "     is therefore a fact about one build and not about the reader, the two-clause rule",
+    "     is no longer load-bearing on today's binary, AND IT IS KEPT — nothing in either",
+    "     repository stops the behaviour returning, and a verdict keyed on exit status alone",
+    "     would have been wrong for as long as that build was the one on disk.",
+    "",
+    "── WHAT A CONTAINER CHECK MAY CONCLUDE, AND WHAT IT MAY NOT BLAME ──────────────────────",
+    "",
+    "A refused container is a finding ABOUT THE CONTAINER, and the reader's own refusal is",
+    "the evidence rather than the defect. The distinction is not a nicety here: over this",
+    "repository's corpus the refusal holds on 52 of the 53 containers — every one but the",
+    "version-4 subject in `fixtures/chain-health/readable-container` — so a finding phrased as",
+    "\"the reader could",
+    "not read it\" would read as a broken tool 52 times and send an operator to the wrong",
+    "repository. `H-CONTAINER-UNREADABLE` therefore carries three things every time — the",
+    "reader's own sentence verbatim, the reader's BUILD ID, and, when the refusal names a",
+    "schema version, that version — so the reader is identified rather than accused.",
+    "",
+    "The build id is the reader binary's own content (`sha256` + byte size) because `ct-print`",
+    "has no `--version`: measured 2026-09-28, `ct-print --version` answers `Unknown option:",
+    "version` and exits 1. Content-addressing a program to name it is the idiom",
+    "`client/hydrate/engine-pin.txt` already uses on the replay engine, for the same reason:",
+    "a name that is not the bytes does not pin the bytes."
   ],
   "format": "blocktracer/health-checks@1",
   "carried": [
     {
       "id": "corpus-predates-the-line-index-correction",
       "measuredOn": "2026-09-18",
-      "note": "All 52 real containers in this repository declare `meta.dat` schema version 3, and every current reader refuses that version BY NAME. A version-3 writer packed a line-only step position as `prefixSum[path_id] + line`; a current writer packs `prefixSum[path_id] + (line - 1)`. Both land inside the trace's address space, so a version-3 step read under the current decode comes back ONE LINE HIGH rather than failing - which is why the schema version is the only possible discriminator and why readers refuse instead of decoding. The Nim reader accepts [4, 5]; the two Rust readers are at META_DAT_VERSION = 4 with SUPPORTED_VERSIONS = [4, META_DAT_VERSION_EXTENDED_FLAGS]. THEY AGREE. So the corpus is readable by nothing current, and the remedy is to re-record it rather than to reconcile readers. The committed instructions/, positions/ and calltrace/ sidecars were derived by a reader build that accepted version 3, and nothing in the tree records which one. CORRECTED 2026-09-18, same day: this entry first said the readers supported DISJOINT sets with Rust pinned at 3. That was read from a checkout of the sibling repository standing 199 commits behind its mainline; the Rust readers had already moved to 4. A claim about another repository's constant is only as current as the checkout it was read from.",
+      "note": "52 of the 53 real containers in this repository declare `meta.dat` schema version 3, and every current reader refuses that version BY NAME. (CENSUS CORRECTED: this entry said `All 52` while the corpus held 52. It holds 53 - 56 committed `.ct` files, three of them the conformance kit's 229-byte placeholders with no CTFS magic and so not containers at all - and the 53rd, `fixtures/chain-health/readable-container`, declares version 4, which is the whole reason it exists.) A version-3 writer packed a line-only step position as `prefixSum[path_id] + line`; a current writer packs `prefixSum[path_id] + (line - 1)`. Both land inside the trace's address space, so a version-3 step read under the current decode comes back ONE LINE HIGH rather than failing - which is why the schema version is the only possible discriminator and why readers refuse instead of decoding. The Nim reader accepts [4, 5]; the two Rust readers are at META_DAT_VERSION = 4 with SUPPORTED_VERSIONS = [4, META_DAT_VERSION_EXTENDED_FLAGS]. THEY AGREE. So the version-3 subset is readable by nothing current, and the remedy is to re-record it rather than to reconcile readers. The committed instructions/, positions/ and calltrace/ sidecars were derived by a reader build that accepted version 3, and nothing in the tree records which one. CORRECTED 2026-09-18, same day: this entry first said the readers supported DISJOINT sets with Rust pinned at 3. That was read from a checkout of the sibling repository standing 199 commits behind its mainline; the Rust readers had already moved to 4. A claim about another repository's constant is only as current as the checkout it was read from. RE-MEASURED 2026-09-28, AND THE SENTENCE `THEY AGREE` DOES NOT HOLD AT THE CHECKOUTS IN THIS WORKSPACE: the Nim reader accepts [4, 5] and BOTH Rust readers state 3 - `SUPPORTED_VERSIONS = &[3]` and `SUPPORTED_META_DAT_VERSIONS = &[3]` - so the sets are disjoint again, as this entry originally said. Which of the two readings is current depends on which checkout each was read from, and that is the whole lesson: the reading above names no revision, so it cannot be told apart from a stale one. The third entry in this list carries the re-measurement WITH the revision of each checkout beside it, and `containerSchema.consumers` is where the accepted sets are recorded for the tool to use. Neither reading is deleted here. The consequence for this corpus is unchanged either way: the reader this repository's derivations run refuses all 52 of the version-3 containers, which is every container here but one. RE-MEASURED 2026-10-04 (CRR-4), AND BOTH THE POPULATION AND THE READER SET ABOVE ARE STALE. The POPULATION: `git ls-files '*.ct'` returns 55 paths, 3 of them the conformance kit's 229-byte ASCII placeholders and 52 of them containers; a census by `find` returns 84 and counts 29 GENERATED artefacts (25 published containers under `client/dist/`, 3 under `conformance-kit-release/`, and this repository's one recorded fixture), which is where the larger figures quoted here and in CRR-4 come from. The READER SET: the Nim reader no longer accepts [4, 5] - it reads `meta.dat` schema 6 ONLY, and container version 5 only, as of the 2026-10 trace-format revision. So the refusal now holds on ALL 52 tracked containers rather than on 52 of 53: the version-4 subject this entry names as the exception was itself refused from 2026-10-01, which took all 31 reader-dependent arms of `chain-health-selftest.mjs` out of service. THE REMEDY LANDED AND IT IS NOT A RE-RECORDING: that subject's container is no longer committed at all. `tools/chain/make-readable-container.mjs` records it at test time from the sibling writer's own fixture generator, so it follows the writer rather than lagging it - metacraft-dev-guidelines/policies/repo-requirements.md §4.3, 'a test that needs a recording records it on the fly'. The 52 tracked containers are unchanged and still refused; what changed is that the one subject the comparisons need is now produced rather than preserved.",
       "bounds": "every check marked needsContainer"
     },
     {
       "id": "reader-exit-status-is-not-a-verdict",
       "measuredOn": "2026-09-18",
-      "note": "The Nim reader prints its refusal and exits 0. Over the 52 real containers it did that 52 times. A sweep keyed on exit status would have reported 52 of 52 opened having opened none. `containerReader.opened` therefore requires two clauses, and the signature that spells the second one lives in this file.",
+      "note": "The Nim reader prints its refusal and exits 0. Over the 52 real containers it did that 52 times. A sweep keyed on exit status would have reported 52 of 52 opened having opened none. `containerReader.opened` therefore requires two clauses, and the signature that spells the second one lives in this file. RE-MEASURED 2026-09-28 with a reader built from a current checkout of the reader repository: it exits 1 on 55 of the 56 committed `.ct` files - 52 with `Error: meta.dat present but corrupt: ... schema version 3 ...` and 3, the conformance template's 229-byte placeholders, with `ct-print: not a recognised .ct file: no CTFS magic` - and 0 on the one version-4 container it opens. (The figures first written here were `58` and `6`: an on-disk count taken while the gitignored `conformance-kit-release/` copy of the kit's three placeholders was present and before the version-4 container landed, 52 + 6. The committed census is 56 files / 53 containers / 3 placeholders.) ZERO containers exit 0 while refusing. So the exit-0 refusal was a property of one build rather than of the reader. THE TWO-CLAUSE RULE IS KEPT ANYWAY: it costs one regular-expression test, the behaviour it guards against was real on the build that was on disk when this file was written, and nothing in either repository forbids its return. A rule dropped because today's binary does not need it is a rule that has to be rediscovered by the next sweep that reports a clean pass over a corpus it could not read.",
       "bounds": "how `containersOpened` and `containersRefused` are counted"
+    },
+    {
+      "id": "the-two-consumers-of-a-container-disagree",
+      "measuredOn": "2026-09-28",
+      "note": "THE PINNED READER AND THE SHIPPED ENGINE ACCEPT DISJOINT SCHEMA VERSION SETS, so `is this container readable` has two answers and they are opposite over this corpus. Measured by reading each consumer's own constant, with the checkout revision recorded beside it because a claim about another repository's constant is only as current as the checkout it was read from - the correction on the entry above this one was exactly that mistake. PINNED READER, `codetracer-trace-format-nim` at cf132be: `SupportedMetaDatVersions = [4, 5]` and `LastShiftedGlobalIndexVersion = 3`, the latter refused BY NAME ahead of the generic version mismatch. SHIPPED ENGINE, `codetracer` at afe86214b - the source of the replay wasm this repository pins by sha256 in `client/hydrate/engine-pin.txt`: `SUPPORTED_VERSIONS = &[3]` in the db-backend reader and `SUPPORTED_META_DAT_VERSIONS = &[3]` in the session manager's. {4,5} and {3} share no member. 52 of the 53 containers in this repository declare 3, so the pinned reader refuses those 52 and the shipped engine accepts them - and the shipped engine is the one a visitor's browser runs. The 53rd declares 4 and the two consumers swap sides on it, which is the same skew seen from the other end rather than an exception to it. THAT IS WHY THE SKEW FINDING IS REPORTED PER CONSUMER AND NEVER FOLDED INTO ONE VERDICT: a single answer would have to pick which consumer matters, and the two are for different audiences.",
+      "bounds": "H-CONTAINER-SCHEMA-SKEW, which reports one finding per consumer and never a combined one"
     }
   ],
   "checks": {
@@ -89,7 +134,8 @@
       "question": "Did this sweep open any recording at all, given that some of the checks it was asked for can only be answered by opening one?",
       "healthy": "Either no requested check needed a recording, or at least one recording was opened.",
       "fires": "containersOpened == 0 and at least one requested check is marked needsContainer",
-      "why": "A check that could not run must be reported as not run and never as passed. Without this finding a sweep with no reader wired prints the same clean verdict as a sweep that read every container and found nothing wrong, and the two are not the same measurement. It is the control that makes a zero mean something."
+      "why": "A check that could not run must be reported as not run and never as passed. Without this finding a sweep with no reader wired prints the same clean verdict as a sweep that read every container and found nothing wrong, and the two are not the same measurement. It is the control that makes a zero mean something.",
+      "whatItsSentenceMustSay": "WHICH container checks answered anyway, read off the coverage table rather than assumed. Its sentence used to say flatly that every container check was NOT RUN. That became false the moment a refusal was made into an answer: a container the reader declines BY NAME settles `is it readable` - no - and, when the refusal states a schema version, settles that version against each consumer's accepted set. So the finding now partitions the requested container checks into the ones that answered from the refusals and the ones no tree could answer. Reporting an answered check as unrun understates the sweep exactly as badly as reporting an unanswered one as passed overstates it, and both come from a sentence that names a population instead of measuring it."
     },
     "H-SOURCE-ABSENT": {
       "kind": "unhealthy",
@@ -110,6 +156,26 @@
         "artifactsResolved"
       ],
       "reportsNote": "The rates are published whether or not the finding fires. The finding is a threshold; the gradient is what tells an operator whether a chain is moving."
+    },
+    "H-SOURCE-RATCHET": {
+      "kind": "unhealthy",
+      "needsContainer": false,
+      "implemented": true,
+      "needsBaseline": true,
+      "notRunReason": "No committed reading was available to ratchet against. `tools/chain/measurements/chain-health.json` is the default baseline and `--baseline <file>` names another; `--no-baseline` says so deliberately.",
+      "question": "Has any chain published FEWER source-level recordings than the committed reading says it had?",
+      "healthy": "Every chain's source-level row count is at least what the committed reading recorded for it.",
+      "fires": "one finding per chain whose source-level row count is below the committed reading's",
+      "why": "H-SOURCE-ABSENT FIRES ONLY AT TOTAL ABSENCE, and that is measured rather than inferred: driven over one chain at 40 of 40, 20 of 40, 5 of 40 and 1 of 40 source-level rows it stays green, and reddens only at 0 of 40. So a chain regressing from forty source-level recordings to one is silent in the one check aimed at the operator's primary symptom. A threshold cannot express that, because there is no defensible absolute number - the right count for a chain is whatever it has already reached. What CAN be expressed is that it must not go backwards, and the committed reading is where the previous position is recorded. Same shape as the object-set baseline and the byte-identity manifest: the measurement is committed, and the check is that the tree has not moved away from it in the direction that matters.",
+      "scope": "the chains the committed reading records, intersected with the chains this sweep saw",
+      "reports": [
+        "baselineSourceLevelRows",
+        "sourceLevelRows",
+        "baselineTracedRows",
+        "tracedRows"
+      ],
+      "reportsNote": "BOTH FIGURES FROM BOTH READINGS, because a drop in source-level rows means two different things depending on whether the traced population also shrank. Nine of ten source-level rows lost out of ten traced rows is a chain that stopped reaching source level; nine lost out of ten rows that were themselves withdrawn is a chain that published less. The finding states both and does not adjudicate: a ratchet is a statement that something moved backwards, not a diagnosis of why.",
+      "asymmetry": "A RISE IS NOT A FINDING AND IS NOT AN ERROR. The baseline is a floor, not an equality: a chain that publishes more source-level recordings than the reading records has improved, and a check that reddened on that would be a check whose only stable state is never improving. Refreshing the reading after a rise is a separate, deliberate act - `just chain-health-corpus` rewrites it - and the diff is reviewable."
     },
     "H-OUTCOME-REASON-JOINT": {
       "kind": "unhealthy",
@@ -144,31 +210,402 @@
     "H-CONTAINER-UNREADABLE": {
       "kind": "unhealthy",
       "needsContainer": true,
-      "implemented": false,
-      "notRunReason": "No container reader is carried. Naming one with --container-reader makes the sweep count what opened and what refused; it does not yet make this question answerable, because deciding it also needs the reader disagreement recorded under `carried` to be settled first.",
-      "question": "Can a reader open every recording a row names, and do the recording's own measurements agree with what the row claims about it?",
-      "healthy": "Every container a row names opens, and its measurements are the row's.",
-      "fires": "not yet decidable — see notRunReason",
-      "why": "The contract's member census declares the container OPAQUE: its entry has zero members, and every rule that mentions a recording reads the producer's claim about it rather than the bytes. A producer that mis-measures its own recording and writes sidecars consistent with the mis-measurement is conformant. This is the question that closes that, and it is the reason the `needsContainer` accounting exists at all."
+      "implemented": true,
+      "notRunReason": "No container reader was named. `--container-reader <program>` names one; without it nothing was opened and nothing was refused, so the question was not asked rather than answered well.",
+      "question": "Can the named reader open every recording a row names?",
+      "healthy": "Every container a row names opens under the named reader.",
+      "fires": "a row names a container the reader does not open — it is absent from disk, or the reader exited non-zero, or it exited 0 and its output matched the refusal signature",
+      "why": "The contract's member census declares the container OPAQUE: its entry has zero members, and every rule that mentions a recording reads the producer's claim about it rather than the bytes. A producer that mis-measures its own recording and writes sidecars consistent with the mis-measurement is conformant. This is the question that closes that, and it is the reason the `needsContainer` accounting exists at all.",
+      "scope": "rows that name a container, when a reader was named",
+      "reports": [
+        "readerSaid",
+        "readerBuildId",
+        "declaredSchemaVersion"
+      ],
+      "reportsNote": "THE READER IS IDENTIFIED, NOT ACCUSED. Over this repository's corpus the refusal holds on 52 of the 53 containers - every one but the version-4 subject in `fixtures/chain-health/readable-container` - so a finding that said only `could not be read` would read as a broken tool 52 times over and send an operator to the wrong repository. The reader's own sentence says what it found; the build id says which binary said it; the declared schema version, when the refusal names one, says what about the CONTAINER made it unreadable. All three are the reader's evidence and none of them is a verdict on the reader. RE-MEASURED 2026-10-04: the refusal holds on ALL 52 tracked containers, not 52 of 53 - the version-4 subject named as the exception was refused too once the Nim reader moved to `meta.dat` schema 6 only, and its container is now RECORDED at test time rather than committed (`tools/chain/make-readable-container.mjs`), so it is not in the tracked census at all."
+    },
+    "H-CONTAINER-SCHEMA-SKEW": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "implemented": true,
+      "notRunReason": "No container reader was named, so no container stated the schema version it was written at and there is nothing to compare either consumer's accepted set against.",
+      "question": "Is the schema version these containers declare one that each consumer of them accepts - separately, because they are separate consumers with separate audiences?",
+      "healthy": "Every declared schema version is in every consumer's accepted set.",
+      "fires": "one finding per (tree, declared version, consumer) whose accepted set does not contain that version",
+      "why": "A container is read by more than one program and they do not agree about what they can read. `containerSchema.consumers` records each one's accepted set, read from its own constant, with the checkout it was read from. A single combined verdict would have to decide which consumer matters, and that is not a decision a sweep gets to make: the pinned reader is what this repository's derivations run, and the shipped engine is what a visitor's browser runs. So the finding is per consumer and the roll-up publishes the census beside it.",
+      "scope": "the declared schema versions of the containers a tree's rows name, crossed with the declared consumers",
+      "reports": [
+        "containerSchemaCensus"
+      ],
+      "reportsNote": "The census is published whether or not the finding fires, for the same reason H-SOURCE-ABSENT publishes its rates: the finding is a threshold and the census is what tells an operator which way the corpus is moving."
+    },
+    "H-STEPS-DISAGREE": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so no recording stated a step count of its own for the row's claim to be compared against.",
+      "question": "Does the recording's own step count agree with what the row claims about it?",
+      "healthy": "Every opened container's step count is the one its row declares.",
+      "fires": "an opened container's step count differs from `recording.steps`",
+      "why": "`S5-POSITIONS-AGREE` and `S5-POSITIONS-COLUMNS` compare a SIDECAR's length to `recording.steps`, and `S5-CALLTRACE-AGREE` compares a call trace's frame count to `recording.callsOpened`. Every one of them takes the producer's claim as the truth and asks whether the derived file agrees with it. Nothing asks whether the claim agrees with the BYTES - the contract's member census declares the container opaque, with zero members - so a producer that mis-measured its own recording and derived every sidecar from the mis-measurement is conformant in every direction.",
+      "scope": "rows whose container opened and that declare the claim member",
+      "agreement": "H-STEPS-DISAGREE"
+    },
+    "H-CALLS-DISAGREE": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so no recording stated a call count of its own for the row's claim to be compared against.",
+      "question": "Does the recording's own call count agree with the row's `callsOpened`, under the offset the producers state?",
+      "healthy": "Every opened container's call count is its row's `callsOpened` plus the synthetic top-level frame.",
+      "fires": "an opened container's call count is not `recording.callsOpened` + the declared offset",
+      "why": "Same hole as the step count, reached through the other member. This one additionally has an OFFSET, and the offset is the reason the check is worth having separately: `+ 1` is a fact about how the recorder counts rather than an arithmetic convenience, it is stated by two producers in this repository, and a check that assumed equality would redden every correct row while a check that ignored the relation entirely would accept any number at all.",
+      "scope": "rows whose container opened and that declare the claim member",
+      "agreement": "H-CALLS-DISAGREE"
+    },
+    "H-EVENTS-DISAGREE": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so no recording stated an event count of its own for the row's claim to be compared against.",
+      "question": "Does the producer's SECOND copy of its step count still agree with the recording?",
+      "healthy": "Every opened container's step count is its row's `recording.events`.",
+      "fires": "an opened container's step count differs from `recording.events`",
+      "why": "MEASURED, NOT ARGUED: 42 of 42 committed rows carrying both `recording.events` and `recording.steps` have them EQUAL, and none differs. So `events` is a second copy of the step count under another name, and a second copy is the thing that drifts. H-STEPS-DISAGREE cannot see it drift - it compares the container to `steps`, and `events` could be any number at all while that stayed green. Two claim members, two findings: an arm covers the site whose figure it names and no other.",
+      "scope": "rows whose container opened and that declare the claim member",
+      "agreement": "H-EVENTS-DISAGREE"
+    },
+    "H-PATHS-NOT-IN-BUNDLE": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "needsStreamProbe": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so no recording stated which paths it interned and there is nothing to look for in the bundle.",
+      "question": "Is every source file the recording INTERNED present in the bundle published beside it?",
+      "healthy": "Every path an opened container interned is a key of some bundle's `files`.",
+      "fires": "an interned path is in no bundle's `files`",
+      "why": "`S5-BUNDLE-REQUIRED` requires a bundle beside a source-level recording and says nothing about what is IN it, so a bundle carrying one file satisfies it for a recording that stepped through forty. This is the operator's first symptom read from the other end: the page offers source, the debugger stops on a line, and the file that line is in was never published - so the caret lands nowhere and nothing anywhere reported a defect.",
+      "scope": "rows whose container opened, that name a source bundle, and whose container interned at least one path"
+    },
+    "H-BUNDLE-LANGUAGE-SKEW": {
+      "kind": "unhealthy",
+      "needsContainer": false,
+      "implemented": true,
+      "question": "Does a bundle's declared language agree with the files it carries, with the positions stream beside it, and does that stream name a schema anything defines?",
+      "healthy": "The bundle's language admits the extension of every file it carries and of every path the positions stream names, and the stream's schema token is one this repository defines.",
+      "fires": "one finding per axis: a bundle file whose extension the declared language does not admit; a positions-stream path whose extension it does not admit; a positions stream whose schema token nothing defines",
+      "why": "`S5-POSITIONS-SCHEMA` requires the stream to STATE a token and republishes it verbatim - deliberately, because the token is the producer's statement and not the reader's - so a token nothing defines passes it perfectly. And nothing at all relates the bundle's `language` to the bundle's own contents or to the paths the positions stream names. A bundle declaring one language while carrying another's files is the second operator symptom in its purest form: the source shown and the execution recorded are not the same artefact, and every surface reports success.",
+      "scope": "rows that name a source bundle; the second axis additionally needs a positions sidecar",
+      "axisNote": [
+        "THE SCHEMA AXIS IS A KNOWN-TOKEN TEST AND NOT A LANGUAGE PAIRING, and the difference is",
+        "worth stating because the pairing is what the design first asked for. This repository",
+        "defines exactly ONE position-stream schema token - `POSITION_STREAM_SCHEMA` in",
+        "`tools/chain/lib/producer-facts.mjs` - so a rule pairing language to schema would have",
+        "one admissible pair and could not discriminate between anything. It would be a rule that",
+        "passes for free. The token being a DEFINED one is a real test with a real population, and",
+        "it is the gap `S5-POSITIONS-SCHEMA` leaves: that rule refuses an ABSENT token and",
+        "republishes whatever it is handed."
+      ]
+    },
+    "H-POSITIONS-VALUE-SKEW": {
+      "kind": "unhealthy",
+      "needsContainer": true,
+      "needsOpenedContainer": true,
+      "needsStreamProbe": true,
+      "implemented": true,
+      "notRunReason": "No container was opened, so the recording stated no positions of its own for the sidecar's columns to be compared against.",
+      "question": "Do the sidecar's per-step coordinates hold the coordinates the RECORDING holds - value by value, and not only column by column?",
+      "healthy": "For every step, the file the sidecar names and the line it gives are the ones the container wrote.",
+      "fires": "a step's (path, line) in the sidecar is not the (path, line) the container wrote for that step",
+      "why": "ONLY A COUNT COMPARISON EXISTS TODAY. `S5-POSITIONS-AGREE` refuses a stream whose step count differs from the recording's and `S5-POSITIONS-COLUMNS` refuses a column shorter than that count - both are about LENGTH, and both were written because a stream of the wrong length puts a source line against the wrong step. A stream of the RIGHT length with the wrong values does the same damage and is invisible to both. It is also the likeliest way to get it wrong: the sidecar's path indices are re-derived from the container's, and one producer here re-indexes them deliberately (it drops a synthetic pseudo-path at index 0), so an off-by-one in that remap produces a full-length, correctly-counted stream in which every step points at the wrong file.",
+      "scope": "rows whose container opened and that name a positions sidecar",
+      "reports": [
+        "stepsCompared",
+        "stepsDisagreeing",
+        "firstDisagreement"
+      ],
+      "reportsNote": "The number of steps COMPARED is published beside the number disagreeing, because a comparison over zero steps is the one input under which a value check reports success having measured nothing. The first disagreement travels with the finding: a count of wrong steps is not something anybody can act on."
     }
+  },
+  "containerClaimAgreements": {
+    "_comment": [
+      "WHICH FIGURE THE CONTAINER STATES, WHICH MEMBER THE ROW CLAIMS, AND THE RELATION BETWEEN",
+      "THEM. One entry per finding, so a finding covers exactly one claim member: two members",
+      "checked by one finding cannot be told apart in a log, and a producer's second copy of a",
+      "number is precisely the copy that drifts.",
+      "",
+      "`containerEqualsClaimPlus` IS A FACT ABOUT HOW THE RECORDER COUNTS, NOT AN ARITHMETIC",
+      "CONVENIENCE, which is why it is data with a `statedBy` rather than a constant in the tool.",
+      "A relation written as equality where the truth is +1 reddens every correct row; a check",
+      "with no relation at all accepts any number.",
+      "",
+      "`containerCount` names a key of the `counts` probe's payload. A claim member the row does",
+      "not carry puts the row out of scope - it is an absent measurement rather than a",
+      "disagreement - and the scope size is published so a zero is readable."
+    ],
+    "agreements": [
+      {
+        "id": "H-STEPS-DISAGREE",
+        "claim": "recording.steps",
+        "containerCount": "steps",
+        "containerEqualsClaimPlus": 0,
+        "statedBy": "src/blocktracer/chain/ingest.nim reads `recording.steps` as the recording's step count and refuses a positions stream of a different length; tools/chain/derive-positions.mjs reads the container's Step events as the same measurement and calls the row's count `the oracle`",
+        "justification": "The two are one measurement read twice - the driver counted the steps it recorded and the container holds them - so the relation is equality and there is nothing to offset."
+      },
+      {
+        "id": "H-CALLS-DISAGREE",
+        "claim": "recording.callsOpened",
+        "containerCount": "calls",
+        "containerEqualsClaimPlus": 1,
+        "statedBy": "src/blocktracer/chain/ingest.nim refuses a call trace unless `frames == callsOpened + 1`; tools/chain/derive-calltrace.mjs states the same relation and gives the two measurements it rests on",
+        "justification": "THE OFFSET IS THE SYNTHETIC TOP-LEVEL FRAME, which `callsOpened` does not count and the container does. Measured on two containers by the producer that states it: 2 Call records beside `callsOpened: 1`, and 46 beside `callsOpened: 45`. Writing this relation as equality would redden every correct row, and writing no relation would accept any count at all."
+      },
+      {
+        "id": "H-EVENTS-DISAGREE",
+        "claim": "recording.events",
+        "containerCount": "steps",
+        "containerEqualsClaimPlus": 0,
+        "statedBy": "measured over the committed corpus rather than stated by a producer: `recording.events` is written by the external replay driver and read by nothing in this repository",
+        "justification": "MEASURED 2026-09-28: 42 of 42 committed rows that carry both `recording.events` and `recording.steps` have them EQUAL, none differs. So `events` is a second copy of the step count and the container's step count is what it must agree with. The relation is derived from the corpus rather than from a producer because this member's producer is not in this repository - which is also why a second finding is worth having: an external producer's second copy of a number is the copy nothing here can see drift.",
+        "residual": "`recording.logEvents` (42 rows) is the member whose NAME suggests the container's `counts.io_events`, and no mapping to it is declared. It is written by nobody in this repository and read by nobody - `grep -rn logEvents` outside the committed snapshots returns zero hits - so there is no producer to derive the relation from and guessing one would be a figure nobody measured. Recorded here rather than assumed."
+      }
+    ]
+  },
+  "bundleLanguages": {
+    "_comment": [
+      "WHICH FILE EXTENSIONS A DECLARED BUNDLE LANGUAGE ADMITS.",
+      "",
+      "The table is narrow on purpose and its gaps are NOT passes: a bundle declaring a language",
+      "this table does not know is reported NOT RUN for the extension axes, with the language",
+      "named, and never as agreeing. A known-language list that treated an unknown language as",
+      "fine would be a rule anybody could satisfy by inventing a language name - and the shipped",
+      "conformance template declares `example-lang` deliberately, so that case is not theoretical.",
+      "",
+      "`positionStreamSchemas` is the closed set of tokens a positions stream may state. It has",
+      "one member because this repository defines one - `POSITION_STREAM_SCHEMA` in",
+      "`tools/chain/lib/producer-facts.mjs` - and the axis is a KNOWN-TOKEN test rather than a",
+      "language pairing for exactly that reason: a pairing with one admissible pair discriminates",
+      "between nothing."
+    ],
+    "languages": [
+      {
+        "language": "noir",
+        "extensions": [".nr"],
+        "statedBy": "tools/chain/snapshot-contract.json's vocabulary lists `noir` as a language term; every committed bundle declaring it carries `.nr` files and nothing else",
+        "justification": "Measured over the three committed noir bundles: the extension set of their `files` keys is exactly {.nr}, and the positions streams beside them name `.nr` paths. Noir's own source extension is `.nr`."
+      },
+      {
+        "language": "python",
+        "extensions": [".py"],
+        "statedBy": "fixtures/chain-health/readable-container/MAKING.md - the only bundle declaring it, whose container was written by a generator whose paths and program name are Python's",
+        "justification": "The one readable container in this repository interns `/workspace/demo/main.py` and `/workspace/demo/util.py`. Its bundle declares `python` because that is what those paths are, and the pair is what gives the extension axes a subject they can be shown to pass AND to fail on."
+      }
+    ],
+    "positionStreamSchemas": [
+      {
+        "schema": "avm-source-positions/1",
+        "statedBy": "tools/chain/lib/producer-facts.mjs POSITION_STREAM_SCHEMA - the single-sourced token every producer of a stream in this tree writes and `ingest.nim` republishes verbatim",
+        "justification": "`S5-POSITIONS-SCHEMA` refuses a stream that states NO token and republishes whatever it is handed, deliberately: the token is a statement about the stream's columns, so the producer that wrote the columns states it. The consequence is that a token nothing defines passes that rule perfectly, and this closed set is where that is refused."
+      },
+      {
+        "schema": "example-positions/1",
+        "statedBy": "conformance-kit/template/complete/coords/ - the shipped template's own positions stream",
+        "justification": "THE TEMPLATE'S DELIBERATE PLACEHOLDER, and it is listed rather than exempted by path. The kit's complete template names a fictional token in every field it can - `example-chain`, `example-recorder`, `example-lang`, `example-positions/1` - because its job is to show a recorder team the SHAPE of a conformant tree without asserting any real ecosystem's values. So the token is one this repository writes, which is what this set is: every token a producer here states. Exempting `conformance-kit/` by path would have worked too and is worse, because a path exemption silently covers every token the template ever grows, where a listed token is one line in a diff. Measured: without this entry the sweep raises the finding over the shipped template, which is noise rather than a defect."
+      }
+    ]
+  },
+  "containerSchema": {
+    "_comment": [
+      "WHO READS THESE CONTAINERS, AND WHAT EACH ONE ACCEPTS.",
+      "",
+      "Each entry's `accepts` is that consumer's own constant, transcribed together with the",
+      "file, the symbol and THE REVISION OF THE CHECKOUT IT WAS READ FROM. The revision is not",
+      "decoration: this file's `carried` already records a reading of these very constants that",
+      "was wrong because it came from a checkout 199 commits behind its mainline, and the",
+      "correction it carries is itself contradicted by the checkout in this workspace today.",
+      "A transcribed constant rots, and the only honest mitigation is to say when and from",
+      "where it was read, so a reader can tell a stale entry from a current one.",
+      "",
+      "`readFrom.pin` on the engine entry is the sha256 this repository already asserts on the",
+      "fetched wasm in `client/hydrate/engine-pin.txt`. A re-pin means the engine changed,",
+      "which means this entry has to be re-read - and the self-test asserts the two agree, so",
+      "a re-pin cannot land without re-reading."
+    ],
+    "consumers": [
+      {
+        "id": "pinned-reader",
+        "what": "the Nim CTFS reader this repository's derivations shell out to - the `ct-print` binary built from `codetracer-trace-format-nim`, named by CT_PRINT",
+        "audience": "this repository's own derivations: instructions/, positions/ and calltrace/ sidecars are produced by it",
+        "accepts": [4, 5],
+        "refusesByName": [3],
+        "statedBy": "codetracer-trace-format-nim src/codetracer_trace_writer/meta_dat.nim - `SupportedMetaDatVersions = [4, 5]` and `LastShiftedGlobalIndexVersion = 3`, the latter refused by name ahead of the generic version mismatch",
+        "readFrom": {"repo": "codetracer-trace-format-nim", "revision": "cf132be", "on": "2026-09-28"},
+        "note": "The refusal is BY NAME and it is deliberate rather than a version bump's side effect: a version-3 writer packed a line-only step position as prefixSum[path_id] + line where a current writer packs prefixSum[path_id] + (line - 1). Both land inside the trace's address space, so a version-3 step decoded under the current rule comes back ONE LINE HIGH instead of failing. Refusing is the only outcome that does not silently mis-place every source position."
+      },
+      {
+        "id": "shipped-engine",
+        "what": "the replay engine this repository ships to a visitor - `pkg/db_backend_bg.wasm`, fetched and asserted by sha256",
+        "audience": "a visitor's browser: this is the program that actually steps a published recording on the site",
+        "accepts": [3],
+        "refusesByName": [],
+        "statedBy": "THE SOURCE READING IS NOT THE PROVENANCE THAT MATTERS HERE - read `confirmedOnTheArtifact` below before quoting this field. codetracer src/db-backend/src/ctfs_trace_reader/meta_dat.rs - `SUPPORTED_VERSIONS: &[u16] = &[3]`; its sibling src/backend-manager/src/meta_dat.rs states `SUPPORTED_META_DAT_VERSIONS: &[u16] = &[3]`. Measured 2026-09-28, that checkout stands 350 COMMITS BEHIND `origin/dev`, whose copies of both files state `[4, META_DAT_VERSION_EXTENDED_FLAGS]` - the bump landed in codetracer `db33ac90` on 2026-09-09. So the CURRENT SOURCE agrees with the pinned reader, and a claim of disjointness resting on this field alone would be the third instance of the staleness the `carried` note records twice.",
+      "confirmedOnTheArtifact": "The engine is a PINNED BLOB, so its provenance is a content hash and its behaviour was measured on its own bytes rather than transcribed from any checkout. The asset was fetched by its content-addressed name and verified against `readFrom.pin`: sha256 and byte count both matched exactly (18,096,653 bytes). The discriminator is a string the POST-correction reader contains and the pre-correction one does not, which is sound in that direction because the new reader's string literals are a strict SUPERSET of the old one's - compared literal by literal over both versions of the file, no string the old reader has was dropped. Found in the pinned wasm: `meta.dat: unsupported version ` (2x) and `bad magic bytes` (2x), both present in BOTH readers, so the probe can find a reader string at all. ABSENT: `predates the global line index correction`, `Global Line Index` and `flags_ext`, all three new-reader-only. A nonsense needle is also absent, as the negative control. VERDICT: the shipped engine is the PRE-CORRECTION reader and carries no version-3 refusal at all, so `accepts: [3]` is right about the artifact this repository ships even though the source reading above is stale. Method note: match the needles with `grep -a` and NEVER add `-I` - it overrides `-a` whatever the order and reports every needle absent with rc 1, which reads exactly like a clean measurement.",
+        "readFrom": {"repo": "codetracer", "revision": "afe86214b", "on": "2026-09-28",
+                     "pin": "842c7164dd667085719705b15488f7d5ced1302afde7a5146bc52d08c7634120"},
+        "note": "ACCEPTING IS NOT THE SAME AS READING CORRECTLY, and this consumer is the reason the finding cannot be folded into one verdict. The pinned reader's analysis of version 3 is that its line-only step positions are packed one line high relative to the current rule. If that analysis is right, this consumer does not refuse those containers - it decodes them, and every source position it produces is one line off. The sweep reports the skew and does not adjudicate the analysis: settling which consumer is right is not this repository's call to make alone, and it is recorded under `carried` as such."
+      }
+    ]
   },
   "containerReader": {
     "_comment": [
       "HOW A SWEEP DECIDES THAT A RECORDING OPENED, when a reader is named with",
       "`--container-reader <cmd>`. The reader is invoked as `<cmd> <absolute-container-path>`.",
       "",
-      "THE EXIT STATUS IS NOT THE VERDICT, and that is measured rather than cautious: the Nim",
-      "reader prints `Error: meta.dat present but corrupt: …` and exits 0. Over the 52 real",
-      "containers in this repository it does that 52 times, so a sweep keyed on exit status",
-      "reports 52 of 52 opened having opened none.",
+      "THE EXIT STATUS IS NOT THE VERDICT, and that is measured rather than cautious. One",
+      "build of the Nim reader prints `Error: meta.dat present but corrupt: …` and exits 0,",
+      "and over the 52 version-3 containers here it did that 52 times, so a sweep keyed on",
+      "exit status reported 52 of 52 opened having opened none.",
       "",
-      "So both clauses are required, and they live here rather than in the tool because a",
-      "refusal signature spelled in one place and a verdict computed in another is the drift",
-      "this repository's data files exist to prevent."
+      "THAT FIGURE IS A PROPERTY OF ONE BUILD, AND IT NO LONGER HOLDS. Re-measured 2026-09-28",
+      "over every committed `.ct` here, with a reader whose own bytes hash to `b06c300c…` at",
+      "1,303,048 bytes: 56 committed `.ct` files - 53 of them containers, three ASCII",
+      "placeholders with no CTFS magic - EXIT 0 ONCE and exit 1 fifty-five times, and ZERO",
+      "containers exit 0 while refusing. So the exit status is not stably wrong either - it is",
+      "unstable across builds of one reader that states no version of its own, which is worse",
+      "for anything keyed on it, and is why a finding carries `buildId`.",
+      "",
+      "BOTH CLAUSES ARE REQUIRED, AND THE SAME CENSUS SHOWS WHY NEITHER ALONE WOULD DO:",
+      "each clause is the load-bearing one for a different subset of this corpus.",
+      "",
+      "  52  declare `meta.dat` schema 3   rc 1, matches refusalSignature   either clause",
+      "   3  the kit's ASCII placeholders  rc 1, does NOT match - the message",
+      "      (NOT containers: no magic)    opens `ct-print:`, not `Error:`   EXIT STATUS only",
+      "   1  the one container that opens  rc 0, no signature                neither; it opened",
+      "  ──                                                                                    ",
+      "  56  committed `.ct` files, of which 53 are containers: 52 at schema 3 and 1 at 4",
+      "",
+      "On the build measured above the exit-status clause is what excludes the three",
+      "placeholders, which the signature clause calls opened. On the earlier build the",
+      "signature clause is what excluded the 52, which the exit-status clause called opened.",
+      "A rule with either clause alone would have been right by accident on one build and",
+      "wrong on the other.",
+      "",
+      "They live here rather than in the tool because a refusal signature spelled in one place",
+      "and a verdict computed in another is the drift this repository's data files exist to",
+      "prevent."
     ],
     "opened": "the reader exited 0 AND its combined output does not match refusalSignature",
     "refusalSignature": "(?:^|\\n)\\s*(?:Error|error):",
-    "refusalSignatureFlags": ""
+    "refusalSignatureFlags": "",
+    "buildId": {
+      "how": "sha256 of the reader program's own bytes, plus its size in bytes",
+      "why": "`ct-print --version` answers `Unknown option: version` and exits 1 (measured 2026-09-28), so the reader states no id of its own. A finding that names a refusal without naming which build refused is a finding nobody can reproduce, and the refusals in this repository's history have differed BETWEEN BUILDS of the same reader - one build exited 0 while refusing and the next exits 1. Content-addressing the program is the same idiom `client/hydrate/engine-pin.txt` applies to the replay engine, for the same reason: a name that is not the bytes does not pin the bytes.",
+      "onFailure": "reported as null with the reason, never omitted - a missing build id must read as `not established` rather than as an absent field"
+    },
+    "probes": {
+      "_comment": [
+        "THE READER IS ASKED MORE THAN ONE QUESTION, AND EACH QUESTION'S ARGUMENTS LIVE HERE.",
+        "",
+        "A probe is invoked as `<reader argv> <probe argv...> <absolute container path>`. So the",
+        "caller names the PROGRAM and this file names the MODE. That split matters: the modes are",
+        "a property of the reader's interface, which is a fact about another repository, and a",
+        "fact about another repository belongs in the data file that records such facts rather",
+        "than in a shell invocation somebody types.",
+        "",
+        "`open` is deliberately the same argv as `counts`. Opening a container and reading its",
+        "counts are one invocation of the cheapest mode there is - `--meta-json` reads meta.dat",
+        "and the interning tables and decodes no event stream, so it stays O(meta.dat) on a",
+        "multi-gigabyte trace. Splitting them would double the process count to learn nothing.",
+        "",
+        "A PROBE'S PAYLOAD FAILING TO PARSE IS NOT A CLOSED CONTAINER. The two verdicts are",
+        "separate on purpose: a reader that exits 0 and prints something this tool cannot parse",
+        "HAS opened the recording, and reporting it refused would blame the container for the",
+        "tool's parser. Such a probe reports its measurement as unavailable, with the reason."
+      ],
+      "open": {
+        "argv": ["--meta-json"],
+        "parse": "none",
+        "asks": "does this container open at all"
+      },
+      "counts": {
+        "argv": ["--meta-json"],
+        "parse": "json",
+        "at": "counts",
+        "asks": "what does the container itself count",
+        "yields": ["steps", "calls", "values", "io_events", "paths", "functions", "types", "varnames"]
+      },
+      "stream": {
+        "argv": ["--events"],
+        "parse": "jsonl-header-then-events",
+        "asks": "which paths did the container intern, and where did it place each step",
+        "yields": ["paths", "stepPositions"],
+        "cost": "this one DECODES THE EVENT STREAMS, so it is not run unless a check that needs it was requested. `--meta-json` is the cheap probe and this is the expensive one; the distinction is the reader's own, stated in its --help."
+      }
+    },
+    "callerMustNotPassAModeFlag": {
+      "flags": ["--meta-json", "--events", "--full", "--json", "--json-events", "--summary", "--markers", "--spans", "--correlation-index"],
+      "why": "The probes above append their own mode. A caller that also passes one produces `--meta-json --events <path>`, where the reader keeps whichever it parsed last and the tool gets a document of the wrong shape while every other clause looks fine. That is a silent wrong answer, so it is refused BY NAME with the flag quoted. It is also why the recipe's documented invocation names the program alone."
+    },
+    "schemaRefusal": {
+      "signature": "meta\\.dat: schema version ([0-9]+)",
+      "signatureFlags": "",
+      "captures": ["declaredSchemaVersion"],
+      "why": "THE VERSION IS READ OUT OF THE READER'S OWN REFUSAL, and that is a deliberate choice over parsing the container. A CTFS container's directory would have to be walked to find `meta.dat` and its header read to get the u16 - a second implementation of another repository's container format, in a tool whose whole argument is that it adds no format code. The reader already states the version it found, in the sentence it refuses with, and taking it from there means the tool and the reader cannot disagree about what the container declares.",
+      "cost": "IT ONLY WORKS ON A REFUSAL. A container the reader ACCEPTS states no version anywhere `ct-print` prints - `--meta-json` publishes the metadata and the counts and not the schema version - so for an opened container the declared version is `null` and the skew check reports NOT RUN for it rather than passed. Over this repository's corpus that hole is empty, because every container is refused and therefore every one states its version. Closing it needs a reader mode that prints the version of a container it accepted, which is a change in the reader's repository."
+    }
+  },
+  "committedReading": {
+    "_comment": [
+      "HOW A SWEEP IS COMPARED TO THE COMMITTED READING, key by key and direction by direction.",
+      "",
+      "`--expect <file>` is the assertion; `tools/chain/measurements/chain-health.json` is the",
+      "file `just chain-health-corpus` writes. The flag is `--expect` and not `--check` because",
+      "`--check <id>` already selects which findings to run - naming the reading-comparison",
+      "`--check` too would make one word mean two things on one command line. `--expect` is also",
+      "what `tools/chain/object-set.mjs` calls the same operation, which is the closer precedent.",
+      "",
+      "THREE DIRECTIONS, AND THE DIFFERENCE IS LOAD-BEARING:",
+      "",
+      "  equal     Figures about the TREE. A change is a change to the corpus and belongs in a",
+      "            reviewable diff, in either direction. A row added, a row withdrawn, a",
+      "            container renamed - all of them move one of these, and all of them should.",
+      "  floor     Figures that measure how far the recording layer has got. A RISE IS NOT A",
+      "            FINDING: the right number of source-level recordings for a chain is whatever",
+      "            it has already reached, so the reading is a floor and not an equality. A check",
+      "            that reddened on improvement is a check whose only stable state is stasis.",
+      "  reader    Figures that exist only when a reader was named. Compared ONLY when the",
+      "            committed reading and this run agree about whether one was - otherwise the",
+      "            comparison is between a run that opened containers and a run that could not,",
+      "            which is not a regression, and calling it one would make the gate fail on",
+      "            every host without the reader built. Reported as SKIPPED with the reason, never",
+      "            as compared."
+    ],
+    "equal": [
+      "rowsExamined", "tracedRows", "untracedRows", "chainAbsentRows", "unclassifiedRows",
+      "containersNamed", "jointScopeRows"
+    ],
+    "floor": [
+      "sourceLevelRows", "stepsPositionedRows", "sourceBundleRows", "artifactsResolved",
+      "attributedRows"
+    ],
+    "reader": [
+      "containersOpened", "containersRefused"
+    ],
+    "perChainFloor": [
+      "sourceLevelRows", "artifactsResolved"
+    ],
+    "antiVacuity": {
+      "minSnapshots": 1,
+      "minRowsExamined": 900,
+      "why": "A CORPUS CHECKER THAT PASSES ON AN EMPTY CORPUS IS THIS CAMPAIGN'S MOST-REPEATED FAILURE, and `--expect` is the exact shape it takes: every `equal` comparison over a reading with no snapshots is satisfied, every `floor` comparison against a zero baseline is satisfied, and the tool prints IDENTICAL. So both sides are floored - the committed reading must record at least `minSnapshots` trees and `minRowsExamined` rows, and so must the run - and a side that does not is a FAILURE with the figure quoted rather than a comparison that came out fine.",
+      "measuredOn": "2026-09-28",
+      "measuredRowsExamined": 998,
+      "measuredNote": "The floor is 900 against a measured 998 so an ordinary row's arrival or withdrawal does not redden it, and far enough above zero that an emptied enumeration cannot pass. The same shape as every other population floor in these tools."
+    }
   },
   "admissibleOutcomeReasonPairs": [
     {

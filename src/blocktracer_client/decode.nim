@@ -297,7 +297,19 @@ proc decodeTraceManifest*(n: JsonNode): TraceManifest =
   result.container = ContainerRef(
     file: optStr(c, "file"), bytes: reqInt(c, "bytes", what & ".container"),
     blockSize: optInt(c, "blockSize"),
-    hash: reqStr(c, "hash", what & ".container"))
+    hash: reqStr(c, "hash", what & ".container"),
+    # ── THE TRANSPORT ENCODING, OPTIONAL BY CONSTRUCTION (CCP-6) ──────────
+    #
+    # Absent means identity, and that is NOT a permissive default: the field's
+    # PRESENCE is what records that the object was stored compressed, so its
+    # absence can only mean it was not. A token this build does not implement
+    # is a different matter and is refused where it is used, by
+    # `publish/encoding.parseContainerEncoding`, which names the value — the
+    # same rule `execution.ending` applies one field over, and the rule
+    # `readCompressionMethod` broke by mapping an unrecognised byte to `none`.
+    encoding: optStr(c, "encoding"),
+    storedBytes: optInt(c, "storedBytes"),
+    storedHash: optStr(c, "storedHash"))
   let e = req(n, "execution", what)
   result.execution = ExecutionSummary(
     steps: optInt(e, "steps"), frames: optInt(e, "frames"),

@@ -341,6 +341,47 @@ type
     anchor*: string
     executed*: bool       ## the trace visited this line at least once
     current*: bool        ## the session's position is on this line
+    compilerAttributed*: bool
+      ## THE RECORDING PLACES STEPS ON THIS LINE AND THE PLACEMENT IS NOT
+      ## EVIDENCE THAT THIS LINE RAN.
+      ##
+      ## A source position in a chain recording comes from the contract's
+      ## compiled debug map, and a compiler is free to key one compiled
+      ## instruction sequence to any one of the source spans that produced it.
+      ## Two shapes of that reach this product's pages, both measured on
+      ## `aztec-testnet-frames/0x0a807e4e…`:
+      ##
+      ##   * **A `quote { … }` template body.** Noir's `comptime` derive
+      ##     machinery emits code from a template, and the map keys the emitted
+      ##     code to the template's own line — so a frame lands on
+      ##     `std/cmp.nr:15`, a closure inside `derive_eq`, and on
+      ##     `serde/src/serialization.nr:260`, inside `derive_deserialize`.
+      ##     `branch_regions.findQuoteBodies` locates these.
+      ##
+      ##   * **A position the recording's own step order contradicts.** Steps
+      ##     15–26 sit at `main.nr:223`, inside `if selector ==
+      ##     CHECK_BALANCE_SELECTOR`, and step 100 sits at `main.nr:214`, inside
+      ##     the `INCREASE_PUBLIC_BALANCE` arm above it — both inside ONE call of
+      ##     `FeeJuice::public_dispatch`, each visited in exactly one contiguous
+      ##     run, and the HIGHER line's run finishes 74 steps before the lower
+      ##     one's begins. Forward control flow through one invocation cannot do
+      ##     that, and a loop cannot produce it either: a loop revisits, which
+      ##     would give one of them a second run. So at least one of the two
+      ##     attributions is not a place the execution reached, and the
+      ##     recording does not say which — which is why BOTH are marked and
+      ##     neither is silently corrected.
+      ##
+      ## WHY THIS IS NOT FOLDED INTO `executed`. The step is real, the recording
+      ## really does carry it, and the line really is the map's answer — so
+      ## un-marking the gutter would delete a measurement. What is false is the
+      ## inference a reader draws, and that is a separate claim needing a
+      ## separate mark. `notTaken`/`ran` are also the wrong home: those are
+      ## claims about CONTROL FLOW derived from a branch chain's mutual
+      ## exclusion, and this is a claim about the DEBUG MAP.
+      ##
+      ## Empty is "nothing is claimed", as it is for `notTaken` — a line with no
+      ## mark is not asserted to be soundly attributed, only unexamined. The
+      ## producer is `demo_session.markCompilerAttributed` and it is the only one.
     breakpoint*: bool
       ## The visitor has marked this line, and Continue stops here.
       ##
@@ -479,6 +520,47 @@ type
       ## Empty on every source-level pane, and empty is how `renderSource` knows
       ## not to draw a caption strip at all. A pane at source level has a tab
       ## strip naming its files instead, which answers the same question.
+    attributionNote*: string
+      ## What the `?`-marked lines in this pane mean, when there are any.
+      ##
+      ## A FIELD OF ITS OWN AND NOT AN ADDITION TO `reason`, and the placement is
+      ## the point. `renderSource` reads `reason` only inside the INSTRUCTION
+      ## LISTING's chrome — correctly, because `reason` is "why this pane is not
+      ## at source level" — so a caveat about SOURCE lines appended there is
+      ## visible on the one document it is not about. This sentence belongs with
+      ## the rung header, above the documents, on both sides of the boundary.
+      ##
+      ## Empty is the ordinary state: it is set exactly when
+      ## `demo_session.markCompilerAttributed` marked at least one line, and the
+      ## count it quotes is that proc's return value rather than a second walk.
+    coverageNote*: string
+      ## WHY the steps this pane cannot place have no source line — which
+      ## contract they ran in, and whether the artifact was looked for.
+      ##
+      ## A SECOND NOTE BESIDE `attributionNote` RATHER THAN A SECOND MECHANISM,
+      ## and rather than more text inside the first. The two are about opposite
+      ## halves of the same pane: `attributionNote` is about lines that ARE
+      ## marked and may be in the wrong place, and this is about steps that are
+      ## marked NOWHERE. Merging them would produce one paragraph a reader has
+      ## to disentangle, and either sentence is drawn without the other on real
+      ## recordings — `0x20ed5b91…` carries both, the eight rung-3 recordings
+      ## carry neither, and a recording with a second contract and no `comptime`
+      ## template would carry only this one.
+      ##
+      ## Everything in it is DERIVED: the counts, the contract addresses, the
+      ## rung and the resolution verdict all come from
+      ## `reader.ContractCoverageView`, folded from `native.replay.contractRungs`
+      ## joined with `native.replay.artifacts`. `ssr.debugSessionFor` is the only
+      ## producer, and it declines to write anything at all unless the pane has a
+      ## rung boundary AND some contract positioned none of its steps — so a
+      ## single-contract transaction, and one that positions everything, grow no
+      ## note rather than an empty or a manufactured one.
+      ##
+      ## It travels in the source island for `attributionNote`'s reason and with
+      ## the same consequence if it did not: it is folded from the manifest,
+      ## which the page does not carry, so a hydrated pane cannot recompute it
+      ## and the cause would appear on the served page and vanish on the
+      ## visitor's first step.
     documents*: seq[SourceDocument]
     activeIndex*: int         ## which document the pane shows
     currentLine*: int         ## 0 when the session is not positioned
@@ -965,9 +1047,18 @@ type
       ## parsing the right-hand side of a source assignment, so with no source
       ## there is nothing to parse and the honest answer is a sentence rather
       ## than a row of controls that would each answer "unknown". Every chain
-      ## capture this explorer publishes is in that state — `sourceBundles` is
-      ## empty and `execution.sourceLevel` is false on all eight — and saying
-      ## so is the correct product behaviour for them, not a degraded one.
+      ## capture this explorer publishes is in that state, and saying so is the
+      ## correct product behaviour for them, not a degraded one.
+      ##
+      ## RE-COUNTED OVER `client/dist`, BECAUSE THIS SENTENCE WAS ONE SHORT AND
+      ## OVER-GENERAL AT ONCE. It said "on all eight", and the corpus holds TEN
+      ## chain captures. `execution.sourceLevel` is false on all ten, so the
+      ## origin chain is genuinely unavailable on every one of them — but
+      ## `sourceBundles` is empty on only EIGHT. The other two declare a bundle,
+      ## because a partly-positioned recording may publish its text while still
+      ## refusing the all-or-nothing source-level claim. So two of the ten have
+      ## source text in the page and still no origin chain, which is the state
+      ## the old sentence said could not exist.
       ##
       ## Empty when the recording DID publish source, whether or not any
       ## individual value turned out to be classifiable.
@@ -1443,6 +1534,26 @@ type
       ## every chain.
     integrity*: SessionIntegrity
     integrityDetail*: string
+    scopeTitle*, scopeDetail*: string
+      ## THE NARROW CLAIM, SAID OUT LOUD — the undismissable qualifier above the
+      ## debugger that names what the replay was checked against and what it was
+      ## not.
+      ##
+      ## A SEPARATE PAIR FROM `integrity`/`integrityDetail`, and the separation
+      ## is the point. `integrity` is a VERDICT: divergent, truncated, validated
+      ## — one of them, and the banner it draws is that verdict. This is a
+      ## QUALIFICATION of a verdict that stands: the replay really did reproduce
+      ## every published effect, so `siDivergent` would be false, and the four
+      ## state-tree roots really do disagree with the block's, so silence would
+      ## be an overclaim. Folding this into the enum would have forced a choice
+      ## between two statements that are both true.
+      ##
+      ## Filled by `ssr.debugSessionFor` from `TxView.replay` and the manifest's
+      ## `validation.oracle`; empty on every session with nothing to qualify,
+      ## and `pages/debug.banner` draws nothing for an empty pair. Carried as
+      ## PROSE rather than as the numbers because the numbers already travel on
+      ## `TxView.replay` and this route is not their second producer — see the
+      ## composition site.
     reconstructed*: bool
       ## The trace was heuristically reconstructed rather than recorded.
       ##
@@ -1761,9 +1872,6 @@ func canHeadline*(v: DebugSessionView): bool =
     if s.name.len == 0: return false
   true
 
-func truncatedHash*(h: string): string =
-  if h.len <= 13: h else: h[0 ..< 8] & "…" & h[h.len - 4 .. ^1]
-
 func truncHash*(h: string, lead = 6, tail = 4): string =
   ## `0x27a6c250…9a6c` — a middle-truncated hash for dense tables and for the
   ## metadata pane's hero.
@@ -1777,6 +1885,22 @@ func truncHash*(h: string, lead = 6, tail = 4): string =
   ## `session_view`, so every existing call site is unchanged.
   if h.len <= lead + tail + 1: return h
   h[0 ..< lead] & "…" & h[h.len - tail ..< h.len]
+
+func truncatedHash*(h: string): string =
+  ## A NAME, no longer a second truncation rule. It used to hardcode 8/4 while
+  ## `truncHash` defaulted to 6/4, so the debug page showed one hash at two
+  ## truncation lengths — the identity bar through this proc, the transaction
+  ## pane through the other.
+  ##
+  ## That is `tx-detail/wide/light/L1/4` one level deeper. There the two lengths
+  ## came from one proc called with different arguments, and the resolution was
+  ## to stop passing them; here they came from two procs, so the second one
+  ## delegates. `reviews/ledger.json` records that resolution's measurement, and
+  ## the standard it set is the one that applies: a page shows ONE truncation
+  ## rule and the full value, never a third shape.
+  ##
+  ## Kept rather than deleted because `test_debug_route` asserts on this name.
+  truncHash(h)
 
 # ── copying a value out (§13: "every hash, address and identifier is copyable
 #    with one click") ───────────────────────────────────────────────────────

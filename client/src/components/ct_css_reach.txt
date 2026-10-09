@@ -1,0 +1,573 @@
+# THE REACHABILITY REGISTER — which of the port's selectors can match, and
+# which are emitted knowing nothing will.
+#
+# ── WHY THIS FILE EXISTS ──────────────────────────────────────────────────
+#
+# `ct_components_css.nim` compiles eight vendored CodeTracer stylesheets into
+# the CSS this site serves. `Dropped` in that module records the rules the port
+# does not emit, each with a reason, and a test asserts every dropped rule is
+# dropped on purpose. THE CONVERSE HAD NO CHECK AT ALL: nothing asserted that a
+# rule which was NOT dropped can actually match something. A rule could be
+# vendored, transpiled, scoped, served and matched by nothing, and the only
+# evidence either way was that somebody had once looked.
+#
+# Three defects came out of that gap, all measured:
+#
+#   1. `.component-container`, CodeTracer's panel surface, was vendored and
+#      served while `grep -c component-container` over `components/debugger.nim`
+#      and `pages/debug.nim` was 0. It was reported to the owner as "ported".
+#      It is live now — five pane bodies wear it — and it is the first LIVE row
+#      below, which is what keeps it live.
+#
+#   2. The nine vendored CodeTracer icons were published and their `url()`s
+#      fixed from 404s to 200s, and a rendered probe then proved that all nine
+#      rules work when correct markup is injected AND that zero of the nine
+#      selectors are emitted anywhere — over 349 built pages and all three JS
+#      bundles, raw and char-code-decoded. The urls resolve. Nothing reaches
+#      them. See `INERT class ct-origin-*` and the two rows after it.
+#
+#   3. `.separate-bar` and `.dropdown-list` were each given a colour binding
+#      and both match zero elements.
+#
+# ── WHAT A ROW MEANS ──────────────────────────────────────────────────────
+#
+#   LIVE  <kind> <pattern>      this site's markup emits it, and the gate
+#                               PROVES that against the built tree. A row here
+#                               is a claim of liveness that something checks.
+#
+#   INERT <kind> <pattern>      the port emits it knowing nothing matches it.
+#                               The reason has to say WHAT WOULD HAVE TO EXIST
+#                               for it to come back, because that is the
+#                               sentence the three defects above were missing.
+#
+# `<kind>` is one of:
+#
+#   class       a `.foo` in a port selector.
+#   classpart   the substring in a `[class*="foo"]`, which matches a class
+#               attribute containing it anywhere.
+#   id          a `#foo`.
+#   element     a bare tag name, in a selector that names no class, id or
+#               classpart at all.
+#
+# `<pattern>` may use `*` as a wildcard. EXACTLY ONE row must cover each item
+# the port emits — not "at least one" — so a reader looking for why a class is
+# inert finds one answer, and so two families cannot quietly overlap.
+#
+# The reason is the indented block under the row. It is required and it is not
+# decoration: `Dropped`'s precedent is that the reason is the whole value of
+# the entry.
+#
+# ── WHY THIS IS A DATA FILE AND NOT A `seq` IN THE NIM MODULE ─────────────
+#
+# Because TWO checks in two languages have to read the same rows, and a second
+# copy of the register is the divergence this whole module exists to prevent:
+#
+#   * `client/tests/test_ct_components_css.nim` `staticRead`s it and asserts
+#     the PARTITION IS TOTAL — every class, classpart, id and element the port
+#     emits is covered by exactly one row, and every row covers something. It
+#     needs no markup and no build, so it runs in seconds and a re-vendor that
+#     introduces an unclassified selector fails there first.
+#
+#   * `tools/ci/check-css-reachable.mjs` parses it and asserts the rows are
+#     TRUE OF THE MARKUP — every LIVE row is emitted by the built tree, and no
+#     INERT row is. It needs the exported site, so it runs in the `debug-route`
+#     job via `ci/test/ct-css-reachable.sh`.
+#
+# Neither half is the gate on its own. The first says the register accounts for
+# everything the port emits; the second says the register is not lying. The
+# claim the three defects needed is their composition.
+#
+# ── WHAT "EMITTED BY THE MARKUP" MEANS, AND WHAT IT DELIBERATELY DOES NOT ──
+#
+# Two sources count, and both are syntactically class values:
+#
+#   * a token of a `class="…"` attribute in one of the ~348 pages
+#     `cd client && just export-hydrated` produces;
+#   * a token of a `class = "…"` literal, or a `classList.add/remove/toggle`
+#     argument, in a `.nim` file under `client/` — which is what covers a class
+#     the renderer writes on a branch the demo corpus never takes.
+#
+# A THIRD SOURCE IS MEASURED AND DELIBERATELY NOT COUNTED. The gate also reads
+# every shipped JS bundle, decoding the char-code arrays Nim-JS emits some
+# string literals as, and the decoder is validated on two literals known to be
+# present (`copyable`, which `hydrate.js` carries ONLY encoded, and
+# `identifier`, which it carries both ways) so that a null from it is a
+# measurement rather than a failed grep. It is not counted as liveness because
+# a JS string literal is not a class value, and the measurement says exactly
+# what that would have cost: `active`, `checkbox`, `hidden`, `open` and
+# `selector` are all port classes AND all present as ordinary words in
+# `hydrate.js`, and not one of them is a class this site writes. Promoting a
+# bundle token to "matched" would have excused SIX ROWS, which the gate prints
+# on every run: `active`, `checkbox`, `hidden`, `open`, `selector` and the SVG
+# element `line`. `hidden` and `active` sit in the same family as
+# `.dropdown-list`, which is defect 3.
+#
+# So the bundle is a cross-check on the Nim scan, not a source of excuses. A
+# row may name `bundle` as its evidence (`LIVE class <name> bundle`) when a
+# class genuinely only exists in SDK code compiled into the bundle and in no
+# `client/` source; no row does today, and such a row has to argue for itself.
+#
+# ── WHAT IS OUT OF SCOPE, AND WHY ─────────────────────────────────────────
+#
+#   * PSEUDO-CLASSES AND PSEUDO-ELEMENTS are not inventory items. `:hover`,
+#     `:focus-visible`, `:disabled`, `:target`, `:nth-child()` and
+#     `::placeholder` are STATE, not identity, and cannot be found in static
+#     markup. A rule on `X:hover` is therefore an item for `X` alone — which is
+#     the honest reading and NOT a hole the three defects fit through:
+#     `.ct-origin-icon-sigma .ct-origin-badge-icon` is a DESCENDANT selector,
+#     so it is two class items, and both are below as INERT.
+#
+#   * A CLASS INSIDE `:not()` IS NOT AN ITEM, because the rule matches when it
+#     is ABSENT. Classes inside `:has()`, `:is()` and `:where()` ARE items, for
+#     the opposite reason — and the nesting of the two decides, not the
+#     innermost pseudo. The worked example is upstream's one use of
+#     `#isonim-debug-controls`, which occurs ONLY as
+#     `:not(:where(#isonim-debug-controls *))` on the image-button rule: the
+#     rule applies to every image button that is NOT inside the caption bar's
+#     debug-controls toolbar, so that id is not something this site has to
+#     emit, and the register carries no row for it. A text scan of the built
+#     stylesheet reports it as an id the port names; the inventory does not,
+#     and the inventory is right.
+#
+#   * NON-`class` ATTRIBUTE SELECTORS are not items: `[data-selected="true"]`,
+#     `[data-disabled="true"]`, `[data-focused="true"]`, `[data-focus-mode]`,
+#     `[data-tippy-root]`, `[data-placement^=…]` and `[style*=…]`. The first
+#     four are state. `[data-tippy-root]` is identity, and it is honest to say
+#     so: it is not checked here, and it is the only one that is not state.
+#     Every rule that names it also names `.tippy-box` or `.tippy-content`,
+#     which are items and are INERT, so the family is accounted for.
+#
+#   * `[data-register="debugger"]` is on `<html>` and prefixes EVERY port
+#     selector. Matching is about the class, never about the register, so it is
+#     skipped by the same rule as every other non-`class` attribute.
+#
+#   * A DECLARATION the browser discards is NOT in scope, and that is a known
+#     gap with a live instance: `.dropdown-list` carries `z-index: 50 + 7`,
+#     which the transpiler passes through unevaluated and the browser throws
+#     away (confirmed against a control: inline `z-index: 57` computes to 57,
+#     `50 + 7` computes to `auto`). It is the same class of silence one level
+#     down — a rule that matches, carrying a declaration that does nothing —
+#     and nothing in this repository catches it. `ct_styl` raises on an
+#     unsupported at-rule or mixin and passes arithmetic through silently.
+#
+# ══ LIVE ══════════════════════════════════════════════════════════════════
+
+LIVE class component-container
+    DEFECT 1, AND THE ROW THAT KEEPS IT FIXED. CodeTracer's panel surface,
+    declared in `shared_widgets.styl` and the rule every other component is
+    drawn inside. It was vendored and served while nothing emitted it;
+    `components/debugger.nim` now wraps all five pane bodies in it.
+
+LIVE class lm_goldenlayout
+    The frame CodeTracer's panels float in. `pages/debug.nim` writes it on the
+    page's main region, beside BlockTracer's own `dbgmain`.
+
+LIVE class lm_horizontal
+LIVE class lm_vertical
+    The two split directions, on the SPLITTER between two siblings:
+    `renderLayout`'s row/column arm writes `class = "lm_splitter " & axis`
+    where axis is one of these. Neither is written as a literal of its own —
+    the axis is a variable — so `lm_vertical` is found in the exported pages
+    and in no `class = "…"` string anywhere, which is exactly the case the
+    built tree is read for and the reason a source scan alone is not enough.
+
+LIVE class lm_stack
+    A tabbed region. `renderStack` emits one per leaf of the arrangement.
+
+LIVE class lm_header
+LIVE class lm_tabs
+LIVE class lm_tab
+LIVE class lm_title
+    The tab strip: the header bar, the tab list, each tab, each tab's label.
+    All four from `renderStack`'s single loop over `node.children`.
+
+LIVE class lm_items
+LIVE class lm_content
+    The panel side of that same loop — the content region and each panel in
+    it. The positional correspondence between tab K and panel K that
+    `activeTabCss()` depends on is this one loop.
+
+LIVE class btdefault
+    BlockTracer's own, and the ONE class in this list upstream does not have:
+    it marks the tab and the panel that are active with no `:target` fragment.
+    It is here because `activeTabCss()` emits upstream's `.lm_active`
+    declarations under it, so a renderer that stopped writing it would leave
+    every stack with no active tab on a bare URL.
+
+LIVE class lm_splitter
+    The divider between two panes in a stack. Emitted inert — there is no
+    drag without JavaScript, which is why `.lm_splitter.lm_dragging` is in
+    `Dropped` — but the splitter element itself is rendered and drawn.
+
+LIVE class ct-tab
+    CodeTracer's own tab idiom, used for the pane-level tabs. Upstream keys
+    its states off `[data-selected]` / `[data-focused]`, which are out of
+    scope above; the class itself is emitted.
+
+LIVE class empty-overlay
+    The shared empty-state treatment from `empty_states.styl`, which the
+    debug route uses for every state with no session.
+
+LIVE classpart -button-
+LIVE classpart -secondary
+LIVE classpart ct-button-image-
+LIVE classpart ct-button-image-md-
+    Four of upstream's twenty-one `[class*="…"]` button families, and the four
+    that match: `components/debugger.nim` emits `ct-button-image-md-secondary`
+    on the pane controls, which contains all four substrings. The other
+    seventeen are INERT below, by size and by variant.
+
+LIVE element html
+LIVE element body
+    `[data-register="debugger"] html` and `… body` — the register is set on
+    `<html>` by `components/layout.nim`, so both are emitted on every page.
+
+LIVE element button
+LIVE element input
+    The two bare element selectors upstream's `button.styl` and `input.styl`
+    carry. Both are the reason every port selector is register-scoped in the
+    first place: unscoped they would restyle the whole explorer.
+
+# ══ INERT ═════════════════════════════════════════════════════════════════
+#
+# Read this section as the SHAPE OF THE PORT rather than as a list of
+# mistakes. Eight vendored sheets draw the whole of CodeTracer's component
+# layer; BlockTracer builds five panes out of it. 180 OF THE 203 ITEMS the
+# port emits are for components this product does not build — 159 classes, 21
+# `[class*=]` substrings, 13 ids and 10 elements, of which 23 are LIVE — and
+# that is the port working as intended — the bytes are upstream's, a re-vendor brings
+# upstream's changes, and a rule for a component nobody renders costs a few
+# hundred bytes of gzipped CSS and nothing else.
+#
+# WHAT WOULD BE A DEFECT is a row here whose reason is wrong, or an item with
+# no row at all. The first is what the Node half checks; the second is what
+# the Nim half checks.
+
+# ── the three defects' own rows ──────────────────────────────────────────
+
+INERT class ct-origin-*
+    DEFECT 2 — THE NINE VENDORED ICONS, AND THE ROW IS A CORRECTION OF THE
+    RECORD AS WELL AS A CLASSIFICATION.
+    `button.styl` draws a value's ORIGIN as a badge: `.ct-origin-badge` with
+    an `.ct-origin-badge-icon` and an `.ct-origin-badge-text` inside it, the
+    icon's mask chosen by one of seven `.ct-origin-icon-<kind>` classes on an
+    ancestor (sigma, quotation, door, globe, clock-rewind, question,
+    hourglass). Those seven masks plus `.value-history-button::before` and
+    `.custom-noir-icon::before` are the nine `url()`s that published as 404s
+    and now resolve. The RULES are correct — a rendered probe drove all nine
+    with injected markup — and NONE of the selectors is emitted anywhere.
+    WHAT WOULD HAVE TO EXIST, stated precisely because the previous answer was
+    wrong. It is NOT a missing classifier. The Embed SDK this repository
+    already compiles against exports `iconClassForTerminator`
+    (`viewmodel/viewmodels/origin_chain_types.nim`), a total mapping from
+    `TerminatorKindWire` onto exactly these seven class spellings, and
+    `client/hydrate/live_origin.classifiedOriginOf` ALREADY READS
+    `summary.terminatorKind` — and then discards it, keeping only
+    `terminatorExpr`. So the data and the seven-way mapping are both in hand.
+    What is missing is MARKUP: `SessionValue.origin` is a single string
+    (`debugger/session_view.nim`), and `components/debugger.nim` renders it as
+    a `.storigin` button whose `title` is the expression. Emitting the badge
+    means carrying the kind through `session_project.stateFor` into
+    `StateValue`, and rendering upstream's three-element shape instead of one
+    button — a renderer change with a visual-design decision in it, not a
+    classifier to invent. It would be visible on the hydrated route only, and
+    on the two of ten published captures whose recordings publish source;
+    `session_project.nim` says why the other eight cannot ever show it.
+    THE NINE SVGs UNDER `client/src/assets/ct-icons/` ARE THEREFORE REACHED BY
+    NOTHING TODAY, and they are kept rather than removed, deliberately: the
+    rules that name them are upstream's bytes, `ct_styl.rewriteUrls` is total
+    over them by construction, and dropping the rules to delete the files
+    would have to be undone by whoever wires the markup. What must not happen
+    is a comment claiming they are visible to visitors; the icon table in
+    `ct_components_css.nim` says this instead.
+
+INERT class value-history-button
+    The value-history toggle on each State row, and the carrier of the eighth
+    vendored icon. Upstream's State pane offers a per-value history view;
+    BlockTracer's State pane has no history affordance at all — there is no
+    `ct/valueHistory` call anywhere in `client/hydrate/`. It would come back
+    with that panel.
+
+INERT class custom-noir-icon
+    The ninth vendored icon: the Noir language mark, drawn by
+    `shared_widgets.styl` as a `::before` mask. Upstream puts it on the
+    language indicator of a Noir trace. This site has Noir sessions and no
+    language indicator to put a mark on.
+
+INERT class separate-bar
+    DEFECT 3. A vertical rule between toolbar groups, in
+    `shared_widgets.styl`, and its only visible declaration is a left border.
+    Nothing emits it, AND MARKUP ALONE WOULD NOT BE ENOUGH: the border binds
+    to the subtle-border role and the panel binds to the sunken-surface role,
+    and in the DARK theme — which is this register's default — those two roles
+    resolve to the identical value. A 1.00:1 contrast, invisible on the
+    surface it is drawn on. In the light theme they are two adjacent neutral
+    rungs, which is barely better. So reaching this rule means markup AND a
+    colour decision, and the colour decision is BlockTracer's: upstream's own
+    two roles are one rung apart at the pinned commit and this product's ramp
+    puts them on the same rung. The values are not quoted here on purpose —
+    `tools/design/check-tokens.mjs` and `test_static_export`'s shipped-rules
+    scan both reject a raw colour in this layer, and a reason is not worth
+    weakening either gate for.
+
+INERT class dropdown-list
+INERT class dropdown-list-item
+INERT class hamburger-dropdown
+    DEFECT 3's other half. Upstream's dropdown menu: a trigger, the list, the
+    rows. This route's menus are `:target` links with no JavaScript to open
+    one, which is also why `@keyframes ct-dropdown-reveal` is in `Dropped`.
+    Its 1.08:1 text-on-surface contrast is CodeTracer's OWN binding —
+    `shared_widgets.styl:722` is `color: colors-ui-surface-input-default`, a
+    SURFACE role used as a text colour, over a raised surface on the line
+    before it — and is faithful rather than a defect — it must not be "fixed" here. It also
+    carries the `z-index: 50 + 7` the browser discards; see the scope note
+    above.
+
+# ── whole upstream components this product does not build ────────────────
+
+INERT class data-table
+INERT class data-tables-footer*
+INERT class dataTables_*
+INERT class dt-*
+INERT class dts_*
+INERT class paging_simple_numbers
+INERT class odd
+INERT class even
+INERT class past
+INERT class future
+INERT class r
+    `data_tables.styl` styles DataTables.js, which CodeTracer's State, Event
+    Log and Scratchpad panes are built on. `odd`, `even`, `past`, `future`
+    and `r` are that library's own row-state classes, written by its
+    JavaScript. BlockTracer renders those panes as its own markup
+    (`components/debugger.nim`), carries no DataTables dependency, and would
+    only reach this vocabulary by adopting the library.
+
+INERT class tippy-*
+INERT class custom-tooltip
+INERT class code-tooltip
+INERT class active-line
+INERT class excerpt-code
+    Tippy.js and CodeTracer's source-excerpt tooltip. A tooltip here is a
+    `title` attribute — `components/debugger.nim` uses it for the origin
+    expression and for every pane control — which the browser draws itself.
+    Reaching these means a positioned tooltip layer, which needs JavaScript.
+
+INERT class ct-notification*
+INERT class notification-*
+INERT class status-notification
+    `notifications.styl`: upstream's notification centre, with four severities
+    in three prominences each. Nothing on a static route can raise one, and
+    BlockTracer's own degraded-state and refusal notices are explorer markup
+    with explorer rules (`§14 degraded-state notice` in `debugger_css.nim`).
+
+INERT class ct-picker*
+    The picker widget — a trigger, a chevron and a dropdown panel. Same
+    reason as the dropdown above: it opens from script.
+
+INERT class ct-counterexample*
+    The counterexample pane, which upstream shows for a failed property test.
+    This product has no such pane and no such input.
+
+INERT class ct-input-*
+    Upstream's four input VARIANTS — small, panel, form, command-palette —
+    and the search image inside one. BlockTracer's debug route has one input
+    idiom and it is the bare `input` selector, which is LIVE above. These
+    variants would come back with a command palette or a panel form.
+
+INERT class chart-*
+INERT class chartjs-render-monitor
+INERT class view-inactive
+    Chart.js and the chart-results pane it draws into. No chart is rendered
+    anywhere in this product.
+
+INERT class code-editor
+    The Monaco editor pane. This site's source view is static HTML with
+    server-side highlighting (`debugger/source_document.nim`); there is no
+    editor.
+
+INERT class jstree-default-contextmenu
+    jsTree's context menu, for upstream's filesystem pane. No context menu
+    and no filesystem pane here.
+
+INERT class checkbox
+INERT class checkmark
+INERT class indeterminate-checkmark
+    The tri-state checkbox. Nothing on the debug route is checkable; the
+    settings page's controls are radio inputs with the explorer's own rules.
+
+INERT class ct-docked-outline
+INERT class ct-overlay-outline
+INERT class ct-selected-outline
+    The SVG outlines GoldenLayout draws while a pane is being dragged to a
+    new dock. There is no drag, for the reason `.lm_splitter.lm_dragging` is
+    in `Dropped`.
+
+INERT element circle
+INERT element ellipse
+INERT element line
+INERT element polygon
+INERT element polyline
+INERT element rect
+    The SVG primitives those three outline rules are written against. They
+    are the one place in this register where an ELEMENT is inert, and they are
+    inert for the same reason the classes above them are.
+
+# ── upstream's desktop shell ─────────────────────────────────────────────
+
+INERT id ROOT
+INERT id main
+INERT id dock
+INERT id root-container
+INERT id welcomeScreen
+    The element ids of CodeTracer's own application shell: the mount point,
+    the main region, the dock and the welcome screen.
+    This site mounts nothing of the kind — the whole port is scoped INSIDE a
+    page the explorer renders — so none of these ids exists on any page. Every
+    item here is an id rather than a class, which is why they survived the
+    class-level reviews that preceded this register.
+
+INERT id category-image
+INERT id close-element
+INERT id backward-loop
+INERT id forward-loop
+INERT id trace-run-button
+INERT id trace-q
+INERT id trace-query
+INERT id hamburger-dropdown
+    The individual controls of that shell: the category toggle, the close
+    button, the two loop-step buttons, the trace-run button, the trace query
+    field and its wrapper, the hamburger menu. Upstream addresses them by id
+    from its renderer. BlockTracer's equivalents are the scrubber and the
+    pane controls, which are classed, not identified.
+
+INERT class run-trace-button
+INERT class eventLog-medium-control-button
+    The classed halves of two of those controls. Same reason.
+
+# ── panes with no BlockTracer counterpart, and their empty states ────────
+
+INERT class agent-workspace-empty
+INERT class flow-steps-empty
+INERT class frame-viewer-empty
+INERT class frame-viewer-draw-calls-empty
+INERT class pixel-history-empty
+INERT class shader-debug-empty
+INERT class shader-debug-values-empty
+INERT class video-player-empty
+INERT class trace-log-empty
+INERT class problems-empty
+INERT class point-list-empty
+INERT class search-results-empty
+INERT class unified-diff-empty
+INERT class event-log-marker-empty
+INERT class filesystem-empty-overlay
+INERT class filesystem-loading-overlay
+INERT class fif-*
+    `empty_states.styl`'s per-pane empty states. Upstream has an agent
+    workspace, a frame viewer, a pixel-history view, a shader debugger, a
+    video player, a trace log, a problems list, a point list, a find-in-files
+    pane (`fif-`), a unified diff and a filesystem tree; BlockTracer places
+    five panes and none of them is any of those. The SHARED treatment the same
+    sheet declares — `.empty-overlay` — is LIVE above, which is the
+    distinction this family turns on: the shared rule is used, the per-pane
+    ones name panes that do not exist.
+
+INERT class rr-ticks-*
+INERT class direct-location-rr-ticks
+INERT class event-rr-ticks-line
+    The rr-ticks column: upstream renders a recording's tick coordinate beside
+    each row of a data table. BlockTracer's scrubber shows position once for
+    the whole session rather than per row, and these rules are written against
+    the DataTables markup above besides.
+
+INERT class value-expanded-compound
+INERT class value-load-more-button
+    The expanded-compound marker and the paging control for a long value.
+    BlockTracer's State pane prints values flat and whole
+    (`debugger/session_view.nim`), so neither affordance exists.
+
+# ── the layout manager's script-only state ───────────────────────────────
+
+INERT class lm_active
+    GoldenLayout's active-tab marker, put on a tab from script. A static page
+    cannot, AND THE RULES ARE NOT DROPPED ON PURPOSE: `activeTabCss()` reads
+    every emitted `.lm_active` rule out of the compiled CSS and re-emits its
+    declarations VERBATIM under `:target`-derived selectors, so dropping them
+    would delete the active tab's whole appearance rather than port it. This
+    row is the one case where an inert selector is load-bearing, which is also
+    why `Dropped` could not have held it.
+
+INERT class lm_controls
+INERT class lm_tabdropdown
+INERT class lm_popout
+INERT class lm_drag_handle
+    The layout manager's own chrome: the header's control cluster, the
+    overflow-tab dropdown, the popped-out-window frame and the splitter's drag
+    grip. Each needs a layout manager running — to close a pane, to overflow a
+    tab strip, to pop a window out, to drag. `Dropped` already holds the two
+    close/pin tab rules for the same reason; these are the ones that carry no
+    unavailable asset and so had no reason to be dropped.
+
+INERT class lm_item
+    GoldenLayout's class for EVERY node of its tree, which upstream relies on
+    to give rows, columns and stacks one shared box. BlockTracer's renderer
+    does not: `renderLayout`'s row/column arm writes `ln row` / `ln col` plus
+    a weight class, and `renderStack` writes `ln lm_stack`, so the interior
+    nodes carry this product's own layout vocabulary and the leaf stacks carry
+    upstream's. ADDED AS INERT BY THE GATE RATHER THAN BY A READING: it was
+    first written as a LIVE row, on the assumption that an `lm_`-prefixed
+    class the arrangement obviously needs must be emitted, and the Node half
+    answered that nothing in 349 pages and no `class = "…"` literal anywhere
+    carries it. That is the whole function of the LIVE side of this register.
+
+# ── the rest of `shared_widgets.styl`'s script-driven vocabulary ─────────
+
+INERT class active
+INERT class open
+INERT class hidden
+INERT class highlight
+INERT class hovered
+INERT class selector
+INERT class unselectable
+INERT class panel
+INERT class panel-width
+INERT class absolute-panel
+INERT class ct-control-mark
+INERT class ct-button-no-border
+    State and layout classes upstream's renderer toggles from script —
+    `.active`, `.open`, `.hidden`, `.highlight`, `.hovered` — plus four
+    container classes (`.panel`, `.panel-width`, `.absolute-panel`,
+    `.selector`) and two button modifiers that belong to widgets this product
+    does not build. FIVE OF THESE ARE THE REASON THE BUNDLE IS NOT COUNTED AS
+    LIVENESS: `active`, `checkbox`, `hidden`, `open` and `selector` all occur
+    as ordinary string literals in the bundles, and none of them is a class
+    this site writes anywhere. The sixth is the SVG element `line`.
+
+# ── the seventeen button families that do not match ──────────────────────
+
+INERT classpart -primary
+INERT classpart -tertiary
+INERT classpart ct-button-xs-
+INERT classpart ct-button-sm-
+INERT classpart ct-button-sm-secondary
+INERT classpart ct-button-md-
+INERT classpart ct-button-lg-
+INERT classpart ct-button-xl-
+INERT classpart ct-button-text-xs-
+INERT classpart ct-button-text-sm-
+INERT classpart ct-button-text-md-
+INERT classpart ct-button-text-lg-
+INERT classpart ct-button-text-xl-
+INERT classpart ct-button-image-xs-
+INERT classpart ct-button-image-sm-
+INERT classpart ct-button-image-lg-
+INERT classpart ct-button-image-xl-
+    `button.styl` crosses three button shapes (plain, text, image) with five
+    sizes and three prominences and addresses each cell with a
+    `[class*="…"]`. This site uses ONE cell — image, medium, secondary — so
+    four of the twenty-one substrings match (LIVE above) and these seventeen
+    do not. They are a size and a prominence away rather than a component
+    away: emitting `ct-button-text-sm-primary` on one control would move two
+    of these rows to LIVE, which is the shape of change this register is meant
+    to make visible.

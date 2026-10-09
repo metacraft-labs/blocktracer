@@ -1,0 +1,457 @@
+name: Publish the site tree to R2
+
+# ---------------------------------------------------------------------------
+# PUBLISH A BUILT SITE TREE TO THE `blocktracer` R2 BUCKET.
+#
+# DEPLOY.md Step 4 names this workflow and nothing implemented it, so the only
+# publish path that has ever existed is an operator running the binary by hand.
+# That is acceptable exactly once — DEPLOY.md calls it "a one-off operator run
+# (first go-live)" — and is the wrong shape for everything after, for the
+# reason Deployment-And-Operations.md §6c gives: production is applied by a
+# protected identity, not from somebody's laptop.
+#
+# ── WHAT THIS CAN AND CANNOT PUBLISH, STATED UP FRONT ────────────────────────
+#
+# It publishes WHAT CI CAN BUILD: `nix build .#default` -> `result/`, which is
+# the demo/fixture tree plus the client. That is the continuous case.
+#
+# It CANNOT publish the full chain history, and pretending otherwise would be
+# the more useful-sounding lie. The 201,780-block corpus is ~10 GB of ingested
+# state that took hours of RPC against a live node; CI has neither the state
+# nor the time, and a 14 GB tree exceeds every artifact limit here. Until the
+# ingest runs somewhere persistent (the high-mem-server plan), a full-history
+# publish stays an operator run against a locally assembled tree.
+#
+# So: this workflow keeps the SITE fresh. It does not keep the HISTORY fresh.
+#
+# ── WHY MANUAL-ONLY ──────────────────────────────────────────────────────────
+#
+# No `push:` trigger. A publish flips `current.json`, which is the one mutable
+# object per chain and the thing a visitor's session pins — §3.3. Making that
+# a side effect of merging would mean every merge is a production cutover.
+# `workflow_dispatch` keeps the decision where §6c puts it: with a human.
+#
+# ── THE LEASE IS WHY TWO RUNS ARE SAFE ───────────────────────────────────────
+#
+# `blocktracer-publish` holds a per-chain single-writer lease keyed on the
+# publisher's PID under a reserved `_leases/` prefix, so a second overlapping
+# run is REFUSED ("chain 'aztec' is locked by another publisher") rather than
+# interleaving with the first. `concurrency` below is belt-and-braces: it stops
+# the second run being queued at all, so the refusal stays a safety net rather
+# than the normal path.
+#
+# ── `render-over-live`: THE ONE CASE THIS *CAN* PUBLISH REAL HISTORY ────────
+#
+# "It publishes WHAT CI CAN BUILD" above is true for the continuous case and
+# was never the whole story: `client/src/static_export.nim` can render every
+# chain from a tree it did not itself ingest (`-d:dataOrigin=<dir>`, with a
+# per-chain exception for a chain that tree does not carry —
+# `-d:chainOrigins=<chain>=<dir>`, read that file's own header). CI has no
+# 10 GB capture to ingest, but it already has read credentials on the bucket
+# that DOES hold one. `render-over-live: true` uses them: stage the bucket's
+# data plane, point the render at it, and the output is the demo/fixture
+# CLIENT over PRODUCTION's data — "a demo ends up overwriting index.html, _a/
+# and replay-engine/ next to the real history" stops being the only way this
+# combination happens, and becomes a reviewed, opt-in one instead.
+#
+# Off by default, same spirit as `dry-run` and `allow-foreign-chains`: this
+# changes what gets rendered, costs an R2 read of the live data plane before
+# the build even starts, and — because a build that renders over live data is
+# exactly the build that could get a live chain's `current.json` wrong in a
+# new way — it is followed by two assertions with no equivalent in the
+# continuous path: the pointer-pin step and the index-size step below, both
+# of which run (and print) whether or not `dry-run` is set, so a human reads
+# their verdict before any real publish is possible.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: >-
+          Publish to a local directory and diff it against the tree instead of
+          writing to R2. Proves the tree and the binary without touching
+          production. Leave true unless you mean it.
+        type: boolean
+        default: true
+      bucket:
+        description: >-
+          The R2 bucket to publish into. REQUIRED and deliberately without a
+          default. This workflow publishes what CI can build — `nix build
+          .#default`, the client over the DEMO data tree — and defaulting that
+          at the production bucket is how a demo ends up overwriting
+          `index.html`, `_a/` and `replay-engine/` next to the real history.
+          Name a staging bucket unless you mean production.
+        type: string
+        required: true
+      allow-foreign-chains:
+        description: >-
+          Publish even though the bucket already serves chains this tree does
+          not contain. Off by default: that combination means the tree is a
+          subset of what is live, and the site objects it overwrites are shared
+          by every chain, not guarded per chain.
+        type: boolean
+        default: false
+      render-over-live:
+        description: >-
+          Render the client over the LIVE bucket's data instead of over this
+          build's own demo/fixture tree (static_export.nim's -d:dataOrigin /
+          -d:chainOrigins, read its header). Off by default: the ordinary
+          build above is unchanged when this is false. On, this job first
+          syncs the bucket's `d/`, `idx/`, `t/` and `src/` prefixes — the only
+          ones a data origin is ever read through — into a staging directory,
+          builds against it, then PINS every live chain's `d/<chain>/
+          current.json` to the bucket's own bytes and refuses to publish a
+          global hash index smaller than the live one. Needed to ship a tree
+          rendered over production's real history rather than the curated
+          local fixture, which is this workflow's missing capability.
+        type: boolean
+        default: false
+      runner:
+        description: >-
+          JSON array of capability labels, decoded with fromJSON at `runs-on`.
+          Matches the convention deploy-cloudflare-pages.yml established after
+          `eph-linux-x64` stopped being served on 2026-09-14.
+        type: string
+        default: '["self-hosted","linux","x64"]'
+
+concurrency:
+  # NOT `cancel-in-progress`. Cancelling a publish mid-flight leaves the bucket
+  # holding a partial upload with the pointer unflipped — recoverable, because
+  # the publisher is idempotent and resumable, but the recovery is a second run
+  # and not a cancellation. Queue the second run instead.
+  group: publish-r2-blocktracer
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Stage the LIVE bucket's data plane, when asked to render over it.
+      #
+      # WHAT GETS SYNCED, AND WHY NOT MORE OR LESS. `client/src/reader.nim`'s
+      # `DataRoot.dataStore` doc says exactly what a data origin is read
+      # through: "THE DEFAULT DATA ORIGIN — `/d/**`, `/idx/**`, `/src/**` and
+      # `/t/**`". Nothing else in the tree is ever reached via `-d:dataOrigin`
+      # — `registry/**` stays "the environment's own" by the same file's
+      # design (so an environment cannot acquire a chain merely by sharing a
+      # store with one that has it; this build's own ingest of
+      # `client/fixtures/chain/**` already writes the registry rows for the
+      # chains it means to publish), and `_leases/`, `index.html`, `_a/**`,
+      # `replay-engine/**` and `assets/**` are the SITE's own objects, which
+      # this build renders fresh and must NOT pull stale copies of from the
+      # live bucket.
+      #
+      # So this syncs exactly four prefixes, not a full mirror of the
+      # ~882,000-object live tree: a full sync would multiply the egress and
+      # the runner's disk for objects the renderer never opens, and syncing
+      # less (say, `d/` alone, without `idx/`/`t/`/`src/`) would make the
+      # render silently fall back to this build's own stale fixture data for
+      # the index, the traces or the source bundles the moment a page asked
+      # for one — the exact "looks identical, isn't" failure mode
+      # `resolveDataOrigins`'s own comment warns about.
+      - name: Stage the live bucket's data plane
+        if: ${{ inputs.render-over-live == true }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+          LIVE_BUCKET: ${{ vars.R2_BUCKET || 'blocktracer' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+            echo "::error::render-over-live needs R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY" \
+                 "to read the live bucket's data plane. Refusing to render over" \
+                 "nothing."
+            exit 1
+          fi
+          LIVE_ORIGIN="$RUNNER_TEMP/live-origin"
+          mkdir -p "$LIVE_ORIGIN"
+          for prefix in d idx t src; do
+            mkdir -p "$LIVE_ORIGIN/$prefix"
+            aws s3 sync "s3://$LIVE_BUCKET/$prefix" "$LIVE_ORIGIN/$prefix" \
+              --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          done
+          echo "LIVE_ORIGIN=$LIVE_ORIGIN" >> "$GITHUB_ENV"
+          echo "staged $(find "$LIVE_ORIGIN" -type f | wc -l) object(s) from" \
+               "s3://$LIVE_BUCKET/{d,idx,t,src}"
+
+      # The full deployable tree is the flake PACKAGE, not `just export` —
+      # deploy-cloudflare-pages.yml records why, and the same reasoning holds
+      # here. `result/` is a read-only /nix/store symlink, so dereference it
+      # into a writable directory before anything walks it.
+      #
+      # render-over-live REPLICATES `packages.default`'s buildPhase (flake.nix)
+      # rather than parameterizing it, run via `nix develop ..#ci` instead of
+      # `nix build`: a Nix derivation is sandboxed against the host
+      # filesystem, and `-d:dataOrigin` has to resolve `$LIVE_ORIGIN`, a path
+      # on the runner the sandbox does not and should not see. The ordinary
+      # path is untouched — same `nix build .#default`, same `result` ->
+      # `site` copy — so this is purely additive.
+      - name: Build the site tree
+        env:
+          RENDER_OVER_LIVE: ${{ inputs.render-over-live }}
+        run: |
+          set -euo pipefail
+          if [ "$RENDER_OVER_LIVE" = "true" ]; then
+            LIVE_ORIGIN="${LIVE_ORIGIN:?render-over-live needs the staging step above to have run}"
+            ( cd client
+              nix develop ..#ci --command bash ./hydrate/build.sh --require
+              nix develop ..#ci --command nim js --hints:off -d:release \
+                --path:src --path:../src \
+                --nimcache:searchboot/nimcache \
+                -o:searchboot/search.js searchboot/searchboot.nim
+              nix develop ..#ci --command nim js --hints:off -d:release \
+                --path:src --path:../src \
+                --nimcache:settingsboot/nimcache \
+                -o:settingsboot/settings.js settingsboot/settingsboot.nim
+              # `-d:chainOrigins=demo=dist`: the demo chain (DemoChainSlug,
+              # src/blocktracer/demo/generator.nim) has no entry in the live
+              # bucket, so without this it would inherit the default data
+              # origin below and 404. "dist" is this same build's own output
+              # directory — by the time static_export.nim reads origins, step
+              # 1's ingest has already written dist/d/demo/** to disk, so this
+              # is "opt the one chain the live tree does not carry back out of
+              # the redirect", not a forward reference.
+              nix develop ..#ci --command nim c -r --mm:orc -d:isServer -d:release \
+                -d:hydrationBundle=/assets/hydrate.js \
+                -d:searchBundle=/assets/search.js \
+                -d:settingsBundle=/assets/settings.js \
+                -d:dataOrigin="$LIVE_ORIGIN" \
+                -d:chainOrigins=demo=dist \
+                src/static_export.nim
+            )
+            cp -rL client/dist site && chmod -R u+w site
+          else
+            nix build .#default
+            cp -rL result site && chmod -R u+w site
+          fi
+
+      # THE CRITICAL SAFETY PROPERTY OF render-over-live: pin every live
+      # chain's visibility pointer to the bucket's own bytes.
+      #
+      # Rendering over the live data plane does not make this build's own
+      # `d/<chain>/current.json` correct — that file was written by THIS
+      # build's ingest of `client/fixtures/chain/**` (step 1 of
+      # `exportSite`), which is the curated local fixture, not the live
+      # pointer. Measured on this branch: publishing it would have moved
+      # `aztec` from generation `raztec00001` head 102,690 to generation `1`
+      # head 68,231 — a regression `assertRegistryKeepsKnownChains` cannot see
+      # because it compares chain NAMES, never pointer contents.
+      #
+      # So: copy the bucket's own `current.json` over this build's for every
+      # chain the bucket already serves (everything staged under
+      # `$LIVE_ORIGIN/d`), then ASSERT byte-identity rather than trust the
+      # copy — the same "verify, don't just build" rule the bottom of this
+      # file already applies to the bucket itself.
+      - name: Pin the live chain pointers
+        if: ${{ inputs.render-over-live == true }}
+        run: |
+          set -euo pipefail
+          LIVE_ORIGIN="${LIVE_ORIGIN:?}"
+          pinned=""
+          mismatched=""
+          if [ -d "$LIVE_ORIGIN/d" ]; then
+            for chain_dir in "$LIVE_ORIGIN"/d/*/; do
+              [ -d "$chain_dir" ] || continue
+              chain=$(basename "$chain_dir")
+              live_ptr="$chain_dir/current.json"
+              [ -f "$live_ptr" ] || continue   # bucket has the chain but no pointer yet
+              site_ptr="site/d/$chain/current.json"
+              mkdir -p "$(dirname "$site_ptr")"
+              cp "$live_ptr" "$site_ptr"
+              if cmp -s "$live_ptr" "$site_ptr"; then
+                pinned="$pinned $chain"
+              else
+                mismatched="$mismatched $chain"
+              fi
+            done
+          fi
+          if [ -n "$mismatched" ]; then
+            echo "::error::current.json pin FAILED for:$mismatched — this build's" \
+                 "pointer still differs from the live bucket's own copy after" \
+                 "copying it in. Refusing to publish: a curated pointer here" \
+                 "truncates a live chain."
+            exit 1
+          fi
+          if [ -n "$pinned" ]; then
+            echo "pointer pin OK — byte-identical to the live bucket for:$pinned"
+          else
+            echo "pointer pin: the live bucket serves no chain's current.json yet" \
+                 "(first go-live) — nothing to pin."
+          fi
+
+      # ASSERT THE GLOBAL INDEX DID NOT SHRINK. `idx/hash/meta.json`
+      # (static_export.nim's `buildGlobalHashIndex`) publishes `shardCount`
+      # and `entryCount` for v1 and, when present, a `versions[]` entry per
+      # published format. §5.0a makes a miss on this index a DEFINITE "no
+      # chain holds this hash", so a smaller index is not a smaller cache —
+      # it is new, confident, false absences. Refuse rather than publish one.
+      - name: The global hash index did not shrink
+        if: ${{ inputs.render-over-live == true }}
+        run: |
+          set -euo pipefail
+          LIVE_ORIGIN="${LIVE_ORIGIN:?}"
+          python3 -c '
+          import json, os, sys
+
+          site_path = "site/idx/hash/meta.json"
+          live_path = sys.argv[1]
+
+          if not os.path.exists(live_path):
+              print("index size: the live bucket publishes no idx/hash/meta.json yet (first go-live) -- nothing to compare.")
+              sys.exit(0)
+          if not os.path.exists(site_path):
+              print("::error::this build published no idx/hash/meta.json at all, but the live bucket has one.")
+              sys.exit(1)
+
+          site_meta = json.load(open(site_path))
+          live_meta = json.load(open(live_path))
+
+          def versions_of(meta):
+              vs = {str(meta.get("indexVersion")): (meta.get("shardCount", 0), meta.get("entryCount", 0))}
+              for v in meta.get("versions", []):
+                  vs[str(v.get("version"))] = (v.get("shardCount", 0), v.get("entryCount", 0))
+              return vs
+
+          site_v = versions_of(site_meta)
+          live_v = versions_of(live_meta)
+          problems = []
+          for ver, (live_shards, live_entries) in live_v.items():
+              if ver not in site_v:
+                  problems.append("v" + ver + ": missing entirely in the built tree (live has " +
+                                   str(live_shards) + " shards / " + str(live_entries) + " entries)")
+                  continue
+              site_shards, site_entries = site_v[ver]
+              if site_shards < live_shards or site_entries < live_entries:
+                  problems.append("v" + ver + ": built " + str(site_shards) + " shards / " +
+                                   str(site_entries) + " entries < live " + str(live_shards) +
+                                   " shards / " + str(live_entries) + " entries")
+
+          if problems:
+              print("::error::global hash index shrank: " + "; ".join(problems))
+              sys.exit(1)
+
+          for ver, (shards, entries) in sorted(site_v.items()):
+              live_shards, live_entries = live_v.get(ver, (0, 0))
+              print("index v" + ver + ": built " + str(shards) + " shards / " + str(entries) +
+                    " entries (live: " + str(live_shards) + " shards / " + str(live_entries) + " entries) -- OK")
+          ' "$LIVE_ORIGIN/idx/hash/meta.json"
+
+      # A publish of an incomplete tree is worse than no publish: it flips the
+      # pointer to a generation whose objects are missing. These are the two
+      # checks that have each caught a real defect — check-assets found the
+      # replay engine missing, and the classifier found four site objects that
+      # belonged to no chain and were silently skipped.
+      - name: The tree carries what a visitor needs
+        run: nix develop .#ci --command node tools/deploy/check-assets.mjs --dir site --require-traces
+
+      - name: Publish
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command nim c --hints:off -d:release \
+            -o:blocktracer-publish src/blocktracer_publish.nim
+
+          if [ "${{ inputs.dry-run }}" = "true" ]; then
+            # The local backend mirrors the same key layout, so this exercises
+            # classification, the lease and the pointer order without a
+            # credential and without touching the bucket.
+            ./blocktracer-publish --tree site --backend local --dest "$RUNNER_TEMP/dry"
+            echo "dry run: $(find "$RUNNER_TEMP/dry" -type f | wc -l) objects would be written"
+            exit 0
+          fi
+
+          # REFUSE rather than publish blind if the credential is absent. An
+          # empty AWS_ACCESS_KEY_ID makes the aws CLI fail per object, which
+          # reads as a transport problem rather than a missing secret.
+          if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+            echo "::error::R2_ACCESS_KEY_ID is not set on this repository." \
+                 "Mint an R2 token scoped Object Read & Write on the" \
+                 "'blocktracer' bucket only (DEPLOY.md Step 3) and seal it." \
+                 "Refusing to publish without it."
+            exit 1
+          fi
+
+          BUCKET='${{ inputs.bucket }}'
+          ENDPOINT='${{ vars.R2_ENDPOINT }}'
+
+          # THE GUARD THAT MAKES THIS SAFE TO POINT AT PRODUCTION.
+          #
+          # `assertRegistryKeepsKnownChains` stops the registry LOSING a chain
+          # row. It says nothing about the objects published beside the
+          # registry, and `index.html`, `404.html`, `_a/**` and
+          # `replay-engine/**` are shared by every chain rather than owned by
+          # one. So "the registry survived" and "production is unchanged" are
+          # different claims, and only the first has a guard.
+          #
+          # If the bucket already serves chains this tree does not contain,
+          # this tree is a SUBSET of what is live, and publishing it overwrites
+          # those shared objects with a build that was never rendered against
+          # the live history. Refuse, and say which chains.
+          live=$(aws s3 cp "s3://$BUCKET/registry/chains.v1.json" - \
+                   --endpoint-url "$ENDPOINT" 2>/dev/null || true)
+          if [ -n "$live" ]; then
+            # `python3 -c`, not a heredoc: a heredoc terminator has to sit at
+            # column zero, and everything here is indented inside a YAML block
+            # scalar, so the quoted form would never terminate.
+            missing=$(python3 -c 'import json,sys; live=set(json.loads(sys.argv[1]).get("chains",{})); here=set(json.load(open("site/registry/chains.v1.json"))["chains"]); print(",".join(sorted(live-here)))' "$live")
+            if [ -n "$missing" ] && [ "${{ inputs.allow-foreign-chains }}" != "true" ]; then
+              echo "::error::s3://$BUCKET already serves chain(s) this tree does" \
+                   "not contain: $missing. This tree is a subset of what is" \
+                   "live, and the site objects it would overwrite (index.html," \
+                   "_a/**, replay-engine/**) are shared by every chain and are" \
+                   "NOT protected by the per-chain registry guard. Publish a" \
+                   "tree that contains them, or re-run with" \
+                   "allow-foreign-chains if you mean it."
+              exit 1
+            fi
+          fi
+
+          ./blocktracer-publish \
+            --tree site \
+            --backend s3 \
+            --bucket "$BUCKET" \
+            --endpoint "$ENDPOINT"
+
+      # A green publish is a claim about a process; the objects being served
+      # is a claim about the bucket. This project has been bitten by that
+      # distinction repeatedly — a registry that silently lost a chain, a tree
+      # advertising a 35-block window over 201,780 blocks — so a publish is not
+      # finished until something reads the bucket back and checks IDENTITY, not
+      # counts and not HTTP status.
+      #
+      # THE VERIFIER IS NOT ON THIS BRANCH YET. It is PR #40
+      # (`ci/test/verify-published-readonly.sh` over
+      # `src/blocktracer/verify/audit.nim`), read-only and safe to re-run. This
+      # step is written to use it the moment it lands and to say so loudly
+      # while it has not, rather than quietly publishing unverified — a step
+      # that skips in silence is how an unchecked publish becomes the norm.
+      - name: Ask the bucket what it actually holds
+        if: ${{ inputs.dry-run == false }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'blocktracer' }}
+        run: |
+          set -euo pipefail
+          if [ -x ci/test/verify-published-readonly.sh ]; then
+            nix develop .#ci --command ci/test/verify-published-readonly.sh
+          else
+            echo "::error::The published-tree verifier is not on this branch," \
+                 "so this publish went out UNVERIFIED. Land PR #40 and re-run" \
+                 "this workflow with dry-run=false to check the bucket, or run" \
+                 "the verifier by hand against the endpoint above. Refusing to" \
+                 "report a publish as complete without it."
+            exit 1
+          fi

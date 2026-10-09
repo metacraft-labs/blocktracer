@@ -1,0 +1,897 @@
+// File containing style for widgets that are shared across all other widgets
+
+// The app-wide scrollbar — every panel that scrolls.  8px at the 16px root, and
+// in `rem` on purpose: this is an unscoped `::-webkit-scrollbar`, so `em` here
+// resolved against whatever element the bar happened to appear on and the
+// thickness changed from panel to panel — measured 6px on a 12px container,
+// 7px at 14px, 12px at 24px.  A 12px panel landed on 6px, the same as a menu,
+// collapsing the distinction DROPDOWN_SCROLLBAR_SIZE exists to draw.
+PANEL_SCROLLBAR_SIZE = 0.5rem
+
+if !IS_EXTENSION
+  ::-webkit-scrollbar
+    width: PANEL_SCROLLBAR_SIZE
+    height: PANEL_SCROLLBAR_SIZE
+    background-color: transparent
+
+  ::-webkit-scrollbar-corner
+    background-color: colors-ui-surface-base-panel
+
+  ::-webkit-scrollbar:hover
+    background-color: transparent
+
+  ::-webkit-scrollbar-thumb:vertical,
+  ::-webkit-scrollbar-thumb:horizontal
+    background-color: colors-ui-surface-primary-tertiary
+
+  // Under the pointer and while dragged, the thumb steps LIGHTER — the same
+  // step a tertiary button takes on hover (`surface/primary/tertiary` #333333
+  // → `tertiary-hover` #414141, button.styl).  The dragged thumb used to be
+  // `surface/primary/secondary`, #282828: exactly the panel background
+  // (`surface/base/panel`), so the thumb vanished the moment you grabbed it.
+  ::-webkit-scrollbar-thumb:vertical:hover,
+  ::-webkit-scrollbar-thumb:horizontal:hover,
+  ::-webkit-scrollbar-thumb:vertical:active,
+  ::-webkit-scrollbar-thumb:horizontal:active
+    background-color: colors-ui-surface-primary-tertiary-hover
+
+if IS_EXTENSION
+  .component-container-html
+    height: -webkit-fill-available !important
+
+  .component-container-body
+    height: inherit
+    overflow: hidden
+
+  .sidebar-menu-body
+    display: flex
+    flex-direction: column
+    justify-content: start
+    background-color: var(--vscode-sideBar-background)
+
+  .sidebar-menu-header
+    font-weight: 700 !important
+    margin: 8px
+    padding-left: 12px
+    background: var(--vscode-sideBar-background)
+
+  .sidebar-menu-items
+    font-weight: 400 !important
+    margin-top: 8px !important
+    cursor: pointer
+
+    div
+      &:hover
+        background: var(--vscode-button-secondaryBackground)
+
+    .sidebar-menu-item
+      padding-left: 20px
+      padding-right: 16px
+      padding-top: 8px
+      padding-bottom: 8px
+      border-bottom: 1px solid var(--vscode-editorWidget-border)
+
+input::-webkit-input-placeholder
+  color: colors-ui-text-primary-label;
+
+input:-moz-placeholder
+  color: colors-ui-text-primary-label
+
+input::-moz-placeholder
+  color: colors-ui-text-primary-label
+
+TRACE_LOG_EDITOR_Z_INDEX = 50
+
+// Icons inside a tab — the close and pin affordances on GoldenLayout tabs, and
+// any icon added to a tab later.  One rule so they cannot drift apart: close had
+// no hover at all, while pin dimmed itself to 0.7 and brightened on hover, so
+// the two behaved differently in the same tab.
+//
+// The icons ship as SVGs with `fill="#919191"` baked in, which cannot be
+// recoloured while they are background images.  They are drawn as masks instead,
+// with the colour supplied by `background-color` — so the state lives in CSS,
+// on tokens, rather than in the asset.
+TAB_ICON_COLOR = colors-ui-icon-primary-subtle
+// OFF-TOKEN: the design system has `icon/primary/subtle` but no
+// `icon/primary/subtle-hover`.  #C8C8C8 exists in the palette (colors-grey-150)
+// and is mapped for text roles only — binding a text role to an icon would be
+// the drift DESIGN_SYSTEM.md warns about.  Raised 2026-08-21; replace with the
+// role once it exists.
+TAB_ICON_COLOR_HOVER = #C8C8C8
+
+tab-icon(icon, size)
+  background-image: none !important
+  background-color: TAB_ICON_COLOR
+  -webkit-mask-image: icon
+  mask-image: icon
+  -webkit-mask-repeat: no-repeat
+  mask-repeat: no-repeat
+  -webkit-mask-position: center
+  mask-position: center
+  -webkit-mask-size: size
+  mask-size: size
+  opacity: 1
+
+  &:hover
+    background-color: TAB_ICON_COLOR_HOVER
+
+
+// Gap between a menu's trigger and the surface it opens into.
+//
+// 6px at the 16px root, and 6px in every menu: the value is deliberately rem
+// rather than em because these menus open from containers with different font
+// sizes — the layout menu inherits 16px, the command prompt 12px — and an em
+// gap would resolve to a different number of pixels in each, which is exactly
+// the drift this constant exists to stop.
+DROPDOWN_TRIGGER_GAP = 0.375rem
+
+// The same gap expressed as an offset from the bottom of a relatively
+// positioned trigger, for the menus that hang off their own control.
+DROPDOWN_TRIGGER_OFFSET = "calc(100% + %s)" % DROPDOWN_TRIGGER_GAP
+
+// Corner radius of a menu.
+//
+// One constant for every dropdown in the app, container and end rows alike:
+// the rounding of a menu is a property of "menu", not of the panel it happens
+// to open from.  rem for the same reason as the gap — these menus sit in
+// containers from 12px to 16px, and an em radius drew a different curve in
+// each.
+DROPDOWN_RADIUS = 0.375rem
+
+// Scrollbars inside a menu.
+//
+// PANEL_SCROLLBAR_SIZE (top of this file) is 8px, which is right for a panel
+// but heavy inside a menu a few rows tall — it takes a visible bite out of a
+// 12em-wide dropdown.  Its own constant rather than a reuse of
+// DROPDOWN_TRIGGER_GAP: the two happen to be the same 6px, but a scrollbar's
+// thickness and a menu's offset answer to different things and should be free
+// to move apart.
+DROPDOWN_SCROLLBAR_SIZE = 0.375rem
+
+// Applied both to the surface itself (the branch picker, the command results
+// and the tab-overflow menu each scroll as one element) and to anything that
+// scrolls inside it.
+dropdown-scrollbar()
+  &::-webkit-scrollbar,
+  ::-webkit-scrollbar
+    width: DROPDOWN_SCROLLBAR_SIZE
+    height: DROPDOWN_SCROLLBAR_SIZE
+
+// Segmented tabs — the design system's mode-switcher ("I2 · Mode switcher",
+// CodeTracer Design System node 4342:744): one outlined track, the selected tab
+// raised inside it.  For any control that switches a panel between modes or
+// views: State (Locals / Globals / Watches), Search (Command / File / …), Flow
+// (Call / Line / Function).  The event-log filter menu draws the same track
+// with `::before` (event_log.styl) and uses `segmented-tab()` for its tabs.
+//
+// Sizes, on the control scale (CONTROL_HEIGHT_*, button.styl): the track is
+// the MEDIUM size, 26px, and each tab EXTRA SMALL, 20px, with 2px of track
+// around it: 1px border + 2px padding + 20 + 2px padding + 1px border = 26px.
+// No hover on the tabs: selection is the only state they show.
+segmented-tab()
+  display: flex
+  align-items: center
+  // A set height rather than padding around the line, so the tab is 20px
+  // whatever the text's line box; `align-items` centres the label.
+  height: CONTROL_HEIGHT_XS
+  // Sized by the label.  `!important` only to beat the app-wide
+  // `button { flex: 0 0 1.75em !important }` (button.styl), which would fix
+  // every tab at 1.75em wide; the labels only escaped it while `min-width`
+  // stayed `auto`, and a `min-width: 0` collapsed them onto each other.
+  flex: 0 0 auto !important
+  padding: 0 0.625rem
+  border: none
+  // `!important` only to beat the app-wide `button` radius (0.5em, itself
+  // `!important`); the tabs are 5px.
+  border-radius: 0.3125rem !important
+  background-color: transparent
+  font-family: "SpaceGrotesk"
+  font-weight: 400
+  font-size: 0.75rem
+  // 16px, so the 20px tab splits evenly around it: 2px above, 2px below.
+  line-height: 1rem
+  white-space: nowrap
+  color: colors-ui-text-primary-body-subtle
+  cursor: pointer
+
+  &.active,
+  &[data-selected="true"]
+    background-color: colors-ui-surface-base-card
+    color: colors-ui-text-primary-headings
+
+segmented-tabs()
+  display: flex
+  gap: 0.125rem
+  // The outline wraps the tabs instead of running the panel's width.
+  width: fit-content
+  padding: 0.125rem
+  background-color: colors-ui-surface-base-raised
+  // The shared control outline (button.styl) — this is where it started.
+  border: CONTROL_BORDER_WIDTH solid CONTROL_BORDER_COLOR
+  border-radius: CONTROL_RADIUS
+
+  > button
+    segmented-tab()
+
+// Dropdown surface — the panel a menu opens into.
+//
+// Defined once because two menus have to be indistinguishable: the layout menu
+// beside the panel tabs and the command prompt's results list.  Both fill it
+// with `ct-menu-item` rows, so only the container chrome lives here.
+// Dropdowns reveal with a short slide-and-fade rather than appearing abruptly.
+// Declared once so every menu that calls `dropdown-surface()` gets the same
+// motion.  Only the reveal is animated: these menus are removed from the DOM on
+// close, so there is no element left to animate out.
+@keyframes ct-dropdown-reveal
+  from
+    opacity: 0
+    transform: translateY(-0.25rem)
+  to
+    opacity: 1
+    transform: translateY(0)
+
+// The PAINT of that surface, with no behaviour attached.
+//
+// Split out of `dropdown-surface()` because two of its callers cannot take the
+// behaviour and were silently broken by it — see the block comment on
+// `dropdown-surface()` below.  A caller that hosts absolutely-positioned
+// children outside its own box, or that is rebuilt while it is on screen, wants
+// the look and neither the clip nor the reveal.
+dropdown-surface-chrome()
+  // The VCS branch picker is the reference for every menu that opens over the
+  // UI: a panel surface, a hairline border and a small radius, with no shadow.
+  //
+  // rem, not em: these menus sit in containers with different font sizes (the
+  // layout menu inherits 16px, the command prompt 12px), and em-based values
+  // would resolve differently in each — the same declaration giving a 0.5px
+  // frame in one and 0.375px in the other.  The surface must not depend on
+  // where it opens.
+  background: colors-ui-surface-primary-default
+  border: 0.03125rem solid colors-ui-border-primary
+  border-radius: DROPDOWN_RADIUS
+  box-shadow: none
+
+  dropdown-scrollbar()
+
+// The full dropdown behaviour: the chrome, plus a clip to the radius and a
+// reveal animation.
+//
+// TWO PRECONDITIONS, both of which `#menu-main` violated and neither of which
+// was stated until a user reported the result (2026-09-02, ide.codetracer.com:
+// "when I move my mouse over the menu, it flickers, briefly displaying the
+// content below it" and "the sub-menus are not displayed"):
+//
+//   * `overflow: hidden` clips EVERY descendant, not just the rows.  A caller
+//     whose submenus are absolutely-positioned children laid out beside it —
+//     which is exactly how `isonim_menu_shell_view.nim` builds
+//     `.menu-nested-elements`, as siblings of `#menu-elements` inside
+//     `#menu-main` — has those children erased.  Measured on the deployed
+//     `noirstudio.dev` (revision 5334f7aa): `#menu-main` occupied
+//     x = 10..180 and `#menu-nested-elements-1` was laid out at x = 181..356
+//     with nine rows, and `elementFromPoint` at the centre of its first row
+//     returned `section.lm_tabs` — the layout chrome BEHIND it.  Not covered:
+//     clipped out of existence, while every model- and markup-level assertion
+//     about it passed.
+//
+//   * `animation` on an element that is REPLACED rather than updated replays
+//     from `opacity: 0` on every replacement.  `ui/menu.nim`'s
+//     `requestMenuRender` rebuilds the whole caption chrome whenever the
+//     hovered menu row changes, so a pointer crossing five rows restarted the
+//     reveal five times.  Measured on the same deployment by counting
+//     `animationstart` on `#menu-main`: five transitions, five reveals.  That
+//     is the reported flicker, and "briefly displaying the content below it"
+//     is literally what `opacity: 0` shows.
+//
+// So a menu that is rebuilt in place, or that hosts an overflowing child, must
+// call `dropdown-surface-chrome()` instead.
+dropdown-surface()
+  dropdown-surface-chrome()
+  overflow: hidden
+  animation: ct-dropdown-reveal 120ms ease-out
+
+  // Motion is decoration here; the menu must still open instantly for anyone
+  // who has asked the system to reduce it.
+  @media (prefers-reduced-motion: reduce)
+    animation: none
+
+// One row inside that surface.  The row's colour, height and hover come from
+// the `ct-menu-item` component; this is only the hairline between rows and the
+// corner rounding that lets the ends sit inside the container's radius.
+dropdown-surface-row()
+  // Row height comes from the `ct-menu-item` component itself (2.25rem), which
+  // every dropdown row carries — see components/menu_item.styl.
+  font-size: 0.875rem
+  border-top: 0.0625rem solid colors-ui-border-tertiary
+  padding-left: 0.5em
+  padding-right: 0.5em
+
+  // Rows differ in how they carry their text: the layout menu puts it straight
+  // in the row, the command prompt wraps it in `ct-menu-item-label`.  That
+  // label is sized `0.875em` for the application menu, which here multiplies
+  // against the row's own 0.875rem and lands two steps down — the same list
+  // rendered visibly smaller than its neighbour.  In a dropdown the row owns
+  // the size; the label just carries the text.
+  .ct-menu-item-label,
+  .ct-menu-item-sublabel
+    font-size: inherit
+
+  &:first-child
+    border-top: none
+    border-radius: DROPDOWN_RADIUS DROPDOWN_RADIUS 0 0
+
+  &:last-child
+    border-bottom: none
+    border-radius: 0 0 DROPDOWN_RADIUS DROPDOWN_RADIUS
+
+
+// Minimum breathing room between an empty panel's message and the panel sides.
+EMPTY_OVERLAY_SIDE_GAP = 2.5rem
+
+.hidden
+  display: none !important
+
+// TODO: Maybe move to another file?
+.chart-line
+  width: 100%
+  height: 100%
+  position: relative
+
+.chart-results-container
+  height: inherit
+  width: inherit
+  position: relative
+
+  .view-inactive
+    display: none
+    visibility: hidden
+
+.chartjs-render-monitor
+  width: 100% !important
+  height: 100% !important
+  min-height: 170px
+
+// Replace Electron/OS default accent color (orange on macOS) with our blue.
+:root
+  accent-color: colors-ui-border-focus
+
+// Show focus ring only on keyboard navigation, never on mouse click.
+// :focus-visible catches buttons/divs, but text inputs ALWAYS satisfy
+// :focus-visible in Chromium (by spec), so we also use a JS-driven
+// data-focus-mode attribute on <html> set by mousedown/keydown listeners
+// in ui_js.nim to suppress the ring for inputs on mouse click.
+*:focus:not(:focus-visible)
+  outline: none !important
+  box-shadow: none !important
+
+[data-focus-mode="mouse"] *:focus
+  outline: none !important
+  box-shadow: none !important
+
+html, body
+  padding: 0
+  margin: 0
+  if !IS_EXTENSION
+    overflow: hidden
+
+body
+  // Space Grotesk is the interface face: menus, tab titles, labels, panel
+  // chrome — everything that is not code.  Surfaces that render code (the
+  // editor, terminal, values, diffs) set a monospace face explicitly; see the
+  // note at the top of each of those component stylesheets.
+  font-family: "SpaceGrotesk", sans-serif !important
+  -webkit-font-smoothing: antialiased
+  -moz-osx-font-smoothing: grayscale
+  background-color: colors-ui-surface-primary-default !important
+
+[data-tippy-root]
+  max-width: calc(100vw - 0.625em)
+
+.tippy-box
+  border-radius: 0.25em
+  font-size: inherit
+
+  &[data-placement^="top"] > .tippy-arrow::before
+    bottom: -0.4375em
+    border-width: 0.5em 0.5em 0
+
+  &[data-placement^="bottom"] > .tippy-arrow::before
+    top: -0.4375em
+    border-width: 0 0.5em 0.5em
+
+  &[data-placement^="left"] > .tippy-arrow::before
+    right: -0.4375em
+    border-width: 0.5em 0 0.5em 0.5em
+
+  &[data-placement^="right"] > .tippy-arrow::before
+    left: -0.4375em
+    border-width: 0.5em 0.5em 0.5em 0
+
+.tippy-arrow
+  width: 1em
+  height: 1em
+
+.tippy-content
+  padding: 0.3125em 0.5625em
+
+.separate-bar
+  width: 0px
+  height: 1em
+  border-left: 0.031em solid colors-ui-divider-primary
+
+// .wrapper
+//   input
+//     margin-left: 0 !important
+
+// input
+//   font-family: "SpaceMono" !important
+//   font-size: 14px !important
+//   font-style: normal !important
+//   font-weight: 400 !important
+//   color: colors-ui-text-primary-body
+//   height: 28px
+//   // font-size: 17px !important
+//   border: 0
+//   background-color: colors-ui-surface-primary-tertiary
+//   if IS_EXTENSION
+//     width: -webkit-fill-available
+//   else
+//     width: calc(100% - 6px)
+//     margin-right: 8px
+//   margin-left: 8px !important
+//   margin-bottom: 5px !important
+//   border-radius: 6px
+//   padding-left: 24px
+//   padding-bottom: 0px !important
+//   padding-top: 0px !important
+//   overflow: hidden !important
+//   text-overflow: ellipsis !important
+//   white-space: nowrap !important
+//   border: 1px solid colors-ui-border-primary !important
+//   background-image: INPUT_DEFAULT_SEARCH_ICON !important
+//   background-repeat: no-repeat !important
+//   background-position: 8px center !important
+//   background-size: 12px 12px !important
+
+//   &:focus
+//     outline: 0px solid colors-ui-border-secondary !important
+//     border: 1px solid colors-ui-border-primary-hover !important
+//     overflow: hidden !important
+//     text-overflow: ellipsis !important
+//     white-space: nowrap !important
+
+// The caption bar's height (#menu, menu_bar.styl), which depends on what is on
+// screen:
+//
+//   working area (panels, editor)    6px + 26px tab row + 2px = 34px
+//   a welcome / new-trace screen     6px + 26px tab row + 6px = 38px
+//
+// With panels below, the 2px is right: the layout root continues in the bar's
+// colour and leaves 4px above the panel tabs, so the prompt reads 5px / 5px
+// (see the CAPTION_BAR_PADDING notes in menu_bar.styl).  A welcome screen paints
+// its own ground straight under the bar, so there the tab row needs the full
+// 6px below it (Nikolay, 2026-09-14).
+//
+// One switch drives both: the two custom properties below change when
+// `#welcomeScreen` is displayed with content in it — it is hidden with an
+// inline `display: none` and emptied otherwise — and everything that sits flush
+// under the bar reads CAPTION_BAR_HEIGHT: #root-container here, the auto-hide
+// overlays, the welcome screen's top, the command-results and tab-overflow
+// menus.  Defined in this file because it is imported before all of them.
+CAPTION_BAR_HEIGHT_WORKSPACE = 2.125rem
+CAPTION_BAR_HEIGHT_WELCOME = 2.375rem
+
+:root
+  --caption-bar-height: CAPTION_BAR_HEIGHT_WORKSPACE
+  --caption-bar-padding-bottom: 0.125rem
+
+:root:has(> body > #welcomeScreen:not([style*="display: none"]):not([style*="display:none"]) > *)
+  --caption-bar-height: CAPTION_BAR_HEIGHT_WELCOME
+  --caption-bar-padding-bottom: 0.375rem
+
+CAPTION_BAR_HEIGHT = unquote("var(--caption-bar-height)")
+
+#root-container
+  position: fixed
+  // 2rem = #status-base height (2em at font-size:1rem)
+  height: "calc(100vh - %s - 2rem)" % CAPTION_BAR_HEIGHT
+  top: CAPTION_BAR_HEIGHT
+  left: 0
+  right: 0
+  z-index: 0
+  padding-left: 0
+  padding-right: 0
+  display: flex
+  flex-direction: column
+  min-height: 0
+
+#ROOT
+  // The auto-hide row and GoldenLayout both rely on #ROOT staying flexible.
+  // A fixed viewport width here collapses the height chain and only tab
+  // headers remain visible after layout restore.
+  background-color: colors-ui-surface-primary-default !important
+  color: colors-ui-text-primary-body
+  height: 100%
+  flex: 1
+  min-width: 0
+  min-height: 0
+  position: relative
+  overflow: hidden
+  box-sizing: border-box
+  padding-right: 0.25em
+  padding-left: 0.25em
+
+#main
+  font-size: 20px
+  display: flex
+  flex-wrap: wrap
+  flex-direction: row
+  width: 100%
+
+#dock
+  height: 80%
+
+// Line-highlight flash: starts with a bright orange pulse then settles
+// to the subtle secondary surface colour for the remainder of the 2s
+// Monaco decoration lifetime set by highlightLine() in renderer.nim.
+@keyframes ct-line-flash
+  0%
+    background-color: rgba(251, 146, 60, 0.55)
+  40%
+    background-color: rgba(251, 146, 60, 0.20)
+  100%
+    background-color: colors-ui-surface-primary-secondary
+
+.highlight
+  animation: ct-line-flash 2s ease-out forwards
+  background-color: colors-ui-surface-primary-secondary !important
+
+.value-expanded-compound::before
+  content: ''
+  position: absolute
+  left: 0.72em
+  top: 1.25em
+  bottom: 0
+  width: 0.0625em
+  background-color: colors-ui-text-primary-body
+  opacity: 0.2
+
+.value-load-more-button
+  width: 100%
+
+// TODO: Fix it?
+.component-container
+  font-family: "SpaceGrotesk" !important
+  font-size: inherit !important
+  line-height: 1.5em !important
+  font-weight: 400 !important
+  width: 100%
+  height: 100%
+  // if !IS_EXTENSION
+  //   box-shadow: inset 2px 0px 0px 0px colors-ui-border-primary
+
+  &:focus
+    outline: 0px
+
+.hovered
+  opacity: 0.6
+
+.panel
+  font-size: 18px
+  border-color: colors-ui-text-primary-body
+  border-width: 1px
+  border-style: solid
+  overflow: hidden
+  display: flex
+
+.r
+  opacity: 1
+
+.panel-width
+  flex-basis 100%
+  flex-direction column
+  display flex
+  width 100%
+
+.selector
+  position: absolute
+  opacity: 0.5
+  z-index: 22
+  background-color: #555
+  display: none
+
+.absolute-panel
+  position: absolute
+
+.unselectable
+  user-select: none
+  #trace-query
+    height: 18px
+    font-size: 16px
+
+.dataTables_filter
+  display: none
+
+#trace-q
+  width: 100%
+
+.searched-token
+  background-color: SEARCHED_TOKEN_COLOR
+
+.indeterminate-checkmark
+  border: 1px solid colors-ui-border-secondary
+  border-radius: 2.5px
+  display: flex
+  position: absolute
+  top: 5px
+  left: 0
+  width: 15px
+  height: 15px
+  background-color: colors-ui-surface-primary-tertiary
+
+.indeterminate-checkmark::after
+  content: "-"
+  display: flex
+  position: relative
+  align-items: center
+  transform: translateX(4px)
+
+.checkbox
+  display:none
+  width: 20px !important
+  margin-left: 0 !important
+  margin-right: 5
+
+  &::after
+    content: ""
+    position: absolute
+    display: none
+
+.checkmark::after
+  content: "";
+  position: absolute;
+  display: none;
+
+
+input:checked ~ .checkmark:after
+  display: block
+
+.code-tooltip
+  display: block
+  padding-left: 4px
+  padding-right: 4px
+  width: fit-content
+  font-size: 14px
+  line-height: 24px
+  overflow-wrap: normal
+  max-width: calc(100% - 8px)
+  position: absolute
+  background-color: colors-ui-surface-primary-tertiary
+  z-index: 3
+  font-family: "SpaceMono"
+  margin-bottom: 0
+  list-style-type: none
+  opacity: 0
+  visibility: hidden
+  transition: opacity 0.3s ease-in-out
+  white-space: normal
+  pointer-events: none
+  border-radius: 6px
+
+  .active-line
+    .excerpt-code
+      color: colors-ui-text-primary-body !important
+    background: colors-ui-surface-base-canvas
+    border-radius: 4px
+    width: fit-content
+    padding-right: 4px
+
+  li
+    padding-left: 4px
+
+.checkmark
+  border: 0.5px solid colors-ui-border-primary
+  border-radius: 2.5px
+  display:block
+  position: absolute
+  top: 6px
+  left: 0
+  width: 14px
+  height: 14px
+  background-color: colors-ui-surface-primary-tertiary
+
+  &::after
+    left: 3.6px;
+    if IS_EXTENSION
+      top: 0px;
+    else
+      top: 1.6px;
+    width: 6px;
+    height: 8px;
+    border: solid colors-ui-text-success-primary;
+    border-width: 0 2px 2px 0;
+    border-radius: 2px
+    -webkit-transform: rotate(45deg);
+    -ms-transform: rotate(45deg);
+    transform: rotate(45deg);
+
+.dropdown-list
+  // 0.325em against an inherited font size — a curve that changed with whatever
+  // panel header the hamburger sat in, and never matched any other menu.
+  border-radius: DROPDOWN_RADIUS
+  background: colors-ui-surface-base-raised
+  color: colors-ui-surface-input-default
+  display: flex
+  flex-direction: column
+  // border: 1px solid colors-ui-border-secondary
+  // padding-top: 5px
+  // padding-left: 10px
+  // padding-bottom: 5px
+  // padding-right: 10px
+  // The gap below the hamburger button — see DROPDOWN_TRIGGER_GAP above.  It
+  // was 0.24em, which is 3.84px and rounds to 4: a hair tighter than every
+  // other menu, and tied to whatever font size the panel header happened to
+  // have.
+  margin-top: DROPDOWN_TRIGGER_GAP
+  right: 0
+  min-width: fit-content
+  position: relative
+  z-index: TRACE_LOG_EDITOR_Z_INDEX + 7
+  user-select: none
+
+  &-item
+    position: relative
+    color: colors-ui-text-primary-body
+    user-select: none
+    list-style-type: none
+    width: 100%
+    // height: 24px
+    // margin-bottom: 5px
+    cursor: pointer
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+    font-weight: bold
+    display: flex
+    align-items: center
+    justify-content: center
+
+.hamburger-dropdown + .dropdown-list.active
+  width: fit-content
+
+.run-trace-button
+  .custom-tooltip
+    right: 0px
+
+    &:after
+      left: 90%
+
+.eventLog-medium-control-button
+  .custom-tooltip
+    overflow-wrap: normal
+    white-space: normal
+
+.custom-noir-icon::before
+  content: url("../../public/resources/shared/noir_logo_dark_theme.svg")
+  display: block
+  width: 1em
+  height: 1em
+  position: absolute
+  transform: translate(0.24em, 0.24em)
+
+.empty-overlay
+  display: flex
+  width: inherit
+  height: inherit
+  justify-content: center
+  align-items: center
+  font-family: "SpaceGrotesk"
+  // An empty panel's message is guidance, not content: one step down from the
+  // body size and dimmed, so it sits behind the panels that do have something
+  // to show rather than competing with them.
+  font-size: 0.875rem
+  opacity: 0.6
+  // Slightly tighter leading than the panel default.  `.component-container`
+  // sets `line-height: 1.5em`, which resolves against the panel's 16px and is
+  // inherited here as a fixed 24px regardless of this smaller font size — so it
+  // has to be restated rather than nudged.  1.25rem is that 24px less 0.25rem.
+  line-height: 1.25rem
+  // Keep the message clear of the panel edges.  `border-box` is required: the
+  // overlay inherits the panel's width, so without it the padding would push
+  // the box wider than the panel instead of insetting the text.
+  box-sizing: border-box
+  padding-left: EMPTY_OVERLAY_SIDE_GAP
+  padding-right: EMPTY_OVERLAY_SIDE_GAP
+  text-align: center
+  // Let the message wrap inside the inset rather than overflow it once the
+  // panel is narrow enough for the gaps to matter.
+  overflow-wrap: break-word
+
+.jstree-default-contextmenu
+  display: none !important
+  visibility: hidden !important
+
+// ---------------------------------------------------------------------------
+// ct-picker — shared pill-style picker / dropdown component
+//
+// Extracts the VCS branch-picker pattern into a reusable component.
+// Usage:
+//   div.ct-picker[.ct-picker--chevron-left | .ct-picker--chevron-right]
+//     div.ct-picker-trigger[.ct-picker-trigger--open]
+//       span.ct-picker-chevron   (SVG set via innerHTML)
+//       span.ct-picker-label     (current selection text)
+//     div.ct-picker-dropdown     (shown when open; absent when closed)
+//       div.ct-menu-item …       (one per option; see menu_item.styl)
+//
+// .ct-picker--chevron-left  — chevron DOM node before label (default; matches VCS branch picker)
+// .ct-picker--chevron-right — chevron appears visually to the RIGHT of the label
+//                             (achieved by reversing the flex row order so the
+//                             chevron span, which is first in the DOM, ends up
+//                             on the right side visually)
+// ---------------------------------------------------------------------------
+
+.ct-picker
+  position: relative
+  flex-shrink: 0
+
+.ct-picker-trigger
+  display: flex
+  align-items: center
+  // The medium control size (button.styl) — pickers sit in panel toolbars
+  // beside medium fields (the Requests search), so they match them.
+  height: CONTROL_HEIGHT_MD
+  max-height: CONTROL_HEIGHT_MD
+  padding: 0 0.625em
+  cursor: pointer
+  gap: 0.375em
+  user-select: none
+  border-radius: 0.5em
+  border: 0.03125em solid colors-ui-border-primary
+  background: colors-ui-surface-primary-default
+  font-family: "SpaceGrotesk"
+  font-size: 0.75rem
+  color: colors-ui-text-primary-body-subtle
+  white-space: nowrap
+  min-width: 7.5em
+
+  &:hover
+    background: colors-ui-surface-primary-default-hover
+    color: colors-ui-text-primary-body
+
+  &.ct-picker-trigger--open
+    border-color: colors-ui-border-action
+    color: colors-ui-text-primary-body
+
+.ct-picker-chevron
+  display: flex
+  align-items: center
+  flex-shrink: 0
+  opacity: 0.6
+
+.ct-picker-label
+  flex: 1
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+
+.ct-picker-dropdown
+  // The look this defines is now shared — see `dropdown-surface()` above, which
+  // every menu that opens over the UI calls.
+  dropdown-surface()
+  position: absolute
+  top: DROPDOWN_TRIGGER_OFFSET
+  left: 0
+  right: 0
+  z-index: 100
+  padding: 0.25em
+  max-height: 12.5em
+  overflow-y: auto
+
+// .ct-picker--chevron-left: chevron DOM node is first → naturally appears on
+// the left. No reorder needed. Defined explicitly for self-documentation.
+.ct-picker--chevron-left .ct-picker-trigger
+  flex-direction: row
+
+// .ct-picker--chevron-right: chevron DOM node is first but we reverse the
+// visual order so it ends up on the right side of the label.
+.ct-picker--chevron-right .ct-picker-trigger
+  flex-direction: row-reverse

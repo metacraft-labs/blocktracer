@@ -37,7 +37,7 @@
 # `client/tests/test_chain_provenance.nim` carry the member, so the whole suite was
 # blind to it; the fixture here is the follower's own output, byte for byte.
 #
-# ── AND `test-searchboot`, WHICH IS THE ONLY GATE THE BROWSER'S RULES HAVE ─
+# ── `test-searchboot`, WHICH IS THE ONLY GATE THE BROWSER'S RULES HAVE ─────
 #
 # `client/searchboot/searchboot.nim` computes the object path a search fetches,
 # in a tab. It had NO test of any kind — the bundle-freshness gate checks that
@@ -46,56 +46,69 @@
 # `importjs` boundary makes it uncompilable on the C backend, so every suite here
 # had to skip it. `nim js -r` is how it is testable at all, and it takes seconds.
 #
-# It is in THIS recipe and not only under `client/` for the reason
-# `test-chain-provenance` is: Search-And-Routing.md §5's "two requests to resolve
-# any hash on any chain" is only true if the client recomputes the SAME object
-# path the producer wrote, and since that path is derived from the chain's
-# declared identifier encoding, a browser that could not read the declaration
-# would make §5 false for every non-hex chain — silently, and only in a tab.
+# It reaches this gate through the delegation below, for the reason
+# Search-And-Routing.md §5 gives: "two requests to resolve any hash on any chain"
+# is only true if the client recomputes the SAME object path the producer wrote,
+# and since that path is derived from the chain's declared identifier encoding, a
+# browser that could not read the declaration would make §5 false for every
+# non-hex chain — silently, and only in a tab.
 #
-# ── AND `test-debug-route`, WHICH IS THE ONLY GATE A STATUS CODE HAS ───────
+# ── AND EVERY CLIENT SUITE, BY DELEGATION AND NOT BY A SECOND LIST ─────────
 #
-# `client/src/ssr.nim`'s `renderRoute` is where a URL becomes a 200 or a 404,
-# and that is what a visitor experiences. Nothing above this line drives it:
-# the suites above grade the contract, the publisher, the reader and the
-# browser's derivation, and every one of them asks a function for a path rather
-# than asking the router for a status.
+# THE HOLE THIS CLOSES, AND IT IS THE HOLE THIS CAMPAIGN KEEPS FINDING. This
+# recipe used to name THREE client suites — `test-searchboot`,
+# `test-debug-route` and `test-chain-provenance` — out of the FIFTEEN that
+# `client/Justfile`'s `test:` aggregate runs. The twelve it left out included
+# `test-instruction-listing`, which carries the strongest landing assertions in
+# the repository: a planted `steps + 7` coordinate asserted CLAMPED across all 31
+# instruction-level recordings this tree publishes, per subject. A gate that omits
+# its own strongest assertions is worse than a gate that omits weak ones, because
+# what it certifies is precisely the part nobody checked.
 #
-# It is here for EXACTLY the reason `test-chain-provenance` is, one line down,
-# and it is the same gap: the suite is in `client/Justfile`'s `test:` aggregate
-# and CI's `debug-route` job runs that aggregate, so it was never dark — but it
-# was not in THIS recipe, the one the operator-mandated local gate is. When
-# `blockPath` began key-forming its identifier, the proof that `/{chain}/block/`,
-# `/{chain}/tx/` and `/{chain}/address/` now answer a mixed-case spelling
-# IDENTICALLY was written into that suite, and the repository's own stated
-# verdict command did not run it. ~9 minutes, compile included.
+# It had happened twice before by the same mechanism, and the two paragraphs this
+# replaces are the evidence: `test-debug-route` was added to this recipe with the
+# note "the suite is in `client/Justfile`'s `test:` aggregate and CI runs that
+# aggregate, so it was never dark — but it was not in THIS recipe", and
+# `test-chain-provenance` was added with the same sentence. Three times is not
+# three oversights; it is a membership list maintained in two places, which will
+# diverge again as surely as it diverged three times already.
 #
-# ── AND `test-chain-provenance`, WHICH TAKES ~37 MINUTES. LEAVE IT IN. ─────
+# SO THE LIST IS GONE. `cd client && just test` is ONE line that runs whatever
+# `client/Justfile` declares, in the order it declares it. A suite added there is
+# in the operator's gate the moment it is added, and this file cannot be the
+# reason it is dark. That is the only shape that makes "all of them" a property of
+# the gate rather than a fact about the last person who edited it.
 #
-# It is the LAST recipe here and it is the slow one on purpose: everything
-# above it fails fast, so a developer who broke the contract, the publisher or
-# the reader learns that in under a minute and never reaches this line.
+# WHAT THE ORDER COSTS, STATED. `just` runs a recipe's dependencies in the order
+# they are listed, and `client/Justfile`'s order puts `test-chain-provenance`
+# (~37 min) and `test-debug-route` (~9 min) in the middle rather than at the end,
+# so a failure in one of the cheap suites after them is learned late. That is a
+# real regression against the fail-fast property this recipe's own comments prize,
+# and it is accepted rather than fixed HERE, because fixing it here means
+# re-listing the fifteen and reintroducing the divergence this change exists to
+# remove. If the order is worth changing, change it in `client/Justfile`, where
+# the one list lives.
 #
-# WHY IT IS WORTH THE 37 MINUTES. 141 assertions driven through the REAL
-# producers — `generate` and `ingestSnapshot` — over the committed corpus. It
-# is the only end-to-end check in this repository that grades what the shipping
-# path actually publishes rather than a lookalike built by the test, and that
-# is not a theoretical advantage: it is what caught the `captures`
-# misattribution, and its suite-16 arm is what keeps a synthetic Noir program
-# from rendering under a real transaction's hash.
+# ── THE SLOW SUITES, WHICH ARE STILL IN. LEAVE THEM IN. ────────────────────
 #
-# WHY THIS LINE EXISTS WHEN THE SUITE WAS ALREADY RUN SOMEWHERE. It is in
-# `client/Justfile`'s `test:` aggregate and CI's `debug-route` job runs that
-# aggregate, so it was never dark. What it was not in is THIS recipe — the one
-# the operator-mandated local gate is, and the one `LOCAL-BASELINE.md` measures
-# — so the repository's own stated verdict command did not include the only
-# end-to-end check it has. A gate whose slowest member is reachable only from a
-# subdirectory is a gate people run without it.
+# `test-chain-provenance` takes ~37 minutes and is worth it: 141 assertions driven
+# through the REAL producers — `generate` and `ingestSnapshot` — over the committed
+# corpus. It is the only end-to-end check in this repository that grades what the
+# shipping path actually publishes rather than a lookalike built by the test, and
+# that is not a theoretical advantage: it is what caught the `captures`
+# misattribution, and its suite-16 arm is what keeps a synthetic Noir program from
+# rendering under a real transaction's hash.
 #
-# DO NOT REMOVE IT FOR SPEED. If this recipe needs to be fast for some new
-# purpose, add a `just test-quick` that stops above this line and leave this
-# one whole — the thing that makes a gate worth having is that nobody had to
-# decide to run the expensive part.
+# `test-explorer-breadth` is `-d:release` and walks a synthetic address with a
+# hundred thousand transactions from its first page to its last, so it is slow for
+# a reason nothing cheaper can replace.
+#
+# DO NOT REMOVE ANY OF THEM FOR SPEED, and do not re-list a subset here to get
+# one. If this recipe needs to be fast for some new purpose, add a `just
+# test-quick` that stops ABOVE the `cd client` line and leave this one whole — the
+# thing that makes a gate worth having is that nobody had to decide to run the
+# expensive part. A fast gate that OMITS the landing assertions is the defect
+# above with a friendlier name.
 test:
     # WHICH TOOLCHAIN THIS RAN ON, printed FIRST and on purpose. Every suite below
     # is `--hints:off`, so without this line a full log contains no evidence of the
@@ -127,16 +140,25 @@ test:
     nim c -r --hints:off tests/tchainsnapshot.nim
     nim c -r --hints:off tests/tidentifierencoding.nim
     nim c -r --hints:off tests/tchainprofile.nim
+    # THE TRANSPORT ENCODING OF A PUBLISHED CONTAINER (CCP-6). Its own suite because
+    # the property is a RELATION across five modules — the pure policy, the brotli
+    # codec, the publication, the producer-side kit and the consumer-side kit — and a
+    # per-module suite would have each half agreeing with its own idea of what the
+    # other does. That is the shape the campaign behind it spent two weeks undoing,
+    # with three byte figures that had become one.
+    nim c -r --hints:off tests/tcontainerencoding.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
-    cd client && just test-searchboot
-    cd client && just test-debug-route
-    cd client && just test-chain-provenance
+    # ALL FIFTEEN CLIENT SUITES, BY DELEGATION. See the block above this recipe
+    # for why this is one line and not fifteen: a membership list kept in two
+    # files diverged three separate times, and the third time it cost the gate
+    # the strongest landing assertions in the repository.
+    cd client && just test
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# ELEVEN suites — 98 + 19 + 24 + 24 + 57 + 230 + 33 + 153 + 53 + 115 + 90 = 896 counted assertions —
-# over the eleven decisions the capture path makes that nothing else can check
+# FOURTEEN suites — 98 + 19 + 24 + 24 + 57 + 233 + 33 + 162 + 53 + 118 + 219 + 83 + 6 + 30 = 1159 counted assertions —
+# over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
 # called frozen (`freeze-snapshot-selftest`), when a supervised watch is
@@ -150,8 +172,14 @@ test:
 # WHAT WAS ACTUALLY PUBLISHED, as a set of keys rather than as a total
 # (`object-set-selftest`), whether the SNAPSHOT READER and the document a
 # producer writes against name the same members (`snapshot-contract-selftest`),
-# and whether a prepared tree's RECORDINGS are in a state worth publishing
-# (`chain-health-selftest`).
+# whether a prepared tree's RECORDINGS are in a state worth publishing
+# (`chain-health-selftest`), and HOW A YIELD FIGURE IS COUNTED — which fraction of a
+# chain's transactions actually trace, over which denominator, against which pinned
+# windows (`yield-method-selftest`), and WHETHER THE COMMITTED ETHEREUM INPUT SET
+# IS THE INPUT SET IT CLAIMS TO BE — every file hashed against its manifest, the
+# three independent block answers cross-checked against each other, and the
+# replay endpoint held to never reaching a network even when handed one
+# (`eth-rpc-transcript-selftest`).
 #
 # `snapshot-contract-selftest` IS THE ONE THAT READS A NIM FILE FROM JAVASCRIPT,
 # and it is a suite rather than a review because the alternative is a person
@@ -317,6 +345,57 @@ test:
 # `counts.captureSessions` — which appeared at ONE site tree-wide and was
 # covered by nothing, so a review's revert of it passed every suite.
 #
+# `yield-method-selftest` IS THE ONE WHOSE SUBJECT IS A COMMITTED READING, and it
+# was added because the two readings in `tools/chain/measurements/` were read by
+# NOTHING. `git grep -l` for either artifact token found only the files
+# themselves. A yield figure — what fraction of a chain's transactions actually
+# trace — is the number that decides whether a chain ships, which makes it the
+# number most exposed to being chosen after the fact, and the two ways of
+# choosing it both produce a figure that looks fine: a sample of transactions
+# measures the sampler, and a single aggregate hides two windows moving in
+# opposite directions. So the method is `tools/chain/yield-method.json` and
+# `tools/chain/lib/yield.mjs` applies it, with the outcome partition IMPORTED
+# rather than restated — a second classifier is a second place for the
+# denominator to drift.
+#
+# Four things it watches go red, each against the committed data rather than a
+# constructed subject. THE DENOMINATOR IS AN ENUMERATION: driven over a real
+# capture, cross-checked against that producer's own tally, and refused when a
+# reading's `transactions` is its `traced`. TWO WINDOWS MOVED IN OPPOSITE
+# DIRECTIONS BY THE SAME AMOUNT leave every total untouched and are caught by
+# the per-window arm alone. BOTH DENOMINATORS, with the distinction MEASURED:
+# the corpus supplies committed trees on both sides — four where a population
+# the chain never published an execution for makes the two differ, four where
+# there is none and they are equal — and both sides are floored, so a check that
+# merely printed two numbers could not pass. And A RE-RUN'S VERDICT, which has
+# FOUR values and not two, because the measured case needs a third: a re-run of
+# the five pinned windows read 208 traced where the reading has 211, three
+# transactions moved, all three named, and the driver was observed dying on a
+# signal after the VM had already simulated them. `reproduced` would be a lie
+# about the figure and `not-reproduced` a lie about the producer. The mechanical
+# separator is that a re-run's columns are two kinds: what the chain published
+# cannot move between two runs over the same absolute range, and what this run
+# achieved can — so a moved CHAIN column is `not-reproduced` however well
+# attributed, and that arm is planted.
+#
+# TWO THINGS ABOUT THAT VERDICT WERE MEASURED AS HOLES AND CLOSED, and they are
+# named here because the shape recurs. The attribution reconciled against the
+# total movement in `traced` ALONE, and `traced` is a SUM over the traced
+# columns — so five rows moving from `replayed` to `divergent` left it untouched
+# in that window and were accepted as `differs-environmentally` with the note
+# "all attributed", five unexplained divergences and all. It now reconciles PER
+# WINDOW over every run column, which is the same cancellation the per-window
+# rule already refuses one level up. And `bodyUnavailable`/`notAttempted` were in
+# neither column list, so a re-run in which the body store served forty fewer
+# bodies compared as identical; they are run columns now. Both arms are planted.
+# `yield-method.json`'s `chainColumnsNote` records what the chain/run split does
+# NOT establish: `privateOnly` — and `withPublicHalf`, derived from it — is
+# decided off a body an off-chain store served and the installed decoder parsed,
+# so it has moved for the same chain over the same ranges before; and nothing in
+# either artifact anchors the chain's IDENTITY, so a reset testnet reads as a
+# producer regression. Three of the five chain columns are sound; those two are
+# recorded rather than trusted.
+#
 # THEY WERE REFERENCED BY NOTHING. Not by `just test`, not by any CI job, not
 # by `ci-coverage.sh` — whose enumeration covers `ci/test/*.sh` and
 # `client/Justfile`'s aggregate and reaches nothing under `tools/`. That is the
@@ -324,12 +403,13 @@ test:
 # was found dead, and all of them were in it: the only evidence they could go
 # red was that someone had once watched them.
 #
-# All ELEVEN are OFFLINE and toolchain-free — plain node plus bash, a mock node
+# All TWELVE are OFFLINE and toolchain-free — plain node plus bash, a mock node
 # for the freeze gate, a mock node AND a mock file store for the body verifier,
 # recorded driver output for the replay rule, for the
 # fold suite an event stream reconstructed from the committed sidecars rather
 # than read out of a `.ct` with `ct-print`, for the health sweep a STAND-IN
 # reader so the figure that counts opened recordings can be shown non-zero,
+# for the yield method the two committed readings and the committed captures,
 # and for the encoding suite nothing
 # but files already in this repository — so they run
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
@@ -347,6 +427,43 @@ chain-selftest:
     node tools/chain/object-set-selftest.mjs
     node tools/chain/snapshot-contract-selftest.mjs
     node tools/chain/chain-health-selftest.mjs
+    node tools/chain/yield-method-selftest.mjs
+    # Needs nothing but files already in this repository: the perturbations are
+    # applied to the committed READING and not to the corpus, so no container is
+    # written. Without a `ct-print` two of its eight arms SKIP, are reported as
+    # SKIP and are NOT counted as passed, and the version census still runs —
+    # it is read from the bytes.
+    node tools/chain/ct-corpus-census-selftest.mjs
+    # Offline and toolchain-free like the rest: the committed input set under
+    # fixtures/chain-inputs/ is read off disk, and the twenty mechanism arms
+    # stand up `http.Server`s in-process rather than reaching an endpoint. It
+    # does NOT run the capture — that needs the recorder binary from the
+    # codetracer-evm-recorder sibling, which is why `just eth-capture` is a
+    # separate recipe and not an arm here.
+    node tools/chain/eth-rpc-transcript-selftest.mjs
+
+# ── RECORD the one container a current reader can open ─────────────────────
+#
+# `fixtures/chain-health/readable-container/ct/*.ct` is NOT committed. It is
+# produced from the sibling `codetracer-trace-format-nim`'s own fixture
+# generator, so it follows that writer rather than lagging it, and
+# `chain-health-selftest.mjs` runs this itself before probing the reader — this
+# recipe is the same act by hand, for `just conformance
+# fixtures/chain-health/readable-container` on a fresh checkout.
+#
+# `metacraft-dev-guidelines/policies/repo-requirements.md` §4.3 is the policy:
+# `*.ct` is committed in `codetracer-example-recordings` and nowhere else,
+# because a derived artefact committed beside its producer is a clock. This one
+# went off — 151,552 bytes of container-version-4 CTFS that no reader at the
+# 2026-10 revision opens, which took all 31 reader-dependent arms out of
+# service. The tree's OTHER files stay committed and were measured to be
+# unchanged by the writer move; `MAKING.md` carries that table.
+#
+# THREE EXIT CODES, because two would hide the one that matters: 0 recorded,
+# 2 the sibling is not checked out (SKIP, and the state CI is in), 1 it IS
+# checked out and would not produce a container (FAIL — a break, not an absence).
+readable-container:
+    node tools/chain/make-readable-container.mjs
 
 # ── is the recording layer healthy? ────────────────────────────────────────
 #
@@ -366,8 +483,128 @@ chain-selftest:
 # IT REPORTS WHAT IT DID NOT MEASURE AS LOUDLY AS WHAT IT DID. `containersOpened`
 # is 0 unless `--container-reader` names a program, and a finding that could not
 # be answered is printed under NOT MEASURED rather than folded into the health
-# verdict. Reading a container is not wired here yet, so that is the normal
-# output today and the tool says so in those words.
+# verdict.
+#
+# ── OPENING THE CONTAINERS, AND WHAT IT FINDS ──────────────────────────────
+#
+#     just chain-health-corpus --container-reader ../codetracer-trace-format-nim/ct-print
+#
+# THE FLAG NAMES THE PROGRAM AND NOT A MODE. The reader's modes are a fact about
+# the reader's own interface, so they live in `tools/chain/health-checks.json`
+# under `containerReader.probes`; a mode flag in the caller's argv is refused by
+# name, because `--meta-json --events <path>` leaves the reader printing one
+# shape and the tool parsing another while every other clause looks right.
+#
+# The reader is `codetracer-trace-format-nim`'s `ct-print`, which is not a
+# dependency of this repository and is not built in CI — the same seam
+# `just chain-instructions` and `just chain-positions` already use. Build it in
+# a sibling checkout with `nimble buildCtPrint`, inside that repository's own
+# devshell: a plain `nim c` outside it fails on `zstd.h`.
+#
+# WHAT IT REPORTS OVER THIS REPOSITORY'S CORPUS IS THAT ALMOST NOTHING OPENS, and
+# that is a true finding rather than a broken tool. Measured 2026-09-28 with a
+# reader built from a current checkout: of the 46 containers named by a committed
+# snapshot row, 45 are REFUSED and the one that opens is
+# `fixtures/chain-health/readable-container`, which this repository added for the
+# purpose because nothing else here could be opened at all. Of the 45: 42 because
+# they declare `meta.dat` schema version 3
+# and the reader accepts [4, 5], refusing 3 BY NAME rather than decoding it under
+# a rule that would put every source position one line high; and 3 because they
+# are the shipped conformance template's 229-byte ASCII placeholders, which carry
+# no container magic at all. Every finding therefore names the CONTAINER'S
+# declared version as the defect, keeps the reader's own sentence as the
+# evidence, and carries the reader's build id — its own sha256, because the
+# reader states no version of its own and two of its builds refuse the same
+# container with different exit statuses.
+#
+# RE-MEASURED 2026-10-04 (CRR-4). The three figures above — 46 named, 45 refused,
+# 1 opened, and the 42 / 3 split of the 45 — all still hold exactly, and the
+# schema census the tool reports is `{3: 42, unstated: 4}`. Two sentences do NOT:
+#
+#   * `the reader accepts [4, 5]` is stale. It reads `meta.dat` schema 6 ONLY, and
+#     container version 5 only, as of the 2026-10 trace-format revision. The
+#     refusal is still BY NAME and still for the one-line-high reason; the set it
+#     is a refusal against moved.
+#   * `which this repository added for the purpose` is stale in the other
+#     direction. That subject's container was committed, and on 2026-10-01 the
+#     writer moved past it, so from then until this re-measurement the figure was
+#     46 named, 46 REFUSED, 0 opened — and all 31 reader-dependent arms of
+#     `chain-health-selftest.mjs` did not run. The container is no longer
+#     committed: `tools/chain/make-readable-container.mjs` RECORDS it, at test
+#     time, from the sibling writer's own fixture generator. `just
+#     readable-container` is the same act by hand. That is why 1 opens again, and
+#     it is why 1 will keep opening the next time the writer moves.
+#
+# The schema skew is reported PER CONSUMER and never as one verdict, because the
+# two consumers of these containers accept disjoint sets: the pinned reader above
+# accepts schema 6 (it accepted [4, 5] when this paragraph was written) and the
+# replay engine this repository ships to a visitor — pinned by sha256 in
+# `client/hydrate/engine-pin.txt` — accepts [3]. So the same corpus is unreadable
+# to one and readable to the other, and picking which one matters is not a
+# decision a sweep gets to make.
+#
+# ── WHAT AN OPENED CONTAINER IS COMPARED AGAINST ───────────────────────────
+#
+# Five more questions are answered once a recording opens, and every one of them
+# is in the hole the contract cannot reach. `snapshot-contract.json`'s member
+# census declares the container OPAQUE — its entry has zero members — so every
+# `S5-*-AGREE` rule compares a DERIVED FILE to the producer's claim and takes the
+# claim as the truth. A producer that mis-measured its own recording and derived
+# every sidecar from the mis-measurement conforms in every direction.
+#
+# Three compare the container's own counts to the row's claim, one finding per
+# claim member so a drifting second copy of a number can be told from the first:
+# the step count, the call count (where the container holds the claim PLUS the
+# synthetic top-level frame — a relation two producers here state, not an
+# arithmetic convenience), and `recording.events`, which is measurably a second
+# copy of the step count: 42 of 42 committed rows carrying both have them equal.
+#
+# Two compare the container to what is published beside it: every source path the
+# recording INTERNED must be a file in the bundle (`S5-BUNDLE-REQUIRED` asks for a
+# bundle to be present and says nothing about what is in it), and the positions
+# sidecar's coordinates must be the container's VALUE BY VALUE. Only the counts
+# are checked anywhere else — `S5-POSITIONS-AGREE` and `S5-POSITIONS-COLUMNS` are
+# both about length — and a full-length stream with the wrong values puts the
+# caret on lines the execution never touched exactly as badly as a short one.
+# That is also the likeliest way to get it wrong: one producer here deliberately
+# re-indexes the container's path ids, and an off-by-one in that remap produces a
+# correctly-counted stream in which every step points at the wrong file.
+#
+# One needs no container at all, which is why it has a population over the real
+# corpus where its siblings do not: a bundle's declared `language` against the
+# extensions of its own files, against the extensions the positions stream names,
+# and that stream's schema token against the closed set of tokens this repository
+# writes. `S5-POSITIONS-SCHEMA` refuses a stream that states NO token and
+# republishes whatever it is handed, so a token nothing defines passes it.
+#
+# THE ONE SUBJECT THESE HAVE is `fixtures/chain-health/readable-container` — the
+# only recording here a current reader can open. Its MAKING.md states what it is,
+# what it is NOT, and every command that produced it. Read that before quoting
+# anything these five checks report.
+#
+# ── THE RATCHET, AND WHY A THRESHOLD COULD NOT BE ONE ──────────────────────
+#
+# One more finding needs no container and no reader: has any chain published FEWER
+# source-level recordings than the committed reading says it had?
+#
+# The source-absence check is a THRESHOLD AT ZERO, measured rather than read off
+# its own description: driven over one chain at 40 of 40, 20 of 40, 5 of 40 and 1
+# of 40 source-level rows it stays GREEN, and reddens only at 0 of 40. So a chain
+# that went from forty source-level recordings to one is silent in the one check
+# aimed at the operator's primary symptom. A threshold cannot fix that, because
+# there is no defensible absolute number — the right count for a chain is whatever
+# it has already reached. What CAN be stated is that it must not go backwards, and
+# the committed reading is where the previous position is recorded. Same shape as
+# the object-set baseline and the byte-identity manifest.
+#
+# The baseline is read by DEFAULT, because a ratchet nobody remembers to pass a
+# flag for is a ratchet that never fires. `--no-baseline` says so deliberately and
+# makes the check report NOT RUN with that as its reason, which is the difference
+# between a check that was switched off and a check that passed. A `--baseline`
+# naming a file that cannot be read is REFUSED rather than replaced by the
+# default: a typo must not quietly switch off the one check that watches a chain
+# going backwards. A RISE is not a finding — refreshing the reading is a separate
+# reviewable act.
 #
 # THE EXIT CODE IS THE VERDICT AND THE CORPUS RECIPE CURRENTLY EXITS 1, which is
 # the tool working rather than the recipe failing: 0 is nothing found, 1 is at
@@ -382,9 +619,121 @@ chain-selftest:
 chain-health SNAPSHOT *ARGS:
     node tools/chain/chain-health.mjs {{SNAPSHOT}} {{ARGS}}
 
+# ── THE REFRESH CANNOT LOWER THE FLOOR IT JUST RATCHETED AGAINST ───────────
+#
+# This recipe writes the committed reading AND that same file is the default
+# baseline the source ratchet reads. So the sequence inside one command is: read
+# the old reading, ratchet against it, report any slip, overwrite the file. A run
+# in which a chain went BACKWARDS would therefore report the slip and then move
+# the floor down to where it slipped to, in the same command, with nothing to
+# stop it. That is a record of drift where a check against drift was — the exact
+# substitution `client/hydrate/engine-pin.txt` exists because of, and which that
+# file says went unnoticed "for as long as it existed".
+#
+# So the write is REFUSED BY NAME, exit 5, naming every chain and both figures.
+# Lowering a floor deliberately stays possible and costs a sentence:
+#
+#     just chain-health-corpus --accept-ratchet-slip "why this is right"
+#
+# The reason is required, is checked for being a sentence rather than a word, and
+# is WRITTEN INTO the reading under `ratchetSlipAccepted` together with every
+# figure it lowered. A bare flag would be a flag somebody adds to a recipe once
+# and never removes, and then the ratchet is gone with no trace of when; a reason
+# in the file justifies the lowered floor in the reviewable diff instead of in
+# somebody's shell history.
+#
+# A RISE NEEDS NOTHING. A reading whose floors are below the tree is rewritten
+# freely and the new floors are higher — a ratchet that refused every write would
+# be a ratchet nobody could advance, which is the same uselessness from the other
+# side.
 chain-health-corpus *ARGS:
     node tools/chain/chain-health.mjs --corpus \
       --out tools/chain/measurements/chain-health.json {{ARGS}}
+
+# ── does the committed reading still describe this tree? ────────────────────
+#
+# `just chain-health-check` sweeps the corpus and asserts the roll-up against
+# `tools/chain/measurements/chain-health.json` — the reading
+# `just chain-health-corpus` writes. Exit 4 means the reading no longer describes
+# the tree; that is a different failure from an unhealthy tree and has its own
+# status so the two cannot be confused.
+#
+# WHEN A READING IS BEING ASSERTED, THE READING'S VERDICT IS THE EXIT STATUS. The
+# findings are printed and not folded in, because this repository's corpus carries
+# real ones — 45 containers no current reader can open is the measurement the tool
+# exists to report — so a gate that also failed on those would be permanently red
+# and nobody would run it. Hiding them would be worse, so the count is on the
+# verdict line and `just chain-health-corpus` is where they ARE the verdict.
+#
+# THE FLAG IS `--expect` AND NOT `--check`, because `--check <id>` already selects
+# which findings to run and one word meaning two things on one command line is a
+# defect waiting for a hurried reader. `tools/chain/object-set.mjs` calls the same
+# operation `--expect` too, which is the closer precedent.
+#
+# THREE DIRECTIONS, and the difference is load-bearing. Figures about the TREE are
+# compared for EQUALITY, so a change in either direction lands in a reviewable
+# diff. Figures that measure how far the recording layer has got are FLOORS — the
+# right number of source-level recordings for a chain is whatever it has already
+# reached, so a rise is not a failure and a check that reddened on improvement
+# would have stasis as its only stable state. And figures that exist only when a
+# container reader was named are compared ONLY between like and like: the
+# committed reading is taken WITHOUT one, deliberately, so a host that has no
+# `ct-print` can still run this gate.
+#
+# IT FAILS ON AN EMPTY CORPUS, and that is the control worth knowing about. Every
+# equality over a reading with no snapshots is satisfied; every floor against a
+# zero baseline is satisfied; so a checker pointed at nothing prints that the
+# reading still describes the tree, having compared nothing at all. Both sides are
+# floored — the reading and the run each need a minimum number of trees and rows —
+# and a side below its floor is a FAILURE with the figure quoted. A glob that
+# expanded to nothing is refused by name rather than by printing the flags again.
+chain-health-check *ARGS:
+    node tools/chain/chain-health.mjs --corpus --quiet \
+      --expect tools/chain/measurements/chain-health.json {{ARGS}} > /dev/null
+
+# ── the committed `.ct` corpus, by population and by producer ──────────────
+#
+# `chain-health-check` above covers the chain SNAPSHOT directories, selected by
+# `corpusSnapshotDirs()`. It does not cover `fixtures/trace/`, which carries no
+# `snapshot.json` — measured, not assumed: the ten containers there were
+# re-recorded from container version 4 to version 5 and `chain-health-check`
+# reported "unchanged from it", correctly, because they are not its subject.
+#
+# WHY THIS IS A GATE AND NOT A PARAGRAPH. The committed `.ct` corpus has been
+# censused by hand three times and the hand census was wrong twice — once on the
+# population (a `find` counted generated copies under `client/dist/` as
+# "committed", giving 78 where there are 55 tracked paths) and once on the
+# PRODUCER (all 52 containers were described as chain recordings needing a node
+# and a replay driver, when ten are `nargo trace` recordings of local Noir
+# packages whose sources are vendored beside them and whose re-record command is
+# committed). Grouping by producer is what makes that split visible, and the
+# producer is the field that decides the remedy.
+#
+# `tools/chain/ct-corpus.json` declares the populations, their producers and the
+# remedy for each. `tools/chain/measurements/ct-corpus.json` is the committed
+# READING. A corpus change is allowed; a corpus change that leaves the reading
+# stale is a red gate naming every delta.
+#
+# THREE-STATE ON THE READER, like every other optional-reader gate here: no
+# `ct-print` is exit 2 and reports readability as NOT MEASURED while still
+# measuring the version census from the bytes; a reading that disagrees is
+# exit 1; agreement is 0. A REFUSAL IS NOT A FAILURE — the 42 chain containers
+# are expected to be refused at `meta.dat` schema 3, the reading says so by
+# name, and one of them suddenly opening is as much a skew as one of the ten
+# that stopped.
+ct-corpus-check *ARGS:
+    node tools/chain/ct-corpus-census.mjs \
+      --expect tools/chain/measurements/ct-corpus.json {{ARGS}}
+
+# Re-read the census into the committed reading. Run this deliberately, after a
+# corpus change, and say in the commit WHY each delta moved.
+ct-corpus-read:
+    node tools/chain/ct-corpus-census.mjs --json > tools/chain/measurements/ct-corpus.json
+
+# Does the census gate decide? One perturbation per field, plus a base case so
+# the others are not vacuous.
+ct-corpus-selftest:
+    node tools/chain/ct-corpus-census.mjs --selftest
 
 # ── §5's member census, as the spec's own tables ───────────────────────────
 #
@@ -863,6 +1212,36 @@ ct-styles-vendor:
     ci/test/ct-styles-vendor.sh --require
     ci/test/ct-styles-vendor-test.sh
 
+# THE CONVERSE OF `Dropped`: can a rule the port KEPT match anything?
+#
+# `ct-styles-vendor` above proves the INPUT is still upstream's bytes.
+# `cd client && just test-ct-components-css` proves the OUTPUT is still a port
+# of them, and one of its arms proves every rule the port DROPS is dropped on
+# purpose with a reason. NOTHING PROVED THE OTHER DIRECTION, and three defects
+# came out of that gap — two of them reported as fixed:
+#
+#   * `.component-container`, CodeTracer's panel surface, vendored, scoped and
+#     served while nothing in the renderer emitted it;
+#   * the nine vendored CodeTracer icons, whose `url()`s were fixed from a path
+#     this site never published while ZERO of their selectors is emitted
+#     anywhere;
+#   * `.separate-bar` and `.dropdown-list`, each given a colour binding while
+#     matching zero elements.
+#
+# `client/src/components/ct_css_reach.txt` is the register that answers it, and
+# the gate is two halves that read the same bytes: the Nim suite asserts the
+# register ACCOUNTS FOR every selector the port emits, and this asserts the
+# register is TRUE OF THE EXPORTED SITE. Neither is the gate alone.
+#
+# The self-test runs FIRST and is the reason to believe the gate: fifteen arms,
+# including the three mutations this defect class calls for with a control
+# beside each, and five arms on the ways a checker of this shape passes while
+# measuring nothing. A green gate whose detectors are dead is precisely the
+# failure mode a gate written for "nobody checked the converse" must not have.
+ct-css-reachable:
+    ci/test/ct-css-reachable-test.sh
+    ci/test/ct-css-reachable.sh
+
 # ── The Noir corpus (fixtures/trace/tour) ───────────────────────────────────
 # Two sets: `programs` are recordable and are the capability tour the demo chain
 # publishes; `toolchainPrograms` exercise the toolchain and cannot produce a
@@ -1018,6 +1397,14 @@ conformance dir="conformance-kit/template/complete":
 # the sandbox has its rule id resolved against `contract/snapshot-contract.json`
 # as shipped, which is what a recipient with a tarball and no checkout does.
 #
+# IT DOES NOT REBUILD ITS SUBJECT, and that is worth knowing before quoting a
+# local result. `just conformance-kit-sandbox` runs the script against whatever
+# `conformance-kit-release/` currently holds — a gitignored directory that may
+# have been staged at another commit — so a local green is a statement about that
+# directory and not about this ref. CI runs `just conformance-kit-release`
+# immediately before the script, every time, which is what makes the CI arm a
+# gate; run the pair locally too if the result is going to be quoted.
+#
 # STAGING OUTSIDE THE CHECKOUT IS AN OPERATOR PROCEDURE, not a gate: it needs the
 # toolchain and a full `-d:release` build of three binaries, so putting it in the
 # sandbox script would double that script's cost for a property one command
@@ -1065,6 +1452,185 @@ conformance-kit-release out="conformance-kit-release":
 # Prove the released artifact needs no toolchain, no checkout and no network.
 conformance-kit-sandbox:
     ci/test/conformance-kit-sandbox.sh
+
+# ── Ethereum mainnet: container + chain data -> a §5 snapshot tree ──────────
+#
+# `tools/chain/produce-eth-snapshot.mjs` is the SECOND chain-snapshot producer in
+# this repository and it shares no abstraction with the first. The Aztec
+# producers are `capture-chain.mjs` and `follow-chain.mjs`; this is Ethereum
+# mainnet's, written concretely and duplicatively on purpose — Chain-Delivery
+# DEL-7 is the milestone allowed to extract a seam from the two, once there are
+# two real consumers to measure one against (ING-7's two-consumer rule).
+#
+# IT TAKES A CAPTURE, AND THE CAPTURE IS NOW REPRODUCIBLE FROM COMMITTED INPUTS
+# — see `just eth-capture` below, which is the recipe to reach for. This one is
+# the bare producer: it takes a capture directory somebody already has and turns
+# it into a tree, with no opinion about where the capture came from.
+#
+#     # 1. the capture, offline, from the committed input set
+#     just eth-capture <recorder-binary> <recorder-commit>
+#
+#     # 2. or the bare producer over a capture of your own
+#     just eth-snapshot <tx> <capture-dir> <run.log> <recorder-commit> <out-dir>
+#
+#     # 3. verify, from the RELEASED kit rather than from this repository's suite
+#     just conformance-kit-release /abs/path/to/kit
+#     /abs/path/to/kit/bin/blocktracer-conformance --snapshot <out-dir>
+#     just eth-snapshot-control <out-dir> /abs/path/to/kit
+#
+# `--dry-run` prints the counts, the window and the archive-floor probe without
+# writing anything, which is the cheap way to see what a run would publish.
+eth-snapshot TX CAPTURE LOG COMMIT OUT *ARGS:
+    node tools/chain/produce-eth-snapshot.mjs \
+      --tx {{TX}} --capture {{CAPTURE}} --recorder-log {{LOG}} \
+      --recorder-commit {{COMMIT}} --out {{OUT}} {{ARGS}}
+
+# ── and the control that makes a green conformance run a VERDICT ────────────
+#
+# `blocktracer-conformance` printing `VERDICT: this tree conforms` is evidence
+# about the tree only if the same command, on the same tree, with ONE member
+# changed, refuses AND names the §5 rule that member belongs to. This runs the
+# released kit over the tree and then over the same tree one member at a time.
+#
+# NOT IN `chain-selftest`, deliberately, and for the reason that recipe's own
+# header gives about everything in it: every suite there is offline and
+# toolchain-free over files already in this repository. This one needs a CAPTURE
+# and a RELEASED KIT (gitignored), so wiring it in would buy a suite that reports
+# SKIP forever. It is three-state instead: rc 0 every arm held, rc 1 an arm did
+# not, rc 2 a subject is missing and NOTHING WAS MEASURED.
+#
+# THE REASON THE CAPTURE IS A PRECONDITION HAS CHANGED, and the sentence that
+# used to be here is corrected rather than left standing. It said the capture was
+# "not committable — the `.ct` ban", which was true of the CONTAINER and is still
+# true of it. But the capture is no longer unavailable offline: its INPUTS are
+# committed under `fixtures/chain-inputs/ethereum-mainnet/`, and `just
+# eth-capture` produces the container and the tree from them in about nine
+# seconds with no route off the host. What keeps this out of `chain-selftest` is
+# now the RECORDER BINARY — a Rust build in the `codetracer-evm-recorder` sibling,
+# which this repository does not build. The obstacle is the toolchain, not the
+# chain data.
+eth-snapshot-control SNAPSHOT KIT *ARGS:
+    node tools/chain/produce-eth-snapshot-control.mjs \
+      --snapshot {{SNAPSHOT}} --kit {{KIT}} {{ARGS}}
+
+# THE ONE TRANSACTION THE COMMITTED INPUT SET DESCRIBES: a USDT transfer at
+# mainnet block 26,083,328 index 8, hardfork PRAGUE, reached by replaying the 8
+# preceding transactions in its block. Named once, here, because three recipes
+# key a fixtures path from it and a second spelling would point one of them at a
+# directory that does not exist.
+ETH_CAPTURE_TX := "0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa"
+
+# ── the Ethereum capture, from COMMITTED INPUTS, with no network at all ─────
+#
+# `fixtures/chain-inputs/ethereum-mainnet/<tx>/` is the whole JSON-RPC
+# conversation the capture reads: 472 answers, every one of them a fact about a
+# finalised mainnet block. `tools/chain/eth-rpc-transcript.mjs --replay` serves
+# them from a loopback port and SERVES NOTHING ELSE — there is no fall-through to
+# the network, because replay mode never constructs an upstream client — so the
+# capture below runs to completion in a namespace with no route off the host.
+#
+# WHY INPUTS AND NOT THE RECORDING. The `.ct` ban refuses a committed container
+# and is right to: a recording pins a recorder version nothing tracks, and
+# `fixtures/chain-health/readable-container` measured the cost of the other
+# choice (regenerating it moved `containerBytes` 151,552 -> 77,824 across two
+# container versions while not one checked fact moved). A transaction body, a
+# block header and the account/storage/code state a replay reads cannot churn,
+# because the chain they describe cannot change. So the inputs are committed and
+# the container is produced.
+#
+# WHAT IT STILL NEEDS, and what therefore keeps it out of `chain-selftest`: the
+# recorder BINARY, which is a Rust build in the `codetracer-evm-recorder`
+# sibling and is not in this repository. The chain data is no longer the
+# obstacle; the toolchain is.
+#
+# The container is NOT byte-identical between two runs over the same inputs, and
+# that is a property of the RECORDER rather than of the inputs — measured over
+# eight offline runs from this one transcript. Two mechanisms: a UUIDv7 recording
+# id (every run differs) and the emission order of two storage variables within a
+# step (a per-process coin flip). Decoded through `ct-print --full` the eight runs
+# produce exactly two outputs, and both of them also occur online, so the
+# transcript reproduces the live capture up to the recorder's own nondeterminism.
+#
+# `COMMIT` IS REQUIRED AND IS NOT DERIVED, which is deliberate. It is the commit
+# of the checkout that BUILT the binary in `RECORDER`, it is published into every
+# row's `runtimeCommit`, and NOTHING HERE CAN READ IT OFF THE BINARY —
+# `codetracer-evm-recorder --version` answers `0.1.0` and no commit. A default of
+# `git -C ../codetracer-evm-recorder rev-parse HEAD` would be right only when the
+# binary came from that one checkout at its current HEAD, and silently wrong — not
+# absent, WRONG — for a binary built in a worktree or before a pull. A figure
+# published into provenance has to be stated by whoever knows it.
+eth-capture RECORDER COMMIT TX=ETH_CAPTURE_TX OUT=".eth-capture/tree" *ARGS:
+    node tools/chain/eth-rpc-transcript.mjs \
+      --replay --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}} -- \
+      bash tools/chain/eth-capture.sh \
+        --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+        --tx {{TX}} --out {{OUT}} \
+        --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}} {{ARGS}}
+
+# Re-record the committed input set against a live archive endpoint.
+#
+# THE ONE RECIPE HERE THAT NEEDS THE NETWORK, and the only one that should. It
+# proxies the same capture to a real endpoint and writes every distinct answer
+# into the fixtures tree, so `just eth-capture` can replay it forever after.
+# ~3 minutes against a free public archive; the offline replay of the same
+# conversation takes ~9 seconds.
+#
+# Re-record only for a reason you can state: the inputs are immutable facts, so a
+# re-record over the SAME transaction should move only `recordedAt`, the two
+# tip-dependent answers (`eth_blockNumber`, `eth_getBlockByNumber ['finalized']`)
+# and the endpoint-identity ones. A re-record that moves an `immutable` answer is
+# a finding about the endpoint, not a refresh.
+eth-inputs-record RECORDER COMMIT TX=ETH_CAPTURE_TX UPSTREAM="https://eth.drpc.org" *ARGS:
+    node tools/chain/eth-rpc-transcript.mjs \
+      --record --upstream {{UPSTREAM}} \
+      --out fixtures/chain-inputs/ethereum-mainnet/{{TX}} -- \
+      bash tools/chain/eth-capture.sh \
+        --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+        --tx {{TX}} --out .eth-capture/tree {{ARGS}}
+
+# Hash every committed input against its manifest and report the ledger.
+#
+# Offline, toolchain-free, and in `chain-selftest` through
+# `eth-rpc-transcript-selftest.mjs`, which runs this check over the real tree as
+# well as over planted defects.
+eth-inputs-verify TX=ETH_CAPTURE_TX:
+    node tools/chain/eth-rpc-transcript.mjs \
+      --verify --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}}
+
+# ── the Ethereum RANGE capture: the tool a developer runs by hand ───────────
+#
+# `just eth-capture` records ONE named transaction from committed inputs. This
+# records a RANGE, live, which is the development half of the ingestion
+# pipeline: ask for blocks, look at what came out, ask again after a change.
+#
+#     just eth-range <recorder> <commit> --from 26157000 --to 26157002
+#     just eth-range <recorder> <commit> --depth 3 --max 4
+#     just eth-range <recorder> <commit> --depth 3 --plan     # cost, record nothing
+#
+# `--out` defaults to `.eth-range/tree` and NOT into `client/fixtures/chain/`.
+# The Aztec capture defaults into the committed fixture tree; for Ethereum that
+# path is refused by `ban-added-ct-recordings`, so defaulting there would make
+# the first run fail for a reason unrelated to what the tool does.
+#
+# `--depth N` means the N blocks ending at the FINALIZED head, not at the tip —
+# the one place this interface departs from `capture-chain.mjs`'s. Aztec counts
+# below the tip because bodies are PRUNED below finalized; Ethereum's archive
+# serves any depth, and what a block above finalized can still do is REORG OUT.
+# `--from`/`--to` is not clamped: a height an operator names is a height they
+# meant, and the run prints how far above finalized it reached.
+#
+# NOT in any gate, and that is deliberate: it needs the network and the recorder
+# binary, so wiring it into `chain-selftest` would buy a suite that reports SKIP
+# forever — the same reason `eth-snapshot-control` is out. The gated, offline
+# half of this path is `just eth-capture`.
+#
+# COMMIT IS REQUIRED AND IS NOT DERIVED, for the reason `eth-capture`'s header
+# gives: it is published into every row's `runtimeCommit`, the binary cannot be
+# asked for it, and a default read off a sibling checkout's HEAD is silently
+# WRONG — not absent — for a binary built in a worktree or before a pull.
+eth-range RECORDER COMMIT *ARGS:
+    node tools/chain/capture-eth-range.mjs \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
 
 # Publish a generated tree into a local object-store directory (M8 delta publisher).
 # Idempotent + resumable: re-run to upload only new objects and flip current.json.

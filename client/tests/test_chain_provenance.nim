@@ -311,8 +311,22 @@ suite "1 — a rung-3 recording never renders as source":
     # page now states what is true of THIS recording, so that is what is
     # asserted, and the retired clause is asserted ABSENT.
     check "No source resolved for the code this transaction ran" in body
-    check "checked against that commitment" in body
+    # CHANGED 2026-10-09, and the expectation was STALE rather than the code
+    # wrong. "checked against that commitment" pinned the tail of a sentence
+    # whose head named Aztec — "Aztec publishes a commitment to a contract's
+    # compiled artifact rather than the artifact itself" — and this pane serves
+    # every chain: the first Ethereum mainnet transaction ingested into a
+    # BlockTracer tree rendered that sentence on a USDT transfer. The clause is
+    # now chain-neutral and says the same thing about the same mechanism, so
+    # what this arm is really grading — that the pane explains the gap rather
+    # than declaring the source nonexistent — is unchanged.
+    check "proved against that bytecode" in body
     check "no debug symbols, no file map and no source text" notin body
+    # AND THE RETIRED CLAUSE IS ASSERTED ABSENT, on the same terms as the one
+    # above it. An Aztec-specific explanation on an Aztec page would be correct;
+    # one baked into the shared pane is a wrong statement waiting for a second
+    # chain, and a second chain arrived.
+    check "Aztec publishes a commitment" notin body
 
   test "and it says WHERE the session is stopped, in words AND on a row":
     # The defect this arm was added for, and the second half of the same defect.
@@ -342,7 +356,43 @@ suite "1 — a rung-3 recording never renders as source":
     # snapshot's step count rather than against the page that printed it.
     let s = debugSessionFor(root, RealChain, replayedTx)
     check s.controls.positioned
-    check s.controls.step > 0
+    # A TICK, AND ITS CEILING IS EXCLUSIVE. This was `step > 0`, which was a
+    # leftover from when tick 0 was unreachable: the landing step was a constant
+    # of 128 and a 0 therefore meant "nobody set a position", so `> 0` was
+    # standing in for `positioned` — which is asserted on the line above and is
+    # the field that actually means it. `demo_session.chainEntryStep` makes tick 0
+    # the ordinary landing of an instruction-level recording, and tick 0 is a
+    # position: the first instruction this recording executed, with the listing
+    # marking its row and this head stating it.
+    #
+    # THE REPLACEMENT IS NOT STRICTLY STRONGER, AND SAYING SO WAS WRONG. This
+    # comment claimed it was. The two conditions are INCOMPARABLE: `step == 0`
+    # satisfies the pair below and fails `> 0`, and `step == totalSteps`
+    # satisfies `> 0` and fails the pair. So the lower bound was LOOSENED and
+    # the upper bound was added; neither implies the other, and a reviewer who
+    # took "strictly stronger" at face value would have waved through exactly
+    # the kind of edit this repository has been burned by.
+    #
+    # WHAT MAKES IT A CORRECTION ANYWAY, stated as the trade it is. The floor
+    # had to move: `chainEntryStep` makes tick 0 the ordinary landing, so `> 0`
+    # would now fail on eight published pages that are RIGHT. What `> 0` was
+    # really guarding — "somebody set a position" — is `positioned`, asserted on
+    # the line above, with the CONTROL immediately below (a page with no
+    # position draws no head) keeping it load-bearing. And the loosened floor is
+    # not left uncovered: suite 10's last arm asserts that a source-level
+    # session stands on a step that HAS a source position and has exactly one
+    # marked row for it, which is what a landing stuck at tick 0 would violate.
+    # MEASURED, NOT ARGUED. Planted: `withSourcePositions` still moves the marked
+    # row forward to the first positioned step but no longer moves the session's
+    # own coordinate with it, so the page reports tick 0 and shows line 203. Both
+    # source-level transactions are named red by that arm, while suite 10's four
+    # bounds arms — and this arm, including the two lines below — stay green.
+    #
+    # The arm's substance is untouched and still passes: the head is drawn, the
+    # sentence is there, the numerator and denominator are in the markup, and
+    # exactly one listing row is marked at that tick.
+    check s.controls.step >= 0
+    check s.controls.step < s.controls.totalSteps
     check s.controls.totalSteps == replayedSteps
     check ("<span class=\"num\">" & $s.controls.step & "</span> of " &
            "<span class=\"num\">" & $replayedSteps & "</span>") in debugBody
@@ -1833,7 +1883,10 @@ suite "8 — a curated chain publishes only transactions that open":
 # positioned, validated and not reconstructed", which is three ways of saying
 # nothing is wrong with it. Nothing was wrong with what it picked, either:
 # `aztec-testnet/tx/0x0858d644…` is a real transaction whose real container
-# stops at step 128 of 345 and steps normally. It is rung 3, so its panes say —
+# holds 345 steps and steps normally. (This paragraph used to say it "stops at
+# step 128 of 345", which was the FIXTURE's landing step asserting itself over
+# a chain recording — the defect suite 10's last arm now forbids. It lands at
+# tick 0, the first instruction it executed.) It is rung 3, so its panes say —
 # correctly, on the front page, under "the deepest view into every transaction"
 # — that they carry no source positions, no function names and no variable
 # names. Correct in place; the worst available first impression as a headline.
@@ -2274,8 +2327,30 @@ suite "10 — a real recording's step count is its own, not the fixture's":
     let info = chainInfo(root, RealChain)
     let s = debugSessionFor(root, RealChain, shortTx)
     ck s.controls.totalSteps == shortSteps
-    ck s.controls.step >= 1
-    ck s.controls.step <= s.controls.totalSteps
+    # A TICK, NOT AN ORDINAL. The session counts 0 .. steps-1 — the instruction
+    # listing's own caption says so ("459 recorded steps, 0–458 as the session
+    # counts them") and `withInstructionListing` marks row `n` for tick `n`. So
+    # the floor is 0 and the ceiling is `totalSteps - 1`.
+    #
+    # THAT IS A TRADE, NOT A STRENGTHENING, and this comment used to claim it
+    # was "STRICTLY STRONGER" than the `>= 1` / `<= totalSteps` pair it
+    # replaces. It is not: `step == 0` satisfies the new pair and fails the old,
+    # so the FLOOR was loosened, and `step == totalSteps` satisfies the old pair
+    # and fails the new, so the CEILING was tightened. Neither implies the
+    # other. The floor had to move — tick 0 is the ordinary landing now — and
+    # what covers the loosening is this suite's last arm, which asks what each
+    # pane actually stands on rather than only where the number sits.
+    #
+    # AND THE TIGHTENED CEILING IS NOT REACHABLE FROM THE LANDING RULE, which is
+    # worth knowing before anyone treats it as this suite's guard: both
+    # `withSourcePositions` and `withInstructionListing` clamp the coordinate
+    # against the stream they are about to render, so a landing of `totalSteps`
+    # arrives here already corrected. Measured by planting one: the plant is
+    # caught by the last arm, not by the line below. `test_instruction_listing`
+    # suite 6 is where the clamp itself is exercised, on a coordinate handed in
+    # past the end.
+    ck s.controls.step >= 0
+    ck s.controls.step < s.controls.totalSteps
     # The URL coordinate and the toolbar's step are one derivation, not two.
     ck s.timeCoordinate == s.controls.step
     # …and the manifest agrees, so this is the trace's number and not a
@@ -2310,7 +2385,9 @@ suite "10 — a real recording's step count is its own, not the fixture's":
           let s = debugSessionFor(root, c, t)
           if not s.controls.positioned: continue
           inc positioned
-          if s.controls.step >= 1 and s.controls.step <= s.controls.totalSteps:
+          # Ticks are 0-based, and the ceiling is EXCLUSIVE — see the arm above
+          # for why that is stronger than what was here.
+          if s.controls.step >= 0 and s.controls.step < s.controls.totalSteps:
             inc inside
           if s.timeCoordinate == s.controls.step: inc agreeing
           let published = traceView(root, info, t).steps
@@ -2321,8 +2398,88 @@ suite "10 — a real recording's step count is its own, not the fixture's":
     ck agreeing == positioned
     ck totalled == positioned
 
+  test "NO chain session lands on the fixture's photographed step":
+    # THE HALF OF THIS DEFECT THE ARMS ABOVE CANNOT SEE, and it shipped for
+    # exactly that reason. Every one of them is a BOUNDS check, and 128 is
+    # inside the bounds of every recording longer than 128 steps — so eight
+    # published chain transactions went on opening at literally step 128, and
+    # `1 <= 128 <= 345` passes. The number that was wrong was never compared
+    # against anything but the length of the trace it was wrong about.
+    #
+    # The rule now: a recording whose manifest does not claim source level is a
+    # CHAIN recording, its landing is `chainEntryStep`, and the two producers
+    # that own the rows move it forward to the first row they have. Stated as
+    # "not the fixture's constant" rather than as "equals 0", because the whole
+    # point is that the moved-forward answer is the trace's own and not another
+    # constant: on `0x0a807e4e…` it is 14, on a rung-3 recording it is 0, and
+    # both are derived from that recording's own stream.
+    var chainSessions, offFixtureStep = 0
+    # NAMED, NOT COUNTED. "32 of 33 land on the first row they have" tells a
+    # reader that something is wrong and not WHAT, and the first version of this
+    # arm counted — which cost a whole gate run to turn into a name. An offender
+    # list costs the same assertion and answers the next question.
+    var wrongLanding: seq[string]
+    for c in chains(root):
+      let info = chainInfo(root, c)
+      for h in blockHashes(root, info):
+        for t in readBlockDetail(root, info, h).transactions:
+          let tv = traceView(root, info, t)
+          if tv.outcome != tvReplayable: continue
+          if tv.sourceLevel: continue        # the fixture's own branch
+          let s = debugSessionFor(root, c, t)
+          if not s.controls.positioned: continue
+          inc chainSessions
+          if s.controls.step != 128: inc offFixtureStep
+          # …AND IT IS THE FIRST ROW THE PANE HAS, not merely a different
+          # number.
+          #
+          # THE DISCRIMINATOR IS THE PANE THE PRODUCT BUILT, not the sidecar.
+          # Asking `decodeStepPositions(tv.positions)` re-derives a decision made
+          # elsewhere and makes it differently — `withSourcePositions` can decline
+          # a stream it has read — so the expectation and the product disagree
+          # about which rule applies. `editor.availability` is what the product
+          # decided, and it is the partition `test_instruction_listing` selects
+          # its own subjects with.
+          #
+          # A pane showing SOURCE must stand on a step that HAS a source position
+          # and must have a marked line to show for it. A pane showing only the
+          # listing must stand on tick 0, its first row.
+          if s.editor.availability == srcSourceLevel:
+            let pos = decodeStepPositions(tv.positions)
+            var marked = 0
+            for d in s.editor.documents:
+              for ln in d.lines:
+                if ln.current: inc marked
+            let onPositioned =
+              pos.has and s.controls.step >= 0 and s.controls.step < pos.steps and
+              pos.pathId[s.controls.step] >= 0
+            if not (onPositioned and marked == 1):
+              wrongLanding.add c & "/" & t & " source-level at step " &
+                $s.controls.step & ", marked rows " & $marked
+          elif s.controls.step != 0:
+            wrongLanding.add c & "/" & t & " " & $s.editor.availability &
+              " at step " & $s.controls.step & " rather than 0"
+    # FLOORED, and the floor is the population this repository publishes: eight
+    # rung-3 Aztec recordings plus two that position part of their steps.
+    ck chainSessions >= 10
+    ck offFixtureStep == chainSessions
+    # The list is in the failure message, so a red names the transaction rather
+    # than a shortfall. `checkpoint` puts it there whatever `ck` prints.
+    if wrongLanding.len > 0: checkpoint(wrongLanding.join(" | "))
+    ck wrongLanding.len == 0
+
   test "assertion count":
-    expectCount(21)
+    # 21 -> 24, and the growth is the three assertions of the arm above:
+    # `chainSessions >= 10` (the floor), `offFixtureStep == chainSessions`, and
+    # `wrongLanding.len == 0`. (This last one was written down as
+    # `atFirstShowable == chainSessions` — the name the arm's FIRST version used,
+    # before it was rewritten to name the offender instead of counting. The
+    # arithmetic was right and the transcription was of a variable that no longer
+    # exists, which is the failure mode a decomposed count exists to prevent.)
+    # The two bound changes in "the session reports the manifest's count"
+    # replaced two `ck`s with two, and the universal's change is inside an `if`
+    # rather than an assertion, so neither moves the total. 21 + 3 = 24.
+    expectCount(24)
 
 # ── 11 — THE BANNER DOES NOT NARRATE THE CAPTURE ────────────────────────────
 #

@@ -102,6 +102,10 @@
       "section": "§5.1",
       "statement": "A row that names a container must name one with bytes in it."
     },
+    "S5-CONTAINER-NOT-PREENCODED": {
+      "section": "§5.1",
+      "statement": "When publication will pre-compress a container for transport, the snapshot's container must not already be encoded: it is refused unless it begins with the CTFS magic. A snapshot tree holds what a RECORDER wrote and pre-compression is a PUBLICATION step, so an already-encoded object would be compressed a second time and published with a manifest describing the inner stream as the raw container. The length check cannot see it, because `containerBytes` is measured against the same file. The rule is conditional on the publication encoding and on nothing else: under identity a snapshot container is whatever the producer wrote, which is what lets the shipped conformance template carry placeholders."
+    },
     "S5-CONTAINER-BYTES": {
       "section": "§5.2",
       "statement": "`containerBytes` is a measurement of the container the row names and must equal its size on disk; it is republished on the overlay row, so a figure that does not is a published number about a file nobody measured."
@@ -572,7 +576,9 @@
       "members": {
         "matched": {"required": true, "access": "required", "holds": "how many published effects the replay reproduced"},
         "mismatched": {"required": true, "access": "required", "holds": "how many it did not"},
-        "reproduced": {"required": false, "access": "optional", "holds": "the replay's own verdict, republished"}
+        "reproduced": {"required": false, "access": "optional", "holds": "the replay's own verdict, republished"},
+        "mismatches": {"required": false, "access": "optional",
+                       "holds": "WHICH published effects the replay did not reproduce, one record apiece with both readings. Republished verbatim under `native.replay.effectMismatches` so the divergence banner can name the fields that differed instead of asking a reader to take the disagreement on trust; a capture written before the reader read it still publishes `mismatched`, so a count with no records stays distinguishable from no disagreement"}
       }
     },
 

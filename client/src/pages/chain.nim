@@ -19,6 +19,7 @@ import ../reader
 import ../viewutil
 import ../components/tables
 import ../components/degraded
+import ../components/reach
 
 proc chainPage*(chain: string, info: ChainInfo,
                 blocks: seq[BlockRow], txs: seq[TxRow],
@@ -65,6 +66,23 @@ proc chainPage*(chain: string, info: ChainInfo,
           # recorded for this transaction yet" panel.
 
         raw degraded.notice(degradation, note)
+
+        # ── §4 item 4's statement, ABOVE BOTH LEDGERS ──────────────────
+        #
+        # Chain-Support-Matrix.md §4 makes this a condition of listing a chain
+        # at all and no surface in the product carried it. It goes here, before
+        # the tour and before the two tables, for the reason the tour's own
+        # placement note gives one block down: the tables are furniture, and
+        # whether a transaction on this chain can be stepped AT ALL is the
+        # question every row in them is conditional on. A visitor who reads
+        # "Debug" on a row for a block below the history floor and finds out
+        # afterwards has been told in the wrong order.
+        #
+        # It is read from the registry row — `reach`, `historyFloor`,
+        # `vm.instructionSet` — and composed in `components/reach`, which also
+        # records why this section states no debug TIER even though §4 item 4
+        # asks for one.
+        raw reachSection(info.chainProfile)
 
         # ── The capability tour ────────────────────────────────────────
         #

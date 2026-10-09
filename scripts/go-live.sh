@@ -28,6 +28,17 @@
 #   scripts/go-live.sh --tree DIR --yes           # CORS + publish + verify
 #   scripts/go-live.sh --tree DIR --yes --bind    # …and bind the apex at the end
 #   scripts/go-live.sh --tree DIR --rehearse OUT  # the SAME sequence, local store
+#   scripts/go-live.sh --tree DIR --yes --refresh # supersede objects fixed since
+#
+# REFRESH exists because the publisher's default is "present => skip", and that
+# default cannot correct anything. `d/{chain}/block/{hash}.json` is keyed by the
+# BLOCK's hash while its bytes are this producer's RENDERING of that block, so
+# fixing a field in `ingest.nim` does not move the key — and under key-existence
+# alone the corrected object reaches a store that already holds the wrong one
+# NEVER, not merely late (publisher.nim, `refreshContent`). Pass `--refresh`
+# after a producer fix. It does not extend to `/t/**`: a trace container whose
+# bytes moved under fixed input is a non-deterministic recorder, and the
+# publisher refuses rather than overwriting it.
 #
 # REHEARSE exists because a dry run proves the ordering and nothing else: it
 # never executes a publish or a verification, so the apply path ships untested
@@ -49,7 +60,7 @@ ENDPOINT="${R2_ENDPOINT:-https://${ACCOUNT_ID}.r2.cloudflarestorage.com}"
 ZONE_ID="${CF_ZONE_ID:-3e380c5c250ae708bfaf2b38ceed750a}"
 DOMAIN="${BLOCKTRACER_DOMAIN:-blocktracer.org}"
 
-TREE="" ; APPLY=0 ; BIND=0 ; MISSING=0 ; REHEARSE="" ; LEDGER_DIR="${LEDGER_DIR:-.chain-state}"
+TREE="" ; APPLY=0 ; BIND=0 ; MISSING=0 ; REHEARSE="" ; REFRESH=0 ; LEDGER_DIR="${LEDGER_DIR:-.chain-state}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -57,6 +68,7 @@ while [[ $# -gt 0 ]]; do
     --ledgers) LEDGER_DIR="${2:?--ledgers needs a directory}"; shift 2 ;;
     --yes)     APPLY=1; shift ;;
     --rehearse) REHEARSE="${2:?--rehearse needs an output directory}"; APPLY=1; shift 2 ;;
+    --refresh) REFRESH=1; shift ;;
     --bind)    BIND=1; shift ;;
     -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -160,7 +172,9 @@ if [[ -n "$REHEARSE" ]]; then
     || { no "rehearsal publish failed — this is the apply path, and it is broken"; exit 1; }
   ok "rehearsal publish completed into $REHEARSE"
 elif [[ "$APPLY" -eq 1 ]]; then
-  "$publisher" --tree "$TREE" --backend s3 --bucket "$BUCKET" --endpoint "$ENDPOINT" \
+  pub_args=(--tree "$TREE" --backend s3 --bucket "$BUCKET" --endpoint "$ENDPOINT")
+  [[ "$REFRESH" -eq 1 ]] && pub_args+=(--refresh)
+  "$publisher" "${pub_args[@]}" \
     || { no "publish failed — NOT binding the apex; the live site is untouched"; exit 1; }
   ok "publish completed"
 else

@@ -1,0 +1,39 @@
+{
+  "schema": "blocktracer/codetracer-panel-baseline@3",
+  "reference": "codetracer-electron, BUILT from source (not an installed bundle, not parsed Stylus)",
+  "codetracerRev": "af70456c981ea8e3c8de2534cdee16eca5550efd",
+  "compiledFrom": "styles/default_dark_theme.css",
+  "extractedProperties": [
+    "background",
+    "background-color",
+    "border-radius",
+    "box-shadow",
+    "color",
+    "font-family",
+    "font-size",
+    "font-weight",
+    "letter-spacing",
+    "line-height"
+  ],
+  "missingSelectors": [],
+  "selectors": {
+    ".component-container": {
+      "font-family": "\"SpaceGrotesk\"",
+      "font-size": "inherit",
+      "line-height": "1.5em",
+      "font-weight": "400"
+    },
+    ".data-table": {
+      "font-size": "inherit",
+      "font-weight": "400",
+      "font-family": "\"SpaceGrotesk\"",
+      "letter-spacing": "-0.00875em",
+      "color": "#f3f3f3"
+    },
+    ".table-column-names": {
+      "font-size": "0.875em",
+      "font-weight": "400",
+      "font-family": "\"SpaceGrotesk\""
+    }
+  }
+}

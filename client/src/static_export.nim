@@ -14,7 +14,8 @@
 ##      them at their clean URLs — OVERWRITING the generator's minimal entry
 ##      pages with the full client render (the M5/M9 render, not §4.3's minimal
 ##      per-entity page).
-##   3. Copy the vendored brand fonts and emit sitemap.xml + robots.txt.
+##   3. Copy client/src/assets/** (the vendored brand fonts and CodeTracer's
+##      vendored icons) and emit sitemap.xml + robots.txt.
 ##
 ## Usage:
 ##   nim c -r --mm:orc -d:isServer -d:release src/static_export.nim
@@ -82,15 +83,62 @@ proc writeCleanUrl(path, html: string) =
   ensureDir(parentDir(outputPath))
   writeFile(outputPath, html)
 
-proc copyFonts() =
-  let src = repoRoot() / "client" / "src" / "assets" / "fonts"
-  if dirExists(src):
-    let dest = OutputDir / "assets" / "fonts"
-    ensureDir(OutputDir / "assets")
-    ensureDir(dest)
-    for kind, path in walkDir(src):
-      if kind == pcFile:
-        copyFile(path, dest / extractFilename(path))
+const StagedAssetSubdirs = ["fonts", "ct-icons"]
+  ## Every subdirectory of `client/src/assets/` that MUST reach the publish
+  ## tree, named so that its absence is a refusal rather than a quietly thinner
+  ## site. The copy itself is recursive and takes whatever is there (see
+  ## `copyStaticAssets`); this list is the floor, not the enumeration.
+  ##
+  ##   fonts/     the brand faces `components/styles.fontFaceCss` names.
+  ##   ct-icons/  CodeTracer's icons, which the vendored Stylus sheets name and
+  ##              `design_system/ct_styl.rewriteUrls` rewrites onto
+  ##              `/assets/ct-icons/…`. See that directory's README.
+
+proc copyStaticAssets() =
+  ## `client/src/assets/**` → `dist/assets/**`, published at `/assets/`.
+  ##
+  ## RECURSIVE, AND THAT IS THE FIX RATHER THAN A TIDY-UP. This proc was
+  ## `copyFonts` and it copied exactly one hard-coded subdirectory, `fonts`,
+  ## one level deep. So the nine CodeTracer icons vendored under
+  ## `assets/ct-icons/<group>/` would have been in the source tree, named by the
+  ## stylesheet, and ABSENT FROM THE PUBLISH — the same defect one layer down
+  ## from the one that sent the browser to `/public/resources/…`, and with the
+  ## same symptom. A recursive walk means a new asset subdirectory ships by
+  ## existing; `StagedAssetSubdirs` then refuses a build in which one that is
+  ## REQUIRED has gone missing, which a glob alone cannot say.
+  let src = repoRoot() / "client" / "src" / "assets"
+  if not dirExists(src):
+    raise newException(IOError,
+      "client/src/assets is missing — every page names /assets/fonts/* and the " &
+      "debugger stylesheet names /assets/ct-icons/*; publishing without them " &
+      "ships a site whose own stylesheet 404s")
+  for want in StagedAssetSubdirs:
+    if not dirExists(src / want):
+      raise newException(IOError,
+        "client/src/assets/" & want & " is missing. It is named in " &
+        "StagedAssetSubdirs because something in the published CSS references " &
+        "it by name; a publish without it is broken for every visitor.")
+  let dest = OutputDir / "assets"
+  ensureDir(dest)
+  var copied = 0
+  var skipped = 0
+  for rel in walkDirRec(src, relative = true):
+    let source = src / rel
+    if not fileExists(source): continue
+    # A vendor README is provenance for a READER OF THIS REPOSITORY, not an
+    # asset. Nothing in any page or stylesheet names it, and publishing it would
+    # put the upstream commit and the vendoring rationale on the public site for
+    # no visitor's benefit. Skipped by extension rather than by name so a second
+    # one does not have to be remembered.
+    if rel.splitFile.ext == ".md":
+      inc skipped
+      continue
+    ensureDir(parentDir(dest / rel))
+    copyFile(source, dest / rel)
+    inc copied
+  echo "  + static assets: " & $copied & " file(s) under /assets/ (" &
+    StagedAssetSubdirs.join(", ") & " required; " & $skipped &
+    " vendor README(s) not published)"
 
 const MtimeFloor = 315_532_800'i64
   ## 1980-01-01T00:00:00Z. Nix writes every file in the store with mtime 1, on
@@ -618,9 +666,30 @@ proc exportSite() =
     # are still IN the snapshot, still counted in the banner, and still published
     # in full by an `isFull` ingest — which is the scope their pages are graded
     # in (`test_chain_provenance`).
+    # `isCuratedIfWhole` AND NOT `isCurated`, AND THE CHANGE IS ABOUT CAPTURES
+    # THIS LOOP HAS NOT MET YET.
+    #
+    # The promise `isCurated` makes — every transaction on this chain opens a
+    # container that steps — is a property of a CAPTURE, and this line is the one
+    # place in the build that has to decide it for all of them. Stated outright
+    # it was not a decision at all: a capture for which the promise cannot hold
+    # failed the whole site build rather than publishing a smaller chain, and
+    # took the three chains that were fine down with it. Measured on the Ethereum
+    # mainnet capture (one block, 208 transactions, one replayed): the build
+    # aborted inside `ingestSnapshot` and wrote no `dist/`.
+    #
+    # A single-transaction-per-block chain keeps that promise by accident of its
+    # block shape. An EVM block settles two hundred transactions and a
+    # `replay-preceding` capture reaches the index it was aimed at and stops, so
+    # no window over it can be whole, however good the one recording is.
+    #
+    # So the scope is now a question the ingest answers from the capture, and
+    # the answer is reported below rather than assumed. Nothing moves for the
+    # three Aztec captures: each has a whole window, each still publishes the
+    # curated tree, and `scopeFellBack` says so in the log.
     let ing = ingestSnapshot(IngestConfig(outDir: OutputDir,
                                           snapshotDir: snapshotDir,
-                                          scope: isCurated))
+                                          scope: isCuratedIfWhole))
     # A chain with NO traces is reported as such rather than omitted. It is the
     # expected outcome on a chain whose transactions arrive further apart than
     # the replay window is wide, and a build log that quietly said nothing about
@@ -629,11 +698,22 @@ proc exportSite() =
       if ing.withTrace == 0: "NO replayable transaction in the window"
       else: $ing.withTrace & " with a published trace (" & $ing.divergent &
             " divergent, " & $ing.containerBytes & " bytes)"
+    # THE SCOPE IS IN THE LINE, and the fallback is called a fallback. Under
+    # `isCuratedIfWhole` the ingest decides how much of a capture becomes pages;
+    # a log line that reported only the resulting counts would leave "why does
+    # this chain publish 208 transactions and that one 2" answerable only by
+    # reading the snapshot.
+    let scopeNote =
+      if ing.scopeFellBack:
+        "; scope FULL — no window over this capture has a trace on every " &
+        "transaction in it, so every transaction is published with the " &
+        "producer's own sentence about why"
+      else: "; scope " & $ing.scope
     echo "  + live-chain snapshot: /" & ing.chain & " — published " &
       $ing.blocks & " blocks (" & $ing.windowFrom & "–" & $ing.windowTo &
       "), " & $ing.transactions & " transactions, " & traceNote &
       "; watched " & $ing.observedBlocks & " blocks / " &
-      $ing.observedTransactions & " transactions"
+      $ing.observedTransactions & " transactions" & scopeNote
 
   # Step 1b: the SYNTHETIC demo tree — published again, and the reason is the front page.
   #
@@ -782,7 +862,7 @@ proc exportSite() =
   echo "  + 404.html (Page-Descriptions §14 'not on this chain')"
 
   # Step 3: assets + crawl files.
-  copyFonts()
+  copyStaticAssets()
   installHydrationBundle()
   installSearchBundle()
   installSettingsBundle()

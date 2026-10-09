@@ -8,6 +8,41 @@
 > corrections before executing a step; the surrounding prose is otherwise as
 > written and still accurate.
 
+> **CARRIED OUT 2026-10-05/06. The block below is kept as written and is now
+> history, not status.** blocktracer.org is served from the **`blocktracer` R2
+> bucket**, not from Pages. The full history of both Aztec chains is published:
+> **882,642 objects**, `aztec` at generation `raztec00001` (102,690 blocks /
+> 60,846 transactions) and `aztec-testnet` at `rtestnet0001` (99,092 blocks /
+> 25,421 transactions) — 201,782 blocks, against the 170 + 9 the apex served
+> before. The publish ran ~23 hours; bucket verification passed exhaustively on
+> both chains and the census matched at 882,642.
+>
+> The steps were executed in the corrected order (1 -> 2b -> 3 -> 4 -> 2), and
+> each one that behaved differently from this file is marked
+> **CORRECTION (2026-10-06)** in place. The file stays a runbook, because the
+> next chain repeats it.
+>
+> **That defect is now closed (2026-10-06).** R2 resolves no index document, so
+> directory-ish URLs 404ed (`/aztec` -> 404 while `/aztec/index.html` -> 200)
+> for as long as R2 was the origin without a rewrite. The
+> `http_request_transform` ruleset in infra `metacraft-prod` was applied at
+> 15:4x UTC (`cloudflare_ruleset.blocktracer_org_index_rewrite`, id
+> `acbb0867306a408d96008ef4706333a3`, `Apply complete! Resources: 1 added, 0
+> changed, 0 destroyed`) and `/`, `/chains`, `/aztec`, `/aztec-testnet` and
+> `/aztec/blocks` all return **200**. Verified by hash, not by status code:
+> `/aztec` and `/` are byte-identical to their `index.html`, a genuine miss
+> (`/aztec/definitely-not-a-page-9f3c`) still **404s** rather than being
+> rewritten into something, and a ranged read of `current.json` still returns
+> `206` with `content-range` and `access-control-allow-origin: *`.
+>
+> **It uncovered a second, unrelated defect that was unobservable while `/`
+> 404ed:** the root `/index.html` object carries **no `content-type`**, and
+> neither does `/d/<chain>/current.json`, while `/aztec/index.html`,
+> `/chains/index.html` and `/_a/*.css` all carry theirs. Browsers sniff the
+> root page and render it anyway, so the site works, but it is a publishing
+> gap, not an edge one — a rewrite cannot add a header the object never had.
+> See the correction under Step 2.
+
 > **None of this is production, and none of it has been done.** blocktracer.org is
 > served by the **`blocktracer` Cloudflare Pages project**, with the apex as a
 > custom domain on it and `live` as its production branch — see
@@ -123,6 +158,57 @@ plan drift is the gate (Deployment §6b.2). Add to `import-ids.json`:
 > Pages site before recommending this order.
 
 
+> **CORRECTION (2026-10-06) — the endpoint below was wrong, and undoing it was
+> worse than leaving it. ~50 minutes of production downtime.**
+>
+> There are two R2 custom-domain endpoint families and only one of them works:
+>
+> | endpoint | what it does |
+> | --- | --- |
+> | `POST .../r2/buckets/{b}/custom_domains` | attaches the domain but **never sets `enabled`**. The apex then answers **401**. |
+> | `POST .../r2/buckets/{b}/domains/custom` | the correct one. The response carries `"enabled": true` and the apex serves. |
+>
+> The command further down used the first. It returned success, so nothing looked
+> wrong until the apex started answering 401.
+>
+> **Then detaching to retry deleted the apex DNS record**, turning the 401 into a
+> **522** — the bind is not reversible by detaching. Undoing a bad bind removes
+> the record the bind created, so "undo and try again" is a second outage, not a
+> rollback. Re-binding through the correct endpoint restored service.
+>
+> So the verification line below ("`200` immediately, and if it is not, the bind
+> is what to undo") is right that the bind is the suspect and **wrong that undoing
+> it is safe**. Re-bind through `/domains/custom`; do not detach.
+>
+> **Check `enabled`, not the HTTP status of your own call**, which is the only
+> way to tell these two apart before users do:
+>
+> ```bash
+> curl -sS -H "Authorization: Bearer $CF_ADMIN_TOKEN" \
+>   "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/r2/buckets/blocktracer/domains/custom" \
+>   | jq '.result[] | {domain, enabled, status}'
+> ```
+
+> **CORRECTION (2026-10-06) — R2 resolves no index document; Pages did.**
+> Pages served `index.html` for a directory-ish path. R2 is an object store: a
+> request names an object or it 404s. So after the switch `/`, `/chains` and
+> `/aztec` all 404 while `/aztec/index.html` is a `200` — every human-facing
+> entry URL, broken, with the data plane (`/d/**`, `/t/**`) completely healthy.
+> This is invisible in any check that fetches a real object.
+>
+> The fix is **not** in the publisher, which would have to write a duplicate
+> object per directory. It is a Cloudflare `http_request_transform` ruleset in
+> `infra` (`metacraft-prod`, PR #1714) that rewrites a path with no known file
+> extension to `.../index.html`.
+>
+> **Budget a token grant for it.** Ruleset permissions are granted per *phase*,
+> and the apply token held only `Dynamic URL Redirect`. The first apply failed
+> with `403 "request is not authorized"`, which names neither the permission nor
+> the zone. Grant `Transform Rules: Edit` on the apply token **and `Read` on the
+> plan token** (otherwise the apply starts working and the next PR's plan starts
+> failing), plus the `blocktracer.org` zone scope on each. See
+> `infra/machines/ci/secrets/cloudflare/README.md`.
+
 The zone `blocktracer.org` already exists in the root. What remains is to serve the
 bucket at the apex and turn on the CDN.
 
@@ -134,7 +220,7 @@ and then recorded, not left as drift:
 ```bash
 # Operator, with a token scoped to R2 + DNS on this account.
 curl -sS -X POST \
-  "https://api.cloudflare.com/client/v4/accounts/803741d99690718276ea30950f690c46/r2/buckets/blocktracer/custom_domains" \
+  "https://api.cloudflare.com/client/v4/accounts/803741d99690718276ea30950f690c46/r2/buckets/blocktracer/domains/custom" \
   -H "Authorization: Bearer $CF_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   --data '{
@@ -190,6 +276,27 @@ curl -sI https://blocktracer.org/     # 200 once Step 4 has published index.html
 > `aws s3api put-bucket-cors --bucket blocktracer --endpoint-url "$R2_ENDPOINT"
 > --cors-configuration file://cors.json`.
 >
+> **CORRECTION (2026-10-06) — the `aws s3api` form above fails with the
+> publisher credential.** `put-bucket-cors` is *bucket configuration*; the
+> publisher token is deliberately scoped to bucket **items** (`Workers R2
+> Storage Bucket Item Read`/`Write`), so it returns `AccessDenied`. Widening it
+> to the account-wide `Workers R2 Storage` pair would make the token able to
+> create and delete buckets, which is exactly what the item-scoped pair exists
+> to prevent — do not substitute them to make this command work.
+>
+> Set CORS through the Cloudflare API with an **admin** bearer token instead,
+> which is also what `scripts/go-live.sh` Step 2 now does:
+>
+> ```bash
+> curl -sS -X PUT \
+>   "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/r2/buckets/blocktracer/cors" \
+>   -H "Authorization: Bearer $CF_API_TOKEN" \
+>   -H "Content-Type: application/json" --data @cors.json
+> ```
+>
+> Verified in production on 2026-10-06: a ranged request returns `206` with
+> `access-control-allow-origin: *`.
+
 > `AllowedHeaders: Range` and the exposed `Content-Range` are the two that carry
 > the weight — `Trace-Artifacts.md` §5.3: "without them the fetcher cannot issue
 > or verify a partial read, and lazy loading silently degrades into whole-file
