@@ -190,6 +190,46 @@
 #     `hydrated-from-node` against a deployment that no longer exists. Any
 #     republish — compact or otherwise — has to answer that.
 #
+# ── 2026-10-09: THE FIRST HALF OF THAT UNKNOWN IS NOW MEASURED, AND IT IS GOOD ──
+#
+# The bullet above is two questions wearing one sentence, and only the second is
+# still open. Measured today, against the RETIRED deployments' own paths:
+#
+#   * `backfill-bodies.mjs` derives the store path as
+#     `aztec-<l1ChainId>-<rollupVersion>-<rollupAddress>` and its own comment says
+#     it "cannot be guessed" — true of a node, which answers for whatever rollup is
+#     CURRENT, and false of this corpus, which records all three fields in its
+#     `provenance`. `client/fixtures/chain/aztec-testnet` carries l1ChainId
+#     11155111, rollupVersion 1821665230, rollup
+#     0xd73a91bdcf6891c7642f3e460036e1ef2cc23178; `…/aztec` carries 1, 4248422647,
+#     0x91ff8bbd8ebb07893010d50a48a1609e5ebd8e34. So the path for a retired rollup
+#     is DERIVABLE WITHOUT A NODE, from the snapshot that needs re-recording.
+#   * `AztecProtocol/networks`' `network_config.json` still publishes
+#     `txCollectionFileStoreUrls` for both networks (HTTP 200, 3,004 bytes).
+#   * And the retired deployments' bodies are still SERVED: **8 of 8** sampled
+#     testnet transactions and **5 of 5** mainnet, every one HTTP 200 and every one
+#     self-verifying — the leading 32 bytes of each payload equal the hash that was
+#     requested. Sizes 195,116–212,140 bytes.
+#
+# So "the bodies are obtainable" is no longer an inference from §1.2's sample; it
+# holds for the exact deployments this corpus would be re-recorded from, by a path
+# built out of the corpus's own committed provenance.
+#
+# STILL OPEN, AND IT IS THE NARROWER QUESTION: whether the replay runtime can
+# HYDRATE pre-state from those bodies alone. `prestateStrategy` on both snapshots
+# reads `hydrated-from-node`, which names the thing that is gone. Note the corpus
+# already contains a second strategy — `self-contained-circuit` — so the field is
+# not a constant, and `docs/CHAIN-CAPTURE.md` records a runtime replaying
+# "perfectly: it hydrates, reproduces the block's effects, and writes a container
+# that steps". Whether that hydration reaches past the body is the measurement
+# nobody has taken.
+#
+# WHAT THIS CHANGES ABOUT SEQUENCING: the re-record is no longer gated on an
+# unknown with two unknown halves. It is gated on one experiment — replay a single
+# transaction of the retired testnet deployment from a store-fetched body, with no
+# node, and see whether the AVM accepts the seed. Bounded, offline after the fetch,
+# and it answers the republish question for the whole corpus.
+#
 # Until the replacing publish happens, leaving this pin alone is not neglect. It
 # is the thing keeping replay working on every published page.
 #
