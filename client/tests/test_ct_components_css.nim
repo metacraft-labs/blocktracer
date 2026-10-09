@@ -226,3 +226,126 @@ suite "the Stylus subset — what it refuses, and why that matters":
       ".a\n.b\n  color: red\n")], port, rep)
     check ".a,.b{color:red;}" in css
     check rep.rules == 1
+
+suite "url() — the nine icons that shipped as 404s":
+  ## THE MEASUREMENT THIS SUITE EXISTS FOR. The transpiler used to pass `url()`
+  ## through unchanged, and two vendored sheets name their icons relative to the
+  ## SHEET's place in CodeTracer's source tree. The compiled stylesheet is
+  ## served from `/_a/<hash>.css`, so a browser resolved
+  ## `url("../../../public/resources/origin-icons/sigma.svg")` to
+  ## `/public/resources/origin-icons/sigma.svg` — a path this site has never
+  ## published. 9 of the 13 `url()`s in the shipped sheet were a 404 for every
+  ## visitor, and all 9 sat inside the `[data-register="debugger"]` scope, i.e.
+  ## the debugger panels that are the whole visual-parity goal.
+  ##
+  ## The fix is in the transpiler and NOT in the vendored bytes: those are
+  ## hashed against the pinned commit by `ci/test/ct-styles-vendor.sh`, so a
+  ## hand edit would fail that gate by construction and be reverted by the next
+  ## re-vendor besides. Where a file is PUBLISHED is a build decision, and that
+  ## is what `StylPort.assetUrls` carries.
+
+  proc bareProbe(assets: OrderedTable[string, string]): StylPort =
+    result.bridge = initOrderedTable[string, string]()
+    result.literalAliases = initOrderedTable[string, string]()
+    result.dropRules = initOrderedTable[string, string]()
+    result.assetUrls = assets
+
+  test "the shipped stylesheet carries no relative url at all":
+    ## The defect, stated as the property that forbids it. Measured by COUNTING
+    ## rather than by naming the nine: a tenth icon arriving in a re-vendor must
+    ## fail here if it is unplaced, which a list of nine spellings would not
+    ## notice.
+    var relatives = 0
+    var placed = 0
+    var i = 0
+    while true:
+      let hit = debugRouteCss.find("url(", i)
+      if hit < 0: break
+      let close = debugRouteCss.find(')', hit + 4)
+      check close > hit
+      let payload = debugRouteCss[hit + 4 ..< close].strip(chars = {'"', '\'', ' '})
+      if payload.startsWith("/assets/ct-icons/"): inc placed
+      elif not payload.startsWith("/") and not payload.startsWith("data:") and
+           not payload.startsWith("http"):
+        inc relatives
+        echo "  unplaced url: ", payload
+      i = close + 1
+    check relatives == 0
+    # Nine: the exact set that published broken before this change.
+    check placed == 9
+
+  test "every placed url names a row of the vendored-icon table":
+    ## The two halves have to agree: `ctIconUrls()` is what the port was built
+    ## with, so a url in the output that is not one of its values would mean the
+    ## rewrite invented a path.
+    let published = block:
+      var s: seq[string] = @[]
+      for _, url in ctIconUrls().pairs: s.add url
+      s
+    check published.len == 9
+    for url in published:
+      check url.startsWith("/assets/ct-icons/")
+      check ("url(\"" & url & "\")") in debugRouteCss
+
+  test "a vendored relative url is rewritten to the published copy":
+    var assets = initOrderedTable[string, string]()
+    assets["origin-icons/sigma.svg"] = "/assets/ct-icons/origin-icons/sigma.svg"
+    var rep = StylReport()
+    let css = transpile(@[StylSource(origin: "probe.styl", text:
+      ".x\n  mask-image: url(\"../../../public/resources/origin-icons/sigma.svg\")\n")],
+      bareProbe(assets), rep)
+    check "url(\"/assets/ct-icons/origin-icons/sigma.svg\")" in css
+    check "public/resources" notin css
+
+  test "the two sheets' different ascent depths map to the same place":
+    ## `button.styl` climbs three levels and `shared_widgets.styl` two, for the
+    ## same upstream directory, because the sheets sit at different depths. A
+    ## rewrite written against the depth would have placed one and broken the
+    ## other — which is why the match is on the `public/resources/` tail.
+    var assets = initOrderedTable[string, string]()
+    assets["shared/noir_logo_dark_theme.svg"] =
+      "/assets/ct-icons/shared/noir_logo_dark_theme.svg"
+    var rep = StylReport()
+    let css = transpile(@[StylSource(origin: "probe.styl", text:
+      ".a\n  content: url(\"../../public/resources/shared/noir_logo_dark_theme.svg\")\n" &
+      ".b\n  content: url(\"../../../../public/resources/shared/noir_logo_dark_theme.svg\")\n")],
+      bareProbe(assets), rep)
+    check css.count("url(\"/assets/ct-icons/shared/noir_logo_dark_theme.svg\")") == 2
+
+  test "a url with no vendored file is a BUILD ERROR, not a pass-through":
+    ## THE WHOLE LESSON OF THE DEFECT. The nine broken urls survived because
+    ## nothing in the pipeline ever refused one. A transpiler that passes an
+    ## unplaceable url through is how a 404 reaches production, so it raises —
+    ## and the message names the missing key and where to vendor it.
+    var rep = StylReport()
+    expect StylError:
+      discard transpile(@[StylSource(origin: "probe.styl", text:
+        ".x\n  mask-image: url(\"../../public/resources/origin-icons/nope.svg\")\n")],
+        bareProbe(initOrderedTable[string, string]()), rep)
+
+  test "a relative url outside the vendored shape is a BUILD ERROR too":
+    ## The mapping is total, not just keyed. A relative url of ANY other shape
+    ## is resolved against `/_a/` by the browser and cannot reach anything this
+    ## site publishes, so guessing at it would be the same silence by a
+    ## different route.
+    var rep = StylReport()
+    expect StylError:
+      discard transpile(@[StylSource(origin: "probe.styl", text:
+        ".x\n  background: url(\"img/spinner.gif\")\n")],
+        bareProbe(initOrderedTable[string, string]()), rep)
+
+  test "absolute, data: and off-origin urls are left exactly as written":
+    ## The false-positive direction. A rewrite that touched these would break
+    ## `@font-face`, which names `/assets/fonts/...` directly — and a gate that
+    ## cries wolf is a gate that gets switched off.
+    var rep = StylReport()
+    let css = transpile(@[StylSource(origin: "probe.styl", text:
+      ".a\n  src: url(/assets/fonts/SpaceMono-Regular.ttf)\n" &
+      ".b\n  background: url(\"data:image/svg+xml,%3Csvg%2F%3E\")\n" &
+      ".c\n  background: url(https://cdn.example.com/x.png)\n" &
+      ".d\n  mask: url(#clip)\n")],
+      bareProbe(initOrderedTable[string, string]()), rep)
+    check "url(/assets/fonts/SpaceMono-Regular.ttf)" in css
+    check "url(\"data:image/svg+xml,%3Csvg%2F%3E\")" in css
+    check "url(https://cdn.example.com/x.png)" in css
+    check "url(#clip)" in css

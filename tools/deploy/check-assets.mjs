@@ -63,17 +63,31 @@
 //     the exporter is expected to hand such URLs to script through a DATA
 //     ATTRIBUTE — which is exactly what `data-replay-engine` and `data-trace`
 //     are, and why they are scanned here alongside `src` and `href`.
-//   * `url(…)` inside a `<style>` block or a `style=` attribute is not scanned,
-//     and THIS IS A REAL GAP, not a theoretical one. The `style=` half is
+//   * `url(…)` inside a `style=` ATTRIBUTE is not scanned. That half is
 //     defensible — `tools/design/check-tokens.mjs` A5 forbids inline style
-//     attributes outright. The `<style>` half is NOT: every page inlines
-//     `components/styles.nim`'s `fontFaceCss` (via `components/layout.nim`),
-//     whose `@font-face` rules are the only reference to the brand faces under
-//     `client/src/assets/fonts/`. Those font files are shipped assets that this
-//     guard does not check — grep `src:url(` in `client/src/components/styles.nim`
-//     for the current set. Closing it needs a CSS parse rather than a larger
-//     regex, which is why it is still open; until then the summary's counts do
-//     not speak for anything loaded from a stylesheet.
+//     attributes outright, so there is a different guard whose job it is.
+//
+//     THE STYLESHEET HALF WAS A REAL GAP AND IT IS NOW CLOSED, BY A6. It was
+//     open for as long as it took to ship the defect it was describing. The
+//     text here used to say the gap mattered because `@font-face` was "the only
+//     reference to the brand faces" and nothing checked it. It was not the only
+//     thing in there. BlockTracer compiles CodeTracer's vendored Stylus sheets
+//     into `/_a/<hash>.css`, and two of those sheets name their icons relative
+//     to the sheet's place in CODETRACER's source tree:
+//     `url("../../../public/resources/origin-icons/sigma.svg")`. Resolved
+//     against `/_a/`, that is `/public/resources/origin-icons/sigma.svg` — a
+//     path this site has never published. 9 of the 13 `url()`s in the shipped
+//     stylesheet were a 404 for every visitor, all 9 inside the
+//     `[data-register="debugger"]` scope, i.e. the debugger panels that are the
+//     whole visual-parity goal. Every gate was green, because no gate read a
+//     stylesheet.
+//
+//     A6 reads them: every `.css` file in the publish tree AND every `<style>`
+//     block in every published page, with each `url()` resolved against THE
+//     CARRIER'S OWN URL exactly as a browser resolves it. It did not need a CSS
+//     parse after all — a `url()` payload is lexically self-delimiting — which
+//     is worth saying plainly, because "closing it needs a CSS parse" is the
+//     sentence that kept it open.
 //   * `srcset` (a comma-separated candidate list) is not scanned; this product
 //     emits none. If one appears, it will be silently unchecked, which is why
 //     the summary prints the attribute names it DID scan.
@@ -82,7 +96,7 @@
 //     support without knowing each format.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, normalize, relative, resolve as resolvePath, sep } from "node:path";
+import { dirname, join, normalize, posix, relative, resolve as resolvePath, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -180,6 +194,61 @@ export function classifyRef(raw) {
   // produce a failure.
   const path = v.split("#")[0].split("?")[0];
   return { kind: "same-origin", url: v, path: path === "" ? "/" : path };
+}
+
+// ── Stylesheet references (A6) ─────────────────────────────────────────────
+//
+// A CSS `url()` is lexically self-delimiting: an optional quote, then
+// everything up to the matching `)`. That is why A6 needs no CSS parse — the
+// claim that it did is what kept the gap in the header open long enough to ship
+// a defect through it.
+
+const CSS_URL_RE = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]+))\s*\)/g;
+const STYLE_BLOCK_RE = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+
+/** Every `url()` payload in a stylesheet's text, in source order. */
+export function extractCssUrls(css) {
+  const out = [];
+  for (const m of css.matchAll(CSS_URL_RE)) out.push((m[1] ?? m[2] ?? m[3] ?? "").trim());
+  return out;
+}
+
+/** The text of every `<style>` block in a page. */
+export function extractStyleBlocks(html) {
+  const out = [];
+  for (const m of html.matchAll(STYLE_BLOCK_RE)) out.push(m[1]);
+  return out;
+}
+
+/** A `url()` payload → what the browser would fetch.
+ *
+ *  `baseUrl` is THE CARRIER'S OWN URL — the stylesheet's for an external sheet,
+ *  the page's for a `<style>` block — because that, and not the site root, is
+ *  what a browser resolves a relative `url()` against. Getting this wrong in
+ *  either direction is the whole defect: resolving `../../public/x.svg` against
+ *  `/` would have called the shipped stylesheet fine.
+ *
+ *  The classification is TOTAL, for the reason `classifyRef`'s is. */
+export function classifyCssUrl(baseUrl, raw) {
+  const v = decodeEntities(String(raw)).trim();
+  if (v === "") return { kind: "empty" };
+  if (v.startsWith("#")) return { kind: "fragment" };
+  if (v.startsWith("//")) return { kind: "external" };
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(v);
+  // `data:` is the common one here and it is off-origin by the same rule as
+  // `https:`: the browser does not go to this host for it.
+  if (scheme) return { kind: "external", scheme: scheme[1].toLowerCase() };
+  const bare = v.split("#")[0].split("?")[0];
+  if (bare === "") return { kind: "fragment" };
+  // `posix.normalize` on an absolute path CLAMPS at the root, which is exactly
+  // what a browser does: `/_a/../../public/x` is fetched as `/public/x`, not as
+  // something above the origin. So these urls are not "escaping" references —
+  // they are requests for a path that was simply never published, which is why
+  // nothing short of resolution could have seen them.
+  const path = bare.startsWith("/")
+    ? posix.normalize(bare)
+    : posix.normalize(posix.join(posix.dirname(baseUrl), bare));
+  return { kind: "same-origin", url: v, path };
 }
 
 const statOf = (p) => { try { return statSync(p); } catch { return null; } };
@@ -434,12 +503,81 @@ export function run({ dir, requireTraces }) {
       `${new Set(bundleRefs.map((v) => v.page)).size} page(s)`);
   }
 
+  // ── A6 — every url() in every published stylesheet resolves ─────────────
+  //
+  // THIS IS THE DEBUGGER-ICON DEFECT, as a check. The vendored CodeTracer
+  // sheets named nine icons relative to the sheet's place in CODETRACER's
+  // source tree, the compiled sheet is served from `/_a/<hash>.css`, and so a
+  // browser fetched `/public/resources/origin-icons/sigma.svg`: 9 of 13
+  // `url()`s shipped as 404s, all 9 in the `[data-register="debugger"]` scope.
+  // A1 was green throughout, because A1 reads HTML attributes and a stylesheet
+  // is not an HTML attribute.
+  //
+  // Both carriers of CSS are read — `.css` files in the tree, and `<style>`
+  // blocks in pages — so the gap cannot reopen by the CSS moving from one to
+  // the other. Each `url()` is resolved against ITS CARRIER'S OWN URL, which is
+  // what a browser does and what makes a relative url decidable at all.
+  //
+  // Missing and zero-byte are both A6's, not A1's/A2's: those two name a
+  // PUBLISHED PAGE as the subject of their failure, and a stylesheet is not a
+  // page. Keeping the subjects straight is what lets the selftest prove that
+  // the check written for a mutation is the one that decided.
+  const sheets = [];   // { carrier, baseUrl, css }
+  for (const f of files.filter((f) => f.toLowerCase().endsWith(".css"))) {
+    let css;
+    try { css = readFileSync(f, "utf8"); } catch { continue; }
+    sheets.push({ carrier: rel(f), baseUrl: "/" + relative(dir, f).split(sep).join("/"), css });
+  }
+  for (const page of pages) {
+    let html;
+    try { html = readFileSync(page, "utf8"); } catch { continue; }
+    const baseUrl = "/" + relative(dir, page).split(sep).join("/");
+    for (const [i, css] of extractStyleBlocks(html).entries()) {
+      sheets.push({ carrier: `${rel(page)} <style> #${i + 1}`, baseUrl, css });
+    }
+  }
+
+  const cssKinds = { "same-origin": 0, external: 0, fragment: 0, empty: 0 };
+  const cssBroken = [];
+  let cssUrlCount = 0;
+  const cssDistinct = new Set();
+  for (const { carrier, baseUrl, css } of sheets) {
+    for (const raw of extractCssUrls(css)) {
+      cssUrlCount++;
+      const c = classifyCssUrl(baseUrl, raw);
+      cssKinds[c.kind]++;
+      if (c.kind !== "same-origin") continue;
+      const r = resolveRef(dir, c.path);
+      if (r.status === "ok") { cssDistinct.add(r.target); continue; }
+      cssBroken.push({
+        carrier, url: c.url, path: c.path, target: rel(r.target),
+        why: r.status === "missing" ? `no ${r.want}`
+          : r.status === "escapes" ? "path climbs out of the publish root"
+          : r.status === "empty" ? `${r.want} is empty`
+          : r.status,
+      });
+    }
+  }
+  const cssLine = (v) => `${v.carrier}  url(${v.url})  → ${v.path}  (${v.why})`;
+  add("A6", "every url() in every published stylesheet resolves", cssBroken.length === 0,
+    cssBroken.length
+      ? `${cssBroken.length} of ${cssKinds["same-origin"]} same-origin stylesheet url(s) do not ` +
+        `resolve — each is a missing image, mask or font for every visitor:\n` +
+        fmt(cssBroken, cssLine)
+      : `${cssUrlCount} url(s) across ${sheets.length} stylesheet(s) ` +
+        `(${files.filter((f) => f.toLowerCase().endsWith(".css")).length} .css file(s), ` +
+        `${sheets.length - files.filter((f) => f.toLowerCase().endsWith(".css")).length} <style> block(s)); ` +
+        `${cssKinds["same-origin"]} same-origin, all resolve to ${cssDistinct.size} distinct asset(s); ` +
+        `${cssKinds.external} external, ${cssKinds.fragment} fragment-only, ${cssKinds.empty} empty`);
+
   return {
     checks,
     stats: {
       dir, files: files.length, pages: pages.length, kinds, attrHits,
       distinct: distinct.size, relatives, containerRefs: containerRefs.length,
       ctFiles: ctFiles.length,
+      sheets: sheets.length, cssUrls: cssUrlCount, cssKinds,
+      cssDistinct: cssDistinct.size,
     },
   };
 }
@@ -486,6 +624,10 @@ function main(argv) {
                 ? ` (e.g. ${stats.relatives[0].page} ${stats.relatives[0].attr}="${stats.relatives[0].url}")`
                 : ""));
   console.log(`attributes:   ${[...stats.attrHits].map(([a, n]) => `${a} x${n}`).join(", ")}`);
+  console.log(`stylesheets:  ${stats.sheets} carrier(s), ${stats.cssUrls} url() total ` +
+              `(${stats.cssKinds["same-origin"]} same-origin → ${stats.cssDistinct} distinct asset(s), ` +
+              `${stats.cssKinds.external} external, ${stats.cssKinds.fragment} fragment-only, ` +
+              `${stats.cssKinds.empty} empty)`);
   console.log("");
 
   for (const c of checks) {

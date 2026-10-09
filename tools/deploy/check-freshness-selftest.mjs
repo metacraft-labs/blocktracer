@@ -259,7 +259,7 @@ const arms = [
     // The manifest is recorded from this commit's build. The tree about to be
     // uploaded carries the PREVIOUS build's bundle: same name, plausible size,
     // referenced by a page whose reference resolves. check-assets.mjs is green
-    // on this tree in every one of A1–A5. F1 is the only thing that is not.
+    // on this tree in every one of A1–A6. F1 is the only thing that is not.
     name: "2  F1 — the staged bundle is a PREVIOUS build's, under the right name",
     mutateStaged: (root) => {
       writeFileSync(join(root, "staged", "assets", "hydrate.js"),

@@ -371,6 +371,13 @@ jobs:
         # makes the second half bite; without it a tree that lost every
         # container would pass by referencing nothing.
         #
+        # A6 extends the first direction to the STYLESHEETS, which it did not
+        # cover until a publish shipped nine broken debugger icons through the
+        # gap: the compiled `/_a/<hash>.css` named them by their path in
+        # CodeTracer's source tree, so every visitor fetched
+        # `/public/resources/…` and 9 of 13 `url()`s were 404 while every check
+        # here was green.
+        #
         # It runs on `site/`, the staged copy that is about to be uploaded, for
         # the same reason the engine step does: a green build that served a
         # cached store path has reached production here before.
@@ -380,7 +387,7 @@ jobs:
         # EXISTENCE IS NOT FRESHNESS, and every step above this one checks
         # existence. `check-assets.mjs` proves each URL a page names resolves to
         # non-empty bytes; a publish tree carrying LAST WEEK'S `hydrate.js`
-        # under the right name passes all of A1–A5, because the reference
+        # under the right name passes all of A1–A6, because the reference
         # resolves, the file is not empty, and a page names it.
         #
         # This records the sha256 of every artefact from the two places that

@@ -100,6 +100,81 @@ const
   VendoredEmptyStates = staticRead(
     "../debugger/vendor/frontend/styles/components/empty_states.styl")
 
+# ── the vendored ICONS the vendored sheets name ────────────────────────────
+#
+# `button.styl` and `shared_widgets.styl` reference nine SVGs by a path relative
+# to the SHEET's place in CodeTracer's source tree — upstream's
+# `url("../../../public/resources/origin-icons/sigma.svg")`. BlockTracer serves
+# the compiled sheet from `/_a/<hash>.css`, so a browser resolved that to
+# `/public/resources/origin-icons/sigma.svg`, which this site has never
+# published: 9 of the 13 `url()`s in the built stylesheet were a 404 for every
+# visitor, and all 9 sat inside the `[data-register="debugger"]` scope — the
+# debugger panels, i.e. the whole visual-parity goal.
+#
+# The sheets are NOT edited to fix that. They are vendored byte-verbatim and
+# `ci/test/ct-styles-vendor.sh` hashes them against the pinned commit, so a hand
+# edit would fail that gate by construction and be reverted by the next
+# re-vendor besides. Where a file is PUBLISHED is a BlockTracer build decision,
+# and a build decision belongs in the port: `ct_styl.rewriteUrls` consumes the
+# table below and RAISES on any relative url it does not find there.
+#
+# The icons themselves are vendored under `client/src/assets/ct-icons/`, from
+# the same CodeTracer commit as the sheets; see that directory's README.
+
+const
+  CtIconVendorDir = "../assets/ct-icons"
+    ## Relative to THIS file, for the compile-time existence proof below.
+  CtIconPublishedRoot = "/assets/ct-icons"
+    ## Where `static_export.copyStaticAssets` publishes that directory. The two
+    ## halves are checked against each other by `tools/deploy/check-assets.mjs`
+    ## A6 over the published bytes, which is the only place that can.
+
+  CtVendoredIcons: array[9, tuple[group, file: string]] = [
+    # `origin-icons/` — `button.styl`'s `.ct-origin-icon-*` badge masks.
+    (group: "origin-icons", file: "clock-rewind.svg"),
+    (group: "origin-icons", file: "door.svg"),
+    (group: "origin-icons", file: "globe.svg"),
+    (group: "origin-icons", file: "hourglass.svg"),
+    (group: "origin-icons", file: "question.svg"),
+    (group: "origin-icons", file: "quotation.svg"),
+    (group: "origin-icons", file: "sigma.svg"),
+    # `shared/` — `button.styl`'s `.value-history-button::before` and
+    # `shared_widgets.styl`'s `.custom-noir-icon::before`.
+    (group: "shared", file: "history_value_view_toggle_dark.svg"),
+    (group: "shared", file: "noir_logo_dark_theme.svg"),
+  ]
+    ## The TOTAL list. A fixed-length `array` rather than a seq so that adding a
+    ## row without saying so is a compile error here too, and so the count is
+    ## part of the declaration rather than something a reader has to tally.
+
+const CtIconRows = static:
+  ## `(<group>/<file>, published URL, byte count)` for every row, computed in a
+  ## `static:` block so EVERY ROW'S BYTES ARE READ AT COMPILE TIME. That read is
+  ## the existence proof and it is not optional: a row naming a file that is not
+  ## vendored cannot compile, and `rewriteUrls` refusing an unlisted url closes
+  ## the other direction, so the mapping is total in both.
+  ##
+  ## A zero-byte copy fails here too. `check-assets.mjs` A2/A6 would also catch
+  ## it in the publish tree, but failing at the build is cheaper than failing at
+  ## the gate, and the build is where the cause is.
+  var rows: seq[tuple[key, url: string, bytes: int]] = @[]
+  for (group, file) in CtVendoredIcons:
+    let key = group & "/" & file
+    let bytes = staticRead(CtIconVendorDir & "/" & key)
+    doAssert bytes.len > 0,
+      "vendored icon " & key & " is zero bytes; the copy step produced nothing"
+    rows.add (key, CtIconPublishedRoot & "/" & key, bytes.len)
+  rows
+
+proc ctIconUrls*(): OrderedTable[string, string] =
+  ## `<group>/<file>` → the published URL of BlockTracer's copy. This is what
+  ## `StylPort.assetUrls` carries, and `client/tests/test_ct_components_css.nim`
+  ## reads it to assert the two sheets' nine urls are all placed.
+  result = initOrderedTable[string, string]()
+  for (key, url, _) in CtIconRows:
+    doAssert key notin result, "duplicate row in CtVendoredIcons: " & key
+    result[key] = url
+
 proc vendoredSources*(): seq[StylSource] =
   @[StylSource(origin: "src/frontend/styles/components/button.styl",
                text: VendoredButton),
@@ -260,6 +335,7 @@ proc buildPort(): StylPort =
   for (k, v) in Aliases: result.literalAliases[k] = v
   result.dropRules = initOrderedTable[string, string]()
   for (k, v) in Dropped: result.dropRules[k] = v
+  result.assetUrls = ctIconUrls()
 
 proc runPort(): tuple[css: string, report: StylReport] =
   var rep = StylReport()
