@@ -133,9 +133,22 @@ const
 # `url("../../../public/resources/origin-icons/sigma.svg")`. BlockTracer serves
 # the compiled sheet from `/_a/<hash>.css`, so a browser resolved that to
 # `/public/resources/origin-icons/sigma.svg`, which this site has never
-# published: 9 of the 13 `url()`s in the built stylesheet were a 404 for every
-# visitor, and all 9 sat inside the `[data-register="debugger"]` scope — the
-# debugger panels, i.e. the whole visual-parity goal.
+# published: 9 of the 13 `url()`s in the built stylesheet asked for a path this
+# site does not serve, and all 9 sat inside the `[data-register="debugger"]`
+# scope.
+#
+# AND NOT ONE OF THEM WAS A 404 FOR A VISITOR, WHICH IS A CORRECTION OF WHAT
+# THIS COMMENT USED TO SAY. A browser fetches a `mask-image` only for an
+# element the rule MATCHES, and `ct_css_reach.txt` is the measurement: all nine
+# of these urls sit on `.ct-origin-icon-*`, `.ct-origin-badge-icon`,
+# `.value-history-button::before` and `.custom-noir-icon::before`, and ZERO of
+# those selectors is emitted anywhere — over 349 exported pages and all three
+# JS bundles, raw and char-code-decoded. The urls were broken AND unreached,
+# which is two defects and not one, and fixing the first while reporting the
+# pair as fixed is what the register exists to stop. The rules are correct now
+# and still reach nothing; `INERT class ct-origin-*` says precisely what would
+# have to exist, and `client/src/assets/ct-icons/README.md` says why the bytes
+# are kept rather than deleted.
 #
 # The sheets are NOT edited to fix that. They are vendored byte-verbatim and
 # `ci/test/ct-styles-vendor.sh` hashes them against the pinned commit, so a hand
@@ -145,7 +158,8 @@ const
 # table below and RAISES on any relative url it does not find there.
 #
 # The icons themselves are vendored under `client/src/assets/ct-icons/`, from
-# the same CodeTracer commit as the sheets; see that directory's README.
+# the same CodeTracer commit as the sheets; see that directory's README, which
+# carries the reachability finding as well as the provenance.
 
 const
   CtIconVendorDir = "../assets/ct-icons"
@@ -511,3 +525,271 @@ proc ctPortSummary*(): string =
   for d in r.dropped: result.add "  " & d & "\n"
   result.add "unresolved declarations (" & $r.unresolved.len & "):\n"
   for u in r.unresolved: result.add "  " & u & "\n"
+
+# ── 4. the reachability register ────────────────────────────────────────────
+#
+# `Dropped` above says which rules leave the port. THE CONVERSE HAD NO CHECK:
+# nothing asserted that a rule which was NOT dropped can match anything, and
+# three defects came out of that gap — `.component-container` served while
+# nothing wore it, nine icons whose urls were fixed while none of their
+# selectors is emitted anywhere, and `.separate-bar` / `.dropdown-list` given
+# colour bindings while matching zero elements. Two of the three were reported
+# as fixed.
+#
+# `ct_css_reach.txt` is that converse, as data. Its own header is the argument
+# for every decision in it — including why it is a text file rather than a
+# `seq` here, which is that TWO checks in two languages read the same rows and
+# a second copy of the register would be the divergence this module exists to
+# prevent. `staticRead` for the reason the vendored sheets use it: the bytes
+# become part of the compiled artefact, so the suite reads what shipped.
+
+const ReachRegisterText = staticRead("ct_css_reach.txt")
+
+type
+  PortItemKind* = enum
+    ## What a selector names. Pseudo-classes, pseudo-elements and every
+    ## attribute selector other than `[class*=…]` are NOT item kinds; the
+    ## register's header says why for each, and `[data-register="debugger"]`
+    ## falls out by the same rule.
+    pikClass        ## `.foo`
+    pikClassPart    ## the substring of a `[class*="foo"]`
+    pikId           ## `#foo`
+    pikElement      ## a bare tag name, in a selector naming no class/id/part
+
+  PortItem* = object
+    kind*: PortItemKind
+    name*: string
+    sample*: string
+      ## One selector it came from, so a failure names the rule rather than
+      ## only the class.
+
+  ReachVerdict* = enum
+    rvLive          ## the markup emits it, and the Node half proves that
+    rvInert         ## emitted knowing nothing matches it
+
+  ReachRow* = object
+    verdict*: ReachVerdict
+    kind*: PortItemKind
+    pattern*: string      ## may contain `*`
+    evidence*: string     ## "" (markup) or "bundle", for a LIVE row
+    reason*: string
+    line*: int            ## 1-based, for a failure message
+
+proc itemKindOf(s: string): PortItemKind =
+  case s
+  of "class": pikClass
+  of "classpart": pikClassPart
+  of "id": pikId
+  of "element": pikElement
+  else: raise newException(ValueError, "unknown register kind: " & s)
+
+proc parseReachRegister*(text: string): seq[ReachRow] =
+  ## The register, as rows. A `LIVE`/`INERT` line opens a row and every
+  ## following indented line is its reason; a blank line or a comment inside
+  ## the indented block is skipped rather than ending it, so the reasons can be
+  ## written as prose.
+  var lineNo = 0
+  var runStart = -1
+    ## The first row of the consecutive run a reason block will attach to.
+  var reasonSeen = false
+  for raw in text.splitLines:
+    inc lineNo
+    if raw.len == 0: continue
+    if raw.startsWith("#"): continue
+    if raw[0] in {' ', '\t'}:
+      # A continuation of the reason — and it applies to EVERY row of the
+      # consecutive run above it, not only to the last. Upstream's vocabulary
+      # comes in families whose reason is one sentence for all of them
+      # (`lm_header` / `lm_tabs` / `lm_tab` / `lm_title` are one tab strip),
+      # and attaching the prose only to the last row left the others with an
+      # empty reason — which the suite's own minimum-length check caught.
+      if runStart >= 0:
+        let piece = raw.strip
+        if piece.len > 0 and not piece.startsWith("#"):
+          for i in runStart .. result.high:
+            if result[i].reason.len > 0: result[i].reason.add " "
+            result[i].reason.add piece
+          reasonSeen = true
+      continue
+    let parts = raw.splitWhitespace
+    if parts.len < 3:
+      raise newException(ValueError,
+        "ct_css_reach.txt:" & $lineNo & ": a row needs VERDICT KIND PATTERN")
+    var row = ReachRow(kind: itemKindOf(parts[1]), pattern: parts[2],
+                       line: lineNo)
+    case parts[0]
+    of "LIVE": row.verdict = rvLive
+    of "INERT": row.verdict = rvInert
+    else:
+      raise newException(ValueError,
+        "ct_css_reach.txt:" & $lineNo & ": verdict is LIVE or INERT, not " &
+        parts[0])
+    if parts.len > 3: row.evidence = parts[3]
+    if runStart < 0 or reasonSeen:
+      runStart = result.len
+      reasonSeen = false
+    result.add row
+
+proc reachRegister*(): seq[ReachRow] = parseReachRegister(ReachRegisterText)
+  ## The register the gate's two halves share.
+  ## `tools/ci/check-css-reachable.mjs` parses the same bytes.
+
+proc matchesPattern*(pattern, name: string): bool =
+  ## `*` is the only metacharacter, and it may appear anywhere.
+  if '*' notin pattern: return pattern == name
+  let segs = pattern.split('*')
+  var pos = 0
+  for i, seg in segs:
+    if seg.len == 0: continue
+    if i == 0:
+      if not name.startsWith(seg): return false
+      pos = seg.len
+    elif i == segs.high:
+      if not name.endsWith(seg): return false
+      if name.len - seg.len < pos: return false
+    else:
+      let hit = name.find(seg, pos)
+      if hit < 0: return false
+      pos = hit + seg.len
+  true
+
+# ── the inventory: what the port's selectors actually name ──────────────────
+
+proc isIdentChar(c: char): bool =
+  c in {'a'..'z', 'A'..'Z', '0'..'9', '_', '-'}
+
+proc scanSelector*(sel: string; items: var seq[PortItem]) =
+  ## One selector, into items. The two rules that are not obvious, and both
+  ## are in the register's header:
+  ##
+  ##   * a class inside `:not(…)` is NOT an item — the rule matches when it is
+  ##     absent — while `:has(…)`, `:is(…)` and `:where(…)` ARE descended into,
+  ##     for the opposite reason;
+  ##   * an attribute selector contributes only when it is `[class*="…"]` and
+  ##     its siblings; every other attribute is state or out of scope.
+  var i = 0
+  var found = 0
+  template addItem(k: PortItemKind; n: string) =
+    items.add PortItem(kind: k, name: n, sample: sel)
+    inc found
+  while i < sel.len:
+    case sel[i]
+    of '.', '#':
+      let kind = if sel[i] == '.': pikClass else: pikId
+      var j = i + 1
+      while j < sel.len and isIdentChar(sel[j]): inc j
+      if j > i + 1: addItem(kind, sel[i + 1 ..< j])
+      i = j
+    of '[':
+      let close = sel.find(']', i)
+      if close < 0: break
+      let body = sel[i + 1 ..< close]
+      let eq = body.find('=')
+      if eq > 0:
+        let lhs = body[0 ..< eq].strip(chars = {' ', '*', '^', '$', '|', '~'})
+        if lhs == "class":
+          let v = body[eq + 1 .. ^1].strip(chars = {' ', '"', '\''})
+          if v.len > 0: addItem(pikClassPart, v)
+      i = close + 1
+    of ':':
+      var j = i
+      while j < sel.len and sel[j] == ':': inc j
+      let nameStart = j
+      while j < sel.len and isIdentChar(sel[j]): inc j
+      let pseudo = sel[nameStart ..< j]
+      if j < sel.len and sel[j] == '(':
+        # the matching close paren, counting nesting
+        var depth = 0
+        var k = j
+        while k < sel.len:
+          if sel[k] == '(': inc depth
+          elif sel[k] == ')':
+            dec depth
+            if depth == 0: break
+          inc k
+        let inner = sel[j + 1 ..< min(k, sel.len)]
+        if pseudo in ["has", "is", "where"]:
+          var innerItems: seq[PortItem]
+          scanSelector(inner, innerItems)
+          for it in innerItems:
+            items.add PortItem(kind: it.kind, name: it.name, sample: sel)
+            inc found
+        i = k + 1
+      else:
+        i = j
+    else:
+      inc i
+  if found == 0:
+    # Element selectors are only an item for a selector that names nothing
+    # else, which is what makes the inventory small: `.lm_tab span` asks
+    # nothing of `span` that `.lm_tab` does not already ask.
+    #
+    # Stripped in two passes before the tags are read, and both are the
+    # difference between an inventory and a word list: an attribute selector
+    # carries identifiers that are not elements (`data-register`, `debugger`)
+    # and so does every pseudo (`hover`, `focus-visible`,
+    # `-webkit-scrollbar-thumb`). The first version of this read all three as
+    # tag names and produced twenty-two items that are not elements at all.
+    var bare = ""
+    var k = 0
+    while k < sel.len:
+      if sel[k] == '[':
+        let close = sel.find(']', k)
+        if close < 0: break
+        k = close + 1
+      elif sel[k] == ':':
+        inc k
+        while k < sel.len and sel[k] == ':': inc k
+        while k < sel.len and (isIdentChar(sel[k]) or sel[k] == '-'): inc k
+        if k < sel.len and sel[k] == '(':
+          var depth = 0
+          while k < sel.len:
+            if sel[k] == '(': inc depth
+            elif sel[k] == ')':
+              dec depth
+              if depth == 0:
+                inc k
+                break
+            inc k
+        bare.add ' '
+      else:
+        bare.add sel[k]
+        inc k
+    for tok in bare.multiReplace(("*", " "), (">", " "), ("+", " "),
+                                 ("~", " ")).splitWhitespace:
+      var ok = tok.len > 0
+      for c in tok:
+        if c notin {'a'..'z', '0'..'9'}: ok = false
+      if ok and tok[0] in {'a'..'z'}:
+        items.add PortItem(kind: pikElement, name: tok, sample: sel)
+
+proc ctPortItems*(): seq[PortItem] =
+  ## Every class, `[class*=]` substring, id and element the port's selectors
+  ## name, deduplicated by (kind, name) and keeping the first sample.
+  ##
+  ## Over `codetracerComponentCss` AND `activeTabCss()`, because both are what
+  ## this module emits. (The second adds nothing today — it is a textual
+  ## substitution of `.lm_active` for selectors built from `.lm_tab`,
+  ## `.lm_stack`, `.lm_items`, `.lm_content` and `.btdefault`, all of which the
+  ## first already names — and asserting that is cheaper than asserting a
+  ## reader will remember it.)
+  var seen = initTable[string, bool]()
+  for css in [codetracerComponentCss, activeTabCss()]:
+    for line in css.splitLines:
+      if line.len == 0 or line.startsWith("/*"): continue
+      let brace = line.find('{')
+      if brace <= 0: continue
+      for sel in line[0 ..< brace].split(','):
+        var items: seq[PortItem]
+        scanSelector(sel.strip, items)
+        for it in items:
+          let key = $it.kind & "\u0000" & it.name
+          if key notin seen:
+            seen[key] = true
+            result.add it
+
+proc reachRowsFor*(rows: seq[ReachRow]; it: PortItem): seq[int] =
+  ## Which rows cover this item. Exactly one is the requirement, so the
+  ## failure message can say "none" or name the several.
+  for i, r in rows:
+    if r.kind == it.kind and matchesPattern(r.pattern, it.name): result.add i

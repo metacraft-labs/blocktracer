@@ -58,3 +58,51 @@ The rewrite maps `…/public/resources/<group>/<file>.svg` onto
 
 Adding an icon means adding the file here AND the row in `CtVendoredIcons`.
 Removing one that a vendored sheet still references cannot be done quietly.
+
+## WHAT A VISITOR ACTUALLY SEES: NOTHING, AND THAT IS MEASURED
+
+The section above is about whether these urls RESOLVE. They do, now. It is not
+about whether anything ever asks for them, and the honest answer is that
+nothing does.
+
+A browser fetches a `mask-image` or a `content: url()` only for an element the
+rule MATCHES. All nine of these files are named by four selector families —
+`.ct-origin-icon-<kind> .ct-origin-badge-icon` (seven of them),
+`.value-history-button::before` and `.custom-noir-icon::before` — and **not one
+of those selectors is emitted by this site**. Measured over the 349 pages
+`cd client && just export-hydrated` produces and all three shipped JS bundles,
+with the char-code arrays Nim-JS emits some string literals as decoded and the
+decoder validated on two literals known to be present. That null is a
+measurement, not a failed grep.
+
+So the url fix was real and it was half the story: the urls were broken AND
+unreached, which is two defects, and reporting the pair as fixed because the
+first half was is the mistake `client/src/components/ct_css_reach.txt` was
+written to make impossible. That file's `INERT class ct-origin-*` row carries
+the detail, including the correction that matters most: **the seven-way
+classifier these icons need already exists.** The Embed SDK this repository
+compiles against exports `iconClassForTerminator`
+(`src/frontend/viewmodel/viewmodels/origin_chain_types.nim`), a total mapping
+from `TerminatorKindWire` onto exactly these seven class spellings, and
+`client/hydrate/live_origin.classifiedOriginOf` already reads
+`summary.terminatorKind` before discarding it. What is missing is the badge
+MARKUP in `components/debugger.nim`, not a classification to invent.
+
+### Why these bytes are kept rather than deleted
+
+Deleting them would mean dropping the rules that name them, because
+`ct_styl.rewriteUrls` is total over `CtVendoredIcons` by construction and a
+vendored sheet keeps its `url()` whatever this repository does. Dropping those
+rules would be wrong twice over: `Dropped`'s own criterion is "markup or motion
+that cannot exist on a route with no JavaScript", and this badge CAN exist on
+the hydrated route; and whoever wires the markup — a renderer change, not a
+classifier — would have to re-vendor what had been removed.
+
+So they stay, at a measured cost, and the cost is the reason this is a
+defensible choice rather than a comfortable one: nine files, **3,753 bytes in
+total**, against a 38,503-byte `index.html` — a tenth of one page, published
+once and cached. If that ratio ever stops being true, delete them and drop the
+rules; it is the number, not the principle, that makes keeping them cheap.
+What is NOT acceptable is a comment claiming they are visible, which is why the
+two paragraphs above exist and why `check-css-reachable.mjs` will go red the
+day a row here stops being true in either direction.

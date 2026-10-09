@@ -1740,6 +1740,42 @@ jobs:
             bash ci/test/flow-layout-vendor.sh &&
             bash ci/test/flow-layout-vendor-test.sh'
 
+      # ── THE CONVERSE OF `Dropped` (the CSS port's reachability gate) ─────
+      #
+      # HERE for the same reason the escaping gate below is: this is the job
+      # that already renders the site with no debugger on the Nim path, and
+      # that is exactly what this gate needs — it exports the ~348-page demo
+      # tree and reads the produced HTML.
+      #
+      # WHAT IT GUARDS. `client/tests/test_ct_components_css.nim` asserts every
+      # rule the port DROPS is dropped on purpose with a reason. Nothing
+      # asserted the converse: that a rule which was KEPT can match anything. A
+      # rule could be vendored, transpiled, scoped, served and matched by
+      # nothing, and three defects came out of that gap — two of which reached
+      # the owner as fixed:
+      #
+      #   * `.component-container`, CodeTracer's panel surface, served while
+      #     `grep -c component-container` over the renderer was 0;
+      #   * the nine vendored CodeTracer icons, whose `url()`s were fixed from
+      #     a path this site never published to the published copies while ZERO
+      #     of their selectors is emitted anywhere;
+      #   * `.separate-bar` and `.dropdown-list`, each given a colour binding
+      #     while matching zero elements.
+      #
+      # `client/src/components/ct_css_reach.txt` is the register, and the two
+      # halves read the same bytes: the Nim suite (run by the aggregate above)
+      # asserts it ACCOUNTS FOR every selector the port emits; this asserts it
+      # is TRUE of the exported site.
+      #
+      # The self-test runs first, for the reason the escaping gate's does: a
+      # green gate whose detectors are broken is the exact failure mode a gate
+      # written for "nobody checked the converse" must not have.
+      - name: Does the reachability gate bite? (3 mutations, 3 controls, 9 vacuity arms)
+        run: nix develop .#ci --command ci/test/ct-css-reachable-test.sh
+
+      - name: Every selector the CSS port emits is matched, or declared inert with a reason
+        run: nix develop .#ci --command ci/test/ct-css-reachable.sh
+
       - name: The vendored CodeTracer stylesheets still agree with upstream
         # THE SAME OMISSION AS THE STEP ABOVE, ONE PORT LATER. This branch
         # vendors six of CodeTracer's component stylesheets byte-verbatim and

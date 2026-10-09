@@ -443,3 +443,205 @@ suite "url() — the nine icons that shipped as 404s":
     check "url(\"data:image/svg+xml,%3Csvg%2F%3E\")" in css
     check "url(https://cdn.example.com/x.png)" in css
     check "url(#clip)" in css
+
+suite "reachability — a rule that was NOT dropped can match something":
+  ## THE CONVERSE OF `Dropped`, AND THE ASSERTION THAT WOULD HAVE CAUGHT THREE
+  ## DEFECTS.
+  ##
+  ## `Dropped` records the rules the port does not emit, and the arm above
+  ## asserts every reported drop is deliberate and reasoned. Nothing asserted
+  ## the other direction: that a rule which was KEPT can actually match
+  ## markup. So a rule could be vendored, transpiled, scoped, served and
+  ## matched by nothing, and the only evidence either way was that somebody had
+  ## once looked. Three defects came of it, two of them reported to the owner as
+  ## fixed:
+  ##
+  ##   1. `.component-container` — CodeTracer's panel surface, served while
+  ##      `grep -c component-container` over `components/debugger.nim` and
+  ##      `pages/debug.nim` was 0.
+  ##   2. the nine vendored icons — their `url()`s fixed from 404s to 200s
+  ##      while ZERO of their nine selectors is emitted anywhere, measured over
+  ##      349 built pages and all three JS bundles, raw and char-code-decoded.
+  ##   3. `.separate-bar` and `.dropdown-list` — both given colour bindings,
+  ##      both matching zero elements.
+  ##
+  ## THIS HALF OF THE GATE IS THE HALF THAT NEEDS NO BUILD. It asserts that
+  ## `ct_css_reach.txt` ACCOUNTS FOR everything the port emits — every class,
+  ## `[class*=]` substring, id and element, under exactly one row. The other
+  ## half, `tools/ci/check-css-reachable.mjs`, asserts the rows are TRUE of the
+  ## exported site. Neither is the gate alone: this one says the register is
+  ## total, that one says it is not lying, and the claim the three defects
+  ## needed is their composition.
+  ##
+  ## Which is also why this arm is HERE and not in a harness of its own: the
+  ## register's totality is a property of the compiled stylesheet, which is
+  ## this suite's subject and is a `const` it already reads. It runs in
+  ## seconds, it is first in `just test`, and a re-vendor that introduces an
+  ## unclassified selector fails here before anything renders.
+
+  test "the register parses, and parses to rows rather than to nothing":
+    let rows = reachRegister()
+    # A floor, not a count: the register is expected to grow with every
+    # re-vendor, and the number this refuses is zero — a parser that silently
+    # matched nothing would make every claim below vacuously true.
+    check rows.len >= 60
+    var live, inert = 0
+    for r in rows:
+      check r.pattern.len > 0
+      # The reason is the whole value of a row, exactly as it is for
+      # `Dropped`. A short one is a row nobody wrote a reason for.
+      check r.reason.len > 40
+      if r.verdict == rvLive: inc live else: inc inert
+    check live > 0
+    check inert > 0
+
+  test "every selector the port emits is accounted for, under exactly one row":
+    ## THE ASSERTION. Not "at least one row" — exactly one — so a reader
+    ## looking for why a class is inert finds one answer and two families
+    ## cannot quietly overlap.
+    let rows = reachRegister()
+    let items = ctPortItems()
+    # Not vacuous. The port names 160 classes at this pin; 100 is well under
+    # that and well over zero, which is the number this floor exists to
+    # refuse. An extractor that silently matched nothing would otherwise make
+    # the loop below pass by having nothing to loop over.
+    check items.len >= 150
+    var byKind: array[PortItemKind, int]
+    for it in items: inc byKind[it.kind]
+    for k in PortItemKind:
+      if byKind[k] == 0: echo "  no inventory item of kind ", k
+      check byKind[k] > 0
+    var unaccounted, ambiguous = 0
+    for it in items:
+      let hits = reachRowsFor(rows, it)
+      if hits.len == 0:
+        inc unaccounted
+        echo "  NOT in ct_css_reach.txt: ", it.kind, " ", it.name,
+             "   (e.g. ", it.sample, ")"
+      elif hits.len > 1:
+        inc ambiguous
+        var pats: seq[string]
+        for h in hits: pats.add rows[h].pattern
+        echo "  covered by ", hits.len, " rows: ", it.kind, " ", it.name,
+             " -> ", pats.join(", ")
+    check unaccounted == 0
+    check ambiguous == 0
+
+  test "no row rots: every row covers something the port still emits":
+    ## The direction `Dropped`'s own arm added for the same reason — a key
+    ## left behind for a rule upstream has deleted goes red rather than
+    ## sitting in the table being read as a reason for something.
+    let rows = reachRegister()
+    let items = ctPortItems()
+    var covers = newSeq[int](rows.len)
+    for it in items:
+      for h in reachRowsFor(rows, it): inc covers[h]
+    for i, n in covers:
+      if n == 0:
+        echo "  row covers nothing the port emits: ct_css_reach.txt:",
+             rows[i].line, "  ", rows[i].pattern
+      check n > 0
+
+  test "the three defects are each named by a row, and on the right side":
+    ## The register is data, so the three subjects can be asserted BY NAME
+    ## without restating a declaration. `.component-container` is LIVE and
+    ## must stay LIVE; the nine icons' selectors and the two dead rules are
+    ## INERT and must say so rather than being absent.
+    let rows = reachRegister()
+    proc verdictOf(kind: PortItemKind; name: string): seq[ReachVerdict] =
+      for r in rows:
+        if r.kind == kind and matchesPattern(r.pattern, name):
+          result.add r.verdict
+    check verdictOf(pikClass, "component-container") == @[rvLive]
+    for dead in ["ct-origin-badge", "ct-origin-badge-icon",
+                 "ct-origin-icon-sigma", "ct-origin-icon-hourglass",
+                 "value-history-button", "custom-noir-icon",
+                 "separate-bar", "dropdown-list"]:
+      check verdictOf(pikClass, dead) == @[rvInert]
+
+  test "a state pseudo-class is not an item, and a descendant class still is":
+    ## The hole this gate must not have. `:hover`, `:focus-visible`,
+    ## `:disabled`, `:target` and `[data-selected]` cannot be found in static
+    ## markup, so a rule on `X:hover` is an item for `X` alone. That excuse
+    ## must NOT reach `.ct-origin-icon-sigma .ct-origin-badge-icon`, which is a
+    ## DESCENDANT selector and is two items.
+    var items: seq[PortItem]
+    scanSelector(".ct-tab:hover:not([data-disabled=\"true\"])", items)
+    check items.len == 1
+    check items[0].kind == pikClass
+    check items[0].name == "ct-tab"
+
+    items = @[]
+    scanSelector(".ct-origin-icon-sigma .ct-origin-badge-icon", items)
+    check items.len == 2
+    var names: seq[string]
+    for it in items: names.add it.name
+    check "ct-origin-icon-sigma" in names
+    check "ct-origin-badge-icon" in names
+
+    # `:not()` is the one nesting that must NOT yield an item: the rule
+    # matches when the class is ABSENT, so requiring it to be emitted would be
+    # backwards. `:has()` is the opposite and is descended into.
+    items = @[]
+    scanSelector(".lm_tab:not(.lm_active)", items)
+    names = @[]
+    for it in items: names.add it.name
+    check names == @["lm_tab"]
+
+    items = @[]
+    scanSelector(".ct-counterexample:has(> .ct-counterexample-closed)", items)
+    names = @[]
+    for it in items: names.add it.name
+    check "ct-counterexample" in names
+    check "ct-counterexample-closed" in names
+
+    # An element is an item only for a selector that names nothing else —
+    # `.lm_tab span` asks nothing of `span` that `.lm_tab` does not.
+    items = @[]
+    scanSelector("[data-register=\"debugger\"] .lm_tab span", items)
+    check items.len == 1
+    check items[0].kind == pikClass
+
+    items = @[]
+    scanSelector("[data-register=\"debugger\"] button:disabled", items)
+    check items.len == 1
+    check items[0].kind == pikElement
+    check items[0].name == "button"
+
+  test "a `[class*=]` substring is an item of its own, honestly":
+    ## The port emits twenty-one of them — `button.styl` crosses three button
+    ## shapes with five sizes and three prominences and addresses each cell
+    ## with one. They are not declared out of scope: a `[class*="S"]` matches
+    ## a class attribute containing `S` anywhere, which is a question the
+    ## markup can answer, so they are items and the register partitions them
+    ## like any other.
+    var items: seq[PortItem]
+    scanSelector("[data-register=\"debugger\"] [class*=\"ct-button-xl-\"]", items)
+    check items.len == 1
+    check items[0].kind == pikClassPart
+    check items[0].name == "ct-button-xl-"
+    let rows = reachRegister()
+    var parts = 0
+    for it in ctPortItems():
+      if it.kind == pikClassPart: inc parts
+    check parts >= 15
+    # …and the four that DO match are LIVE, which is what makes the other
+    # seventeen a measurement rather than a blanket.
+    var livePartRows = 0
+    for r in rows:
+      if r.kind == pikClassPart and r.verdict == rvLive: inc livePartRows
+    check livePartRows > 0
+
+  test "the pattern matcher is a glob and not a substring search":
+    ## `*` is the only metacharacter. A row written `ct-origin-*` must not
+    ## quietly cover `my-ct-origin-thing`, because a row that covers more than
+    ## its reason describes is how a register stops being evidence.
+    check matchesPattern("ct-origin-*", "ct-origin-badge")
+    check matchesPattern("ct-origin-*", "ct-origin-icon-sigma")
+    check not matchesPattern("ct-origin-*", "x-ct-origin-badge")
+    check matchesPattern("dt-*", "dt-scroll-body")
+    check not matchesPattern("dt-*", "dts_label")
+    check matchesPattern("lm_tab", "lm_tab")
+    check not matchesPattern("lm_tab", "lm_tabs")
+    check matchesPattern("*-empty", "problems-empty")
+    check not matchesPattern("*-empty", "empty-overlay")

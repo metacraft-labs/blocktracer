@@ -1212,6 +1212,36 @@ ct-styles-vendor:
     ci/test/ct-styles-vendor.sh --require
     ci/test/ct-styles-vendor-test.sh
 
+# THE CONVERSE OF `Dropped`: can a rule the port KEPT match anything?
+#
+# `ct-styles-vendor` above proves the INPUT is still upstream's bytes.
+# `cd client && just test-ct-components-css` proves the OUTPUT is still a port
+# of them, and one of its arms proves every rule the port DROPS is dropped on
+# purpose with a reason. NOTHING PROVED THE OTHER DIRECTION, and three defects
+# came out of that gap — two of them reported as fixed:
+#
+#   * `.component-container`, CodeTracer's panel surface, vendored, scoped and
+#     served while nothing in the renderer emitted it;
+#   * the nine vendored CodeTracer icons, whose `url()`s were fixed from a path
+#     this site never published while ZERO of their selectors is emitted
+#     anywhere;
+#   * `.separate-bar` and `.dropdown-list`, each given a colour binding while
+#     matching zero elements.
+#
+# `client/src/components/ct_css_reach.txt` is the register that answers it, and
+# the gate is two halves that read the same bytes: the Nim suite asserts the
+# register ACCOUNTS FOR every selector the port emits, and this asserts the
+# register is TRUE OF THE EXPORTED SITE. Neither is the gate alone.
+#
+# The self-test runs FIRST and is the reason to believe the gate: fifteen arms,
+# including the three mutations this defect class calls for with a control
+# beside each, and five arms on the ways a checker of this shape passes while
+# measuring nothing. A green gate whose detectors are dead is precisely the
+# failure mode a gate written for "nobody checked the converse" must not have.
+ct-css-reachable:
+    ci/test/ct-css-reachable-test.sh
+    ci/test/ct-css-reachable.sh
+
 # ── The Noir corpus (fixtures/trace/tour) ───────────────────────────────────
 # Two sets: `programs` are recordable and are the capability tour the demo chain
 # publishes; `toolchainPrograms` exercise the toolchain and cannot produce a
