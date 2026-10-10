@@ -230,6 +230,70 @@
 # node, and see whether the AVM accepts the seed. Bounded, offline after the fetch,
 # and it answers the republish question for the whole corpus.
 #
+# ── 2026-10-10, LATER: THE EXPERIMENT RAN, AND IT SPLITS THE ANSWER BY CHAIN ──
+#
+# TWO CORRECTIONS TO EVERYTHING ABOVE, AND THE FIRST IS MINE TO OWN. The text above
+# and in §"Two facts that survive the change of plan" says the bodies come "not from
+# the node, whose deployment has been replaced", and calls both chains "the RETIRED
+# deployments". *That is true of testnet and FALSE of mainnet*, and the distinction
+# decides whether 163,539 published pages can be re-recorded at all.
+#
+#   * MAINNET IS NOT RETIRED. `https://aztec.drpc.org` answers `getNodeInfo` with
+#     rollupVersion 4248422647 and rollupAddress
+#     0x91ff8bbd8ebb07893010d50a48a1609e5ebd8e34 — *exactly* the deployment
+#     `client/fixtures/chain/aztec/snapshot.json` records. Tip 118225.
+#   * TESTNET IS. Nothing reachable serves rollup
+#     0xd73a91bdcf6891c7642f3e460036e1ef2cc23178 (version 1821665230).
+#
+# AND THE HYDRATION QUESTION IS ANSWERED FOR MAINNET: YES. `aztec-avm-runtime`
+# `c87b9cc` re-recorded two settled mainnet transactions — the only two the corpus
+# records as `replayed` — from a public node plus the public body store, with no
+# local archive:
+#
+#   * the body came from the store (`getTxByHash` returns null 50,163 blocks past
+#     the mempool horizon), 195,148 bytes, and verified twice over: leading 32 bytes
+#     equal the key, AND `getTxHash()` recomputed from the deserialised `Tx` equals
+#     it too;
+#   * `replay/src/replay_execution.ts:365-430` IS Route 3 in code, not prose — the
+#     hint round trip converged in TWO rounds, with a second recording pass that
+#     refuses unless both passes describe the same execution;
+#   * the artefact is container version **5**, `meta.dat` schema **6**, 77,824 bytes
+#     against the committed v3's 180,224;
+#   * and it reproduces the corpus's own facts: instructions 208, `preStateReadAt`
+#     68061, effects 13 of 13 matched, all four tree-root pairs byte-identical, and
+#     the skipped-value list identical as an ordered list. Exactly two figures move,
+#     both properties of the WRITER and not of the chain — `bytes`, and `logEvents`
+#     5 -> 6 because L5's source-provenance record postdates the committed row.
+#
+# THE READER PAIR IS THE PRECONDITION, MEASURED: `ct-print` built at the pinned
+# `trace_format_nim` opens the NEW container (exit 0, 220 decoded events) and
+# REFUSES the committed original by name — "CTFS container version 3 is not
+# supported: this reader reads version 5 only". The published history is unreadable
+# by the current reader; re-recording makes it readable.
+#
+# COST, so this is a plan rather than a wish: **7 node calls plus 1 store GET per
+# transaction** (getTxEffect, getBlockData, getContract, getContractClass, 3 x
+# getPublicDataWitness; getNodeInfo is once per deployment). Zero
+# getNullifierMembershipWitness — `seedOpeningPosition` derives the deployment
+# nullifier without a witness call. At 163,539 pages, serialised and polite, that is
+# hours to a day of wall clock.
+#
+# SO THE SEQUENCE IS NOW: re-record MAINNET to container v5 (proven), publish an
+# engine that reads v5, and only then consider compact — which is container v6 plus
+# profile byte 1 and stays OFF until the deployed engine moves
+# (`ct-host/src/abi.ts:268` says so in those words). Compact is the step AFTER this
+# one, not this one.
+#
+# WHAT STAYS BLOCKED, AND IT IS A DECISION RATHER THAN A MEASUREMENT: testnet. Its
+# rollup has no reachable node, and `replay/src/historical_state.ts` measures the
+# other two routes as impossible — Route 1 produces no step stream so cannot write a
+# `.ct` at all, and Route 2 would mean appending every leaf (1,106,368 note hashes,
+# 1,106,496 nullifiers, 33,808 public-data leaves) whose values no node serves in
+# bulk. Since `ReplayEngineBase` is a compile-time `strdefine` — one engine per
+# DEPLOYMENT, not per chain — a v5-reading engine would refuse testnet's containers.
+# That is the trade-off to decide: build per-chain engine selection, accept testnet
+# replay going dark, or hold the move.
+#
 # Until the replacing publish happens, leaving this pin alone is not neglect. It
 # is the thing keeping replay working on every published page.
 #
