@@ -267,8 +267,50 @@ html[data-register="debugger"],
    a DARKER one than the panels themselves, and that inversion — panel lighter
    than frame — is the single most recognisable thing about a CodeTracer
    window. No background is declared here, so there is only one rule to read. */
+/* `color` IS HERE BECAUSE `#ROOT` IS INERT, and that is the whole of the last
+   text-colour divergence from CodeTracer. Upstream draws its panels in TWO
+   text tiers, deliberately: `shared_widgets.styl`'s `#ROOT` rule sets
+   `colors-ui-text-primary-body` (neutral-50) and every panel inherits it,
+   while `golden_layout.styl`'s `.lm_header` sets
+   `colors-ui-text-primary-label` (neutral-150) with `!important`, so the pane
+   CHROME is dimmer than the pane CONTENT. Confirmed against upstream's own
+   computed styles, where `.lm_content`, `.component-container` and
+   `.terminal-line` all resolve to neutral-50 while `.lm_header`, `.lm_tabs`,
+   `.lm_tab` and `.lm_controls` all resolve to neutral-150. (No colour is
+   spelled literally anywhere in this comment, for the reason given below.)
+   BlockTracer had only ONE tier. The `.lm_header` half was never missing — it
+   is vendored, emitted and LIVE. The CONTENT half was, because the only
+   element upstream hangs it on is `#ROOT`, its application mount point, and
+   `ct_css_reach.txt` classifies that id INERT for the honest reason that this
+   site mounts nothing of the kind: the rule is compiled and served and matches
+   zero elements. With nothing claiming the content tier, every panel fell back
+   to inheriting `html,body`'s `--bt-text-default` from `styles.nim`, which is
+   the same token `.lm_header` resolves to — so chrome and content arrived at
+   ONE colour, neutral-100, and the two-tier relationship was lost. (Every
+   colour here is named by its ramp rung rather than spelled: this stylesheet
+   is INLINED into every page, so a comment is shipped bytes —
+   `test_static_export`'s shipped-rules scan reads comments too, and
+   `ct_components_css.nim`'s `Dropped` list declines to quote upstream's one
+   raw hex for the same reason.)
+   This is the carrier `#ROOT` would have been. `.dbgmain` is the element
+   `pages/debug.nim` puts `.lm_goldenlayout` on and the ancestor of every
+   `.lm_stack` the walk emits, which is exactly `#ROOT`'s structural position
+   upstream, so the inheritance reaches the same set of panels and the
+   vendored `!important` on `.lm_header` still wins over it for the chrome —
+   the same two-rule cascade, expressed in the vocabulary this route has.
+   Declared in BlockTracer's own layer rather than the Bridge because the
+   SELECTOR is BlockTracer's; the VALUE is the port's. `--bt-text-strong` is
+   neutral-50 in dark — the SAME rung upstream's `colors-ui-text-primary-body`
+   resolves to — so this is an EXACT match and not a role binding. The chrome
+   stays a role binding, because `colors-ui-text-primary-label` is neutral-150
+   upstream and the Bridge binds it to `--bt-text-default`, neutral-100 here;
+   that `->` is deliberate and predates this rule. In light the pair is
+   neutral-1000 for content against neutral-800 for the chrome, so the tiering
+   holds its DIRECTION — content at higher contrast than chrome — on a light
+   surface too, which upstream, having one dark theme, never had to answer
+   for. */
 .dbgmain{flex:1 1 0;display:flex;min-height:0;min-width:0;
-  padding:var(--bt-space-2xs)}
+  padding:var(--bt-space-2xs);color:var(--bt-text-strong)}
 .ln{display:flex;min-width:0;min-height:0}
 .ln.row{flex-direction:row}
 .ln.col{flex-direction:column}
