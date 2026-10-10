@@ -1637,6 +1637,42 @@ eth-range RECORDER COMMIT *ARGS:
 publish tree="demo-site" dest="published":
     nim c -r --hints:off src/blocktracer_publish.nim --tree {{tree}} --backend local --dest {{dest}}
 
+# ── does the Ethereum range capture reach an object store, and do the four ──
+#    properties a deployed follower rests on hold for it?
+#
+# The ingestion pipeline is follower -> recorder -> snapshot producer -> publisher
+# -> bucket. `just eth-range` is the first three; this measures the fourth over
+# its output, and the first question about the fourth was not what needs building
+# but whether it already accepts what the third produces. MEASURED on the
+# 26157390-26157392 capture: it does, unchanged — `blocktracer-chain-ingest` turns
+# the snapshot tree into the published layout and `blocktracer-publish` reconciles
+# that against a store. No publisher, object-store or producer change was needed.
+#
+# WHAT IT PROVES, each over the real Ethereum tree: the tree publishes whole; the
+# same tree again uploads ZERO and moves no byte; one object removed comes back
+# and ONLY it; an object whose bytes changed under an unchanged key is skipped by
+# the default cycle (the documented key-existence behaviour, stated as a control)
+# and moved by `--refresh`, alone; §2.2's write order with the visibility flip
+# LAST, read out of the kernel's rename record and armed by a mutant that moves
+# the flip first; one writer per chain, with a second concurrent publisher refused
+# by name while the lease is held and admitted once it is released.
+#
+# CREDENTIAL-FREE, AND IT MUST STAY THAT WAY. The backend is a local directory,
+# whose `putIfAbsent` is a genuine `O_CREAT|O_EXCL` — so the lease it proves is
+# the real one. Production buckets are operator-held and `publish-r2.yml` is
+# `workflow_dispatch`-only because §6c keeps the pointer flip with a human.
+#
+# NOT IN ANY GATE, for `eth-range`'s own reason: its subject is a live capture
+# that needs the network and the recorder binary, so a gate over it would report
+# SKIP forever. An ABSENT subject is exit 2 here rather than exit 0 — a run with
+# nothing to measure would otherwise report five properties proved over nothing.
+#
+#     just eth-range <recorder> <commit> --from 26157390 --to 26157392
+#     just eth-publish-proof
+#     just eth-publish-proof --snapshot .eth-range/tree --keep
+eth-publish-proof *ARGS:
+    bash tools/chain/eth-publish-proof.sh {{ARGS}}
+
 # ── Visual-design capture harness (VD.0) ────────────────────────────────────
 # Screenshots of every named view at every viewport in both themes. See
 # tools/capture/README.md. `capture` with no arguments is a FULL REGENERATION

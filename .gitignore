@@ -222,3 +222,11 @@ fixtures/chain-health/readable-container/ct/*.ct
 # INTERNS its `--out-dir` into the container, so an absolute work directory would make the
 # container's bytes host-specific and two machines' recordings incomparable.
 /.eth-range/
+
+# `just eth-publish-proof`'s work directory: the ingested publish tree, three local object
+# stores, the strace logs the write-order arm reads, and one log per publishing cycle. All
+# of it is derived from `.eth-range/tree` in one command, it holds copies of that tree's
+# `.ct` containers (which the `.ct` ban refuses), and the script removes the stores itself
+# unless `--keep` is passed. The logs are left behind on purpose: they are the evidence a
+# failed arm is diagnosed from.
+/.eth-publish-proof/
