@@ -176,8 +176,8 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
-          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
-          LIVE_BUCKET: ${{ vars.R2_BUCKET || 'blocktracer' }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          LIVE_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
         run: |
           set -euo pipefail
           if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
@@ -413,7 +413,7 @@ jobs:
           fi
 
           BUCKET='${{ inputs.bucket }}'
-          ENDPOINT='${{ vars.R2_ENDPOINT }}'
+          ENDPOINT='${{ secrets.R2_ENDPOINT }}'
 
           # THE GUARD THAT MAKES THIS SAFE TO POINT AT PRODUCTION.
           #
@@ -472,8 +472,8 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
-          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
-          R2_BUCKET: ${{ vars.R2_BUCKET || 'blocktracer' }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
         run: |
           set -euo pipefail
           if [ -x ci/test/verify-published-readonly.sh ]; then
