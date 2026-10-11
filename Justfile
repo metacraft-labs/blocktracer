@@ -1673,6 +1673,48 @@ publish tree="demo-site" dest="published":
 eth-publish-proof *ARGS:
     bash tools/chain/eth-publish-proof.sh {{ARGS}}
 
+# ── does publishing RANGE AFTER RANGE into one store keep every height listed? ──
+#
+# `eth-publish-proof` proves one cycle. A deployed follower publishes range after
+# range into one store, and that COMPOSITION lost coverage silently. MEASURED on
+# the two real adjacent ranges 26157390-92 and 26157393-95: ingested separately
+# at generation "1" and published into one store, the second cycle exited 0,
+# flipped the pointer to head 26157395, and SKIPPED exactly four objects — the
+# whole-chain singletons `g/1/height/0.json`, `g/1/blocks/0.json`,
+# `g/1/summary.json` and `g/1/root.json`, which are `ocGenMap`/`ocGenRoot` and so
+# key-existence: present implies skip. The height map still held only the first
+# range. Three heights were unlisted and nothing failed.
+#
+# THERE ARE TWO SHAPES AND THEY DIFFER IN DETECTABILITY, which is the finding
+# worth more than the fix:
+#
+#   * same generation, singletons collide -> `verify-published` fails POINTER,
+#     because the pointer leads its own height map.
+#   * a fresh generation per range, each mapping only its own heights -> POINTER
+#     **PASSES**. The maps are self-consistent and the store has quietly dropped
+#     every earlier range from the index. The only check that sees it is LEDGER,
+#     and LEDGER is UNRUNNABLE without a coverage ledger — so before this work
+#     that shape had no detector at all. A detector that cannot run is
+#     indistinguishable from a detector that passes.
+#
+# So `eth-ingest-range.mjs` files each captured range in a coverage ledger,
+# ingests the UNION over everything filed, and derives the generation id from
+# what the generation contains. The ledger is also what makes LEDGER runnable.
+# `--no-merge` keeps both shapes reproducible, as Aztec's `ingest-range.mjs`
+# does for the same reason.
+#
+# NOT IN ANY GATE, for `eth-publish-proof`'s reason: the subjects are live
+# captures needing the network and the recorder binary. An ABSENT subject is
+# exit 2, never exit 0. Arm 5 (overlap) needs a third capture and SKIPS loudly
+# without one rather than claiming anything about overlap.
+#
+#     just eth-range <recorder> <commit> --from 26157390 --to 26157392
+#     mv .eth-range/tree .eth-range/tree-A
+#     just eth-range <recorder> <commit> --from 26157393 --to 26157395
+#     just eth-coverage-proof --a .eth-range/tree-A --b .eth-range/tree
+eth-coverage-proof *ARGS:
+    bash tools/chain/eth-coverage-proof.sh {{ARGS}}
+
 # ── Visual-design capture harness (VD.0) ────────────────────────────────────
 # Screenshots of every named view at every viewport in both themes. See
 # tools/capture/README.md. `capture` with no arguments is a FULL REGENERATION

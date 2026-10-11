@@ -480,12 +480,28 @@ export function main() {
   // contiguity check above refused any hole in `blocks[]`, so every height in [from..to]
   // has a block object in this snapshot. A capture that could not read a height does not
   // reach this line.
+  //
+  // `blocks`, `transactions` and `outcomes` go INSIDE `fetch` and not beside it, because
+  // that is where `coverage-contiguity.mjs` sums them (`r.fetch.blocks ?? 0`). Stated one
+  // level up they are not wrong, they are INVISIBLE: that reader printed `blocks: 0` over a
+  // ledger holding six blocks, which is a figure a reader would trust. Writing the shape an
+  // existing reader parses is the whole reason this format was adopted rather than invented.
   ledger.ranges[rangeKey] = {
     ...(already ?? {}),
     from, to,
-    fetch: { requested: to - from + 1, served: to - from + 1, notServed: [] },
-    blocks: snap.blocks.length,
-    transactions: snap.transactions?.length ?? 0,
+    fetch: {
+      requested: to - from + 1,
+      served: to - from + 1,
+      notServed: [],
+      blocks: snap.blocks.length,
+      transactions: snap.transactions?.length ?? 0,
+      outcomes: {
+        replayed: snap.counts?.replayed ?? 0,
+        divergent: snap.counts?.divergent ?? 0,
+        refused: snap.counts?.refused ?? 0,
+        pruned: snap.counts?.pruned ?? 0,
+      },
+    },
     tracesPublished: snap.counts?.tracesPublished ?? 0,
     capturedAt: snap.provenance?.capturedAt ?? '',
     endpoint: snap.provenance?.endpoint ?? '',
