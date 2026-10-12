@@ -148,14 +148,31 @@ permissions:
 jobs:
   publish:
     runs-on: ${{ fromJSON(inputs.runner) }}
-    # NAMED RATHER THAN LEFT AT THE 360-MINUTE DEFAULT. render-over-live stages
-    # ~900,000 objects before it builds anything, and at the aws CLI's default
-    # concurrency the first run of it was still in that step at 80 minutes. A
-    # job that runs into the implicit ceiling is reported as `cancelled`, which
-    # is the label this fleet also uses for two unrelated failure modes — so
-    # the ceiling is declared here, where a reader of the log can see what was
-    # exceeded.
-    timeout-minutes: 240
+    # NAMED RATHER THAN LEFT AT THE 360-MINUTE DEFAULT, and the number is a
+    # MEASUREMENT rather than a round figure. A job that runs into the implicit
+    # ceiling is reported as `cancelled`, which is the label this fleet also
+    # uses for two unrelated failure modes, so the ceiling belongs here where a
+    # reader of the log can see what was exceeded.
+    #
+    # 240 WAS WRONG AND WOULD HAVE MADE THIS JOB FAIL SOONER THAN NO DECLARATION
+    # AT ALL. It was chosen while the staging step was still running and before
+    # anything had measured the whole job. Run 38270630793, render-over-live
+    # against production with the aws CLI's default concurrency of 10:
+    #
+    #   staging the data plane   240 min   (~882,600 objects, mean under 17 KB)
+    #   building the site tree   106 min AND STILL RUNNING when the implicit
+    #                            360-minute ceiling arrived
+    #
+    # So the honest figure is "more than 346 minutes at 10-way concurrency".
+    # `AWS_MAX_CONCURRENT_REQUESTS=64` should take the staging share down a long
+    # way, but the build's share is untouched by it and has no measured upper
+    # bound yet — which is exactly the condition in which a tight ceiling turns
+    # a slow job into a failed one. 600 is deliberately generous: these are
+    # self-hosted runners, where the 360-minute figure is not a platform limit,
+    # and the per-prefix counts the staging step now prints are what makes a
+    # genuinely hung job distinguishable from a long one without waiting for a
+    # timeout to decide it.
+    timeout-minutes: 600
     steps:
       - uses: actions/checkout@v4
 
