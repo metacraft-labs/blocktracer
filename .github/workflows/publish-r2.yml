@@ -233,6 +233,15 @@ jobs:
       # this build renders fresh and must NOT pull stale copies of from the
       # live bucket.
       #
+      # ONE WORD OF THAT WAS FALSE UNTIL 2026-10-13: `replay-engine/**` is not
+      # RENDERED by anything. It is FETCHED, from the publisher named by
+      # `engine-pin.txt`, and this workflow had no step that did so — see
+      # "Vendor the replay engine into the publish dir" below, which is the step
+      # `deploy-cloudflare-pages.yml` has had since the same defect bit the
+      # Pages path. The sentence above is kept because its CONCLUSION is right
+      # (these prefixes must not be pulled from the live bucket) and only the
+      # mechanism was wrong.
+      #
       # So this syncs exactly four prefixes, not a full mirror of the
       # ~882,000-object live tree: a full sync would multiply the egress and
       # the runner's disk for objects the renderer never opens, and syncing
@@ -496,6 +505,82 @@ jobs:
       # checks that have each caught a real defect — check-assets found the
       # replay engine missing, and the classifier found four site objects that
       # belonged to no chain and were silently skipped.
+      # VENDOR THE ENGINE INTO THE PUBLISH DIR — the one site object this
+      # workflow's own comment claims it "renders fresh" and never produced.
+      #
+      # Every page carries `data-replay-engine="/replay-engine/"` and constructs
+      # `new Worker("/replay-engine/worker.js", {type:"module"})`.
+      # `deploy-cloudflare-pages.yml` has had this step since the defect it
+      # records in its own words: "Until this step existed nothing was ever
+      # published under that prefix, so the worker 404'd on every deployed page
+      # and the debugging controls were inert on a site that otherwise looked
+      # complete. The failure was fast (~1 s) and quiet, and it read as 'the
+      # engine is stale' for hours."
+      #
+      # THIS WORKFLOW HAD THE SAME HOLE, and the comment at "Stage the live
+      # bucket's data plane" asserts the opposite — it lists `replay-engine/**`
+      # among "the SITE's own objects, which this build renders fresh and must
+      # NOT pull stale copies of from the live bucket". The first half was never
+      # true: nothing here rendered or fetched it. Measured by exporting the
+      # same configuration locally and running the next step's checker over the
+      # result:
+      #
+      #     A1  FAIL  …/tx/…/debug/index.html  data-replay-engine="/replay-engine/"
+      #                 → replay-engine  (no directory)
+      #
+      # So the next step would have caught it — which is why it is a guard and
+      # not a surprise — but it would have caught it after the sync and the
+      # render, hours in.
+      #
+      # `fetch-engine.sh` asserts each file against `engine-pin.txt` by sha256,
+      # so a base serving a different engine fails here naming both hashes
+      # rather than publishing it. `vars.REPLAY_ENGINE_BASE` redirects the
+      # ORIGIN and cannot redirect the bytes.
+      - name: Vendor the replay engine into the publish dir
+        env:
+          ENGINE_BASE: ${{ vars.REPLAY_ENGINE_BASE || 'https://web-codetracer.pages.dev' }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash client/hydrate/fetch-engine.sh \
+            site/replay-engine "$ENGINE_BASE"
+
+      # AND ASSERT IT IS THERE, on the bytes about to be uploaded rather than
+      # trusted. Same three files `deploy-cloudflare-pages.yml` names, and the
+      # same reason: "A green build that publishes a site whose worker 404s
+      # must not be able to reach production again."
+      - name: The engine is in the publish dir, and the pages ask for it there
+        run: |
+          set -euo pipefail
+          missing=0
+          for f in replay-engine/worker.js \
+                   replay-engine/pkg/db_backend.js \
+                   replay-engine/pkg/db_backend_bg.wasm; do
+            if [ ! -s "site/$f" ]; then echo "missing/empty: site/$f" >&2; missing=1; fi
+          done
+          [ "$missing" -eq 0 ] || { echo "the engine is not in the publish dir" >&2; exit 1; }
+          # The pages ask for a specific prefix. If somebody changes
+          # `replayEngineBase`, this catches the mismatch here rather than in a
+          # visitor's console.
+          page="$(find site -path '*/tx/*/debug/index.html' -print -quit)"
+          if [ -n "$page" ]; then
+            base="$(grep -oE 'data-replay-engine="[^"]*"' "$page" | head -1 |
+                    sed 's/.*="//; s/"$//')"
+            echo "pages request their engine from: ${base:-<none>}"
+            if [ "$base" != "/replay-engine/" ]; then
+              echo "::error::the pages name '${base:-<none>}' but this step vendored" \
+                   "site/replay-engine/. A cross-origin base is a deliberate build" \
+                   "choice (-d:replayEngineBase) and this publish path does not set" \
+                   "one, so the two disagreeing means the tree and the upload would" \
+                   "not match."
+              exit 1
+            fi
+          else
+            echo "::error::no */tx/*/debug/index.html in the tree, so which prefix the" \
+                 "pages ask for could not be read. That is not a pass: this check" \
+                 "exists because a site can look complete with an inert debugger."
+            exit 1
+          fi
+
       - name: The tree carries what a visitor needs
         run: nix develop .#ci --command node tools/deploy/check-assets.mjs --dir site --require-traces
 
