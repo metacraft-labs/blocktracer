@@ -1026,7 +1026,18 @@ jobs:
       # assert is that the instrument works, and a gate whose instrument is
       # unproven is the shape this repository has been bitten by most.
       - name: Does the design-parity check decide?
-        run: nix develop .#ci --command node tools/deploy/check-design-parity-selftest.mjs
+        # BARE `node`, not `nix develop`, and that is this job's documented
+        # choice rather than an oversight: `deploy-gates` runs on
+        # `ubuntu-latest` with `setup-node@v4` because "a gate that needs the
+        # busy Nix runner to prove it can fail is a gate that gets skipped"
+        # (see the `node-version` comment above). The first version of this step
+        # copied `nix develop .#ci --command` from a self-hosted job and died
+        # with `nix: command not found`, exit 127.
+        #
+        # Nothing here needs the shell: the selftest spawns `process.execPath`
+        # and writes synthetic trees into a temp directory. Node's stdlib and
+        # nothing else.
+        run: node tools/deploy/check-design-parity-selftest.mjs
 
   contract:
     runs-on: [self-hosted, linux, x64]
