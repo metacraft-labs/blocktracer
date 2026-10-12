@@ -539,7 +539,33 @@
         "roots": {"required": false, "access": "optional", "holds": "republished under `native.replay`"},
         "rootsAnyAgree": {"required": false, "access": "optional", "holds": "republished under `native.replay`"},
         "refusal": {"required": false, "access": "optional",
-                    "holds": "the runtime error class behind a `refused` row, kept as evidence in the published summary"}
+                    "holds": "the runtime error class behind a `refused` row, kept as evidence in the published summary"},
+        "roles": {"required": false, "access": "optional",
+                  "holds": "who this chain says acted, as §2.3's role list. An entry stating no role or no address is DROPPED rather than published — a role with an empty address renders as a link to nowhere, where no role renders the honest em dash — and a chain whose actors a capture cannot name publishes none"},
+        "payload": {"required": false, "access": "optional",
+                    "holds": "what was called: `raw`, `selector`, `target`. Absence publishes three empty strings and the explorer's `To / target` and `Method` cells keep the em dash. The reader supplies NO selector of its own: a truncated or padded short calldata would be a method call that never happened"}
+      }
+    },
+
+    "snapshot.transactions[].roles[]": {
+      "section": "§5.2",
+      "members": {
+        "role": {"required": false, "access": "optional",
+                 "holds": "which role this is — `sender`, `signer`, `feePayer`, `initiator`. The reader names none on a producer's behalf and the explorer's `From` column takes the first of the four it recognises, so a chain with a distinct payer states both and they cannot be collapsed"},
+        "address": {"required": false, "access": "optional",
+                    "holds": "the account that filled the role. An entry stating neither member is dropped rather than published: the honest rendering of a role nobody can name is the em dash the cell already has, not a link to nowhere"}
+      }
+    },
+
+    "snapshot.transactions[].payload": {
+      "section": "§5.2",
+      "members": {
+        "raw": {"required": false, "access": "optional",
+                "holds": "the call data verbatim, which the transaction page shows in its `Raw` row"},
+        "selector": {"required": false, "access": "optional",
+                     "holds": "the method selector the chain's calling convention puts at the head of the call data — the EVM's leading four bytes. Published as the bytes it is rather than resolved to a signature: an unresolved `0x23b872dd` says which method was called and an em dash says nothing, and resolving it needs an ABI registry no producer here reaches. A call data too short to carry one states NO selector, which is not a missing one"},
+        "target": {"required": false, "access": "optional",
+                   "holds": "what the transaction was aimed at. A contract CREATION has none, and the address that comes into existence is an output in the receipt rather than a target — publishing it here would be confident and wrong, so a creation states nothing"}
       }
     },
 
@@ -593,7 +619,9 @@
         "stepsPositioned": {"required": false, "access": "optional", "holds": "how many steps resolved to a source coordinate"},
         "stepsUnpositioned": {"required": false, "access": "optional", "holds": "how many did not"},
         "declaredRung": {"required": false, "access": "optional", "holds": "the rung the recording declared for itself"},
-        "contractRungs": {"required": false, "access": "optional", "holds": "the per-contract detail `sourceLevel` was computed from"}
+        "contractRungs": {"required": false, "access": "optional", "holds": "the per-contract detail `sourceLevel` was computed from"},
+        "varnames": {"required": false, "access": "optional",
+                     "holds": "how many variable names the container interns. ABSENT IS NOT ZERO: a capture written before this member states no figure at all, and the Values pane has to keep \"this tree does not record how many\" apart from \"it interns none\" — the pane asserted the second for a container that interns two"}
       }
     },
 
