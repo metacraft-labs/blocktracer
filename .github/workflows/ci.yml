@@ -1012,6 +1012,33 @@ jobs:
           node tools/chain/chain-health.mjs --corpus --quiet \
             --expect tools/chain/measurements/chain-health.json > /dev/null
 
+      # DOES THE DESIGN-PARITY CHECK DECIDE? Eleven arms, each a synthetic
+      # published tree in a temp directory with ONE defect in it, every defect
+      # one measured on live blocktracer.org on 2026-10-12. It needs no network
+      # — `--dir` and `--origin` share every assertion and differ only in how a
+      # path is fetched — which is why it belongs here rather than in a job that
+      # reaches an origin.
+      #
+      # THE CHECK ITSELF IS NOT RUN AGAINST AN ORIGIN HERE, deliberately. Its
+      # subject is what a HOST SERVES, and CI has no published tree of this
+      # commit to point it at; the place for that is after a deploy or a
+      # publish, against the origin that just received one. What this job can
+      # assert is that the instrument works, and a gate whose instrument is
+      # unproven is the shape this repository has been bitten by most.
+      - name: Does the design-parity check decide?
+        # BARE `node`, not `nix develop`, and that is this job's documented
+        # choice rather than an oversight: `deploy-gates` runs on
+        # `ubuntu-latest` with `setup-node@v4` because "a gate that needs the
+        # busy Nix runner to prove it can fail is a gate that gets skipped"
+        # (see the `node-version` comment above). The first version of this step
+        # copied `nix develop .#ci --command` from a self-hosted job and died
+        # with `nix: command not found`, exit 127.
+        #
+        # Nothing here needs the shell: the selftest spawns `process.execPath`
+        # and writes synthetic trees into a temp directory. Node's stdlib and
+        # nothing else.
+        run: node tools/deploy/check-design-parity-selftest.mjs
+
   contract:
     runs-on: [self-hosted, linux, x64]
     steps:
