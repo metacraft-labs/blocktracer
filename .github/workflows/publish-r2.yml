@@ -98,17 +98,22 @@ on:
           has always had — but measured 2026-10-10, it is the wrong default for
           production: the live bucket serves `aztec`, `aztec-testnet` and
           `aztec-testnet-frames` and NO demo, while this build's demo chain
-          carries 15 container-version-5 traces. Keep it OFF for a parity
-          publish — but note WHY, because half of the original reason expired
-          on 2026-10-12. It no longer holds that the engine cannot open them:
-          the pin moved to `9f332ae0ddfabe6b…`, container {5,6} with all four
-          CCP-5 loader strings present, so those 15 are now the only part of
-          this corpus it CAN open (the 42 chain recordings are container 3 /
-          `meta.dat` 3). What still argues for OFF is a product decision, not a
-          format one: the live bucket serves no `demo` chain, so turning this
-          on ADDS a chain rather than refreshing one. See
-          `client/hydrate/engine-pin.txt`'s 2026-10-12 section for the
-          readings.
+          carries 15 container-version-5 traces. OFF sets `-d:noDemoChain`,
+          which skips the INGEST — so the tree carries no demo data and no
+          registry row. That matters: dropping only the `chainOrigins` entry
+          leaves the registry row in place, and with `render-over-live` the
+          demo's data is then looked for on an origin that has none, which
+          RAISES `cannot open chain 'demo'` after every real chain has been
+          enumerated. This description used to say the demo was "therefore not
+          rendered"; that was the intention, not the behaviour.
+          WHY OFF FOR A PARITY PUBLISH, since half of the original reason
+          expired on 2026-10-12: it no longer holds that the engine cannot open
+          those 15. The pin moved to `9f332ae0ddfabe6b…`, container {5,6} with
+          all four CCP-5 loader strings present, and that engine has been
+          watched opening a compact container. What still argues for OFF is a
+          product decision rather than a format one: the live bucket serves no
+          `demo` chain, so turning this on ADDS a chain rather than refreshing
+          one. See `client/hydrate/engine-pin.txt`'s 2026-10-12 section.
         type: boolean
         default: true
       render-over-live:
@@ -330,19 +335,47 @@ jobs:
           INCLUDE_DEMO_CHAIN: ${{ inputs.include-demo-chain }}
         run: |
           set -euo pipefail
-          # ONE FLAG, DECIDED HERE SO THE INVOCATION BELOW STAYS ONE LINE PER
-          # SWITCH. Empty rather than absent: `$DEMO_ORIGIN_FLAG` unquoted on
-          # the command line disappears when empty, which is what we want, and
-          # `set -u` would refuse an undefined one — so it is always assigned.
+          # TWO FLAGS, BECAUSE ONE WAS NOT ENOUGH AND THE SHORTFALL WAS A CRASH.
+          #
+          # `-d:chainOrigins=demo=dist` points the demo chain at this build's own
+          # tree. Dropping it does NOT hold the demo back: step 1's ingest writes
+          # `dist/d/demo/**` and the REGISTRY row regardless, and `chains(r)` is
+          # read from the application origin — the tree — never from the data
+          # origin (`reader.nim`: "The registry is the environment's own
+          # statement of what it publishes"). So the demo stays enumerated, its
+          # data is looked for on the LIVE origin, production carries no demo,
+          # and `chainInfo` RAISES.
+          #
+          # Reproduced rather than reasoned, in seconds, against a two-tree
+          # fixture — a `-d:noDemoChain` export as the stand-in live origin and
+          # an ordinary export rendered over it:
+          #
+          #     … aztec-testnet-frames routes so far: 234  (0s elapsed)
+          #     reader.nim(654)          chainInfo
+          #     Error: unhandled exception: cannot open chain 'demo':
+          #            no d/demo/current.json in local:…/a/dist
+          #
+          # NOTE WHERE IT RAISES — after every real chain, because `demo` sorts
+          # last. That is why run 38270630793 spent 106 minutes enumerating and
+          # died to its ceiling without ever reporting this: the crash was still
+          # ahead of it. A production-sized run would burn hours and then hit it.
+          #
+          # `-d:noDemoChain` is the switch that actually holds the demo back; it
+          # gates the ingest itself (`static_export.nim`'s
+          # `when not defined(noDemoChain)`), so there is no registry row to
+          # enumerate and nothing to resolve. The old text claimed the demo was
+          # "therefore not rendered", which was the intended behaviour and not
+          # the behaviour.
           if [ "$INCLUDE_DEMO_CHAIN" = "true" ]; then
             DEMO_ORIGIN_FLAG='-d:chainOrigins=demo=dist'
+            DEMO_INGEST_FLAG=''
             echo "demo chain: INCLUDED (-d:chainOrigins=demo=dist)"
           else
             DEMO_ORIGIN_FLAG=''
-            echo "demo chain: HELD BACK — no chainOrigins entry, so the demo" \
-                 "chain inherits the live data origin, which does not carry it," \
-                 "and is therefore not rendered. This is the correct setting" \
-                 "while the published engine cannot open container version 5."
+            DEMO_INGEST_FLAG='-d:noDemoChain'
+            echo "demo chain: HELD BACK (-d:noDemoChain) — the ingest is skipped," \
+                 "so the tree carries no demo data and no registry row, and" \
+                 "nothing enumerates a chain the live origin cannot resolve."
           fi
           if [ "$RENDER_OVER_LIVE" = "true" ]; then
             LIVE_ORIGIN="${LIVE_ORIGIN:?render-over-live needs the staging step above to have run}"
@@ -370,6 +403,7 @@ jobs:
                 -d:settingsBundle=/assets/settings.js \
                 -d:dataOrigin="$LIVE_ORIGIN" \
                 $DEMO_ORIGIN_FLAG \
+                $DEMO_INGEST_FLAG \
                 src/static_export.nim
             )
             cp -rL client/dist site && chmod -R u+w site
