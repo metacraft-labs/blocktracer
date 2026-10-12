@@ -172,6 +172,100 @@
 #   DO NOT BUMP THE WASM BELOW ON ITS OWN. Bump it together with the publish
 #   that replaces the corpus, or not at all.
 #
+# ── 2026-10-12: THE RULE ABOVE WAS OBEYED UNTIL ITS THIRD OPTION STOPPED
+#    EXISTING. The pin moved; here is the measurement that forced it. ─────────
+#
+# The rule offers three courses: bump with the replacing publish, hold, or
+# nothing. "Hold" was the standing choice and it was the right one. It is no
+# longer available, because the publisher deleted the pinned bytes.
+#
+# Measured 2026-10-12 against https://web-codetracer.pages.dev:
+#
+#   assets/db_backend.67ef06608a96fda5.js       200   10514 bytes  text/html
+#   assets/db_backend_bg.842c7164dd667085.wasm  200   10514 bytes  text/html
+#
+# Both are the project's SPA entry document, served under those names by the
+# fallback this file's §"It does NOT return 404" already documents. Run with the
+# previous pin, `fetch-engine.sh` reaches its "the publisher has deployed a NEW
+# engine and this pin names bytes that are no longer served" arm and stages
+# nothing — verified by running it, with the new pin's successful fetch as the
+# control. So holding the pin does not hold replay; it holds the DEPLOY, which
+# has been failing at "Vendor the replay engine into the publish dir" since the
+# publisher's 2026-10-11 deploy rotated the names.
+#
+# AND THE THING THE RULE WAS PROTECTING IS NOT CURRENTLY DEPLOYED. Measured the
+# same day against live blocktracer.org:
+#
+#   /pkg/db_backend_bg.wasm   404   (27,150-byte error document)
+#   /worker.js                404
+#   /pkg/db_backend.js        404
+#   /assets/hydrate.js        404
+#   a transaction page        7,942 bytes, ZERO <script> tags
+#
+# Production serves no engine, no hydration bundle and no container paths, so it
+# has no interactive replay for a re-pin to take away. The 288,095-page figure
+# above is a count of PAGES, which is right, and was read as a count of pages
+# with working replay, which it is not. `blocktracer-dev.pages.dev` is where
+# both exist: its transaction page is 111,362 bytes with two scripts, and it
+# serves `/t/vl/3h/vl3h7u4w62wz3p4c44gpikxtbt/trace.ct` — fetched and read,
+# container version 3 with `meta.dat` version 3, exactly as the bullets above
+# say.
+#
+# SO THE COST OF THIS RE-PIN IS REAL AND IT IS ON DEV, NOT ON PRODUCTION: until
+# the corpus is replaced, dev's interactive replay goes dark. It was going dark
+# on dev's next deploy either way, because the bytes it would vendor are gone.
+#
+# WHAT THE NEW PIN BUYS, which is the other half of the coupling this section
+# describes. `9f332ae0ddfabe6b…` is the FIRST published engine carrying CCP-5's
+# compact loader. Probed on its own bytes with `grep -a` (never `-I`), using the
+# needle table `CTFS-Compact-Profile.milestones.org` CCP-6 finding 1 wrote for
+# the previous engine, so the two readings are comparable line by line:
+#
+#   needle                                      842c7164  9f332ae0  role
+#   InMemoryBlockSource                                1         2  positive control
+#   bad magic bytes                                    2         2  positive control
+#   a compact container must be loaded whole           0         1  CCP-5 loader
+#   known profiles: 0 = full, 1 = compact              0         1  CCP-5 loader
+#   known schemes: 0 = none, 1 = zstd                  0         1  CCP-5 loader
+#   unsupported CTFS container                         0         1  CCP-5 Unimplemented
+#   zzz-no-such-needle-zzz                             0         0  negative control
+#
+# PROVENANCE OF THE TWO COLUMNS, because they were not taken the same way. The
+# `9f332ae0` column was measured here, on the fetched asset. The `842c7164`
+# column is QUOTED from CCP-6 finding 1 and cannot be re-measured: those bytes
+# are no longer served under any name, which is the whole reason this section
+# exists. Treat it as a citation, not as a reading.
+#
+# One needle moved the other way and it is not a probe failure: `unsupported
+# CTFS version` was 1 and is now 0, because the v6 rewrite reworded it to "this
+# reader reads versions …" (present, 1). The two controls that are present in
+# both carry the "the probe can find reader strings" burden, which is what they
+# are for.
+#
+# The new engine's gates, read from `codetracer` `cloud` at `571c64cc` — the
+# revision whose deploy published this asset: container `{5, 6}`
+# (`ctfs_container.rs`, `CTFS_VERSION = 5`, `CTFS_VERSION_V6 = 6`) and
+# `meta.dat` `[6]` ONLY (`ctfs_trace_reader/meta_dat.rs`,
+# `SUPPORTED_VERSIONS = &[META_DAT_VERSION]`, `META_DAT_VERSION = 6`). Against
+# the corpus committed here, byte-read rather than inferred — 52 containers plus
+# three ASCII placeholders:
+#
+#   42 containers  version 3 / meta.dat 3   REFUSED on both axes
+#   10 containers  version 5 / meta.dat 6   ACCEPTED, and compact-repackable
+#
+# The ten are `fixtures/trace/tour/*` and `fixtures/trace/noir_space_ship`. The
+# forty-two are the chain recordings, and they are the corpus the replacing
+# publish has to produce.
+#
+# ONE MORE AXIS TO WATCH, because it is already ahead of the engine:
+# `codetracer-trace-format-nim` `agents` writes `MetaDatVersion = 7` (landed
+# 2026-10-12; v7 is v6's header and body with ten new `EventLogKind` values, and
+# the version moved so a v6 reader refuses at open rather than at the first new
+# event). `codetracer` `agents` reads 7; `cloud` and `dev` read 6. So a corpus
+# written with today's Nim writer would be refused by TODAY'S deployed engine.
+# The replacing publish must pick one pair and name it — it is not enough to
+# take "the latest" of each repository.
+#
 # Consequently the producer-pin bump in `aztec-avm-runtime` is NOT on this path.
 # It would be needed to re-record into the newest full profile, which is the
 # thing nobody is going to do. It is left recorded here only so the next reader
@@ -300,11 +394,11 @@
 # ── Provenance ─────────────────────────────────────────────────────────────
 #
 # origin       https://web-codetracer.pages.dev
-# measured     2026-09-16, against the production deployment of that day
+# measured     2026-10-12, against the production deployment of that day
 # descriptor   the hashed names are read from that deployment's own entry
 #              document, which is where `deploy-web-codetracer.yml` records
 #              them; they are not guessed from the hashes below.
 
 worker.js               worker.js                                   ad2e6ce0ac902ba18d0d208a56900f29f4c6c46986017d92d22ed2f42806e01d  12180     mutable
-pkg/db_backend.js       assets/db_backend.67ef06608a96fda5.js       67ef06608a96fda55711f99158ba3f65a4768b65f1171f04d6ddcb36f77d1419  18675     immutable
-pkg/db_backend_bg.wasm  assets/db_backend_bg.842c7164dd667085.wasm  842c7164dd667085719705b15488f7d5ced1302afde7a5146bc52d08c7634120  18096653  immutable
+pkg/db_backend.js       assets/db_backend.74a921132b77d2cd.js       74a921132b77d2cd96f1a935864f8a278cce3c574183d76b0a180cbed6e323e4  18675     immutable
+pkg/db_backend_bg.wasm  assets/db_backend_bg.9f332ae0ddfabe6b.wasm  9f332ae0ddfabe6b1b9224a3ce1fca3401cda2163cad291b553d3382d724921f  17821148  immutable

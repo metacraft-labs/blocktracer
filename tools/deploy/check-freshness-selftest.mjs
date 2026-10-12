@@ -524,19 +524,26 @@ for (const arm of arms) {
 //
 // `approxMegabytes` is reimplemented in JS because this file cannot run Nim,
 // and a mirror without a test is two implementations waiting to disagree.
-// These six numbers are real: the constant in replay_engine.nim as it now
-// stands (the pinned wasm, re-pinned 2026-09-16), the wasm pinned before that
-// until CodeTracer published `ed9aa650`, what that constant said before
-// `tools/deploy/engine-pin-selftest.mjs` reconciled it to the pin, the engine
-// blocktracer.org served on 2026-09-01, the engine web-codetracer published
-// that morning, and the older build the constant replaced.
+// These seven numbers are real: the constant in replay_engine.nim as it now
+// stands (the pinned wasm, re-pinned 2026-10-12 to the first published engine
+// carrying CCP-5's compact loader), the wasm pinned before that from
+// 2026-09-16, the one pinned until CodeTracer published `ed9aa650`, what that
+// constant said before `tools/deploy/engine-pin-selftest.mjs` reconciled it to
+// the pin, the engine blocktracer.org served on 2026-09-01, the engine
+// web-codetracer published that morning, and the older build it replaced.
+//
+// NOTE THE DIRECTION OF THE 2026-10-12 MOVE: the engine got SMALLER, 18,096,653
+// to 17,821,148. Every number here still renders "18 MB", so F5 is as blind to a
+// shrink as it was to a growth — which is the same point the paragraph below
+// makes, now with a reading on both sides of the constant.
 //
 // They all render "18 MB", which is the point twice over: it is why F5 stays
 // green across every engine this repository has ever shipped, and it is why F5
 // could never have caught the constant being wrong by 163,703 bytes. That is a
 // different claim and it has its own gate now.
 const mirror = [
-  [18_096_653, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm"],
+  [17_821_148, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm"],
+  [18_096_653, "18 MB", "the wasm pinned from 2026-09-16 until the CCP-5 re-pin"],
   [18_117_658, "18 MB", "the wasm pinned until CodeTracer published ed9aa650"],
   [18_281_361, "18 MB", "what that constant said before the pin reconciled it"],
   [18_284_951, "18 MB", "the engine blocktracer.org served on 2026-09-01"],

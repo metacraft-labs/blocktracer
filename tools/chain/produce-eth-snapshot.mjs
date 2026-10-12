@@ -55,15 +55,26 @@
 // ── THE SEQUENCING FACT THIS TOOL SURFACES RATHER THAN HIDES ──────────────────────────
 //
 // The container this producer consumes is container version 5 with `meta.dat` schema 6.
-// The replay engine BlockTracer ships to visitors is pinned at `db_backend_bg.wasm` sha256
-// `842c7164…`, and `tools/chain/health-checks.json` records that engine as accepting
-// `meta.dat` schema 3 — measured on the pinned blob's own bytes, not transcribed. So a
-// published Ethereum page RENDERS (the pages are static HTML) and its interactive replay
-// REFUSES. That is the same disjointness the Aztec corpus has, arriving from the opposite
-// side: Aztec's containers are too OLD for current readers and these are too NEW for the
-// shipped engine. `client/hydrate/engine-pin.txt` carries the safety rule — do not bump
-// that pin on its own — and this tool therefore prints the skew as a measured property of
-// its own output rather than treating it as a failure or omitting it. `--no-skew-note`
+//
+// RESOLVED FOR THIS PRODUCER ON 2026-10-12, AND THE OLD READING IS KEPT BECAUSE THE SKEW
+// MOVED RATHER THAN VANISHED. The engine pin is now `9f332ae0…`, which accepts container
+// {5, 6} and `meta.dat` 6 only — exactly what this tool emits. So an Ethereum page
+// published from this producer now RENDERS AND REPLAYS, and the skew note below has
+// nothing to report about it.
+//
+// What it said, and what is still true of the OTHER corpus: the engine was pinned at
+// `842c7164…`, which `tools/chain/health-checks.json` recorded as accepting `meta.dat`
+// schema 3 — measured on the pinned blob's own bytes, not transcribed. A published
+// Ethereum page RENDERED and its interactive replay REFUSED, because these containers
+// were too NEW for the shipped engine while Aztec's were too OLD for current readers.
+// The re-pin crossed that gap in one direction: the 10 container-5 recordings (these, and
+// the demo chain's tour corpus) are now readable, and the 42 container-3 Aztec chain
+// recordings are now the refused ones. `client/hydrate/engine-pin.txt`'s 2026-10-12
+// section carries both readings and the reason the safety rule it used to state — do not
+// bump that pin on its own — stopped being available.
+//
+// The print stays, because the skew is a real property of the published tree whenever the
+// two sides disagree, and it will be again on the next format move. `--no-skew-note`
 // silences the print and changes nothing about the tree.
 //
 // ── NO MOCKS ──────────────────────────────────────────────────────────────────────────

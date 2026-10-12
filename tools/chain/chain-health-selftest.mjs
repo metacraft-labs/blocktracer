@@ -788,6 +788,10 @@ console.error('\n§8 — the container opens, or it does not, and the reader is 
     + 'cannot be read.\\n"); process.exit(1);\n');
   const REFUSES_V3 = refusesAt(3);
   const REFUSES_V4 = refusesAt(4);
+  // v6 discriminates the pair the other way round since the 2026-10-12 engine re-pin: the
+  // shipped engine accepts 6 and the pinned reader does not. See the rewritten
+  // H-CONTAINER-SCHEMA-SKEW block below for why the discriminator had to move.
+  const REFUSES_V6 = refusesAt(6);
   // A refusal that names NO version — the shape the conformance template's ASCII placeholders
   // produce ("not a recognised .ct file"), which is a different measurement from v3.
   const REFUSES_NAMELESS = stub(
@@ -900,28 +904,55 @@ console.error('\n§8 — the container opens, or it does not, and the reader is 
 
   const skewOf = (rep) => rep.findings.filter((f) => f.check === 'H-CONTAINER-SCHEMA-SKEW')
     .map((f) => `${f.consumer}@v${f.declaredSchemaVersion}`).sort();
-  const s3 = skewOf(m3Rep);
-  bite('mutation: a container declaring v3 skews the PINNED READER, which accepts [4, 5]',
-       s3.includes('pinned-reader@v3'));
-  bite('mutation: …and does NOT skew the shipped engine, which accepts [3] — so the two arms '
-     + 'are not one finding wearing two names', !s3.includes('shipped-engine@v3'));
+  const skewFor = (rep, consumer) => rep.findings.find(
+    (x) => x.check === 'H-CONTAINER-SCHEMA-SKEW' && x.consumer === consumer);
+
+  // WHICH VERSION SEPARATES THE TWO CONSUMERS IS A PROPERTY OF THE REGISTRY, NOT A CONSTANT.
+  // This block used to pick v3 and v4. The 2026-10-12 engine re-pin moved `shipped-engine`
+  // from `accepts: [3]` to `accepts: [6]`, and v3 stopped separating anything — BOTH readers
+  // refuse it now. The pair is therefore v4 and v6, and the arm that would have gone green on
+  // a stale discriminator is replaced rather than relaxed. Asserted from the registry below
+  // so the next set change fails here with the reason rather than passing vacuously.
+  const PINNED = CONS.find((c) => c.id === 'pinned-reader');
+  const SHIPPED = CONS.find((c) => c.id === 'shipped-engine');
+  ck('the version each arm below picks really does separate the two consumers, read from the '
+     + `registry rather than assumed — pinned-reader ${JSON.stringify(PINNED.accepts)}, `
+     + `shipped-engine ${JSON.stringify(SHIPPED.accepts)}`,
+     PINNED.accepts.includes(4) && !SHIPPED.accepts.includes(4)
+     && SHIPPED.accepts.includes(6) && !PINNED.accepts.includes(6));
+
   const m4Rep = JSON.parse(run([dir, '--container-reader', REFUSES_V4, '--quiet']).out);
   const s4 = skewOf(m4Rep);
-  bite('mutation: the SAME tree declaring v4 instead skews the shipped engine',
+  bite('mutation: a container declaring v4 skews the SHIPPED ENGINE, which does not accept 4',
        s4.includes('shipped-engine@v4'));
-  bite('mutation: …and no longer skews the pinned reader — the pair moves in opposite '
+  bite('mutation: …and does NOT skew the pinned reader, which does — so the two arms are not '
+     + 'one finding wearing two names', !s4.includes('pinned-reader@v4'));
+  const m6Rep = JSON.parse(run([dir, '--container-reader', REFUSES_V6, '--quiet']).out);
+  const s6 = skewOf(m6Rep);
+  bite('mutation: the SAME tree declaring v6 instead skews the pinned reader',
+       s6.includes('pinned-reader@v6'));
+  bite('mutation: …and no longer skews the shipped engine — the pair moves in opposite '
      + 'directions, which one combined verdict could not report',
-       !s4.includes('pinned-reader@v4'));
-  const f4 = m4Rep.findings.find((x) => x.check === 'H-CONTAINER-SCHEMA-SKEW');
+       !s6.includes('shipped-engine@v6'));
+
+  // AND THE VERSION BOTH REFUSE SKEWS BOTH, which is what the published corpus now is: the
+  // 42 container-3 chain recordings are outside [4, 5] and outside [6] alike. Before the
+  // re-pin no version had this property, so the arm could not have been written.
+  const s3 = skewOf(m3Rep);
+  bite('mutation: a container declaring v3 — the published corpus\'s own version — skews BOTH '
+     + 'consumers, because neither accepted set contains it',
+       s3.includes('pinned-reader@v3') && s3.includes('shipped-engine@v3'));
+
+  const f4 = skewFor(m4Rep, 'shipped-engine');
   bite('mutation: …and the skew finding names the consumer, its accepted set, the count of '
      + 'containers and the constant the set was read from',
        f4.consumer === 'shipped-engine' && f4.containers === 1
-       && JSON.stringify(f4.accepts) === JSON.stringify([3])
+       && JSON.stringify(f4.accepts) === JSON.stringify(SHIPPED.accepts)
        && /SUPPORTED_VERSIONS/.test(f4.statedBy) && f4.readFrom.revision.length > 6);
   bite('mutation: …and says whether that consumer refuses the version BY NAME or will attempt '
      + 'the decode, because those are different outcomes for an operator',
        /does NOT refuse 4 by name, so it will attempt the decode/.test(f4.says));
-  const f3s = m3Rep.findings.find((x) => x.check === 'H-CONTAINER-SCHEMA-SKEW');
+  const f3s = skewFor(m3Rep, 'pinned-reader');
   bite('mutation: …and the by-name case says so instead', f3s.refusesByName === true
        && /refuses 3 BY NAME, so it will decline rather than mis-read/.test(f3s.says));
 
@@ -1937,22 +1968,22 @@ console.error('');
 // So the figure is declared in three parts, and the total checked is the one for the
 // configuration that actually ran:
 //
-//   BASE_ARMS                              runs on every host      219
-//   + READER_ARMS         where `ct-print` IS present               31   → 250
-//   + NO_READER_ARMS      where it is NOT                            3   → 222
+//   BASE_ARMS                              runs on every host      221
+//   + READER_ARMS         where `ct-print` IS present               31   → 252
+//   + NO_READER_ARMS      where it is NOT                            3   → 224
 //
 // BASE_ARMS is the one the `chain-selftest` header, the recipe body and the CI step comments
 // cross-check, and it is now host-independent for real rather than by assertion. It is declared
 // ONCE, as the constant below: `refusal-selftest.mjs` reads that declaration out of this file's
 // source and requires the Justfile header's term and the CI step's numeral to equal it, so a
-// second copy of 219 in this file would be a copy that can go stale.
+// second copy of 221 in this file would be a copy that can go stale.
 //
 // A SHRINK IS CAUGHT IN EITHER CONFIGURATION, which is the whole point: whichever host this runs
 // on, the base is checked exactly and that configuration's own block is checked exactly. Neither
 // figure is a floor and neither is skipped when the reader is missing. The counter belonging to
 // the configuration that did NOT run must be zero — an arm that drifted from one block into the
 // other would otherwise be subtracted from one exact figure and added to an unchecked one.
-const BASE_ARMS = 219;
+const BASE_ARMS = 221;
 const READER_ARMS = 31;
 const NO_READER_ARMS = 3;
 const CONFIG_ARMS = HAVE_REAL_READER ? READER_ARMS : NO_READER_ARMS;
