@@ -471,9 +471,46 @@ suite "2 — past the retention horizon, and saying so":
     # Both of them used to. `availabilityNote` said "there is no call structure
     # to trace" and the section stubs said "This execution publishes no call
     # structure" — true of an Aztec private execution, false of this one.
-    check "no call structure" notin availabilityNote(taAbsent)
+    # ASSERTED FOR EVERY ABSENCE KIND, not just the unworded one. The sentence
+    # now has three branches (`viewutil.AbsenceKind`) and the property under
+    # test — the generic line names no CAUSE — has to hold in all of them, or a
+    # branch added later could reintroduce exactly the claim this arm removed.
+    for rr in ["", "not-attempted", "not-first-in-block", "no-such-member"]:
+      check "no call structure" notin availabilityNote(taAbsent, rr)
     check "publishes no call structure" notin markup(body)
-    check "permanent answer rather than a failed fetch" in body
+    # ── AND IT NO LONGER ASSERTS PERMANENCE ON THIS ROW, WHICH THIS ARM USED
+    #    TO REQUIRE OF IT ───────────────────────────────────────────────────
+    #
+    # This line read `check "permanent answer rather than a failed fetch" in
+    # body` and it was pinning the defect. THIS transaction's published member
+    # is `not-attempted`, which `refusal-reasons.json` classifies REPAIRABLE,
+    # and the producer's own sentence — asserted two arms above, verbatim —
+    # ends "nothing here says the transaction cannot be re-executed — it says
+    # this run did not try. Re-running this range with the body proxy asks."
+    # So the strongest claim on the page was contradicted by the only evidence
+    # the page offered for it, and this arm required that it be.
+    #
+    # `reviews/QUEUED-DECISIONS.md` Q10 is the decision, and
+    # `tools/capture/expectations.mjs` had already been corrected to demand the
+    # opposite — "Under a repairable member the honest claim is that no trace
+    # exists NOW and why, not that none can ever exist" — leaving this
+    # assertion as the one place in the repository still requiring the old
+    # wording. It is INVERTED rather than deleted, so the property stays
+    # gated in the direction that is now true.
+    check "permanent answer rather than a failed fetch" notin body
+    check "this is not a permanent answer" in body
+    # §14.1a cuts both ways, so the OTHER surface is pinned too: the trace-fed
+    # section stubs must not say "permanently" on a repairable row either.
+    # Fixing the hero alone left the page denying permanence in one paragraph
+    # and asserting it two sections below, on the same transaction.
+    check "empty permanently, not yet" notin body
+    check "empty for now and not permanently" in body
+    # AND THE PERMANENT CASE IS STILL REACHABLE, so neither check above is
+    # passing because the wording was simply removed from the product.
+    check "permanent answer rather than a failed fetch" in
+      availabilityNote(taAbsent, "not-first-in-block")
+    check "permanent answer rather than a failed fetch" in
+      availabilityNote(taAbsent, "")
 
   test "no trace is offered, and none is named":
     let m = markup(body)
@@ -4715,3 +4752,180 @@ suite "opcode names are selected by identity and still earned per recording":
     #   4 — the unknown-identity control (its loop asserts nothing when clean)
     #   9 — the unexplained-recording control
     expectCount(1 + 9 + 2 + 4 + 9)
+
+suite "17 — \"At tip\" is a measurement, not a badge colour":
+  asserted = 0
+  ## `summary.stale` decides `pages/chains.nim`'s freshness cell: false renders a
+  ## GREEN `At tip`, true an amber `Behind tip`. The reader wrote it as the
+  ## literal `false`, so every chain it has ever published claimed to be at the
+  ## tip whatever it held — and the claim was false the moment a capture that is
+  ## not a tip follower arrived. Measured on the Ethereum mainnet capture before
+  ## the fix: published head 26,083,328 against `window.tip` 26,147,203, so the
+  ## export was 63,875 blocks behind the tip the capture ITSELF observed, under a
+  ## green `At tip` two columns from "a preliminary export covering 29 September
+  ## 2026".
+  ##
+  ## The evidence was already in the published object — `node.tipAtCapture` sits
+  ## forty lines from the literal that denied it — which is why this is graded
+  ## here rather than queued: nothing had to be captured, only read.
+  ##
+  ## BOTH DIRECTIONS, over snapshots that differ in ONE fact. A one-sided arm
+  ## would have passed against the literal it replaces.
+
+  proc freshnessSnapshot(dir: string; tip, head: int): string =
+    ## A capture whose tallest published block is `head` and whose node reported
+    ## `tip`. `head == tip` is a tip follower; `head < tip` is behind.
+    let dest = dir / ("tip" & $tip & "-head" & $head)
+    createDir(dest / "ct")
+    var blocks = newJArray()
+    var txs = newJArray()
+    for n in countdown(head, head - 2):
+      let h = "0x" & align($n, 40, 'a')
+      blocks.add %*{"number": n, "hash": "0x" & align($n, 40, '0'),
+                    "timestamp": FixtureBlockTime + n * 36,
+                    "parentArchiveRoot": "0x" & repeat('3', 40),
+                    "transactions": %[h]}
+      txs.add %*{"txHash": h, "blockNumber": n, "txIndexInBlock": 0,
+                 "revertCode": 0, "transactionFee": "0x1",
+                 "bodyRetained": false, "effectVisible": true,
+                 "firstInBlock": true, "outcome": "pruned",
+                 "reason": "The node still serves this transaction's effects " &
+                           "but no longer serves its body.",
+                 "refusalReason": "not-attempted"}
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
+      "format": "blocktracer/chain-snapshot@2",
+      "provenance": {
+        "kind": "live-capture", "chain": "freshness",
+        "label": "Real freshness data", "endpoint": "https://node.example",
+        "capturedAt": "2026-08-31T16:51:38.480Z", "nodeVersion": "5.2.0",
+        "l1ChainId": 1, "runtimeCommit": "abc123def456"},
+      "window": {"tip": tip, "finalized": tip,
+                 "replayableFrom": 0, "replayableTo": tip, "blocks": tip},
+      "blocks": blocks, "transactions": txs}))
+    dest
+
+  proc staleOf(snapDir: string): bool =
+    let tree = snapDir / "tree"
+    createDir(tree)
+    discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: snapDir))
+    chainInfo(newDataRoot(tree), "freshness").stale
+
+  let fd = getTempDir() / ("bt-freshness-" & $getCurrentProcessId())
+  removeDir(fd); createDir(fd)
+
+  test "a capture whose head is the node's tip is at tip":
+    ck not staleOf(freshnessSnapshot(fd, tip = 500, head = 500))
+
+  test "…and one whose head is below the node's tip is NOT":
+    # The arm the literal could not express. One fact differs from the arm
+    # above — the tallest block published — and nothing else.
+    ck staleOf(freshnessSnapshot(fd, tip = 500, head = 437))
+
+  # WHAT THESE TWO ARMS DO NOT COVER, named rather than implied: that the flag
+  # reaches the badge. `test_chain_viewmodels`'s "the published stale flag is
+  # surfaced, not inferred" already holds that half — it sets `stale` on a built
+  # tree and reads the page — so these two hold the half nothing held, which is
+  # whether the reader computes it at all. Neither suite is sufficient alone and
+  # the pair is, which is why this says so instead of adding a third arm here
+  # that would re-measure the flag and call it the badge.
+
+  test "assertion count":
+    #   1 — a tip follower is at tip
+    #   1 — a capture below the tip is not
+    expectCount(1 + 1)
+
+suite "18 — who called what, from the snapshot to the row":
+  asserted = 0
+  ## `From`, `To / target` and `Method` are three of the shared transactions
+  ## table's eight columns, and they rendered the muted em dash on every row of
+  ## every real chain: `TransactionFacts.roles` was declared, passed and never
+  ## appended to, and the three payload members were empty string literals.
+  ## Measured on the exported Ethereum block before the fix: 624 em-dash cells,
+  ## 208 rows x 3 columns.
+  ##
+  ## `snapshot-contract-selftest` proves the reader CONSUMES the two members —
+  ## it compares the consumed census to §5 for equality in both directions — and
+  ## the conformance template proves a producer can write them. Neither proves
+  ## the values arrive at the row a visitor reads, which is where they were being
+  ## dropped, so that is what this grades.
+  ##
+  ## BOTH DIRECTIONS: a snapshot that states them, and one that does not. The
+  ## second arm is the one that keeps the dash honest — the members are optional,
+  ## the Aztec producers publish neither, and for a chain whose actors a capture
+  ## cannot name the em dash is the right cell rather than a gap.
+
+  proc rolesSnapshot(dir: string; withFacts: bool): string =
+    let dest = dir / (if withFacts: "stated" else: "silent")
+    createDir(dest / "ct")
+    let h = "0x" & repeat('c', 40)
+    var tx = %*{"txHash": h, "blockNumber": 900, "txIndexInBlock": 0,
+                "revertCode": 0, "transactionFee": "0x1",
+                "bodyRetained": false, "effectVisible": true,
+                "firstInBlock": true, "outcome": "pruned",
+                "reason": "The node still serves this transaction's effects " &
+                          "but no longer serves its body.",
+                "refusalReason": "not-attempted"}
+    if withFacts:
+      # THE EMPTY-ADDRESS ENTRY IS FIRST, AND THAT IS THE WHOLE ARM. `txRow`
+      # takes the FIRST role it recognises and stops, and `signer` is one of the
+      # four it recognises — so if the reader published this entry instead of
+      # dropping it, `From` would be the empty string and the column would be a
+      # link to nowhere. Put second it would be unreachable and the arm would
+      # pass whether the drop happened or not.
+      tx["roles"] = %[%*{"role": "signer", "address": ""},
+                      %*{"role": "sender", "address": "0x" & repeat('a', 40)}]
+      tx["payload"] = %*{"raw": "0xdeadbeef", "selector": "0xdeadbeef",
+                         "target": "0x" & repeat('b', 40)}
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
+      "format": "blocktracer/chain-snapshot@2",
+      "provenance": {
+        "kind": "live-capture", "chain": "roles", "label": "Real roles data",
+        "endpoint": "https://node.example",
+        "capturedAt": "2026-08-31T16:51:38.480Z", "nodeVersion": "5.2.0",
+        "l1ChainId": 1, "runtimeCommit": "abc123def456"},
+      "window": {"tip": 900, "finalized": 900,
+                 "replayableFrom": 0, "replayableTo": 900, "blocks": 900},
+      "blocks": %[%*{"number": 900, "hash": "0x" & align("900", 40, '0'),
+                     "timestamp": FixtureBlockTime,
+                     "parentArchiveRoot": "0x" & repeat('3', 40),
+                     "transactions": %[h]}],
+      "transactions": %[tx]}))
+    dest
+
+  proc rowOf(snapDir: string): TxRow =
+    let tree = snapDir / "tree"
+    createDir(tree)
+    discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: snapDir))
+    let r = newDataRoot(tree)
+    txRow(r, chainInfo(r, "roles"), "0x" & repeat('c', 40))
+
+  let rdir = getTempDir() / ("bt-roles-" & $getCurrentProcessId())
+  removeDir(rdir); createDir(rdir)
+
+  test "a snapshot that states them puts all three on the row":
+    let row = rowOf(rolesSnapshot(rdir, withFacts = true))
+    ck row.fromAddr == "0x" & repeat('a', 40)
+    ck row.toTarget == "0x" & repeat('b', 40)
+    ck row.methodSel == "0xdeadbeef"
+
+  test "…and the role with no address is dropped, not published empty":
+    # Asserted by what `From` IS rather than by counting roles: the dropped
+    # entry precedes the kept one and `txRow` stops at the first role it
+    # recognises, so a published empty address would be the answer here.
+    let row = rowOf(rolesSnapshot(rdir, withFacts = true))
+    ck row.fromAddr == "0x" & repeat('a', 40)
+
+  test "a snapshot that states neither keeps the honest em dash":
+    # The control, and the reason the arms above are not passing because the
+    # reader invents a default. Both members are optional to §5 and the Aztec
+    # producers write neither.
+    let row = rowOf(rolesSnapshot(rdir, withFacts = false))
+    ck row.fromAddr == ""
+    ck row.toTarget == ""
+    ck row.methodSel == ""
+
+  test "assertion count":
+    #   3 — the three columns, from a snapshot that states them
+    #   1 — the empty-address role is dropped
+    #   3 — and all three are empty when the snapshot states neither
+    expectCount(3 + 1 + 3)

@@ -6,6 +6,7 @@
 
 import std/[json, strutils]
 import blocktracer_client
+import blocktracer/chain/refusal_reasons
 import ./reader
 import ./debugger/session_view
 import ./components/provenance
@@ -80,12 +81,89 @@ proc outcomeClass*(o: OutcomeOverall): string =
 
 # ── trace availability ─────────────────────────────────────────────────────
 
-proc availabilityLabel*(a: TraceAvailability): string =
+type
+  AbsenceKind* = enum
+    ## WHY an `absent` execution has no trace, to the one level of detail every
+    ## surface that words the absence needs.
+    ##
+    ## ## The claim `absent` alone cannot support
+    ##
+    ## `TraceAvailability` has one member for "no trace can be had" and the
+    ## product has always worded it `Not observable`, with a note asserting "a
+    ## permanent answer rather than a failed fetch". Both are claims about
+    ## DURABILITY, and the enum cannot tell durability apart — `availabilityNote`'s
+    ## own docstring says so about the CAUSE and then asserts permanence anyway.
+    ##
+    ## `reviews/QUEUED-DECISIONS.md` Q10 holds the decision and recorded the page
+    ## defect as open and graded: "The page is currently presenting 'not now' as
+    ## 'not ever'. A reader told the answer is permanent may never return to a
+    ## page that will have a trace on it." `tools/capture/expectations.mjs`'s
+    ## `tx-detail--mainnet-zero-trace` item grades it and says it "must keep
+    ## failing until the page is fixed", over "a repairable member on 918 of the
+    ## 922 committed rows that carry one".
+    ##
+    ## ## Why (b) and not Q10's recommended (a)
+    ##
+    ## Q10 offered (a) stop asserting durability at all, (b) thread the
+    ## distinction through so the sentence is correct in both cases, (c) leave
+    ## it. It recommended (a) as the smallest change. This is (b), because (a)
+    ## removes the false sentence and leaves the BADGE — and the badge is the
+    ## part a visitor reads. Measured on the exported Ethereum block: 207 of 208
+    ## rows carried `Not observable`, every one of them a settled public
+    ## transaction whose body is sitting in the committed input set and which
+    ## this run simply did not attempt. `observable` asserts exactly what the
+    ## note was told to stop asserting, in one word, 207 times. Deleting the
+    ## sentence would have left the page saying the same untrue thing more
+    ## quietly.
+    ##
+    ## ## The axis is published, not invented here
+    ##
+    ## `tools/chain/refusal-reasons.json` classifies every member `permanent` or
+    ## `repairable` and `refusalReasonDurability` reads it. Nothing in this
+    ## module decides which cause is which; a member added there is classified
+    ## here with nobody copying anything.
+    akUnobservable  ## the chain never published it, or the obstacle is permanent
+    akNotAttempted  ## it could have been had; this run did not get it
+    akUnstated      ## a member this build does not recognise — claim nothing
+
+func absenceKind*(refusalReason: string): AbsenceKind =
+  ## Which of the three an `absent` execution is, from its published member.
+  ##
+  ## NO REASON AT ALL IS `akUnobservable`, and that is the case the old wording
+  ## was right about: `S5-REFUSALREASON-FORBIDDEN` forbids the member on a
+  ## chain-absent row, so an execution the chain never published — the Aztec
+  ## private half — arrives here with `""`, and for it "not observable" is
+  ## exactly true.
+  ##
+  ## AN UNRECOGNISED MEMBER CLAIMS NOTHING rather than defaulting to either
+  ## side. The SDK decodes this member as a plain string on purpose ("a client
+  ## that hard-failed on an id it did not recognise would make adding a member
+  ## to the registry a coordinated release"), so a tree written by a newer
+  ## producer can reach this function with an id the registry in this build does
+  ## not hold. Guessing `permanent` there would be the confident wrong answer;
+  ## guessing `repairable` would promise a trace nobody has evidence for.
+  if refusalReason.len == 0: return akUnobservable
+  case refusalReasonDurability(refusalReason)
+  of "permanent": akUnobservable
+  of "repairable": akNotAttempted
+  else: akUnstated
+
+proc availabilityLabel*(a: TraceAvailability; refusalReason: string): string =
+  ## `refusalReason` IS REQUIRED AND HAS NO DEFAULT, deliberately. A defaulted
+  ## parameter would let a call site keep the old answer by saying nothing,
+  ## which is how this claim survived being wrong on 918 of 922 rows: nothing
+  ## anywhere had to mention durability in order to assert it. With no default
+  ## the compiler names every surface that words an absence, and a new one
+  ## cannot be added without deciding.
   case a
   of taReady: "Debug"
   of taOnDemand: "Generate trace"
   of taUnsupported: "No recorder"
-  of taAbsent: "Not observable"
+  of taAbsent:
+    case absenceKind(refusalReason)
+    of akUnobservable: "Not observable"
+    of akNotAttempted: "Not traced yet"
+    of akUnstated: "No trace published"
   of taDivergent: "Debug (divergent)"
 
 proc availabilityClass*(a: TraceAvailability): string =
@@ -228,16 +306,24 @@ proc feeLabel*(cost: seq[Cost]): string =
   for c in cost: parts.add costLabel(c)
   parts.join(" · ")
 
-proc availabilityState*(a: TraceAvailability): string =
+proc availabilityState*(a: TraceAvailability; refusalReason: string): string =
   ## The badge beside the Debug action names the trace's STATE; the button
   ## names the ACTION. Previously the badge rendered the serialised enum
   ## (`onDemand`) — adapter vocabulary on an external-facing surface, and the
   ## same class of leak VD.1 removed from the deferred-section copy.
+  ##
+  ## This is the badge the explorer's table puts in its first column, so its
+  ## `absent` wording is the one a visitor reads once per row. See `AbsenceKind`
+  ## for why it is no longer one word for three states.
   case a
   of taReady: "Trace ready"
   of taOnDemand: "On demand"
   of taUnsupported: "No recorder"
-  of taAbsent: "Not observable"
+  of taAbsent:
+    case absenceKind(refusalReason)
+    of akUnobservable: "Not observable"
+    of akNotAttempted: "Not traced yet"
+    of akUnstated: "No trace published"
   of taDivergent: "Divergent"
 
 proc roleLabel*(role: string): string =
@@ -396,7 +482,7 @@ proc finalityClass*(finality: string): string =
   of "reorged", "orphaned": "bad"
   else: "muted"
 
-proc availabilityNote*(a: TraceAvailability): string =
+proc availabilityNote*(a: TraceAvailability; refusalReason: string): string =
   ## The one-line honest explanation the tx-detail hero shows beneath Debug.
   case a
   of taReady:
@@ -419,7 +505,30 @@ proc availabilityNote*(a: TraceAvailability): string =
     # trace can be had, and waiting will not help. The cause is published per
     # execution and rendered directly beneath this, which is where a claim
     # specific enough to be wrong belongs.
-    "No trace can be produced for this execution — a permanent answer rather than a failed fetch. The published reason states why."
+    #
+    # ── AND THE SENTENCE WAS DOING TO DURABILITY WHAT IT HAD STOPPED DOING TO
+    #    CAUSE ─────────────────────────────────────────────────────────────────
+    #
+    # "a permanent answer rather than a failed fetch" is a claim the enum cannot
+    # support, for exactly the reason the paragraph above gives about the cause:
+    # `absent` has more than one, and this line could not tell them apart. It
+    # went on asserting the strongest of them anyway. `QUEUED-DECISIONS.md` Q10
+    # names this line as where the fix goes and §14.1a as the rule it breaks:
+    # "'Not now' and 'not ever' are different states … presenting either as the
+    # other is the failure this table exists to prevent."
+    #
+    # The durability is now READ (`refusal-reasons.json` classifies each member)
+    # rather than assumed, so each branch below says only what its member
+    # supports. `akUnobservable` keeps the original sentence verbatim, because
+    # under a permanent member — or a chain-absent execution carrying no member
+    # at all — it was always the true one.
+    case absenceKind(refusalReason)
+    of akUnobservable:
+      "No trace can be produced for this execution — a permanent answer rather than a failed fetch. The published reason states why."
+    of akNotAttempted:
+      "No trace has been produced for this execution yet, and what stopped it is on our side rather than the chain's — so this is not a permanent answer. The published reason states what this run did not do."
+    of akUnstated:
+      "No trace is published for this execution. The published reason states why; this build does not recognise its id, so it makes no claim about whether one can be had."
   of taUnsupported:
     "No recorder exists for this VM yet, so no trace can be produced."
 
@@ -1219,6 +1328,12 @@ proc txExecutionRows*(v: TxView): seq[ExecutionRow] =
   for e in v.executions:
     result.add ExecutionRow(
       selector: (if e.selector.len > 0: e.selector else: "execution"),
-      availability: availabilityState(e.availability),
+      # PER EXECUTION, so each half of a split transaction is worded from its
+      # OWN member rather than from the row's collapsed one. This is the surface
+      # the distinction is most load-bearing on: an Aztec transaction whose
+      # private half the chain never published and whose public half this run
+      # did not attempt has two absent executions for two different reasons, and
+      # one word for both of them was the defect in miniature.
+      availability: availabilityState(e.availability, e.refusalReason),
       reason: e.reason,
       badge: availabilityClass(e.availability))
