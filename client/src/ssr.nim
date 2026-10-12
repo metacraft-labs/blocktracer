@@ -813,9 +813,33 @@ proc renderNotFound*(r: DataRoot): string =
 
 # ── route enumeration + dispatch ────────────────────────────────────────────
 
-proc staticRoutes*(r: DataRoot): seq[string] =
+type RouteProgress* = proc (what: string, done: int) {.closure, gcsafe, raises: [].}
+  ## Called while `staticRoutes` walks, so an enumeration over a production-sized
+  ## data plane can be watched instead of waited on. `what` names the phase and
+  ## `done` is the count reached; the callback decides whether to print.
+
+proc staticRoutes*(r: DataRoot, progress: RouteProgress = nil): seq[string] =
   ## Every clean-URL route the explorer renders from the data tree.
   ##
+  ## ## WHY THIS TAKES A PROGRESS CALLBACK
+  ##
+  ## Because it is the dominant cost of a production export and it was silent.
+  ## Measured on publish run 38270630793, rendering over the live data plane:
+  ## the compile took 119s, the ingest echoed its four chains, `resolveDataOrigins`
+  ## echoed its origins — and then the job printed nothing for 106 minutes and was
+  ## killed by the 360-minute ceiling. It had not reached the stylesheet write,
+  ## which is the line immediately after this call, so every one of those minutes
+  ## was spent HERE and nothing said so.
+  ##
+  ## The cost is structural rather than surprising: this walks two cursor lists
+  ## to exhaustion per chain, calls `readBlockDetail` once per block, and
+  ## `addressSegmentPaths` once per address. Over 496,899 staged objects that is
+  ## hundreds of thousands of reads and parses. A caller that knows the rate can
+  ## decide whether to wait; a caller watching silence cannot tell a long walk
+  ## from a hung one, which is the same defect the staging step above it had.
+  ##
+  ## The default is `nil`, so the server, the sitemap and every test are
+  ## unchanged — this adds no output anywhere that did not ask for it.
   ## Enumerated from the data rather than declared, which is what makes the
   ## route set and the page bodies the same source of truth: a block that is
   ## published gets a page, a page of a cursor walk exists exactly while the
@@ -862,9 +886,19 @@ proc staticRoutes*(r: DataRoot): seq[string] =
     # there. Fixing it here fixes all three at once, because all three read this
     # enumeration.
     let enc = info.session.identifierEncoding
-    for h in blockHashes(r, info):
+    let hashes = blockHashes(r, info)
+    if progress != nil: progress(chain & " blocks", hashes.len)
+    var blocksDone = 0
+    for h in hashes:
       result.add "/" & chain & "/block/" & identifierKeyForm(enc, KindBlock, h)
       let bd = readBlockDetail(r, info, h)
+      inc blocksDone
+      # Every 2,000 rather than every block: the callback is a print, and
+      # 288,000 lines is the shape of log this repository already refuses for
+      # `aws s3 sync`. 2,000 is frequent enough that a rate is readable within
+      # the first minute of a production walk.
+      if progress != nil and blocksDone mod 2_000 == 0:
+        progress(chain & " blocks walked", blocksDone)
       for txh in bd.transactions:
         let txh = identifierKeyForm(enc, KindTransaction, txh)
         result.add "/" & chain & "/tx/" & txh
@@ -874,7 +908,11 @@ proc staticRoutes*(r: DataRoot): seq[string] =
         # states this route renders — "the metadata, with the reason stated" —
         # and a 404 there would be a different, worse answer.
         result.add "/" & chain & "/tx/" & txh & "/debug"
-    for rawAddress in addressesInGeneration(r, info):
+    if progress != nil: progress(chain & " blocks walked", blocksDone)
+    let addresses = addressesInGeneration(r, info)
+    if progress != nil: progress(chain & " addresses", addresses.len)
+    var addrDone = 0
+    for rawAddress in addresses:
       # Key-formed for the reason above, and stated separately because the
       # address list has a second source: it is read from the generation root's
       # `addr` paths, whose file NAMES are already key forms, so today this is a
@@ -891,6 +929,12 @@ proc staticRoutes*(r: DataRoot): seq[string] =
       # exists to prevent.
       for i in 1 ..< listed.paths.len:
         result.add addressSegmentUrl(chain, address, segmentIdOf(listed.paths[i]))
+      inc addrDone
+      if progress != nil and addrDone mod 2_000 == 0:
+        progress(chain & " addresses walked", addrDone)
+    if progress != nil:
+      progress(chain & " addresses walked", addrDone)
+      progress(chain & " routes so far", result.len)
 
 proc sitemapRoutes*(r: DataRoot): seq[string] =
   ## The subset of `staticRoutes` that is submitted to search engines.

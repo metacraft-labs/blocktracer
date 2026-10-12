@@ -809,16 +809,56 @@ proc exportSite() =
   # did before the seam existed — see `resolveDataOrigins`, which echoes what it
   # resolved rather than leaving a reader to infer it from a flag.
   let root = resolveDataOrigins(newDataRoot(OutputDir))
-  let routes = staticRoutes(root)
-  # See `store.nim`'s `enableSingletonJsonCache`: an export is one moment, so the
-  # whole-chain singletons it re-reads per page may be parsed once. Worth ~23%
-  # and NOT a fix for the export's cost curve — see that proc's header.
+  # ── THE ENUMERATION IS THE LONG PART, AND IT USED TO BE SILENT ────────────
+  #
+  # Publish run 38270630793 rendered over the live data plane, printed the
+  # origins above, and then said nothing for 106 minutes before the job's
+  # ceiling killed it. It had not reached the stylesheet write below, which is
+  # the next thing that prints — so all 106 minutes were inside `staticRoutes`,
+  # and the log could not distinguish that from a hang.
+  #
+  # A rate, not a spinner. Each line carries the phase, the count and the
+  # elapsed seconds, so the first two lines of a production walk are enough to
+  # decide whether to wait — which is the whole difference between a long job
+  # and an unbounded one.
+  # ── THE CACHES GO ON BEFORE THE ENUMERATION, WHICH IS WHERE THEY WERE NOT ──
+  #
+  # All three of these used to be enabled AFTER `staticRoutes` returned, so the
+  # phase that makes them useful ran with none of them. Their own headers say
+  # what they are for and it is not only the render loop:
+  #
+  #   `enableSingletonJsonCache` — "the whole-chain singletons it re-reads per
+  #     page may be parsed once", keyed on paths containing `/g/`, ending
+  #     `/current.json`, or under `registry/`. The enumeration reads exactly
+  #     those: `chains`, `chainInfo`, and `blocksFrom`/`txsFrom` once per
+  #     cursor page, each walked TO EXHAUSTION.
+  #   `enableBlockRefMemo` — "the block list itself, once per generation rather
+  #     than once per page… this removes the [quadratic] ACROSS calls". The
+  #     cursor walk is the across-calls case, and it ran uncached.
+  #   `enableHeightIndexMemo` — "companion… same bound and same gate".
+  #
+  # Moving them earlier cannot change what is read: an export is one moment and
+  # the origin does not change under it, which is the premise the caches are
+  # built on. It also does NOT make the enumeration cheap — `readBlockDetail`
+  # is a per-block object and not a singleton, so one read per block stays one
+  # read per block, and that is the irreducible part.
+  #
+  # THE SIZE OF THE WIN IS NOT MEASURED HERE, deliberately rather than by
+  # omission: the claim is structural — caches designed for these reads were off
+  # during them — and the progress lines below are what will put a number on it,
+  # on a host with production's data plane rather than on a laptop.
   enableSingletonJsonCache()
-  # And the block list itself, once per generation rather than once per page —
-  # see `entities.nim`'s `enableBlockRefMemo`. The HashSet fix removed the
-  # quadratic INSIDE each call; this removes the one ACROSS calls.
   enableBlockRefMemo()
   enableHeightIndexMemo()
+  let enumStart = epochTime()
+  let routes = staticRoutes(root, proc (what: string, done: int) {.closure, gcsafe, raises: [].} =
+    try:
+      echo "  … " & what & ": " & $done & "  (" &
+        $int(epochTime() - enumStart) & "s elapsed)"
+    except CatchableError, Exception:
+      discard)
+  echo "  + routes enumerated: " & $routes.len & " in " &
+    $int(epochTime() - enumStart) & "s"
 
   # ── THE STYLESHEET AS ONE ASSET, NOT 288,046 COPIES ───────────────────────
   # See `layout.nim`'s `useExternalCss`. Content-addressed so the year-long
@@ -833,6 +873,12 @@ proc exportSite() =
     echo "  + stylesheet: /_a/" & cssName & " (" & $cssBytes.len &
       " bytes, once instead of per page)"
   var rendered = 0
+  # SAME REASONING AS THE ENUMERATION ABOVE: over a production data plane this
+  # loop is 288,000-odd renders and a write each, and its only output was the
+  # total at the end. Every 5,000 — a fifth of the enumeration's cadence,
+  # because a render is slower than a walk step and a line per 2,000 would be
+  # noisier without being more informative.
+  let renderStart = epochTime()
   for route in routes:
     let (status, body, _) = renderRoute(root, route)
     if status == 200:
@@ -840,6 +886,10 @@ proc exportSite() =
       inc rendered
     else:
       echo "  ! " & route & " (status " & $status & ")"
+    if rendered > 0 and rendered mod 5_000 == 0:
+      let secs = max(1, int(epochTime() - renderStart))
+      echo "  … rendered " & $rendered & " of " & $routes.len & "  (" & $secs &
+        "s elapsed, " & $(rendered div secs) & "/s)"
   echo "  + client views: " & $rendered &
     " pages (home, chains, chain, blocks, block, txs, tx, debug, address, code, search, about)"
 
