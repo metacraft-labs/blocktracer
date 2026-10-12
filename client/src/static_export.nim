@@ -821,6 +821,35 @@ proc exportSite() =
   # elapsed seconds, so the first two lines of a production walk are enough to
   # decide whether to wait — which is the whole difference between a long job
   # and an unbounded one.
+  # ── THE CACHES GO ON BEFORE THE ENUMERATION, WHICH IS WHERE THEY WERE NOT ──
+  #
+  # All three of these used to be enabled AFTER `staticRoutes` returned, so the
+  # phase that makes them useful ran with none of them. Their own headers say
+  # what they are for and it is not only the render loop:
+  #
+  #   `enableSingletonJsonCache` — "the whole-chain singletons it re-reads per
+  #     page may be parsed once", keyed on paths containing `/g/`, ending
+  #     `/current.json`, or under `registry/`. The enumeration reads exactly
+  #     those: `chains`, `chainInfo`, and `blocksFrom`/`txsFrom` once per
+  #     cursor page, each walked TO EXHAUSTION.
+  #   `enableBlockRefMemo` — "the block list itself, once per generation rather
+  #     than once per page… this removes the [quadratic] ACROSS calls". The
+  #     cursor walk is the across-calls case, and it ran uncached.
+  #   `enableHeightIndexMemo` — "companion… same bound and same gate".
+  #
+  # Moving them earlier cannot change what is read: an export is one moment and
+  # the origin does not change under it, which is the premise the caches are
+  # built on. It also does NOT make the enumeration cheap — `readBlockDetail`
+  # is a per-block object and not a singleton, so one read per block stays one
+  # read per block, and that is the irreducible part.
+  #
+  # THE SIZE OF THE WIN IS NOT MEASURED HERE, deliberately rather than by
+  # omission: the claim is structural — caches designed for these reads were off
+  # during them — and the progress lines below are what will put a number on it,
+  # on a host with production's data plane rather than on a laptop.
+  enableSingletonJsonCache()
+  enableBlockRefMemo()
+  enableHeightIndexMemo()
   let enumStart = epochTime()
   let routes = staticRoutes(root, proc (what: string, done: int) {.closure, gcsafe, raises: [].} =
     try:
@@ -830,15 +859,6 @@ proc exportSite() =
       discard)
   echo "  + routes enumerated: " & $routes.len & " in " &
     $int(epochTime() - enumStart) & "s"
-  # See `store.nim`'s `enableSingletonJsonCache`: an export is one moment, so the
-  # whole-chain singletons it re-reads per page may be parsed once. Worth ~23%
-  # and NOT a fix for the export's cost curve — see that proc's header.
-  enableSingletonJsonCache()
-  # And the block list itself, once per generation rather than once per page —
-  # see `entities.nim`'s `enableBlockRefMemo`. The HashSet fix removed the
-  # quadratic INSIDE each call; this removes the one ACROSS calls.
-  enableBlockRefMemo()
-  enableHeightIndexMemo()
 
   # ── THE STYLESHEET AS ONE ASSET, NOT 288,046 COPIES ───────────────────────
   # See `layout.nim`'s `useExternalCss`. Content-addressed so the year-long
