@@ -148,6 +148,14 @@ permissions:
 jobs:
   publish:
     runs-on: ${{ fromJSON(inputs.runner) }}
+    # NAMED RATHER THAN LEFT AT THE 360-MINUTE DEFAULT. render-over-live stages
+    # ~900,000 objects before it builds anything, and at the aws CLI's default
+    # concurrency the first run of it was still in that step at 80 minutes. A
+    # job that runs into the implicit ceiling is reported as `cancelled`, which
+    # is the label this fleet also uses for two unrelated failure modes — so
+    # the ceiling is declared here, where a reader of the log can see what was
+    # exceeded.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
 
@@ -202,16 +210,48 @@ jobs:
           # the log reads like a secrets failure and is not one. One `nix
           # develop` wraps the whole loop rather than each call, because
           # realising the shell is the expensive part.
+          # CONCURRENCY, BECAUSE THE DEFAULT IS TEN AND THIS IS ~900,000 SMALL
+          # OBJECTS. The local copy of this data plane holds 882,642 files in
+          # 14 GB — a mean under 17 KB — so the sync is latency-bound, not
+          # bandwidth-bound, and `max_concurrent_requests` is the only dial
+          # that matters. At the default 10 the first run of this step was
+          # still going after 80 minutes with no way to see whether it was
+          # progressing; that is what the per-prefix counts below are for.
+          export AWS_MAX_CONCURRENT_REQUESTS=64
+          export AWS_MAX_QUEUE_SIZE=10000
+          # A COUNT PER PREFIX, NOT ONE AT THE END. `--only-show-errors` is
+          # right — 900,000 "download:" lines is not a log — but it left the
+          # step silent for its whole duration, and a silent step is
+          # indistinguishable from a hung one. Each prefix now reports what it
+          # brought and how long it took, so the next reader can tell "slow"
+          # from "stuck" without waiting for the step to end.
           nix develop .#ci --command bash -euo pipefail -c '
             for prefix in d idx t src; do
               mkdir -p "$LIVE_ORIGIN/$prefix"
+              t0=$(date +%s)
               aws s3 sync "s3://$LIVE_BUCKET/$prefix" "$LIVE_ORIGIN/$prefix" \
                 --endpoint-url "$R2_ENDPOINT" --only-show-errors
+              n=$(find "$LIVE_ORIGIN/$prefix" -type f | wc -l)
+              echo "  $prefix/: $n object(s) in $(( $(date +%s) - t0 ))s"
             done
           '
           echo "LIVE_ORIGIN=$LIVE_ORIGIN" >> "$GITHUB_ENV"
-          echo "staged $(find "$LIVE_ORIGIN" -type f | wc -l) object(s) from" \
-               "s3://$LIVE_BUCKET/{d,idx,t,src}"
+          staged=$(find "$LIVE_ORIGIN" -type f | wc -l)
+          echo "staged $staged object(s) from s3://$LIVE_BUCKET/{d,idx,t,src}"
+          # AN EMPTY STAGE IS A REFUSAL. Every later step treats `$LIVE_ORIGIN`
+          # as production's data plane: `-d:dataOrigin` renders through it, the
+          # pointer pin reads `d/<chain>/current.json` out of it, and the
+          # index-shrink guard compares against its `idx/hash/meta.json`. With
+          # nothing staged all three would compare against absence — and the
+          # shrink guard, whose whole job is to refuse a smaller index, would
+          # have nothing to be smaller than.
+          if [ "$staged" -eq 0 ]; then
+            echo "::error::the live data plane staged ZERO objects. Every guard" \
+                 "below reads this directory, so they would all compare against" \
+                 "an empty tree and pass. Refusing. Check the bucket name" \
+                 "($LIVE_BUCKET), the endpoint, and that the token can LIST."
+            exit 1
+          fi
 
       # The full deployable tree is the flake PACKAGE, not `just export` —
       # deploy-cloudflare-pages.yml records why, and the same reasoning holds
