@@ -731,7 +731,7 @@ jobs:
         run: node tools/chain/snapshot-contract-selftest.mjs
 
       - name: Are the recordings a prepared tree publishes in a state worth publishing?
-        # 219 assertions. `chain-health.mjs` reports figures about trees that are
+        # 221 assertions. `chain-health.mjs` reports figures about trees that are
         # ALREADY conformant, so nothing else here can contradict it: there is no
         # second opinion on "1 of 45 traced rows declares source level" and no gate
         # that goes red when the number is wrong. That is the gap it fills and it is
@@ -1944,6 +1944,42 @@ jobs:
           # so one fetch now serves both the selftest's `client/dist` and the
           # verdict's `.journey-site`. It is fetched once because it is 18 MB.
           ./client/hydrate/fetch-engine.sh client/.replay-engine-cache
+
+      # WHICH CONTAINERS DOES THE ENGINE JUST STAGED ACTUALLY OPEN?
+      #
+      # Arm II of the journeys asks this in a real browser, over the worker
+      # protocol, one subject per recording KIND — and that arm stays the
+      # authority, because it proves the engine opens a recording the PRODUCT
+      # assembled. What its refusal does not print is WHICH containers, and on
+      # 2026-10-12 that cost an hour: the suite said "cannot open part of this
+      # corpus" and the per-subject lines were on run.mjs's stdout, which the
+      # selftest swallows.
+      #
+      # So this asks the cheap half: every committed container, in node, through
+      # `vfs_write_file` + `load_trace_from_vfs` — the same pair `worker.js`
+      # uses. It runs BEFORE the browser work, because when it is red the
+      # journeys below are going to refuse and this names the reason in one
+      # screen.
+      #
+      # The figures are ASSERTED, not printed. `--expect-opened 10
+      # --expect-refused 45` is today's engine against today's corpus; either
+      # number moving is a finding — a re-pin, a container re-encoded, or a
+      # corpus that gained or lost a recording — and the commit that changes a
+      # number has to say which.
+      #
+      # THE SELFTEST RUNS FIRST, HERE AND NOT IN `deploy-gates`, because this is
+      # the one job with an engine staged. Six of its ten arms need a verdict
+      # FROM the engine, and in `deploy-gates` they would report NOT MEASURED —
+      # honest, and not what you want standing behind two numbers in CI.
+      - name: Does engine-opens decide?
+        run: |
+          nix develop .#ci --command env ENGINE_DIR=client/.replay-engine-cache \
+            node tools/deploy/engine-opens-selftest.mjs
+      - name: Which containers does the pinned engine open?
+        run: |
+          nix develop .#ci --command node tools/deploy/engine-opens.mjs \
+            --engine client/.replay-engine-cache --corpus \
+            --expect-opened 10 --expect-refused 45
 
       # THE WORKING TREE IS NOT THE NIX BUILD, and the selftest below uses the
       # working tree.

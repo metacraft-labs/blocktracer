@@ -252,6 +252,21 @@
             # `decodeContainer` reports NOT MEASURED with the reason — so a host
             # without it degrades to a named gap and never to a silent pass.
             brotli
+            # `aws`, which the brotli entry above already says is declared here
+            # "the same way `aws` and `curl` above are" — and it WAS NOT. The
+            # sentence described an entry nobody had added, and the gap surfaced
+            # as `aws: command not found` with exit 127 in `publish-r2.yml`'s
+            # "Stage the live bucket's data plane" on run 38269686081, after
+            # four correct R2 credentials had already been handed to the step.
+            # A credential check that passes and then cannot run the tool is the
+            # worst-shaped failure available: it reads as a secrets problem.
+            #
+            # Two consumers, both subprocesses rather than SDK calls:
+            # `publish/objectstore.nim`'s `S3ObjectStore.putMany` (`aws s3 cp
+            # --recursive`, one call per Content-Encoding — see
+            # `contract/container_encoding.nim`) and `publish-r2.yml`'s own
+            # `aws s3 sync` of the live bucket's `d/ idx/ t/ src/` prefixes.
+            awscli2
           ] ++ lib.optionals stdenv.hostPlatform.isLinux [
             bubblewrap
           ]) ++ [ followerNodejs ];

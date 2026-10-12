@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# FOURTEEN suites — 98 + 19 + 24 + 24 + 57 + 233 + 33 + 162 + 53 + 118 + 219 + 83 + 6 + 30 = 1159 counted assertions —
+# FOURTEEN suites — 98 + 19 + 24 + 24 + 57 + 233 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 = 1161 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
