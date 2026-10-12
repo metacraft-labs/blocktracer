@@ -126,6 +126,15 @@ on:
           local fixture, which is this workflow's missing capability.
         type: boolean
         default: false
+      verify-origin:
+        description: >-
+          The PUBLIC origin the design-parity check reads after a real publish.
+          Not the bucket endpoint: the claim is about what a visitor receives,
+          and an origin's own 404 behaviour is part of that (Cloudflare Pages
+          answers 200 with the entry document for every unknown path, which is
+          the trap `client/hydrate/engine-pin.txt` documents twice).
+        type: string
+        default: 'https://blocktracer.org'
       runner:
         description: >-
           JSON array of capability labels, decoded with fromJSON at `runs-on`.
@@ -524,12 +533,21 @@ jobs:
       # finished until something reads the bucket back and checks IDENTITY, not
       # counts and not HTTP status.
       #
-      # THE VERIFIER IS NOT ON THIS BRANCH YET. It is PR #40
+      # THE VERIFIER IS ON THIS BRANCH NOW — the `::error::` arm below is the
+      # one this comment used to describe and is kept as the refusal it always
+      # was, not as a description of the present. PR #40
       # (`ci/test/verify-published-readonly.sh` over
-      # `src/blocktracer/verify/audit.nim`), read-only and safe to re-run. This
-      # step is written to use it the moment it lands and to say so loudly
-      # while it has not, rather than quietly publishing unverified — a step
-      # that skips in silence is how an unchecked publish becomes the norm.
+      # `src/blocktracer/verify/audit.nim`) MERGED, and the file is present on
+      # `agents`, `dev` and this branch — checked with `git cat-file -e` on each
+      # rather than on one. So the `if` takes its first arm, and the second
+      # exists for the world where somebody deletes the script.
+      #
+      # AND IT ANSWERS A DIFFERENT QUESTION FROM THE STEP AFTER IT. This one
+      # asks whether the DATA is there — identity by sampling and arithmetic.
+      # It says nothing about the design: a tree can hold every object this
+      # build published, with correct hashes, and serve a stylesheet carrying
+      # none of CodeTracer's panel rules. That was production's exact state on
+      # 2026-10-12, and no check in this workflow would have reported it.
       - name: Ask the bucket what it actually holds
         if: ${{ inputs.dry-run == false }}
         env:
@@ -550,3 +568,31 @@ jobs:
                  "report a publish as complete without it."
             exit 1
           fi
+
+      # AND DOES THE PUBLISHED TREE CARRY CODETRACER'S DESIGN?
+      #
+      # The step above asks whether the data is there. This asks whether what a
+      # VISITOR SEES is the IDE, and the two have been independent in exactly
+      # the direction that matters: measured on live blocktracer.org on
+      # 2026-10-12, every existence and freshness check passed over a
+      # stylesheet with ZERO `.component-container` rules, eight of twelve
+      # `url()`s relative and therefore 404, and transaction pages of 7,942
+      # bytes with no `<script>` at all. The design was a month old and nothing
+      # said so.
+      #
+      # The expected selectors are not listed here or in the checker: it reads
+      # the LIVE rows of `client/src/components/ct_css_reach.txt`, the port's
+      # own reachability register, so a newly ported component is covered by
+      # existing and a row removed from the register stops being demanded.
+      #
+      # IT RUNS AGAINST THE PUBLIC ORIGIN, NOT THE BUCKET ENDPOINT, because the
+      # claim is about what a visitor receives — including whether the origin's
+      # own 404 behaviour turns a missing asset into a 200. A failure here means
+      # the publish HAPPENED and the tree is wrong, which is a true and useful
+      # thing to be red about: the remedy is another publish, not a retry.
+      - name: Does the published tree carry CodeTracer's design?
+        if: ${{ inputs.dry-run == false }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command node tools/deploy/check-design-parity.mjs \
+            --origin "${{ inputs.verify-origin }}"
