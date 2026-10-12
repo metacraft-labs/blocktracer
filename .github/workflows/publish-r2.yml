@@ -186,13 +186,25 @@ jobs:
                  "nothing."
             exit 1
           fi
-          LIVE_ORIGIN="$RUNNER_TEMP/live-origin"
+          # EXPORTED, because the sync below runs in a child shell under `nix
+          # develop` and a non-exported value would arrive empty — which `aws
+          # s3 sync` would read as a relative destination and "succeed".
+          export LIVE_ORIGIN="$RUNNER_TEMP/live-origin"
           mkdir -p "$LIVE_ORIGIN"
-          for prefix in d idx t src; do
-            mkdir -p "$LIVE_ORIGIN/$prefix"
-            aws s3 sync "s3://$LIVE_BUCKET/$prefix" "$LIVE_ORIGIN/$prefix" \
-              --endpoint-url "$R2_ENDPOINT" --only-show-errors
-          done
+          # `aws` comes from `devShells.ci`, like every other tool this workflow
+          # runs. It used to be invoked bare, and on 2026-10-12 run 38269686081
+          # died here with `aws: command not found`, exit 127 — AFTER the
+          # credential check above had passed on four freshly-landed secrets, so
+          # the log reads like a secrets failure and is not one. One `nix
+          # develop` wraps the whole loop rather than each call, because
+          # realising the shell is the expensive part.
+          nix develop .#ci --command bash -euo pipefail -c '
+            for prefix in d idx t src; do
+              mkdir -p "$LIVE_ORIGIN/$prefix"
+              aws s3 sync "s3://$LIVE_BUCKET/$prefix" "$LIVE_ORIGIN/$prefix" \
+                --endpoint-url "$R2_ENDPOINT" --only-show-errors
+            done
+          '
           echo "LIVE_ORIGIN=$LIVE_ORIGIN" >> "$GITHUB_ENV"
           echo "staged $(find "$LIVE_ORIGIN" -type f | wc -l) object(s) from" \
                "s3://$LIVE_BUCKET/{d,idx,t,src}"
@@ -328,7 +340,9 @@ jobs:
         run: |
           set -euo pipefail
           LIVE_ORIGIN="${LIVE_ORIGIN:?}"
-          python3 -c '
+          # Through the dev shell, like every other tool here: a bare `python3`
+          # is a gate that measures whatever the runner image happens to carry.
+          nix develop .#ci --command python3 -c '
           import json, os, sys
 
           site_path = "site/idx/hash/meta.json"
@@ -412,8 +426,13 @@ jobs:
             exit 1
           fi
 
-          BUCKET='${{ inputs.bucket }}'
-          ENDPOINT='${{ secrets.R2_ENDPOINT }}'
+          # EXPORTED for the same reason LIVE_ORIGIN is: the guard and the
+          # publisher below both run under `nix develop`, because both need
+          # `aws` on PATH — the guard calls it directly and
+          # `publish/objectstore.nim`'s `S3ObjectStore.putMany` shells out to
+          # `aws s3 cp --recursive`, once per Content-Encoding.
+          export BUCKET='${{ inputs.bucket }}'
+          export ENDPOINT='${{ secrets.R2_ENDPOINT }}'
 
           # THE GUARD THAT MAKES THIS SAFE TO POINT AT PRODUCTION.
           #
@@ -428,13 +447,14 @@ jobs:
           # this tree is a SUBSET of what is live, and publishing it overwrites
           # those shared objects with a build that was never rendered against
           # the live history. Refuse, and say which chains.
-          live=$(aws s3 cp "s3://$BUCKET/registry/chains.v1.json" - \
+          live=$(nix develop .#ci --command \
+                   aws s3 cp "s3://$BUCKET/registry/chains.v1.json" - \
                    --endpoint-url "$ENDPOINT" 2>/dev/null || true)
           if [ -n "$live" ]; then
             # `python3 -c`, not a heredoc: a heredoc terminator has to sit at
             # column zero, and everything here is indented inside a YAML block
             # scalar, so the quoted form would never terminate.
-            missing=$(python3 -c 'import json,sys; live=set(json.loads(sys.argv[1]).get("chains",{})); here=set(json.load(open("site/registry/chains.v1.json"))["chains"]); print(",".join(sorted(live-here)))' "$live")
+            missing=$(nix develop .#ci --command python3 -c 'import json,sys; live=set(json.loads(sys.argv[1]).get("chains",{})); here=set(json.load(open("site/registry/chains.v1.json"))["chains"]); print(",".join(sorted(live-here)))' "$live")
             if [ -n "$missing" ] && [ "${{ inputs.allow-foreign-chains }}" != "true" ]; then
               echo "::error::s3://$BUCKET already serves chain(s) this tree does" \
                    "not contain: $missing. This tree is a subset of what is" \
@@ -447,7 +467,7 @@ jobs:
             fi
           fi
 
-          ./blocktracer-publish \
+          nix develop .#ci --command ./blocktracer-publish \
             --tree site \
             --backend s3 \
             --bucket "$BUCKET" \
