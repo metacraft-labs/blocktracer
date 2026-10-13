@@ -377,14 +377,39 @@ export function run({ dir, requireTraces }) {
   // ── Scan every page ──────────────────────────────────────────────────────
   const kinds = { "same-origin": 0, external: 0, relative: 0, fragment: 0, empty: 0 };
   const attrHits = new Map(URL_ATTRS.map((a) => [a, 0]));
-  const missing = [];      // A1
-  const emptyDirs = [];    // A1 — named directory exists but has nothing in it
-  const escaping = [];     // A1 — the reference climbs out of the publish root
-  const zeroByte = [];     // A2
-  const relatives = [];    // reported, not failed
-  const distinct = new Map();          // resolved target → first reference
-  const containerRefs = [];            // A3 — `/t/**/*.ct` named by a page
-  const bundleRefs = [];               // A4 — pages naming the hydration bundle
+
+  // ── NOTHING HERE GROWS WITH THE TREE, and it used to ──────────────────────
+  //
+  // Publish run 38335881512 reached this checker with a 385,731-page tree and
+  // died after 263 seconds:
+  //
+  //     FATAL ERROR: Reached heap limit Allocation failed -
+  //                  JavaScript heap out of memory
+  //     Mark-Compact 4017.6 (4139.4) -> 4007.8 (4145.9) MB
+  //
+  // Every list below was unbounded: one `{page, attr, url, path}` object per
+  // REFERENCE, and production's pages each name their own trace container and
+  // source bundle. Roughly two million small objects, which is 4 GB once V8's
+  // per-object overhead is counted — on a checker whose output caps every list
+  // at fifteen examples.
+  //
+  // So each one is a `tally`: an exact COUNT, and the first `KEEP` examples.
+  // The reports are identical, because `fmt` already sliced. `distinct` and the
+  // per-page sets keep only STRINGS, since only their `.size` is ever read.
+  const KEEP = 60;
+  const tally = () => ({ n: 0, eg: [] });
+  const add_ = (t, v) => { t.n++; if (t.eg.length < KEEP) t.eg.push(v); };
+
+  const missing = tally();      // A1
+  const emptyDirs = tally();    // A1 — named directory exists but has nothing in it
+  const escaping = tally();     // A1 — the reference climbs out of the publish root
+  const zeroByte = tally();     // A2
+  const relatives = tally();    // reported, not failed
+  const distinct = new Set();           // resolved targets — only `.size` is read
+  const containerRefs = tally();        // A3 — `/t/**/*.ct` named by a page
+  const containerPages = new Set();     // A3 — how many PAGES name one
+  const bundleRefs = tally();           // A4 — pages naming the hydration bundle
+  const bundlePages = new Set();        // A4 — same, for the bundle
 
   for (const page of pages) {
     let html;
@@ -393,38 +418,53 @@ export function run({ dir, requireTraces }) {
       attrHits.set(attr, attrHits.get(attr) + 1);
       const c = classifyRef(raw);
       kinds[c.kind]++;
-      if (c.kind === "relative") { relatives.push({ page: rel(page), attr, url: c.url }); continue; }
+      if (c.kind === "relative") {
+        add_(relatives, { page: rel(page), attr, url: c.url });
+        continue;
+      }
       if (c.kind !== "same-origin") continue;
 
       const r = resolveRef(dir, c.path);
       const where = { page: rel(page), attr, url: c.url, path: c.path };
       if (r.status === "ok") {
-        if (!distinct.has(r.target)) distinct.set(r.target, where);
+        distinct.add(r.target);
       } else if (r.status === "missing") {
-        missing.push({ ...where, want: r.want, target: rel(r.target) });
+        add_(missing, { ...where, want: r.want, target: rel(r.target) });
       } else if (r.status === "escapes") {
-        escaping.push({ ...where, target: r.target });
+        add_(escaping, { ...where, target: r.target });
       } else if (r.status === "empty" && r.want === "directory") {
-        emptyDirs.push({ ...where, target: rel(r.target) });
+        add_(emptyDirs, { ...where, target: rel(r.target) });
       } else {
-        zeroByte.push({ ...where, target: rel(r.target) });
+        add_(zeroByte, { ...where, target: rel(r.target) });
       }
 
-      if (TRACE_CONTAINER_RE.test(c.path)) containerRefs.push(where);
-      if (c.path === HYDRATION_BUNDLE_URL) bundleRefs.push(where);
+      if (TRACE_CONTAINER_RE.test(c.path)) {
+        add_(containerRefs, where);
+        containerPages.add(where.page);
+      }
+      if (c.path === HYDRATION_BUNDLE_URL) {
+        add_(bundleRefs, where);
+        bundlePages.add(where.page);
+      }
     }
   }
 
-  const fmt = (arr, render, n = 15) =>
-    arr.slice(0, n).map((v) => `        ${render(v)}`).join("\n") +
-    (arr.length > n ? `\n        … and ${arr.length - n} more` : "");
+  // TAKES A TALLY OR A PLAIN ARRAY. `t.n` is the exact total even when `t.eg`
+  // holds only the first `KEEP`, so "… and N more" stays truthful on a tree
+  // whose references outnumber the examples by four orders of magnitude.
+  const fmt = (t, render, n = 15) => {
+    const eg = Array.isArray(t) ? t : t.eg;
+    const total = Array.isArray(t) ? t.length : t.n;
+    return eg.slice(0, n).map((v) => `        ${render(v)}`).join("\n") +
+      (total > n ? `\n        … and ${total - n} more` : "");
+  };
   const refLine = (v) => `${v.page}  ${v.attr}="${v.url}"  → ${v.target ?? v.path}`;
 
   // ── A1 — every same-origin reference resolves to something non-empty ─────
   const a1 = [
-    ...missing.map((v) => ({ ...v, why: `no ${v.want}` })),
-    ...emptyDirs.map((v) => ({ ...v, why: "directory is empty" })),
-    ...escaping.map((v) => ({ ...v, why: "path climbs out of the publish root" })),
+    ...missing.eg.map((v) => ({ ...v, why: `no ${v.want}` })),
+    ...emptyDirs.eg.map((v) => ({ ...v, why: "directory is empty" })),
+    ...escaping.eg.map((v) => ({ ...v, why: "path climbs out of the publish root" })),
   ];
   add("A1", "every same-origin asset reference resolves", a1.length === 0,
     a1.length
@@ -440,9 +480,9 @@ export function run({ dir, requireTraces }) {
   // space, an interrupted upload — and it is the one that looks healthiest in a
   // file listing. The two have different causes and different fixes, so they get
   // different names.
-  add("A2", "no published page names a zero-byte asset", zeroByte.length === 0,
-    zeroByte.length
-      ? `${zeroByte.length} reference(s) to a file that exists and is EMPTY — ` +
+  add("A2", "no published page names a zero-byte asset", zeroByte.n === 0,
+    zeroByte.n
+      ? `${zeroByte.n} reference(s) to a file that exists and is EMPTY — ` +
         `the copy step ran and produced nothing:\n` + fmt(zeroByte, refLine)
       : `0 of ${distinct.size} referenced asset(s) are zero bytes`);
 
@@ -460,9 +500,9 @@ export function run({ dir, requireTraces }) {
   if (!requireTraces) {
     add("A3", "the trace-container class is not vacuous", null,
       `not required (pass --require-traces to enforce) — ` +
-      `${containerRefs.length} container reference(s), ${ctFiles.length} .ct file(s) present, ` +
+      `${containerRefs.n} container reference(s), ${ctFiles.length} .ct file(s) present, ` +
       `${emptyCt.length} of them empty`);
-  } else if (containerRefs.length === 0) {
+  } else if (containerRefs.n === 0) {
     add("A3", "the trace-container class is not vacuous", false,
       `--require-traces was passed and NO published page references any /t/**/*.ct container ` +
       `(${ctFiles.length} .ct file(s) are present in the tree). A publish claiming to carry real ` +
@@ -474,8 +514,8 @@ export function run({ dir, requireTraces }) {
       fmt(emptyCt, (f) => rel(f)));
   } else {
     add("A3", "the trace-container class is not vacuous", true,
-      `${containerRefs.length} container reference(s) from ` +
-      `${new Set(containerRefs.map((v) => v.page)).size} page(s); ` +
+      `${containerRefs.n} container reference(s) from ` +
+      `${containerPages.size} page(s); ` +
       `all ${ctFiles.length} .ct file(s) under ${rel(traceRoot)}/ are non-empty`);
   }
 
@@ -497,9 +537,9 @@ export function run({ dir, requireTraces }) {
   if (!bundleStat || !bundleStat.isFile()) {
     add("A4", "the hydration bundle is referenced when it is shipped", true,
       `no ${HYDRATION_BUNDLE_URL} in the publish tree — this build ships no hydration bundle, ` +
-      `which is legitimate (the Embed SDK was absent). ${bundleRefs.length} page(s) reference it; ` +
+      `which is legitimate (the Embed SDK was absent). ${bundleRefs.n} page(s) reference it; ` +
       `were that non-zero, A1 would be failing on it.`);
-  } else if (bundleRefs.length === 0) {
+  } else if (bundleRefs.n === 0) {
     add("A4", "the hydration bundle is referenced when it is shipped", false,
       `${HYDRATION_BUNDLE_URL} is published (${bundleStat.size} bytes) and NO page references it. ` +
       `The bundle ships, nothing loads it, and every debugger session is a still frame — ` +
@@ -508,7 +548,7 @@ export function run({ dir, requireTraces }) {
   } else {
     add("A4", "the hydration bundle is referenced when it is shipped", true,
       `${HYDRATION_BUNDLE_URL} (${bundleStat.size} bytes) referenced by ` +
-      `${new Set(bundleRefs.map((v) => v.page)).size} page(s)`);
+      `${bundlePages.size} page(s)`);
   }
 
   // ── A6 — every url() in every published stylesheet resolves ─────────────
@@ -582,7 +622,7 @@ export function run({ dir, requireTraces }) {
     checks,
     stats: {
       dir, files: files.length, pages: pages.length, kinds, attrHits,
-      distinct: distinct.size, relatives, containerRefs: containerRefs.length,
+      distinct: distinct.size, relatives, containerRefs: containerRefs.n,
       ctFiles: ctFiles.length,
       sheets: sheets.length, cssUrls: cssUrlCount, cssKinds,
       cssDistinct: cssDistinct.size,
@@ -628,8 +668,9 @@ function main(argv) {
               `${stats.distinct} distinct asset(s)`);
   console.log(`not resolved: ${stats.kinds.external} external, ${stats.kinds.fragment} fragment-only, ` +
               `${stats.kinds.empty} empty, ${stats.kinds.relative} document-relative` +
-              (stats.relatives.length
-                ? ` (e.g. ${stats.relatives[0].page} ${stats.relatives[0].attr}="${stats.relatives[0].url}")`
+              (stats.relatives.n
+                ? ` (e.g. ${stats.relatives.eg[0].page} ${stats.relatives.eg[0].attr}=`
+                  + `"${stats.relatives.eg[0].url}")`
                 : ""));
   console.log(`attributes:   ${[...stats.attrHits].map(([a, n]) => `${a} x${n}`).join(", ")}`);
   console.log(`stylesheets:  ${stats.sheets} carrier(s), ${stats.cssUrls} url() total ` +
