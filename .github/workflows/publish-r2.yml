@@ -131,6 +131,20 @@ on:
           local fixture, which is this workflow's missing capability.
         type: boolean
         default: false
+      break-stale-leases:
+        description: >-
+          Delete every `_leases/<chain>.lock` in the bucket before publishing.
+          OFF by default and deliberately so: that lock IS the single-writer
+          guarantee, and breaking one while a publisher is genuinely running
+          lets two writers interleave on one chain. Pass it only when a previous
+          publish was KILLED — the lease is released by its holder and a
+          SIGKILLed process releases nothing, which `publisher.nim` records as
+          "a stale lease is a manual/operational concern, deliberately not
+          auto-broken here to keep single-writer honest". The step prints each
+          lock's holder before removing it, and the step below it prints the
+          lease state on EVERY run whether or not this is set.
+        type: boolean
+        default: false
       verify-origin:
         description: >-
           The PUBLIC origin the design-parity check reads after a real publish.
@@ -255,6 +269,39 @@ jobs:
       # the index, the traces or the source bundles the moment a page asked
       # for one — the exact "looks identical, isn't" failure mode
       # `resolveDataOrigins`'s own comment warns about.
+      # WHAT HOLDS THE LEASES — READ FIRST, BEFORE ANYTHING EXPENSIVE.
+      #
+      # Run 38417127259 spent 4h47m staging, rendering and checking, and then
+      # failed in the publisher's first second with "chain 'aztec' is locked by
+      # another publisher (lease held)". The lock was readable the whole time.
+      # This step costs one LIST and up to three GETs and it runs before the
+      # 75-minute stage, so a held lease is a three-minute failure instead of a
+      # five-hour one.
+      #
+      # READ-ONLY: it never deletes. Breaking is a separate, default-off step
+      # placed immediately before `Publish`, so the window between breaking a
+      # lock and taking it is seconds rather than the length of a render.
+      - name: Who holds the publish leases?
+        if: ${{ inputs.dry-run == false }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          BUCKET: ${{ inputs.bucket }}
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash -euo pipefail -c '
+            locks=$(aws s3 ls "s3://$BUCKET/_leases/" --endpoint-url "$ENDPOINT" 2>/dev/null || true)
+            if [ -z "$locks" ]; then echo "leases: none held"; exit 0; fi
+            echo "leases currently held:"
+            printf "%s\n" "$locks" | awk "{print \$4}" | while read -r k; do
+              [ -n "$k" ] || continue
+              who=$(aws s3 cp "s3://$BUCKET/_leases/$k" - --endpoint-url "$ENDPOINT" 2>/dev/null | tr -d "\n" || true)
+              echo "  _leases/$k  held by: ${who:-<unreadable>}"
+            done
+          '
+
       - name: Stage the live bucket's data plane
         if: ${{ inputs.render-over-live == true }}
         env:
@@ -706,6 +753,47 @@ jobs:
           else
             nix develop .#ci --command node tools/deploy/check-assets.mjs --dir site --require-traces
           fi
+
+      # BREAKING ONE IS AN OPERATOR ACT, AND IT LIVES HERE RATHER THAN IN THE
+      # PUBLISHER ON PURPOSE. `publisher.nim`'s `releaseLease` only deletes a
+      # lock whose holder matches, and its comment says why: "a stale lease is a
+      # manual/operational concern, deliberately not auto-broken here to keep
+      # single-writer honest." Adding `--break-lease` to the binary would undo
+      # that decision for every caller; a default-off input on the one workflow
+      # that publishes leaves the guarantee intact and makes the exception
+      # reviewable.
+      #
+      # WHY IT WAS NEEDED: run 38388168109's `blocktracer-publish` was SIGKILLed
+      # when its ephemeral runner was reaped mid-publish ("Terminate orphan
+      # process: pid (4237)"). A killed holder releases nothing, so
+      # `_leases/aztec.lock` survived it and run 38417127259 failed after four
+      # and three-quarter hours with "chain 'aztec' is locked by another
+      # publisher (lease held)".
+      - name: Break stale publish leases
+        if: ${{ inputs.dry-run == false && inputs.break-stale-leases == true }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          BUCKET: ${{ inputs.bucket }}
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash -euo pipefail -c '
+            locks=$(aws s3 ls "s3://$BUCKET/_leases/" --endpoint-url "$ENDPOINT" 2>/dev/null || true)
+            if [ -z "$locks" ]; then
+              echo "break-stale-leases: nothing is held — no lock to break."
+              echo "That is not an error: it means the state this input exists for"
+              echo "is not the state the bucket is in."
+              exit 0
+            fi
+            printf "%s\n" "$locks" | awk "{print \$4}" | while read -r k; do
+              [ -n "$k" ] || continue
+              who=$(aws s3 cp "s3://$BUCKET/_leases/$k" - --endpoint-url "$ENDPOINT" 2>/dev/null | tr -d "\n" || true)
+              echo "breaking _leases/$k (was held by: ${who:-<unreadable>})"
+              aws s3 rm "s3://$BUCKET/_leases/$k" --endpoint-url "$ENDPOINT"
+            done
+          '
 
       - name: Publish
         env:
