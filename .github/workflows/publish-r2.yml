@@ -443,9 +443,43 @@ jobs:
         run: |
           set -euo pipefail
           LIVE_ORIGIN="${LIVE_ORIGIN:?}"
-          pinned=""
-          mismatched=""
-          if [ -d "$LIVE_ORIGIN/d" ]; then
+          # ── ONE PREDICATE MUST NOT STAND FOR TWO CAUSES, AND HERE IT DID ───
+          #
+          # This loop used to call a bare `cmp -s`, and run 38316440069 — which
+          # got through a 496,899-object stage and a 385,731-page render — died
+          # here with:
+          #
+          #     line 14: cmp: command not found
+          #     ::error::current.json pin FAILED for: aztec aztec-testnet
+          #              aztec-testnet-frames
+          #
+          # `cmp` is not on the NixOS runners' ambient PATH, so the `if` took
+          # its else branch for every chain and the step reported a POINTER
+          # MISMATCH — a claim about production's data — when a tool was
+          # missing. `ci.yml`'s `contract` job records this repository being bitten
+          # by the same thing with `diff`: "the self-hosted NixOS runner has no
+          # `diff` in its ambient PATH — so every run of this job since the
+          # toolchain moved into the flake ended `line 3: diff: command not
+          # found`". `cmp` is in `devShells.ci` (diffutils 3.12, verified with
+          # `nix develop .#ci --command command -v cmp`).
+          #
+          # THE WHOLE LOOP RUNS INSIDE ONE `nix develop`, and the verdict per
+          # chain is written to a file rather than carried in an exit code.
+          # Wrapping each `cmp` individually would leave `nix develop`'s OWN
+          # failure exit (1) indistinguishable from `cmp`'s "the bytes differ"
+          # (1) — the same conflation one layer up. Here `cmp`'s status is read
+          # where it is produced: 0 identical, 1 different, >1 could not
+          # compare, and each is a different line.
+          # NOT `$out`. That name is Nix's: inside `nix develop` it is the
+          # derivation's output path, so exporting an `out` of our own had the
+          # child shell append to `<repo>/outputs/out` and die with "No such
+          # file or directory". Found by running this block locally before
+          # dispatching it, which is the order the rest of today argues for.
+          PIN_REPORT="$RUNNER_TEMP/pointer-pin.txt"
+          : > "$PIN_REPORT"
+          export LIVE_ORIGIN PIN_REPORT
+          nix develop .#ci --command bash -euo pipefail -c '
+            [ -d "$LIVE_ORIGIN/d" ] || exit 0
             for chain_dir in "$LIVE_ORIGIN"/d/*/; do
               [ -d "$chain_dir" ] || continue
               chain=$(basename "$chain_dir")
@@ -454,12 +488,26 @@ jobs:
               site_ptr="site/d/$chain/current.json"
               mkdir -p "$(dirname "$site_ptr")"
               cp "$live_ptr" "$site_ptr"
-              if cmp -s "$live_ptr" "$site_ptr"; then
-                pinned="$pinned $chain"
-              else
-                mismatched="$mismatched $chain"
-              fi
+              set +e
+              cmp -s "$live_ptr" "$site_ptr"
+              rc=$?
+              set -e
+              case "$rc" in
+                0) echo "pinned $chain" >> "$PIN_REPORT" ;;
+                1) echo "mismatched $chain" >> "$PIN_REPORT" ;;
+                *) echo "uncompared $chain exit=$rc" >> "$PIN_REPORT" ;;
+              esac
             done
+          '
+          pinned="$(awk '$1=="pinned"{printf " %s", $2}' "$PIN_REPORT")"
+          mismatched="$(awk '$1=="mismatched"{printf " %s", $2}' "$PIN_REPORT")"
+          uncompared="$(awk '$1=="uncompared"{printf " %s(%s)", $2, $3}' "$PIN_REPORT")"
+          if [ -n "$uncompared" ]; then
+            echo "::error::the pointer comparison DID NOT RUN for:$uncompared." \
+                 "That is not a mismatch and not a pass: cmp exits 0 for identical," \
+                 "1 for different, and above 1 when it could not compare. Refusing," \
+                 "because a step that cannot read the bytes cannot report on them."
+            exit 1
           fi
           if [ -n "$mismatched" ]; then
             echo "::error::current.json pin FAILED for:$mismatched — this build's" \
@@ -475,12 +523,6 @@ jobs:
                  "(first go-live) — nothing to pin."
           fi
 
-      # ASSERT THE GLOBAL INDEX DID NOT SHRINK. `idx/hash/meta.json`
-      # (static_export.nim's `buildGlobalHashIndex`) publishes `shardCount`
-      # and `entryCount` for v1 and, when present, a `versions[]` entry per
-      # published format. §5.0a makes a miss on this index a DEFINITE "no
-      # chain holds this hash", so a smaller index is not a smaller cache —
-      # it is new, confident, false absences. Refuse rather than publish one.
       - name: The global hash index did not shrink
         if: ${{ inputs.render-over-live == true }}
         run: |
