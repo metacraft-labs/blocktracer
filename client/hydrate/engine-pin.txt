@@ -137,10 +137,19 @@
 #     frames);
 #   * the engine pinned below is old enough to read them, which is the ONLY
 #     reason replay works today;
-#   * a current db-backend accepts container {2,3,4,5} — widened by the reader
-#     revision rollout — but its `meta.dat` set is {4,5,6}
+#   * a current db-backend's `meta.dat` set does NOT contain 3
 #     (`db-backend/src/ctfs_trace_reader/meta_dat.rs`, `SUPPORTED_VERSIONS`).
-#     SCHEMA 3 IS NOT IN IT.
+#
+#     CORRECTED 2026-10-14: this bullet used to name that set as {4,5,6} and the
+#     container set as {2,3,4,5}. Both were stale within days, and the meta.dat
+#     set has since been a SINGLE version twice over — `[6]` in the deployed
+#     engine, and `&[META_DAT_VERSION]` with `META_DAT_VERSION = 7` at
+#     `codetracer` `agents` today. The numbers were never the durable part, and
+#     naming them here invited exactly the error that produced them: `[4,5,6]`
+#     was read off a working tree 209 commits behind its own `agents` tip, and
+#     an agent was briefed from it. THE DURABLE STATEMENT IS "NOT 3". Live
+#     figures are measured per revision in the sections below, which are
+#     maintained where this bullet was not — read those instead.
 #
 # The two axes are independent and that is the whole trap: the container gate
 # was widened and the `meta.dat` gate was not, so "container v3 is accepted
