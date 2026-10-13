@@ -267,6 +267,21 @@
             # `contract/container_encoding.nim`) and `publish-r2.yml`'s own
             # `aws s3 sync` of the live bucket's `d/ idx/ t/ src/` prefixes.
             awscli2
+            # `ci/test/verify-published-readonly.sh:74` strips double-quoted
+            # strings with `perl -pe` and says why in its own comment: "`perl`
+            # and not `sed`: BSD sed has no non-greedy match and this needs
+            # one." It was invoked bare, which worked on darwin — where
+            # `/usr/bin/perl` leaks through — and failed on the NixOS runners
+            # with `perl: command not found`. Publish run 38366603048 died
+            # there, AFTER a successful publish, so the publish was reported as
+            # a failed run.
+            #
+            # Third tool in this file with the same story: `curl` and `brotli`
+            # are declared a few lines up for it, `awscli2` was declared above
+            # after the same 127, and `cmp` was routed through this shell for
+            # the same reason in the pointer-pin step. The pattern is "a tool a
+            # script reaches for is a tool this file must name".
+            perl
           ] ++ lib.optionals stdenv.hostPlatform.isLinux [
             bubblewrap
           ]) ++ [ followerNodejs ];
