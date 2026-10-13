@@ -103,6 +103,31 @@ const FRESH = {
   headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
 };
 
+// AND A CACHE-BUSTING QUERY, BECAUSE THE HEADERS WERE NOT ENOUGH. Measured on
+// 2026-10-13, minutes after a successful publish:
+//
+//   plain        /_a/ff9f791dc18a0c25.css   ← the PREVIOUS publish's stylesheet
+//   ?cb=<now>    /_a/0c49ff0f45fccc3a.css   ← this publish's
+//   cf-cache-status: HIT   age: 6618   last-modified: Sun, 04 Oct 2026
+//
+// Cloudflare served a 110-minute-old `index.html` and ignored the request's
+// `Cache-Control: no-cache` — which it is entitled to do; those headers are a
+// request to an origin, not an instruction to an edge. The check therefore read
+// the old stylesheet and reported four failures against a tree that had just
+// been replaced. Exactly the misreading the FRESH comment above warned it could
+// not prevent on its own.
+//
+// A query parameter changes the CACHE KEY, so the edge has to go to the origin.
+// R2 ignores query strings when it resolves an object, so the same bytes come
+// back — the parameter costs nothing but a miss. It is per-process rather than
+// per-request so that one run reads one consistent snapshot of the site.
+const CB = `cb=${Date.now()}`;
+const bust = (u) => {
+  const url = new URL(u);
+  url.search = url.search ? `${url.search}&${CB}` : `?${CB}`;
+  return url;
+};
+
 async function getText(path) {
   if (args.dir) {
     // CLEAN URLS, THE SAME WAY THE SITE SERVES THEM: `/x` is `x/index.html`
@@ -118,7 +143,7 @@ async function getText(path) {
     return { ok: true, status: 200, body: readFileSync(f, "utf8"),
              type: f.endsWith(".css") ? "text/css" : "text/html" };
   }
-  const r = await fetch(new URL(path, args.origin), FRESH);
+  const r = await fetch(bust(new URL(path, args.origin)), FRESH);
   const body = await r.text();
   return { ok: r.ok, status: r.status, body, type: r.headers.get("content-type") ?? "" };
 }
@@ -129,7 +154,7 @@ async function headStatus(path) {
   }
   // GET, not HEAD: an origin may answer HEAD differently, and the question
   // here is what a browser loading the stylesheet actually receives.
-  const r = await fetch(new URL(path, args.origin), FRESH);
+  const r = await fetch(bust(new URL(path, args.origin)), FRESH);
   await r.arrayBuffer();
   return { status: r.status, type: r.headers.get("content-type") ?? "" };
 }

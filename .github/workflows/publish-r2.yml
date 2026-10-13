@@ -778,11 +778,57 @@ jobs:
             fi
           fi
 
+          # ── `--refresh` ON A RENDER-OVER-LIVE PUBLISH, AND WITHOUT IT THE
+          #    PAGES DO NOT MOVE ────────────────────────────────────────────
+          #
+          # Run 38366603048 published successfully — pointers flipped on all
+          # three chains — and uploaded 40 + 8 + 9 = 57 objects. The new site
+          # shell went up and is live:
+          #
+          #   /_a/0c49ff0f45fccc3a.css          200  341,628 B   (this build's)
+          #   /assets/hydrate.js                200  2,075,139 B
+          #   /replay-engine/worker.js          200
+          #
+          # and every one of the 385,732 rendered pages did NOT. A transaction
+          # page is still the 7,942-byte pre-hydration stub, cache-busted.
+          #
+          # WHY, read out of `publisher.nim` rather than guessed: `classOf` sends
+          # any non-root `.html` to `ocEntryPage`, and `strategyOf`'s `else` arm
+          # is `stKeyExistence` — "present ⇒ skip". The live bucket already holds
+          # `aztec/tx/<hash>/index.html` at every one of those keys, so every
+          # page was skipped. The key did not move; only the bytes behind it did.
+          #
+          # `--refresh` is this publisher's own documented remedy, in its own
+          # words: "re-read every key-existence object and supersede the ones
+          # whose bytes differ from the tree's. OFF by default: the ordinary
+          # cycle must upload zero on a re-run, and this one costs a GET per
+          # object. It is what makes 'a range can be refreshed after a producer
+          # fix' true — without it a corrected object never reaches a store that
+          # already holds the wrong one, because its key did not move."
+          #
+          # A render-over-live publish IS that case by construction: it exists to
+          # replace what the bucket serves for keys the bucket already has. The
+          # continuous path keeps the default, so "a re-run uploads zero" stays
+          # true where it is the property that matters.
+          #
+          # THE COST IS REAL AND BOUNDED: one GET per object over ~386,000 keys.
+          # At the staging step's measured ~100 objects/s that is around an hour,
+          # on top of 75 min staging and 85 min rendering — comfortably inside
+          # the 600-minute ceiling, which is why `timeout-minutes` was raised to
+          # 600 rather than left at the 240 I first wrote.
+          REFRESH=""
+          if [ "${{ inputs.render-over-live }}" = "true" ]; then
+            REFRESH="--refresh"
+            echo "publishing with --refresh: every key-existence object is re-read" \
+                 "and superseded where the bytes differ. Without it the entry pages" \
+                 "are skipped, because their keys already exist in the bucket."
+          fi
           nix develop .#ci --command ./blocktracer-publish \
             --tree site \
             --backend s3 \
             --bucket "$BUCKET" \
-            --endpoint "$ENDPOINT"
+            --endpoint "$ENDPOINT" \
+            $REFRESH
 
       # A green publish is a claim about a process; the objects being served
       # is a claim about the bucket. This project has been bitten by that
