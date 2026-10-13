@@ -149,7 +149,15 @@ export function walkFiles(dir) {
   try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return out; }
   for (const e of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
     const p = join(dir, e.name);
-    if (e.isDirectory()) out.push(...walkFiles(p));
+    // NOT `out.push(...walkFiles(p))`. A spread passes every element as an
+    // ARGUMENT, and V8's argument limit is around 125,000 — so this threw
+    // `RangeError: Maximum call stack size exceeded` the first time a publish
+    // tree got big enough. Publish run 38328767038 reached this checker with a
+    // 385,731-page tree, having passed the stage, the render, the pointer pin,
+    // the index guard and the engine vendoring, and died here in 4 seconds.
+    // Reproduced in isolation: 140,000 files in one directory is enough.
+    // A loop has no argument list and no limit.
+    if (e.isDirectory()) for (const f of walkFiles(p)) out.push(f);
     else if (e.isFile()) out.push(p);
   }
   return out;
