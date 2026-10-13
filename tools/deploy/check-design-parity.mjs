@@ -84,6 +84,25 @@ function liveRows() {
 }
 
 // ── fetching, the same way from either source ──────────────────────────────
+// ── FRESH BYTES, BECAUSE THIS RUNS SECONDS AFTER A PUBLISH ────────────────
+//
+// `publish-r2.yml` runs this check immediately after the upload, so a cached
+// response is the difference between "the publish did not take" and "a cache
+// has not expired". Those are not the same finding and this check must not
+// report the second as the first.
+//
+// `cache: "no-store"` covers node's own fetch cache; the two headers ask any
+// intermediary not to serve a stored response. Note what this canNOT do: it
+// cannot defeat an edge that ignores them. So the report prints the stylesheet
+// NAME it read — a content-addressed `/_a/<hash>.css` that still matches the
+// previous publish is the tell, and it is visible in the output rather than
+// hidden behind a verdict.
+const FRESH = {
+  redirect: "follow",
+  cache: "no-store",
+  headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
+};
+
 async function getText(path) {
   if (args.dir) {
     // CLEAN URLS, THE SAME WAY THE SITE SERVES THEM: `/x` is `x/index.html`
@@ -99,7 +118,7 @@ async function getText(path) {
     return { ok: true, status: 200, body: readFileSync(f, "utf8"),
              type: f.endsWith(".css") ? "text/css" : "text/html" };
   }
-  const r = await fetch(new URL(path, args.origin), { redirect: "follow" });
+  const r = await fetch(new URL(path, args.origin), FRESH);
   const body = await r.text();
   return { ok: r.ok, status: r.status, body, type: r.headers.get("content-type") ?? "" };
 }
@@ -110,7 +129,7 @@ async function headStatus(path) {
   }
   // GET, not HEAD: an origin may answer HEAD differently, and the question
   // here is what a browser loading the stylesheet actually receives.
-  const r = await fetch(new URL(path, args.origin), { redirect: "follow" });
+  const r = await fetch(new URL(path, args.origin), FRESH);
   await r.arrayBuffer();
   return { status: r.status, type: r.headers.get("content-type") ?? "" };
 }
