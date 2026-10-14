@@ -156,10 +156,30 @@ export async function selftest() {
     const ph = paths.find((p) => p.startsWith('conformance-kit/template/complete/ct/'));
     const a = readIdentity(join(REPO_ROOT, tour));
     const b = readIdentity(join(REPO_ROOT, ph));
-    if (a.container && a.version === 5 && !b.container && b.reason === 'no CTFS magic') {
-      ok('arm 8: identity comes from the bytes — a tour container reads v5 and a placeholder reads "no CTFS magic"');
+    // THE VERSION MOVED 5 -> 6 when the Noir corpus was re-recorded onto CTFS
+    // §1e's compact profile, and this arm was the only thing that noticed —
+    // by going red with `tour={"container":true,"version":6,"size":9057}`.
+    // That is the arm working: a corpus whose container version changes under
+    // a reader is exactly what it is here to report.
+    //
+    // IT IS STILL PINNED TO ONE NUMBER rather than relaxed to a set. The
+    // property being measured is that identity is read from the BYTES and not
+    // from a path, and a single expected version is what makes a silent
+    // re-record impossible to miss; `version >= 5` would have let this one
+    // through without a word. The cost is this comment every time the corpus
+    // moves deliberately, which is the right side of the trade.
+    const vWant = 6;
+    const aOk = a.container && a.version === vWant;
+    const bOk = !b.container && b.reason === 'no CTFS magic';
+    if (aOk && bOk) {
+      ok(`arm 8: identity comes from the bytes — a tour container reads v${vWant} and a placeholder reads "no CTFS magic"`);
     } else {
-      bad('arm 8', `tour=${JSON.stringify(a)} placeholder=${JSON.stringify(b)}`);
+      // WHICH HALF, because the two have different remedies: a changed tour
+      // version is a corpus move to confirm and renumber, while a placeholder
+      // that suddenly reads as a container means `readIdentity` is matching
+      // something it should not.
+      bad('arm 8', (aOk ? '' : `the tour container is not v${vWant}: ${JSON.stringify(a)}  `) +
+                   (bOk ? '' : `the placeholder is not "no CTFS magic": ${JSON.stringify(b)}`));
     }
   }
 
