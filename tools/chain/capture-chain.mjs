@@ -102,6 +102,22 @@ const die = (m) => { console.error(`capture-chain: ${m}`); process.exit(2); };
 if (!runtime) die('--runtime <path-to-aztec-avm-runtime> is required. This repository carries no AVM.');
 if (!avm) die('--avm <avm.wasm> (or $AVM_WASM_PATH) is required. It must be the --import-memory build.');
 if (!ctWriter) die('--ct-writer <aztec_ct_writer.wasm> (or $CT_WRITER_WASM_PATH) is required.');
+
+// §1e's ceiling in RAW bytes. 0 is never compact and is the default, so a run
+// that does not ask for it writes exactly the containers it wrote before this
+// option existed. See `lib/replay.mjs` for why it is sent even then.
+const compactThreshold = (() => {
+  const raw = arg('compact-threshold', process.env.CT_COMPACT_THRESHOLD ?? '0');
+  if (!/^[0-9]+$/.test(String(raw))) {
+    die(`--compact-threshold must be a non-negative integer of raw bytes, got [${raw}].`);
+  }
+  return String(raw);
+})();
+
+// `getTxByHash` is the one call with a horizon — about an hour of the node's
+// active pool. A capture enumerating from the TIP does not normally need the
+// store, which is why this is off unless asked.
+const bodyStore = arg('body-store', '');
 for (const [label, p] of [['runtime', runtime], ['avm', avm], ['ct-writer', ctWriter]]) {
   if (!existsSync(p)) die(`${label} path does not exist: ${p}`);
 }
@@ -241,6 +257,21 @@ for (const c of candidates) {
     '--module', resolve(avm),
     '--ct', ctPath,
     '--ct-writer', resolve(ctWriter),
+    // ── THE COMPACT PROFILE, SENT EVEN WHEN ZERO ───────────────────────────
+    //
+    // `lib/replay.mjs`'s `replayTransaction` states the rule and the reason:
+    // §1e's threshold is a CEILING IN RAW BYTES, zero means never compact, and
+    // the flag goes on every run so a driver too old to know it fails on the
+    // first transaction rather than writing a whole corpus in the wrong
+    // profile.
+    //
+    // THIS TOOL BUILDS ITS OWN ARGV rather than calling `replayTransaction`,
+    // and that duplication is why the flag had to be added twice. It is not
+    // consolidated here because the two differ in what they do with the exit
+    // code — see the paragraph below — and collapsing them is a change to that
+    // behaviour, not a tidy-up.
+    '--compact-threshold', String(compactThreshold),
+    ...(bodyStore ? ['--body-store', String(bodyStore)] : []),
     '--sources', srcPath,
     '--json',
   ], runtime);

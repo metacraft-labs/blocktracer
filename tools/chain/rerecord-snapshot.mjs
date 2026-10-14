@@ -128,6 +128,51 @@ export function recordingDelta(before = {}, after = {}) {
   return out;
 }
 
+// ── WHICH ROW FIELDS A RE-RECORD REFRESHES, COMPUTED AND NOT LISTED ───────
+//
+// The first version updated `row.recording` and nothing else, and the aztec
+// re-record broke the build with a figure one level out:
+//
+//   [§5.2 S5-CONTAINER-BYTES] … states containerBytes 180224 and its container
+//   … is 51002 bytes. `containerBytes` is a measurement of the container the
+//   row names and must equal its size on disk
+//
+// A hand-written list of row fields would be the same mistake as the hand-
+// written list of recording fields this file already removed. So the set is the
+// INTERSECTION of what the replay returned with what the row already carries:
+// every field the row has and the driver re-measured is refreshed, and a field
+// the row does not have is not invented — adding one would be a schema change
+// and not a re-record.
+//
+// The chain facts are compared BEFORE this and a disagreement refuses the run,
+// so by the time these are copied they are equal to what was there.
+const CAPTURE_FACTS = new Set([
+  // Facts about the CHAIN and about the capture, not about the container. A
+  // re-record does not re-measure them and must not overwrite them with this
+  // run's circumstances.
+  'capturedAt', 'capturedWindow', 'bodyRetained', 'effectVisible', 'firstInBlock',
+  'cost', 'transactionFee', 'executions', 'blockNumber', 'txIndexInBlock',
+  'revertCode', 'txHash', 'container',
+]);
+export function refreshableKeys(row, decided) {
+  return Object.keys(decided ?? {})
+    .filter((k) => Object.prototype.hasOwnProperty.call(row, k))
+    .filter((k) => !CAPTURE_FACTS.has(k))
+    .sort();
+}
+
+/** What moved on the ROW itself, by name, over the fields a re-record refreshes. */
+export function rowDelta(row, decided) {
+  const out = [];
+  for (const k of refreshableKeys(row, decided)) {
+    if (k === 'recording') continue;            // reported field by field below
+    if (JSON.stringify(row[k]) !== JSON.stringify(decided[k])) {
+      out.push({ field: k, from: row[k], to: decided[k] });
+    }
+  }
+  return out;
+}
+
 /** A value short enough to print beside a field name, or a shape instead of it. */
 function brief(v) {
   const s = JSON.stringify(v);
@@ -224,10 +269,11 @@ async function main() {
     const afterHdr = after ? headerOf(after) : { container: null, profile: null };
     const conflicts = chainFactConflicts(row, decided);
     const delta = recordingDelta(row.recording, decided.recording);
+    const rdelta = wrote ? rowDelta(row, decided) : [];
     const ok = wrote && decided.replayed === true && conflicts.length === 0;
     if (!ok) refused++;
 
-    results.push({ row, decided, before, after, beforeHdr, afterHdr, conflicts, delta, ok });
+    results.push({ row, decided, before, after, beforeHdr, afterHdr, conflicts, delta, rdelta, ok });
 
     const v = (h) => (h.container === null ? 'not-a-container'
       : `container ${h.container}${h.profile !== null ? ` profile ${h.profile}` : ''}`);
@@ -237,6 +283,9 @@ async function main() {
     else console.log(`             now — nothing written (${decided.outcome ?? 'no outcome'})`);
     for (const c of conflicts) {
       console.log(`             CHAIN FACT MOVED: ${c.field} snapshot=${c.snapshot} replay=${c.replay}`);
+    }
+    for (const d of rdelta) {
+      console.log(`             ${d.field}: ${brief(d.from)} -> ${brief(d.to)}`);
     }
     for (const d of delta) {
       console.log(`             recording.${d.field}: ${brief(d.from)} -> ${brief(d.to)}`);
@@ -261,7 +310,7 @@ async function main() {
   for (const r of results) {
     await mkdir(dirname(join(dir, r.row.container)), { recursive: true });
     await copyFile(join(stage, `${r.row.txHash}.ct`), join(dir, r.row.container));
-    r.row.recording = r.decided.recording;
+    for (const k of refreshableKeys(r.row, r.decided)) r.row[k] = r.decided[k];
   }
   // THE PROVENANCE SAYS THESE BYTES ARE NOT THE CAPTURE'S. A reader comparing a
   // container against `capturedAt` would otherwise conclude the producer wrote

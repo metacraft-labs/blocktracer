@@ -45,8 +45,13 @@ async function arena(dir, { version = 3, recording = { bytes: 4096, steps: 7, lo
     format: 'test/v1',
     provenance: { kind: 'live-capture', endpoint: 'http://node.invalid' },
     transactions: [
+      // `containerBytes` IS ON THE ROW, not inside `recording`, and it is the
+      // field that broke the build: `ingest.nim`'s §5.2 S5-CONTAINER-BYTES
+      // asserts it equals the container's size on disk, and the first version
+      // of this tool refreshed `recording` and left it at the old figure.
       { txHash: '0xaa', blockNumber: 10, txIndexInBlock: 0, revertCode: 0,
-        container: 'ct/0xaa.ct', recording },
+        container: 'ct/0xaa.ct', containerBytes: 4096,
+        instructionsExecuted: 1, recording },
       { txHash: '0xbb', blockNumber: 11, txIndexInBlock: 0, revertCode: 0 },
     ],
   }, null, 1)}\n`);
@@ -129,6 +134,19 @@ export async function selftest() {
        /recording\.logEvents: 5 -> 6/.test(r.stdout));
     ck('the version move is printed on both sides',
        /was 4096 B, container 3/.test(r.stdout) && /now 2048 B, container 6 profile 1/.test(r.stdout));
+    ck('containerBytes — a ROW field, not a recording one — is refreshed',
+       snap.transactions[0].containerBytes === 2048);
+    ck('…and the row-level move is printed by name',
+       /containerBytes: 4096 -> 2048/.test(r.stdout));
+    ck('…and so is another row field the driver re-measured',
+       snap.transactions[0].instructionsExecuted === 7
+         && /instructionsExecuted: 1 -> 7/.test(r.stdout));
+    // THE CAPTURE FACTS ARE NOT OVERWRITTEN. `blockNumber` is a fact about the
+    // chain; a re-record that rewrote it with this run's circumstances would
+    // make the refusal above unreachable.
+    ck('a CAPTURE fact is left alone', snap.transactions[0].blockNumber === 10);
+    ck('a field the row does NOT have is not invented',
+       !Object.prototype.hasOwnProperty.call(snap.transactions[0], 'seedSize'));
     ck('a field NO list anticipated is reported too, by its shape when it is long',
        /recording\.contractRungs: undefined -> \[1 entry, \d+ B\]/.test(r.stdout));
     ck('THE CONTROL: the untraced transaction is not a subject',

@@ -34,6 +34,16 @@
      "v6": 2
     },
     "url": "https://aztec.drpc.org"
+   },
+   {
+    "at": "2026-10-14T08:56:11.066Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 2,
+    "compactThreshold": 100000000,
+    "containerVersions": {
+     "v6": 2
+    },
+    "url": "https://aztec.drpc.org"
    }
   ]
  },
@@ -39078,7 +39088,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x00c67f6f41a5870eb280120ccc6e9288a876bc38630aa7a36346cc47753ed18d.ct",
-   "containerBytes": 180224,
+   "containerBytes": 51002,
    "l2BlockNumber": 68062,
    "preStateReadAt": 68061,
    "contractReferenceBlock": 68062,
@@ -39210,7 +39220,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x0f191b2da9d6f4ccdb1711dd015edb8755bf551933a74b509860307ee8699dbb.ct",
-   "containerBytes": 188416,
+   "containerBytes": 78517,
    "l2BlockNumber": 68231,
    "preStateReadAt": 68230,
    "contractReferenceBlock": 68231,
