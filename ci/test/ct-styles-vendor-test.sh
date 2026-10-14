@@ -85,6 +85,17 @@ run_case "a missing copy fails" 1 "the vendored stylesheet is missing" "${d}"
 
 # 4. A manifest that lost an entry. This is the case a naive gate passes by
 #    having nothing to compare, which is why the count is checked.
+#
+# THE EXPECTED NUMBER IS DERIVED, NOT WRITTEN. It used to read "5 sha256
+# entries", which was the answer when six stylesheets were vendored. Eight are
+# vendored now, so the perturbation produces seven and this arm failed with
+# "exit code was right but the message was not" -- the gate biting correctly
+# and the test disagreeing about the wording. It had been red since the seventh
+# stylesheet landed and nobody saw it: `debug-route` failed at an earlier step,
+# so this suite never ran.
+#
+# A hard-coded count here is a second place the manifest's size is recorded,
+# and the manifest is the first. Counting it is what keeps there being one.
 d="$(fresh short-manifest)"
 python3 - "${d}/ct_styles.vendor.json" <<'PY'
 import json, sys
@@ -93,8 +104,9 @@ m = json.load(open(p))
 m["files"] = m["files"][:-1]
 json.dump(m, open(p, "w"), indent=2)
 PY
+short_count="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["files"]))' "${d}/ct_styles.vendor.json")"
 run_case "a manifest that lost an entry fails" 1 \
-	"the manifest records 5 sha256 entries" "${d}"
+	"the manifest records ${short_count} sha256 entries" "${d}"
 
 # 5. A manifest whose entries are in a different order. The digests would
 #    otherwise be matched against the wrong files.
