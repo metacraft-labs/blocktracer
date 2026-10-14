@@ -1129,10 +1129,22 @@ jobs:
               while IFS= read -r k; do
                 [ -n "$k" ] || continue
                 nq=$((nq + 1))
-                if ! aws s3api head-object --bucket "$LIVE_BUCKET" --key "$k" \
-                       --endpoint-url "$ENDPOINT" >/dev/null 2>&1; then
+                meta=$(aws s3api head-object --bucket "$LIVE_BUCKET" --key "$k" \
+                         --endpoint-url "$ENDPOINT" \
+                         --query "[ContentLength,ETag,ContentType]" --output text \
+                         2>/dev/null || true)
+                if [ -z "$meta" ]; then
                   echo "    HEAD-404 $k"
                   nf=$((nf + 1))
+                else
+                  # SIZE AND ETAG, because "the key exists" is not "the object is
+                  # the file". An object of the wrong length or a different type
+                  # is a publisher defect that an existence check cannot see, and
+                  # it is the last code-side explanation left for an object the
+                  # API finds and the public origin 404s. Printed beside the
+                  # tree size so the comparison needs no second step.
+                  local_sz=$(wc -c < "site/$k" | tr -d " ")
+                  echo "    HEAD-200 $k  tree=$local_sz  bucket=$meta"
                 fi
               done < <(cd site && find "$prefix" -type f | sort)
               echo "exact-key lookups in the live bucket for $prefix/: $nq asked, $nf not found"
