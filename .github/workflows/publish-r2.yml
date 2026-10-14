@@ -1143,7 +1143,7 @@ jobs:
                   # existence check cannot see. LAST-MODIFIED is the timeline:
                   # an object written minutes ago and one written eleven days ago
                   # are different explanations for the same 404 at the origin,
-                  # and the public response carries only the origin's view.
+                  # and the public response carries only the view the origin has.
                   # Printed beside the tree size so the comparison needs no
                   # second step and no second run.
                   local_sz=$(wc -c < "site/$k" | tr -d " ")

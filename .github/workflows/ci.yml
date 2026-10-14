@@ -1039,6 +1039,36 @@ jobs:
         # nothing else.
         run: node tools/deploy/check-design-parity-selftest.mjs
 
+      # ── DOES EVERY `-c '…'` BODY IN EVERY WORKFLOW STILL PARSE? ──────────
+      #
+      # `publish-r2.yml` runs several steps as `bash -euo pipefail -c '<body>'`
+      # and two as `python3 -c '<body>'`. The body is SINGLE-QUOTED, so one
+      # apostrophe anywhere inside it — a comment included — closes the quote
+      # early and truncates the script.
+      #
+      # Shipped, run 38527745644: a comment reading `the origin's view` was
+      # added to a read-only diagnostic step. It printed its first three lines
+      # and then `-c: line 74: syntax error: unexpected end of file from `if'
+      # command on line 63`. Nothing caught it first, and the reasons are what
+      # make this a gate rather than a note:
+      #
+      #   * the YAML is valid either way, so a parse of the file says nothing;
+      #   * `bash -n` over the step's WHOLE `run:` passes, because
+      #     `bash -c '<truncated>'` is a valid outer command — the failure is
+      #     the inner shell's, at runtime;
+      #   * the step HAD been driven over synthetic trees three times, through
+      #     an extractor that took the body up to the LAST apostrophe instead of
+      #     the first. The harness saw the whole body and the shell did not.
+      #
+      # So the checker extracts the body the way the shell does and parses it
+      # with the matching interpreter. Bare `node`, for the reason the step
+      # above records.
+      - name: Does the workflow-shell gate bite?
+        run: node tools/deploy/check-workflow-shell.mjs --selftest
+
+      - name: Does every `-c` body in every workflow parse?
+        run: node tools/deploy/check-workflow-shell.mjs
+
   contract:
     runs-on: [self-hosted, linux, x64]
     steps:
