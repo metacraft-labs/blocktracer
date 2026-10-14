@@ -9,11 +9,15 @@
 > **This document measures token PROVENANCE, not visual fidelity** — see
 > Design-System.md §8.1. A binding can be 100% `bkToken` and still render
 > nothing like CodeTracer, and a deliberate visual divergence can be invisible
-> to every check below. The other two axes are measured elsewhere, and a
-> convergence pass should read all three because none is a superset of another:
+> to every check below. The other axes are measured elsewhere, and a
+> convergence pass should read all four because none is a superset of another:
 > [DESKTOP-CONTINUITY.md](./DESKTOP-CONTINUITY.md) for the **debugger** register
-> against the desktop app, and [EXPLORER-TINT.md](./EXPLORER-TINT.md) for the
-> **explorer** register's finish against the product register beside it.
+> against the desktop app, [EXPLORER-TINT.md](./EXPLORER-TINT.md) for the
+> **explorer** register's finish against the product register beside it, and
+> [WEB-IDE-RESEMBLANCE.md](./WEB-IDE-RESEMBLANCE.md) for what the two WEB
+> deployments actually render side by side — the axis none of the other three
+> covers, and the one a reader means when they ask whether it looks like the
+> IDE.
 
 ## 0. Why this file is here and not in `codetracer-design-system`
 
