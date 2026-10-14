@@ -990,8 +990,42 @@ jobs:
               n_bucket=$(printf "%s\n" "$bucket_keys" | grep -c . || true)
               n_missing=$(printf "%s\n" "$missing" | grep -c . || true)
               echo "$prefix/: tree $n_tree, bucket $n_bucket, missing from bucket $n_missing"
+              # PRINT THE KEYS, NOT ONLY THE TALLY. "tree 16, bucket 16, missing
+              # 0" was read as "the bucket holds what the tree does", while the
+              # origin was 404ing nine assets/ct-icons/** objects at the same
+              # minute. Equal counts and an empty comm -23 say only that the two
+              # LISTS agree; reading that as a statement about nine particular
+              # keys needs those keys to have been in the lists compared, and the
+              # tally cannot say whether they were. So print both sides. Sixteen
+              # lines is not a log problem; a tally that has to be reasoned from
+              # is.
+              #
+              # BUCKET-ONLY KEYS ARE NOT A FAILURE and are printed anyway: a
+              # content-hashed name this tree has moved past is exactly what
+              # should still be in the bucket, and an object nobody can account
+              # for is worth seeing before it is worth refusing.
+              #
+              # AWK RATHER THAN head, BECAUSE head CLOSES THE PIPE. Under
+              # set -o pipefail a truncating head makes the writer die of EPIPE
+              # and the whole pipeline report failure, so a prefix with more keys
+              # than the cap would turn this read-only step into a red one. awk
+              # stops printing and keeps reading.
+              bucket_only=$(comm -13 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$bucket_keys"))
+              n_only=$(printf "%s\n" "$bucket_only" | grep -c . || true)
+              cap=60
+              printf "%s\n" "$tree_keys"   | awk -v c=$cap "NF && ++i<=c {print \"    tree   \" \$0}"
+              printf "%s\n" "$bucket_keys" | awk -v c=$cap "NF && ++i<=c {print \"    bucket \" \$0}"
+              # `[ … ] && echo` WOULD END THE SCRIPT. Under set -e a false test is
+              # a non-zero compound command, so the common one-liner aborts the
+              # step on the ordinary case of a list that fits.
+              if [ "$n_tree"   -gt "$cap" ]; then echo "    (tree list truncated at $cap of $n_tree)"; fi
+              if [ "$n_bucket" -gt "$cap" ]; then echo "    (bucket list truncated at $cap of $n_bucket)"; fi
+              if [ "$n_only" -gt 0 ]; then
+                echo "    $n_only key(s) in the bucket and not in this tree — expected for content-hashed names:"
+                printf "%s\n" "$bucket_only" | awk -v c=$cap "NF && ++i<=c {print \"    EXTRA  \" \$0}"
+              fi
               if [ "$n_missing" -gt 0 ]; then
-                printf "%s\n" "$missing" | sed "s/^/    MISSING /"
+                printf "%s\n" "$missing" | awk -v c=$cap "NF && ++i<=c {print \"    MISSING \" \$0}"
                 rc=1
               fi
             done
