@@ -2018,11 +2018,20 @@ jobs:
       # journeys below are going to refuse and this names the reason in one
       # screen.
       #
-      # The figures are ASSERTED, not printed. `--expect-opened 10
-      # --expect-refused 45` is today's engine against today's corpus; either
+      # The figures are ASSERTED, not printed. `--expect-opened 12
+      # --expect-refused 43` is today's engine against today's corpus; either
       # number moving is a finding — a re-pin, a container re-encoded, or a
       # corpus that gained or lost a recording — and the commit that changes a
       # number has to say which.
+      #
+      # MOVED 10/45 -> 12/43 ON 2026-10-14, and both halves are "a container
+      # re-encoded". The two `chain/aztec` containers were RE-RECORDED from
+      # container 3 to container 6 with the compact profile, and the nine
+      # `noir/capability-tour` containers were CONVERTED from container 5 to
+      # container 6 by `tools/chain/compact_container.nim` applying
+      # `ctfs-container.md` §1e at a 100,000-byte raw ceiling. Eleven containers
+      # the engine opens are compact now; `noir_space_ship/zk_shields.ct` stays
+      # full because §1e's rule says so — its raw members total 731,774 B.
       #
       # THE SELFTEST RUNS FIRST, HERE AND NOT IN `deploy-gates`, because this is
       # the one job with an engine staged. Six of its ten arms need a verdict
@@ -2036,7 +2045,7 @@ jobs:
         run: |
           nix develop .#ci --command node tools/deploy/engine-opens.mjs \
             --engine client/.replay-engine-cache --corpus \
-            --expect-opened 10 --expect-refused 45
+            --expect-opened 12 --expect-refused 43
 
       # THE WORKING TREE IS NOT THE NIX BUILD, and the selftest below uses the
       # working tree.

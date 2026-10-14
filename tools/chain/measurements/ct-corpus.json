@@ -13,12 +13,12 @@
     "trackedPaths": 55,
     "containers": 52,
     "notContainers": 3,
-    "readable": 10
+    "readable": 1
   },
   "containerVersions": {
     "v3": 40,
-    "v5": 10,
-    "v6": 2
+    "v5": 1,
+    "v6": 11
   },
   "populations": [
     {
@@ -92,10 +92,12 @@
       "paths": 9,
       "containers": 9,
       "versions": {
-        "v5": 9
+        "v6": 9
       },
-      "readable": 9,
-      "refusals": {}
+      "readable": 0,
+      "refusals": {
+        "container-version-6": 9
+      }
     },
     {
       "id": "noir/space-ship",

@@ -725,6 +725,39 @@ ct-corpus-check *ARGS:
     node tools/chain/ct-corpus-census.mjs \
       --expect tools/chain/measurements/ct-corpus.json {{ARGS}}
 
+# Apply `ctfs-container.md` §1e to the tracked `.ct` corpus: convert a container
+# to the COMPACT profile when its raw members fit under the threshold, and leave
+# it full when they do not.
+#
+# THE THRESHOLD IS AN ARGUMENT AND HAS NO DEFAULT, because it is a publishing
+# policy and not a tool's opinion. 100000 is what this repository has applied:
+# it takes the nine `noir/capability-tour` containers and leaves
+# `noir_space_ship/zk_shields.ct` full, whose raw members total 731,774 B.
+#
+# COMPACT IS NOT ALWAYS SMALLER — §1f stores members INFLATED, so a container
+# whose per-member zstd was effective grows. That is what the threshold is for.
+#
+#   just ct-compact-check 100000    # report, write nothing
+#   just ct-compact 100000          # apply, then `just ct-corpus-read`
+# `$CT_TRACE_FORMAT_NIM_SRC` and `$CT_NIM_EXTRA_PATHS` come from the dev shell —
+# see `flake.nix`, where the revision is the one the shipped writer is built
+# from, so this tool and that writer cannot drift apart.
+ct-compact threshold: (_compact-build)
+    ./.compact-container --threshold {{threshold}} $(git ls-files '*.ct')
+
+ct-compact-check threshold: (_compact-build)
+    ./.compact-container --threshold {{threshold}} --check $(git ls-files '*.ct')
+
+_compact-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${CT_TRACE_FORMAT_NIM_SRC:?run this inside the dev shell: nix develop .#ci --command just …}"
+    paths=(-p:"$CT_TRACE_FORMAT_NIM_SRC/src")
+    IFS=: read -ra extra <<< "${CT_NIM_EXTRA_PATHS:-}"
+    for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
+    nim c --hints:off -d:release "${paths[@]}" \
+      -o:.compact-container tools/chain/compact_container.nim
+
 # Re-read the census into the committed reading. Run this deliberately, after a
 # corpus change, and say in the commit WHY each delta moved.
 ct-corpus-read:

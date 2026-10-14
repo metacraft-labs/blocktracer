@@ -258,6 +258,25 @@
           # every one of which resolves $CODETRACER_SRC before falling back to
           # a ../codetracer sibling.
           CODETRACER_SRC = codetracer;
+
+          # ── THE CTFS WRITER'S NIM SOURCE, FOR TOOLS THAT LINK IT ──────────
+          #
+          # `tools/chain/compact_container.nim` imports `codetracer_ctfs` and
+          # `codetracer_trace_writer` to apply `ctfs-container.md` §1e. Those
+          # are not vendored here and not on any default Nim path, so without
+          # these a recipe that builds it fails with `cannot open file:
+          # codetracer_ctfs/types` — measured, on the first run of
+          # `just ct-compact-check`.
+          #
+          # The REVISION is the one `ctWriterWasm` builds the shipped writer
+          # from, so a tool that converts a container and the writer that
+          # produces one cannot drift apart: both read this input.
+          CT_TRACE_FORMAT_NIM_SRC = codetracer-trace-format-nim;
+          # Its `.nimble` requires, in the order that repository's own flake
+          # lists them. Colon-joined because that is the shape
+          # `ct-writer/build.rs` reads, and the same string serves both.
+          CT_NIM_EXTRA_PATHS =
+            builtins.concatStringsSep ":" [ nim-stew nim-results nim-unittest2 ];
         };
 
         # CI dev shell — the execution environment CI runs project commands in
