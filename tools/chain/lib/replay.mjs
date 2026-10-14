@@ -580,7 +580,7 @@ async function sourceBundleCount(path) {
  *  not knowable before the replay has run. */
 export async function replayTransaction({
   nodeBin, runtime, url, txHash, ctPath, ctRelative, sourcesPath, sourcesRelative,
-  avm, ctWriter, compactThreshold = 0,
+  avm, ctWriter, compactThreshold = 0, bodyStore = '',
 }) {
   const r = await run(nodeBin, [
     '--experimental-wasm-exnref',
@@ -612,6 +612,23 @@ export async function replayTransaction({
     // arms either side of the container's own size are what make the ceiling
     // reading a measurement rather than a reading of the spec.
     '--compact-threshold', String(compactThreshold),
+    // ── `--body-store`, AND IT IS PASSED ONLY WHEN ASKED ───────────────────
+    //
+    // The ONE call with a horizon is `getTxByHash`: a node serves a body out of
+    // its active pool for about an hour and then answers null. `--body-store
+    // auto` answers that one call from Aztec's published `TxFileStore` instead,
+    // reading the base from the network config, and leaves every other call on
+    // the node. Measured by the runtime on mainnet: a transaction settled
+    // 50,163 blocks behind the tip replayed exactly, reproducing the corpus's
+    // own frozen row.
+    //
+    // THE ASYMMETRY WITH `--compact-threshold` ABOVE IS DELIBERATE. The
+    // threshold has a meaningful zero — "never compact" — so it can be sent on
+    // every run and an old driver fails on the first transaction. A body store
+    // has no off value: there is no string that means "ask the node", and an
+    // empty one would be a malformed argument. So it is sent only when a caller
+    // asks, and a driver too old to know it fails on the run that asks.
+    ...(bodyStore ? ['--body-store', String(bodyStore)] : []),
     ...(sourcesPath ? ['--sources', sourcesPath] : []),
     '--json',
   ], runtime);

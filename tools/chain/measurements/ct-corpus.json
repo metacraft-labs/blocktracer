@@ -16,8 +16,9 @@
     "readable": 10
   },
   "containerVersions": {
-    "v3": 42,
-    "v5": 10
+    "v3": 40,
+    "v5": 10,
+    "v6": 2
   },
   "populations": [
     {
@@ -30,7 +31,7 @@
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 25
+        "container-version-3": 25
       }
     },
     {
@@ -43,7 +44,7 @@
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 6
+        "container-version-3": 6
       }
     },
     {
@@ -52,11 +53,11 @@
       "paths": 2,
       "containers": 2,
       "versions": {
-        "v3": 2
+        "v6": 2
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 2
+        "container-version-6": 2
       }
     },
     {
@@ -69,7 +70,7 @@
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 1
+        "container-version-3": 1
       }
     },
     {
@@ -82,7 +83,7 @@
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 8
+        "container-version-3": 8
       }
     },
     {
