@@ -531,7 +531,13 @@
         packages.default = pkgs.stdenv.mkDerivation {
           name = "blocktracer-site";
           src = ./.;
-          nativeBuildInputs = [ pkgs.nim pkgs.bash ];
+          # `brotli` BECAUSE THE CONTAINERS ARE STORED PRE-COMPRESSED.
+          # `static_export.nim`'s `PublishedEncoding` is `ceBrotli` and
+          # `publish/encoding.nim` shells out to this binary — an absent one is
+          # a NAMED refusal there and never a silent identity pass, so without
+          # it this derivation fails loudly rather than publishing raw bytes
+          # with no `Content-Encoding`.
+          nativeBuildInputs = [ pkgs.nim pkgs.bash pkgs.brotli ];
           CODETRACER_SRC = codetracer;
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
