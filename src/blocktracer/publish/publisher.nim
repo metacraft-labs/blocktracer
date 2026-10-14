@@ -642,8 +642,15 @@ proc assertRegistryKeepsKnownChains(store: ObjectStore, treeDir: string) =
     if want{name} == nil: dropped.add name
   if dropped.len > 0:
     raise newException(PublishError,
+      # NAME THE OBJECT, not only the property. The post-hoc finding this guard
+      # replaced listed the global objects that had stopped naming the chain, so
+      # a reader knew where to look; the refusal that superseded it named the
+      # chains and left the object implicit in the word "registry". `trehearse`
+      # asked for the key by name and could not find it — a smaller loss than
+      # the chain, and the same kind.
       "refusing to publish a registry that drops chain(s) " & dropped.join(", ") &
-      ": the store lists them and this tree does not. The registry is the only object that " &
+      " (the object is " & rel & "): the store lists them and this tree does not. " &
+      "The registry is the only object that " &
       "lists a chain, so writing this would leave those chains' objects present in the store " &
       "and invisible to every reader. This happens when each chain is ingested into its OWN " &
       "tree: each tree's registry then holds one chain and the second publish overwrites the " &
