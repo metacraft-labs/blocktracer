@@ -1100,6 +1100,44 @@ jobs:
             # hold `assets/hydrate.js`; the sizes say whether they are the same
             # publish. `head-object` rather than a listing, because one key is
             # the question.
+            # ── AN EXACT-KEY LOOKUP, BECAUSE A LISTING IS PARSED ───────────
+            #
+            # `aws s3 ls --recursive | awk "{print $4}"` takes the fourth
+            # whitespace-separated field, so a key carrying anything after a
+            # space is TRUNCATED to what came before it — and a key truncated to
+            # exactly the tree key compares equal while naming a different
+            # object. The listing above therefore cannot tell "the key is there"
+            # from "a key whose printed prefix matches is there", and nothing in
+            # it would show the difference.
+            #
+            # `head-object` takes the key as an argument and cannot truncate it.
+            # So ask for each key the tree carries, by name. A key the listing
+            # claimed and `head-object` cannot find is the listing being parsed
+            # wrong. A key both agree on, while the public origin answers 404
+            # with R2 own Not Found page, is something else entirely — and
+            # knowing which of those two it is, is the whole question.
+            #
+            # NO HEREDOC. A heredoc terminator has to sit at column zero and all
+            # of this is indented inside a YAML block scalar, so it would never
+            # terminate — the same trap the registry guard above records. Process
+            # substitution keeps the loop in THIS shell, so the counter survives
+            # it, which a pipe into `while` would not.
+            for prefix in assets _a; do
+              [ -d "site/$prefix" ] || continue
+              nf=0
+              nq=0
+              while IFS= read -r k; do
+                [ -n "$k" ] || continue
+                nq=$((nq + 1))
+                if ! aws s3api head-object --bucket "$LIVE_BUCKET" --key "$k" \
+                       --endpoint-url "$ENDPOINT" >/dev/null 2>&1; then
+                  echo "    HEAD-404 $k"
+                  nf=$((nf + 1))
+                fi
+              done < <(cd site && find "$prefix" -type f | sort)
+              echo "exact-key lookups in the live bucket for $prefix/: $nq asked, $nf not found"
+            done
+
             # LABEL BY POSITION, NOT BY COMPARING THE NAME BACK. When the two
             # names are equal the comparison matches on both passes and prints
             # TARGET twice, which reads as the live bucket having been skipped.
