@@ -940,7 +940,67 @@ jobs:
       # build published, with correct hashes, and serve a stylesheet carrying
       # none of CodeTracer's panel rules. That was production's exact state on
       # 2026-10-12, and no check in this workflow would have reported it.
-      - name: Ask the bucket what it actually holds
+      # DOES THE BUCKET HOLD WHAT THE TREE HOLDS? Site-level prefixes only, by
+      # key set, which is a few LISTs and no GETs.
+      #
+      # THIS IS THE CHECK THAT WAS MISSING AND THE REASON A PUBLISH LOOKED DONE
+      # WHEN IT WAS NOT. Run 38504065692 published successfully, reported
+      # `content uploaded: 0` on every chain, and left production answering 404
+      # — `cf-cache-status: MISS`, so a real origin 404 — for all nine
+      # `/assets/ct-icons/**` icons the served stylesheet names. The 2026-09-29
+      # copy of the live tree holds four files under `assets/`, all fonts, and
+      # no icons: they have never been published by anything.
+      #
+      # Nothing in the pipeline compared the bucket's key set against the
+      # tree's. `check-assets` reads the TREE (and passed, 13 url(s) resolving),
+      # the publisher reports what IT decided to upload, and the step below used
+      # to run a lint of the verifier rather than the verifier. Three green
+      # signals, none of them about the bucket.
+      #
+      # So: for each site-level prefix the tree carries, list the same prefix in
+      # the bucket and diff the key sets. A key in the tree and not the bucket
+      # is a publish that did not finish, whatever the publisher said.
+      - name: Does the bucket hold the site objects the tree does?
+        if: ${{ inputs.dry-run == false }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          BUCKET: ${{ inputs.bucket }}
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash -euo pipefail -c '
+            rc=0
+            for prefix in assets _a; do
+              [ -d "site/$prefix" ] || { echo "$prefix/: not in the tree"; continue; }
+              tree_keys=$(cd site && find "$prefix" -type f | sort)
+              bucket_keys=$(aws s3 ls "s3://$BUCKET/$prefix/" --recursive                               --endpoint-url "$ENDPOINT" 2>/dev/null                             | awk "{print \$4}" | sort || true)
+              missing=$(comm -23 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$bucket_keys"))
+              n_tree=$(printf "%s\n" "$tree_keys" | grep -c . || true)
+              n_bucket=$(printf "%s\n" "$bucket_keys" | grep -c . || true)
+              n_missing=$(printf "%s\n" "$missing" | grep -c . || true)
+              echo "$prefix/: tree $n_tree, bucket $n_bucket, missing from bucket $n_missing"
+              if [ "$n_missing" -gt 0 ]; then
+                printf "%s\n" "$missing" | sed "s/^/    MISSING /"
+                rc=1
+              fi
+            done
+            if [ "$rc" -ne 0 ]; then
+              echo "::error::the bucket is missing site objects this tree carries."                    "The publisher reported what it DECIDED to upload; this compares"                    "what the bucket HOLDS. A publish that ends here did not finish."
+            fi
+            exit $rc
+          '
+
+      # NAMED FOR WHAT IT DOES. This step used to be called "Ask the bucket what
+      # it actually holds", and it asks the bucket nothing: the script it runs is
+      # a static guard that `blocktracer-verify-published` contains no write
+      # method ("scanned 5 file(s) for 4 write method(s)"). That guard is worth
+      # keeping and worth running — the credential in this job is read-write and
+      # that lint is the only thing standing between it and a production object —
+      # but its green was being read as "the publish is verified", which it has
+      # never meant. The bucket comparison above is the step that asks.
+      - name: Can the published-tree verifier write? (it must not)
         if: ${{ inputs.dry-run == false }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
