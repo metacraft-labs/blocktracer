@@ -1850,6 +1850,21 @@ jobs:
             bash ci/test/ct-styles-vendor.sh &&
             bash ci/test/ct-styles-vendor-test.sh'
 
+      - name: Every shell that can run the exporter carries what it needs
+        # `devShells.capture` ran the exporter without `brotli` and nothing
+        # said so until a full canary capture had failed on it (run
+        # 38643115341). The exporter REFUSES rather than degrading, which is
+        # right — but a multi-minute browser capture is the wrong place to
+        # learn that a 1 MB binary is missing from a package list.
+        #
+        # The rule is `nim` implies `brotli`, over the REALISED inputs of every
+        # dev shell rather than the text of `flake.nix`: `devShells.default`
+        # names neither package and has both, so a grep would have passed it.
+        run: |
+          nix develop .#ci --command bash -c '
+            bash ci/test/devshell-exporter-deps.sh &&
+            bash ci/test/devshell-exporter-deps-test.sh'
+
       # DOES `test_selection_detail.nim` BITE? The proof-of-bite for the one Nim
       # suite that exists BECAUSE a guard somewhere else was dead.
       #

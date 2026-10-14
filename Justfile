@@ -1251,6 +1251,20 @@ ct-styles-vendor:
     ci/test/ct-styles-vendor.sh --require
     ci/test/ct-styles-vendor-test.sh
 
+# CAN EVERY SHELL THAT RUNS THE EXPORTER ACTUALLY RUN IT?
+#
+# `nim` implies `brotli`: a shell providing nim can build and run
+# `static_export`, and since CCP-6 that refuses without the `brotli` binary.
+# Checked over each shell's REALISED inputs, because `devShells.default` names
+# neither package and has both through `inputsFrom`.
+#
+# The self-test drives the four verdicts the gate can reach — pass, a named
+# failure, DID NOT RUN over an empty subject, and a visible SKIP — because a
+# gate whose failure path has never run is a gate nobody has reason to believe.
+devshell-exporter-deps:
+    ci/test/devshell-exporter-deps.sh
+    ci/test/devshell-exporter-deps-test.sh
+
 # THE CONVERSE OF `Dropped`: can a rule the port KEPT match anything?
 #
 # `ct-styles-vendor` above proves the INPUT is still upstream's bytes.

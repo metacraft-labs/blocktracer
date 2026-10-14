@@ -495,8 +495,24 @@
         # No pyyaml here — these five sites use `json` from the standard
         # library and nothing else. It does not touch the capture pin: `envId`
         # is `captureEnv`'s own, and this is the devshell around it.
+        #
+        # `brotli` BECAUSE THIS SHELL RUNS THE EXPORTER. `check-canary.mjs`
+        # builds and runs `client/src/static_export`, which since CCP-6 stores
+        # every container pre-compressed, and `publish/encoding.nim` shells out
+        # to the `brotli` binary to do it. Without it on PATH the exporter does
+        # not degrade — it REFUSES, by design:
+        #
+        #   cannot publish the container for 0x00c67f6f…: cannot store a
+        #   container with Content-Encoding 'br': `brotli` is not on PATH
+        #
+        # and the canary reported `capture failed: static exporter failed`
+        # (run 38643115341). `devShells.ci` has carried brotli since CCP-6 and
+        # this one was missed, which is the whole class of defect a second
+        # shell with its own package list produces: the dependency was declared
+        # where the author was looking.
         devShells.capture = pkgs.mkShell (srcEnv // {
-          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just followerNodejs pkgs.python3 ];
+          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just followerNodejs pkgs.python3
+                          pkgs.brotli ];
           shellHook = ''
             echo "blocktracer VD.0 pinned capture environment"
             echo "  vd0-capture-env --print-pin                       — what is pinned, and its id"
