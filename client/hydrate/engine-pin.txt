@@ -134,9 +134,12 @@
 #
 #   * the published containers are container version 3 with `meta.dat` SCHEMA 3
 #     (sampled `aztec-testnet` container: 180,224 bytes, 94.5% zero, 5 Zstd
-#     frames);
-#   * the engine pinned below is old enough to read them, which is the ONLY
-#     reason replay works today;
+#     frames; re-measured end to end 2026-10-14, see the block below);
+#   * THE ENGINE PINNED BELOW IS NOT OLD ENOUGH TO READ THEM. This bullet used
+#     to say it was, and that it was "the ONLY reason replay works today".
+#     Both halves are false and were measured false on 2026-10-14 — see
+#     "THE PREMISE IS INVERTED" below. The pin is still load-bearing, but for
+#     the opposite reason: it records WHICH too-new engine is deployed;
 #   * a current db-backend's `meta.dat` set does NOT contain 3
 #     (`db-backend/src/ctfs_trace_reader/meta_dat.rs`, `SUPPORTED_VERSIONS`).
 #
@@ -150,6 +153,62 @@
 #     an agent was briefed from it. THE DURABLE STATEMENT IS "NOT 3". Live
 #     figures are measured per revision in the sections below, which are
 #     maintained where this bullet was not — read those instead.
+#
+# ── THE PREMISE IS INVERTED. Measured end to end 2026-10-14. ───────────────
+#
+# This note was written on the belief that the deployed engine is OLDER than
+# the corpus and must not be bumped. The opposite is the case: the deployed
+# engine is already two generations NEWER than the corpus, and interactive
+# replay is therefore refused on every published page today. Every figure
+# below was taken from bytes fetched over the network, not from a source
+# reading or a transcription.
+#
+#   THE DEPLOYED ENGINE, and it is the one pinned below. All three assets are
+#   served by blocktracer.org itself at `/replay-engine/` — the default
+#   `-d:replayEngineBase` — and each is byte-identical to its row here:
+#     worker.js               12,180 B     sha256 ad2e6ce0ac902ba1…
+#     pkg/db_backend.js       18,675 B     sha256 74a921132b77d2cd…
+#     pkg/db_backend_bg.wasm  17,821,148 B sha256 9f332ae0ddfabe6b…
+#   What it accepts, read from `codetracer` `cloud` 571c64ccaa (the revision
+#   whose deploy published these bytes) and CONFIRMED against the wasm's own
+#   embedded strings: container {5,6} (`check_container_version`), `meta.dat`
+#   {6} (`SUPPORTED_VERSIONS = &[META_DAT_VERSION]`, `META_DAT_VERSION = 6`).
+#   The wasm carries the v6 refusal wording ("…cannot be read as each other")
+#   and NOT the v7 wording ("…version 6 predates the event kinds 14-23"), so
+#   the deployed generation is identified by the artefact, not inferred.
+#
+#   THE PUBLISHED CORPUS, fetched and decoded rather than declared.
+#   `registry/chains.v1.json` declares `traceSchema: "ctfs/v4"` for all three
+#   chains; the BYTES say version 3. The container reached by deriving its own
+#   `traceArtifactId` (`contract/ids.nim`: base32(sha1(tag, 1, executionInputId,
+#   recorderId, recorderBuild, profileHash, traceSchema))[0..25]) from the
+#   published `tx` facts and TraceSelection:
+#     t/am/mv/ammvhjow74vl54sit25ybg7leu/trace.ct   200,704 B
+#     container_version 3, `meta.dat` CTMD version 3, 21 members including
+#     `events.log`, `events.fmt`, `meta.json`, `paths.json` — v3-era members
+#     the current layout no longer writes.
+#   So BOTH axes are refused, and the container axis is refused FIRST: 3 is not
+#   in {5,6}, so `check_container_version` fails before `meta.dat` is read.
+#   The corpus is otherwise complete and honest — that container's TraceSelection
+#   says `availability: "ready"`, `validation: match` strength 10, and its tx
+#   facts carry 459 instructions executed, 108 steps with 86 positioned, a
+#   second execution of 351 steps, and four resident contracts.
+#
+#   WHAT A VISITOR SEES, and why it is consistent with the above: no served
+#   `.ctrow` or `.evrow` rows on any page measured, the call-trace and event
+#   panes showing their "listed once the session is live" overlay, and every
+#   transaction on `aztec`'s first listing page reading "Not traced yet".
+#
+# WHAT THIS CHANGES. The old prescription — "do not bump the engine, it is the
+# only thing keeping replay alive" — protects nothing, because the bump has
+# already happened. The remedy is on the CORPUS side (re-record to container 5
+# / `meta.dat` 6, which the deployed engine accepts today, or ship the compact
+# profile) or else by deliberately pinning an engine that reads 3. Bumping the
+# rows below toward `agents` would make it strictly worse: `codetracer`
+# `agents` reads `meta.dat` {7}, and `codetracer-trace-format-nim` `agents`
+# already WRITES 7, so a producer rebuilt from today's tips emits containers
+# the CURRENTLY deployed engine also refuses — on the `meta.dat` axis, with the
+# container axis still passing at 5, which is the quietest possible failure.
 #
 # The two axes are independent and that is the whole trap: the container gate
 # was widened and the `meta.dat` gate was not, so "container v3 is accepted
