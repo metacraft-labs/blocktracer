@@ -126,6 +126,28 @@ const snapDir = resolve(arg('snapshot', `client/fixtures/chain/${chain}`));
 const runtime = arg('runtime');
 const avm = arg('avm', process.env.AVM_WASM_PATH);
 const ctWriter = arg('ct-writer', process.env.CT_WRITER_WASM_PATH);
+
+// ── `--compact-threshold`, the one lever CCP-6 made reachable ──────────────
+//
+// `ctfs-container.md` §1e's threshold is a CEILING IN RAW BYTES. A container at
+// or below it is written at container version 6 with profile byte 1; one above
+// it is written full, at version 5. ZERO therefore means "never compact", and
+// is the default, so a run that does not pass this writes exactly the
+// containers it wrote before the option existed.
+//
+// It is read here and forwarded unconditionally rather than only when set —
+// see `lib/replay.mjs` for why an option exercised only on request is an option
+// whose absence is found by the one run that needs it.
+const compactThreshold = (() => {
+  const raw = arg('compact-threshold', process.env.CT_COMPACT_THRESHOLD ?? '0');
+  if (!/^[0-9]+$/.test(String(raw))) {
+    die(`--compact-threshold must be a non-negative integer of raw bytes, got [${raw}]. ` +
+        'It is a CEILING: 0 means never compact, and a value below a container\'s own ' +
+        'raw size asks for nothing.');
+  }
+  return String(raw);
+})();
+
 const nodeBin = arg('node', process.execPath);
 const intervalS = Number(arg('interval', 60));
 const deadlineMin = Number(arg('deadline-min', 480));
@@ -376,7 +398,7 @@ async function main() {
         nodeBin, runtime, url, txHash: c.txHash,
         ctPath: join(snapDir, ctRel), ctRelative: ctRel,
         sourcesPath: join(snapDir, srcRel), sourcesRelative: srcRel,
-        avm, ctWriter,
+        avm, ctWriter, compactThreshold,
       });
 
       const row = {

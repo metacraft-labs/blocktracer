@@ -580,7 +580,7 @@ async function sourceBundleCount(path) {
  *  not knowable before the replay has run. */
 export async function replayTransaction({
   nodeBin, runtime, url, txHash, ctPath, ctRelative, sourcesPath, sourcesRelative,
-  avm, ctWriter,
+  avm, ctWriter, compactThreshold = 0,
 }) {
   const r = await run(nodeBin, [
     '--experimental-wasm-exnref',
@@ -590,6 +590,28 @@ export async function replayTransaction({
     '--module', resolve(avm),
     '--ct', ctPath,
     '--ct-writer', resolve(ctWriter),
+    // ── CCP-6/7's COMPACT PROFILE, PASSED UNCONDITIONALLY ──────────────────
+    //
+    // `ctfs-container.md` §1e's threshold is a CEILING IN RAW BYTES: a
+    // container whose raw size is at or below it is written at container
+    // version 6 with profile byte 1, and one above it is written full, at
+    // version 5. Zero therefore means "never compact", which is the default
+    // here and leaves every container byte-identical to one written before
+    // this argument existed.
+    //
+    // PASSED EVEN WHEN ZERO, and that is deliberate rather than tidy: the
+    // runtime's own driver takes the same position, because an option
+    // exercised only when someone asks for it is an option whose absence is
+    // discovered by the one run that needs it. A driver too old to know the
+    // flag fails HERE, on the first transaction, instead of silently writing a
+    // corpus in the wrong profile.
+    //
+    // Measured 2026-10-14 on the module this repository builds: threshold
+    // 1,000 over a 73,728-byte container gives version 5; threshold 100,000
+    // over the same input gives 2,174 bytes at version 6, profile 1. The two
+    // arms either side of the container's own size are what make the ceiling
+    // reading a measurement rather than a reading of the spec.
+    '--compact-threshold', String(compactThreshold),
     ...(sourcesPath ? ['--sources', sourcesPath] : []),
     '--json',
   ], runtime);

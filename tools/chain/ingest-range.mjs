@@ -159,6 +159,28 @@ const runtime = arg('runtime', '');
 const nodeBin = arg('node', process.execPath);
 const avm = arg('avm', process.env.AVM_WASM_PATH ?? '');
 const ctWriter = arg('ct-writer', process.env.CT_WRITER_WASM_PATH ?? '');
+
+// ── `--compact-threshold`, the one lever CCP-6 made reachable ──────────────
+//
+// `ctfs-container.md` §1e's threshold is a CEILING IN RAW BYTES. A container at
+// or below it is written at container version 6 with profile byte 1; one above
+// it is written full, at version 5. ZERO therefore means "never compact", and
+// is the default, so a run that does not pass this writes exactly the
+// containers it wrote before the option existed.
+//
+// It is read here and forwarded unconditionally rather than only when set —
+// see `lib/replay.mjs` for why an option exercised only on request is an option
+// whose absence is found by the one run that needs it.
+const compactThreshold = (() => {
+  const raw = arg('compact-threshold', process.env.CT_COMPACT_THRESHOLD ?? '0');
+  if (!/^[0-9]+$/.test(String(raw))) {
+    die(`--compact-threshold must be a non-negative integer of raw bytes, got [${raw}]. ` +
+        'It is a CEILING: 0 means never compact, and a value below a container\'s own ' +
+        'raw size asks for nothing.');
+  }
+  return String(raw);
+})();
+
 // 0 = every first-in-block transaction in the range. A budget is a statement
 // about the RUN and the rows it does not reach say so — `not-attempted`.
 const replayMax = Math.max(0, Number(arg('replay-max', '0')));
@@ -876,7 +898,7 @@ async function replayRange(dir) {
       nodeBin, runtime, url: proxy.url, txHash: t.txHash,
       ctPath: join(dir, ctRel), ctRelative: ctRel,
       sourcesPath: join(dir, srcRel), sourcesRelative: srcRel,
-      avm, ctWriter,
+      avm, ctWriter, compactThreshold,
     });
     const ms = Date.now() - started;
     perTxMs.push(ms);
