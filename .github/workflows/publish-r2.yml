@@ -970,6 +970,10 @@ jobs:
       # bucket missing objects the tree carries is a true finding whether or not
       # this run was going to fix it, and a dry run that reports it as fine would
       # be the same silence this step exists to break.
+      #
+      # THREE VERDICTS, NOT TWO: 0 the bucket holds them, 1 it does not, 2 this
+      # step could not look. The third is new and is the reason the listing is
+      # no longer `2>/dev/null … || true` — see the comment at the listing.
       - name: Does the bucket hold the site objects the tree does?
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -981,10 +985,50 @@ jobs:
           set -euo pipefail
           nix develop .#ci --command bash -euo pipefail -c '
             rc=0
+            # ── DOES THE BUCKET EXIST AND CAN THIS IDENTITY READ IT? ───────
+            #
+            # ASKED SEPARATELY, BEFORE ANY PREFIX, because the listing below
+            # cannot answer it. `aws s3 ls` reports an absent bucket, a wrong
+            # endpoint, a rejected key AND an empty prefix all as zero keys —
+            # and zero keys against a 16-file tree prints "missing from bucket
+            # 16", naming sixteen objects as absent from a bucket nobody
+            # managed to look inside. Measured on run 38639811606: `assets/:
+            # tree 16, bucket 0, missing from bucket 16` for a bucket whose
+            # existence was never established.
+            #
+            # NOT BY READING `s3 ls`s EXIT CODE EITHER, and this is checked
+            # rather than remembered: awscli 2.35.11,
+            # `customizations/s3/subcommands.py:_check_no_objects` —
+            #
+            #     if self._empty_result and self._at_first_page:
+            #         # Nothing was returned in the first page of results when
+            #         # listing the objects.
+            #         return 1
+            #
+            # — so a prefix with no objects exits 1 with no output, and an
+            # exit-code test would call an empty-but-valid `_a/` a failed
+            # lookup. That is the same defect pointed the other way, which is
+            # also why the `|| true` on the listing below STAYS. `head-bucket`
+            # asks the bucket question with a call whose answer is only about
+            # the bucket.
+            if ! hb=$(aws s3api head-bucket --bucket "$BUCKET" \
+                        --endpoint-url "$ENDPOINT" 2>&1); then
+              echo "COULD NOT OPEN THE BUCKET — this step measured nothing."
+              echo "$hb" | sed "s/^/      /"
+              echo "::error title=DID NOT RUN::the bucket could not be opened, so" \
+                   "\"missing from bucket\" could not be computed. An absent bucket," \
+                   "a wrong endpoint and a rejected key are not an empty bucket, and" \
+                   "an empty bucket against a populated tree reads as every object" \
+                   "missing. Exiting 2 (did not run), not 1 (a finding)."
+              exit 2
+            fi
+            echo "bucket: opened"
             for prefix in assets _a; do
               [ -d "site/$prefix" ] || { echo "$prefix/: not in the tree"; continue; }
               tree_keys=$(cd site && find "$prefix" -type f | sort)
-              bucket_keys=$(aws s3 ls "s3://$BUCKET/$prefix/" --recursive                               --endpoint-url "$ENDPOINT" 2>/dev/null                             | awk "{print \$4}" | sort || true)
+              bucket_keys=$(aws s3 ls "s3://$BUCKET/$prefix/" --recursive \
+                              --endpoint-url "$ENDPOINT" 2>/dev/null \
+                            | awk "{print \$4}" | sort || true)
               missing=$(comm -23 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$bucket_keys"))
               n_tree=$(printf "%s\n" "$tree_keys" | grep -c . || true)
               n_bucket=$(printf "%s\n" "$bucket_keys" | grep -c . || true)
@@ -1029,7 +1073,11 @@ jobs:
                 rc=1
               fi
             done
-            if [ "$rc" -ne 0 ]; then
+            # 1 and 2 are different verdicts and must not merge: 1 is "the
+            # bucket is missing objects", a claim about the publish; 2 is "this
+            # step could not look", a claim about itself. The message below is
+            # only true of the first.
+            if [ "$rc" -eq 1 ]; then
               echo "::error::the bucket is missing site objects this tree carries."                    "The publisher reported what it DECIDED to upload; this compares"                    "what the bucket HOLDS. A publish that ends here did not finish."
             fi
             exit $rc
