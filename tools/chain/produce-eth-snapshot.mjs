@@ -665,6 +665,15 @@ function engineSkew(repoRoot, containerVer, ctPrintReadsSchema) {
     containerSchema: ctPrintReadsSchema,
     enginePin: rec ? rec[2] : null,
     engineAccepts: shipped?.accepts ?? null,
+    // THE CONTAINER-VERSION AXIS, which the verdict below needs and which the old
+    // unconditional sentence never consulted. A container can be a schema the engine reads
+    // and a VERSION it does not, or the other way round, so one axis is not the answer.
+    engineAcceptsContainerVersions: shipped?.acceptsContainerVersions ?? null,
+    // WHERE AND WHEN THE CONSTANT WAS TRANSCRIBED. `health-checks.json`'s own header says
+    // a transcribed constant rots and that the only honest mitigation is to say when and
+    // from where it was read — so the verdict carries that with it rather than presenting
+    // a reading of unknown age as a fact.
+    engineReadFrom: shipped?.readFrom ?? null,
     pinFile: ENGINE_PIN_FILE,
     schemaStatedBy: HEALTH_CHECKS_FILE,
   };
@@ -1828,32 +1837,65 @@ async function main() {
 
   if (skewNote) {
     const skew = engineSkew(repoRoot, anchor.c.version, 6);
+    // ── THE VERDICT IS DERIVED, AND THAT IS A CORRECTION ─────────────────────────────
+    //
+    // This block used to STATE its conclusion: "so a published page RENDERS and its
+    // INTERACTIVE REPLAY REFUSES … this one is too NEW for the shipped engine." The two
+    // figures above it were read from the two files; the conclusion was not, and nothing
+    // compared them. MEASURED 2026-10-14 at this commit: `health-checks.json`'s
+    // `shipped-engine` entry accepts meta.dat [6] and container versions [5, 6], read from
+    // `codetracer` revision 571c64cca on 2026-10-12, which SUPERSEDES an earlier reading —
+    // and this producer emits container version 5, meta.dat schema 6. BOTH AXES MATCH, so
+    // the sentence this tool printed on every run was false, and had been since that
+    // re-pin. A conclusion that cannot change when its inputs change is not a measurement.
+    //
+    // So the verdict is computed, both axes are named, and the transcription's own
+    // provenance travels with it. The rule it closes with is unchanged and unconditional,
+    // because it is a rule rather than a reading: the pin is not bumped on its own.
+    // CORROBORATED FROM THE OTHER SIDE, 2026-10-20: the refusal these two axes replaced
+    // was printed unconditionally, and went on saying "REFUSES" for eight days after the
+    // 2026-10-12 re-pin made it false — `tools/deploy/engine-opens.mjs` OPENED this
+    // container under the pinned engine on 2026-10-20. That is the same defect computing
+    // the verdict removes: a conclusion that cannot change when its inputs change.
+    const accepts = Array.isArray(skew.engineAccepts) ? skew.engineAccepts : null;
+    const acceptsVersions = Array.isArray(skew.engineAcceptsContainerVersions)
+      ? skew.engineAcceptsContainerVersions : null;
+    const schemaVerdict = accepts === null ? 'UNKNOWN'
+      : accepts.includes(skew.containerSchema) ? 'ACCEPTED' : 'REFUSED';
+    const versionVerdict = acceptsVersions === null ? 'UNKNOWN'
+      : acceptsVersions.includes(skew.containerVersion) ? 'ACCEPTED' : 'REFUSED';
+    const replayVerdict =
+      schemaVerdict === 'ACCEPTED' && versionVerdict === 'ACCEPTED' ? 'LOADS'
+      : schemaVerdict === 'UNKNOWN' || versionVerdict === 'UNKNOWN' ? 'UNDETERMINED'
+      : 'REFUSES';
+    const from = skew.engineReadFrom;
     console.log('');
     console.log('  MEASURED PROPERTY OF THIS TREE, not a failure of it:');
     console.log(`    this container is version ${skew.containerVersion} / `
-                + `meta.dat schema ${skew.containerSchema} (the reader that opened it `
-                + `reads schema 6 only, and refuses 3 by name)`);
+                + `meta.dat schema ${skew.containerSchema}`);
     console.log(`    the engine a visitor runs is pinned at `
                 + `${String(skew.enginePin).slice(0, 16)}… and ${HEALTH_CHECKS_FILE} `
-                + `records it as accepting meta.dat `
-                + `${JSON.stringify(skew.engineAccepts)}`);
-    // THE VERDICT IS COMPUTED FROM THE TWO HALVES PRINTED ABOVE, never written as a
-    // sentence. Until 2026-10-20 the refusal below was printed unconditionally, and it
-    // went on saying "REFUSES" for eight days after the 2026-10-12 re-pin made it false
-    // — `engine-opens.mjs` OPENED this container under the pinned engine on 2026-10-20.
-    const accepts = Array.isArray(skew.engineAccepts) ? skew.engineAccepts : null;
-    if (accepts && accepts.includes(skew.containerSchema)) {
-      console.log('    the two agree, so a published page RENDERS AND REPLAYS. '
-                  + '`tools/deploy/engine-opens.mjs` asks the engine itself, and is the '
-                  + 'check to run before relying on this line.');
-    } else {
-      console.log('    so a published page RENDERS (the pages are static HTML) and its '
-                  + 'INTERACTIVE REPLAY REFUSES'
-                  + (accepts ? '.' : ' unless the engine says otherwise: '
-                     + `${HEALTH_CHECKS_FILE} states no accepted set to compare with.`));
-      console.log(`    ${ENGINE_PIN_FILE} carries the rule for moving that pin, and `
-                  + `\`tools/deploy/engine-opens.mjs\` asks the engine directly.`);
-    }
+                + `records it as accepting meta.dat ${JSON.stringify(skew.engineAccepts)} `
+                + `and container version(s) `
+                + `${JSON.stringify(skew.engineAcceptsContainerVersions)}`);
+    console.log(`    that reading was transcribed from `
+                + `${from?.repo ?? '?'} ${from?.revision ?? '?'} on ${from?.on ?? '?'} — `
+                + `${HEALTH_CHECKS_FILE} says a transcribed constant rots, so the verdict `
+                + `below is only as current as that date`);
+    console.log(`    DERIVED: schema ${skew.containerSchema} is ${schemaVerdict}, `
+                + `container version ${skew.containerVersion} is ${versionVerdict} => a `
+                + `published page RENDERS (the pages are static HTML) and its INTERACTIVE `
+                + `REPLAY ${replayVerdict}`);
+    // THE COUPLING, NOT THE OLD RULE'S WORDING. This line used to say "`engine-pin.txt`
+    // carries the rule: do not bump that pin on its own". That rule's own file records it
+    // being overtaken: its 2026-10-12 section is headed "THE RULE ABOVE WAS OBEYED UNTIL
+    // ITS THIRD OPTION STOPPED EXISTING", because the publisher deleted the pinned bytes
+    // and "hold" ceased to be a course of action. Restating a superseded rule as current
+    // is the same defect as stating a verdict nothing computed, so this points at the file
+    // instead of paraphrasing a sentence in it.
+    console.log(`    ${ENGINE_PIN_FILE} is where the coupling lives: the pin, the corpus `
+                + `and the deploy move together, and its 2026-10-12 section is the record `
+                + `of what happened when one of them had to move alone.`);
   }
 }
 

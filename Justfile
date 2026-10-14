@@ -2339,3 +2339,73 @@ flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
       --recorder-commit "$commit" \
       --inputs fixtures/chain-inputs/flow-mainnet/{{BLOCK}} \
       --out {{OUT}} --work .flow-capture/work
+
+# ── the RESIDENT follower: ING-1's deployed daemon, runnable locally over a range ──
+#
+# `just eth-range` captures a range somebody asked for. This is the loop that asks:
+# it observes the chain, derives what it still owes from the PUBLISHED output, captures
+# up to its tick capacity, files and publishes each span through `eth-ingest-range`, and
+# writes an observation — including a measured zero — on every tick.
+#
+# RUNNABLE LOCALLY TODAY AND RESIDENT UNCHANGED. The same binary and the same flags; a
+# deployment differs only in `--backend s3 --bucket`, `--ticks 0` (the default) and a
+# supervisor. During development, bound it: `--floor/--ceiling` name the window,
+# `--ticks` the budget, `--heads` replays a recorded head transcript instead of the node.
+#
+# IT HOLDS NO CREDENTIAL. Every store read and the SLI write go through
+# `blocktracer-follower-state`, and the publish through `blocktracer-publish` — both take
+# `--backend`, so the follower never speaks S3 itself.
+#
+# NOT in any gate, for `eth-range`'s reason: it needs the network and the recorder binary,
+# so a gate over it would report SKIP forever. The gated, offline half is
+# `just eth-follower-proof`'s transcript-driven arms.
+#
+#     just eth-follow <recorder> <commit> --dest .eth-store --ticks 5 --tick-capacity 2
+eth-follow RECORDER COMMIT *ARGS:
+    nim c --hints:off -d:release --path:src -o:.eth-follower/bin/blocktracer-follower-state \
+      src/blocktracer_follower_state.nim
+    nim c --hints:off -d:release --path:src -o:.eth-follower/bin/blocktracer-chain-ingest \
+      src/blocktracer_chain_ingest.nim
+    nim c --hints:off -d:release --path:src -o:.eth-follower/bin/blocktracer-publish \
+      src/blocktracer_publish.nim
+    node tools/chain/follow-eth-chain.mjs \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --state-bin .eth-follower/bin/blocktracer-follower-state \
+      --ingest-bin .eth-follower/bin/blocktracer-chain-ingest \
+      --publish-bin .eth-follower/bin/blocktracer-publish {{ARGS}}
+
+# ── does the resident follower do the six things ING-1 asks of it? ──
+#
+# `eth-publish-proof` proves ONE publish cycle; `eth-coverage-proof` proves range after
+# range into one store. Both describe a run somebody started. A DAEMON has properties a run
+# does not: it must survive a kill, it must not drop a burst, it must say something during
+# a drought, and its lag must be readable by somebody who is not watching its terminal.
+#
+# THE BURST IS THE CHAIN'S, NOT THE HARNESS'S, and that is the finding that sizes the
+# design. Recorded on 2026-10-14 against `https://eth.drpc.org` by the follower's own
+# `--record-heads`, 44 ticks at 30 seconds, committed as
+# `tools/chain/measurements/eth-head-transcript-2026-10-14.json`: ETHEREUM'S FINALIZED HEAD
+# ADVANCES ONE EPOCH AT A TIME. It stood still for twelve ticks and then moved +32 in one,
+# then +32 again at tick 25 and +32 again at tick 38, while the tip crept 26,189,168 ->
+# 26,189,276. So a follower whose tick capacity is under thirty-two meets an undrainable
+# burst every six and a half minutes on the ordinary chain, and 40 of the 44 ticks observed
+# a window and found NOTHING. Average-rate reasoning predicts neither.
+#
+# Only the burst arm's CONTROL is constructed — "the same total spread evenly across ticks",
+# which a chain does not offer on request — and it carries `synthetic: true`, which the
+# follower prints on every run so a measurement cannot quietly be over a made-up chain.
+#
+# Arms 2, 6 and the roster arms need only the transcript. Arms 1, 3, 4, 5, 7, 8, 9 and 11
+# capture REAL blocks and need the network and the recorder; an ABSENT subject is exit 2,
+# never exit 0.
+#
+# 83 checks, 0 failures, measured 2026-10-14 over the window 26,189,100-26,189,105 and
+# 11,446 published objects. The default endpoint is free and rate-limits: a 429 leaves the
+# span OWED and a later tick retries it, which is the designed behaviour and is REPORTED in
+# the result block whether or not any arm went red. Pass --url <paid endpoint> to take the
+# endpoint out as a variable.
+#
+#     just eth-follower-proof
+#     just eth-follower-proof --span 4 --capacity 2 --keep
+eth-follower-proof *ARGS:
+    bash tools/chain/eth-follower-proof.sh {{ARGS}}

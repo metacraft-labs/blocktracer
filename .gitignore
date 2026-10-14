@@ -242,3 +242,27 @@ fixtures/chain-health/readable-container/ct/*.ct
 /.eth-publish-proof/
 # `just starknet-capture`'s work and output (tools/chain/starknet-capture.sh).
 /.starknet-capture/
+
+# `tools/chain/eth-ingest-range.mjs`'s state directory: the `blocktracer/coverage-ledger@1`,
+# one filed snapshot tree per captured range, the merged union it ingests from, and the
+# publish tree. This is the RESIDENT FOLLOWER'S DATA rather than a cache — the per-range
+# snapshots are the one piece of state that is NOT reconstructible from published output,
+# because the store holds the ingested tree and not the captures it was built from
+# (`follow-eth-chain.mjs:assertLedgerCoversWhatTheStoreMaps` is the refusal that says so).
+# It is ignored rather than committed because it holds `.ct` containers, which the `.ct` ban
+# refuses, and because a deployed follower's volume is not a git working tree. ING-1's
+# "no produced artifact reaches the repository by a human `git add`" is this line.
+/.eth-chain-state/
+
+# `tools/chain/follow-eth-chain.mjs`'s own directory: one capture tree per drained span, the
+# recorder's kept recordings, the JSONL observation stream and the scratch file the SLI
+# write goes through. Derived, container-bearing, and per-host.
+/.eth-follower/
+
+# `just eth-coverage-proof`'s and `just eth-follower-proof`'s work directories: local object
+# stores, ledger state, publish trees and one log per cycle, all derived from the captures
+# under `.eth-range/`. Both scripts remove the stores themselves unless `--keep` is passed;
+# the logs are left behind on purpose, because they are the evidence a failed arm is
+# diagnosed from.
+/.eth-coverage-proof/
+/.eth-follower-proof/
