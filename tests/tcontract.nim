@@ -13,6 +13,8 @@ import ../src/blocktracer/contract/[model, version, ids, searchidx, entrypage]
 import ../client/src/viewmodel/search_shapes
 import ../src/blocktracer/validator
 import ../src/blocktracer/demo/generator
+import ../src/blocktracer/contract/container_encoding
+import ../src/blocktracer/publish/encoding
 
 # The synthetic demo tree's slug. It is no longer `aztec`: that slug is the Aztec
 # MAINNET's, served at blocktracer.org/aztec, and the fixture moved off it.
@@ -283,17 +285,105 @@ suite "M5c — the published traces are the real noir_space_ship execution":
       # and the current reader refused it outright, so this re-recording is what
       # made the fixture readable at all. These two assertions going red is the
       # mechanism `generator.nim` documents working as intended.
+      #
+      #   bytes 102400 -> 732258   the fixture moved to CTFS §1e's COMPACT
+      #                     PROFILE (container version 6), whose members are
+      #                     stored INFLATED — §1f replaces each zstd frame with
+      #                     its content. §1e states the direction outright: "a
+      #                     compact container can be substantially LARGER at
+      #                     rest than a full container of the same recording,
+      #                     where per-member zstd has already run." Growing is
+      #                     the profile working, not a regression.
+      #
+      # AND THE RECORDING IS UNCHANGED, which is what makes that a renumbering
+      # rather than a relaxation: `steps` is still 1315 and `frames` still 81,
+      # and the assertion above this constant holds the manifest to the
+      # fixture's own length independently of any constant at all. If the
+      # recording HAD changed, those three would not have stayed put.
       check m["execution"]["steps"].getInt == 1315
       check m["execution"]["frames"].getInt == 81
       check m["execution"]["languages"].getElems.mapIt(it.getStr) == @["noir"]
       check m["execution"]["sourceLevel"].getBool
       check m["container"]["bytes"].getInt == readFile(fixture).len
-      check m["container"]["bytes"].getInt == 102400
+      check m["container"]["bytes"].getInt == 732258
+      # ── AND THIS TREE IS AN IDENTITY TREE, SO IT SAYS NOTHING AT REST ────
+      #
+      # `generator.nim` omits `encoding`, `storedBytes` and `storedHash`
+      # ENTIRELY under `ceIdentity`, "so a tree published without
+      # pre-compression is byte-identical to one published before CCP-6". That
+      # is a contract, not an accident, and it is asserted here rather than
+      # left as a thing the absence of an assertion happens to allow. The
+      # matching half — a brotli tree carrying all three — is the test below.
+      check not m["container"].hasKey("encoding")
+      check not m["container"].hasKey("storedBytes")
+      check not m["container"].hasKey("storedHash")
       if m["execution"]["truncated"].getBool: inc truncatedSeen
     check seen == 6
     # Exactly one truncated recording, and therefore five that are not: the
     # §14 banner has a subject, and it is not on every session.
     check truncatedSeen == 1
+
+  test "a brotli tree carries all three of CTFS §1e's figures, and moves none of them":
+    # THE OTHER HALF OF THE CONTRACT ABOVE. That tree is `ceIdentity` and must
+    # say nothing about bytes at rest; this one is `ceBrotli` — what
+    # `static_export.nim`'s `PublishedEncoding` publishes — and must say all
+    # three.
+    #
+    # §1e: "Three figures — at rest, on the wire, and as the loader sees it —
+    # are what a publisher needs, and conflating any two of them is how a size
+    # argument goes wrong." The conflation this pins is the one that already
+    # happened once, in `check-freshness`'s F4: an object at rest read as the
+    # container, which reported twenty-five unchanged recordings as changed.
+    #
+    # THE INVARIANT IS THAT THE RAW FIGURES DO NOT MOVE. Encoding for rest is a
+    # transport decision, and a transport decision that changed what the
+    # manifest says about the CONTAINER would be the defect. So the two trees
+    # are generated from the same seed and the same fixture and their `bytes`
+    # and `hash` are compared directly, rather than each being checked against
+    # a constant that could drift with them.
+    let brDir = tmp("realtrace-br")
+    discard generate(DemoConfig(outDir: brDir, seed: "test-seed-1",
+                                traceFixturePath: fixture,
+                                traceSourcesDir: sourcesDir,
+                                containerEncoding: ceBrotli))
+    var seenBr = 0
+    for p in walkDirRec(brDir / "t"):
+      if p.extractFilename != "manifest.json": continue
+      inc seenBr
+      let m = parseFile(p)
+      let c = m["container"]
+      # As the loader sees it — unchanged from the identity tree.
+      var plain: JsonNode = nil
+      for q in walkDirRec(outDir / "t"):
+        if q.extractFilename != "manifest.json": continue
+        let pm = parseFile(q)
+        if pm["tx"].getStr == m["tx"].getStr: plain = pm["container"]; break
+      check plain != nil
+      check c["bytes"].getInt == plain["bytes"].getInt
+      check c["hash"].getStr == plain["hash"].getStr
+      check c["bytes"].getInt == readFile(fixture).len
+      # At rest — declared, smaller, and a different object.
+      check c["encoding"].getStr == "br"
+      check c["storedBytes"].getInt > 0
+      check c["storedBytes"].getInt < c["bytes"].getInt
+      check c["storedHash"].getStr.startsWith("sha1:")
+      check c["storedHash"].getStr != c["hash"].getStr
+      # AND THE FILE ON DISK IS THE OBJECT THE MANIFEST DESCRIBES, not the
+      # container. A manifest can declare anything; this is the one assertion
+      # that holds it to the bytes beside it.
+      let onDisk = readFile(p.parentDir / "trace.ct")
+      check onDisk.len == c["storedBytes"].getInt
+      check contentHashSha1(onDisk) == c["storedHash"].getStr
+      # BROTLI, not merely something that differs. Without this the three
+      # assertions above are satisfied by any smaller byte string with a
+      # matching hash recorded beside it — "it is compressed" would be a claim
+      # nothing checked. The round-trip is the claim.
+      let back = decodeContainer(onDisk, ceBrotli)
+      check back.ok
+      check back.data.len == c["bytes"].getInt
+      check contentHashSha1(back.data) == c["hash"].getStr
+      check back.data == readFile(fixture)
+    check seenBr == 6
 
   test "the overlay advertises the container's true size":
     # The client picks its fetch strategy from this number before it has the
