@@ -43,18 +43,34 @@
 ## (`tools/chain/rerecord-snapshot.mjs`), which is a different operation with a
 ## different input, not a harder version of this one.
 ##
-## ── COMPACT IS NOT SMALLER, AND THAT IS THE POINT OF THE THRESHOLD ────────
+## ── THE THRESHOLD IS A RESIDENCY BOUND, NOT A SIZE BOUND ──────────────────
 ##
 ## §1f stores members INFLATED, so a container whose per-member zstd was
-## effective is LARGER compact than full. Measured over this repository's ten
-## `nargo trace` containers: nine shrink, several by 8x
-## (`tour_branches` 77,824 -> 9,057), and `zk_shields` grows 102,400 -> 732,258.
+## effective is LARGER at rest compact than full. Measured over this
+## repository's ten `nargo trace` containers: `tour_branches` goes
+## 77,824 -> 9,057 and `zk_shields` goes 102,400 -> 732,258.
 ##
-## That is why §1e has a threshold at all, and why this tool applies the rule
-## rather than forcing the profile: `selectProfile` returns compact when the raw
-## member total is BELOW the threshold and full otherwise. The tool then asserts
-## that the bytes it got carry the profile the rule selected — a tool that passed
-## a number and hoped would silently leave a container full.
+## THAT IS NOT WHAT THE THRESHOLD IS ABOUT, and reading it that way is the
+## mistake §1e names. It is normative that the threshold is measured in RAW
+## bytes "because the compact profile is for a container that is RESIDENT before
+## its first query, and residency is a property of logical size" — a
+## compressed-size rule would make the profile a function of compressibility,
+## and §1e measures two recordings of 79,995 identical raw bytes compressing
+## 1,452x apart.
+##
+## §1e's closing paragraph is the one to read before arguing from a size:
+## "a compact archive is a representation intended to be STORED AND SERVED
+## pre-compressed… Three figures — at rest, on the wire, and as the loader sees
+## it — are what a publisher needs, and conflating any two of them is how a size
+## argument goes wrong." Measured here, over all ten in both profiles: compact
+## is 20% larger at rest (929,792 -> 1,118,778 B) and smaller on the wire in
+## every codec with a window wide enough to see across members — gzip -7.2%,
+## zstd -13.6%, brotli -15.7%. `zk_shields`, the 7x-at-rest one, is 31% SMALLER
+## under `brotli -q 11`.
+##
+## So this tool applies §1e's rule and nothing else: `selectProfile` returns
+## compact when the raw member total is below the threshold and full otherwise,
+## and the tool asserts the profile it got rather than assuming it.
 
 import std/[os, strutils]
 import codetracer_ctfs/types

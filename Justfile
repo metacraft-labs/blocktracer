@@ -730,15 +730,21 @@ ct-corpus-check *ARGS:
 # it full when they do not.
 #
 # THE THRESHOLD IS AN ARGUMENT AND HAS NO DEFAULT, because it is a publishing
-# policy and not a tool's opinion. 100000 is what this repository has applied:
-# it takes the nine `noir/capability-tour` containers and leaves
-# `noir_space_ship/zk_shields.ct` full, whose raw members total 731,774 B.
+# policy and not a tool's opinion. 1048576 is what this repository applies, and
+# it is not a number anyone here chose: §1e RECOMMENDS 1 MiB of raw bytes, as a
+# judgement with its reasoning recorded, and every container in this corpus is
+# far under it (the largest raw total is `zk_shields` at 731,774 B).
 #
-# COMPACT IS NOT ALWAYS SMALLER — §1f stores members INFLATED, so a container
-# whose per-member zstd was effective grows. That is what the threshold is for.
+# IT IS A RESIDENCY BOUND, NOT A SIZE BOUND. §1e is normative that the threshold
+# is measured in RAW bytes "because the compact profile is for a container that
+# is RESIDENT before its first query, and residency is a property of logical
+# size". It says nothing about bytes at rest or bytes on the wire, and §1e's own
+# closing paragraph warns that "conflating any two of them is how a size
+# argument goes wrong" — which is the mistake a 100000 ceiling here made for a
+# day, picked by comparing at-rest sizes.
 #
-#   just ct-compact-check 100000    # report, write nothing
-#   just ct-compact 100000          # apply, then `just ct-corpus-read`
+#   just ct-compact-check 1048576    # report, write nothing
+#   just ct-compact 1048576          # apply, then `just ct-corpus-read`
 # `$CT_TRACE_FORMAT_NIM_SRC` and `$CT_NIM_EXTRA_PATHS` come from the dev shell —
 # see `flake.nix`, where the revision is the one the shipped writer is built
 # from, so this tool and that writer cannot drift apart.

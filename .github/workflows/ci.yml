@@ -2026,12 +2026,12 @@ jobs:
       #
       # MOVED 10/45 -> 12/43 ON 2026-10-14, and both halves are "a container
       # re-encoded". The two `chain/aztec` containers were RE-RECORDED from
-      # container 3 to container 6 with the compact profile, and the nine
-      # `noir/capability-tour` containers were CONVERTED from container 5 to
-      # container 6 by `tools/chain/compact_container.nim` applying
-      # `ctfs-container.md` §1e at a 100,000-byte raw ceiling. Eleven containers
-      # the engine opens are compact now; `noir_space_ship/zk_shields.ct` stays
-      # full because §1e's rule says so — its raw members total 731,774 B.
+      # container 3 to container 6 with the compact profile, and the ten
+      # `fixtures/trace` containers were CONVERTED from container 5 to container
+      # 6 by `tools/chain/compact_container.nim` applying `ctfs-container.md`
+      # §1e at its RECOMMENDED 1 MiB raw ceiling. All twelve the engine opens
+      # are compact; the largest raw total in the corpus is `zk_shields` at
+      # 731,774 B, well under the threshold.
       #
       # THE SELFTEST RUNS FIRST, HERE AND NOT IN `deploy-gates`, because this is
       # the one job with an engine staged. Six of its ten arms need a verdict

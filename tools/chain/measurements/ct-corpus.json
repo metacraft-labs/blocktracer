@@ -13,12 +13,11 @@
     "trackedPaths": 55,
     "containers": 52,
     "notContainers": 3,
-    "readable": 1
+    "readable": 0
   },
   "containerVersions": {
     "v3": 40,
-    "v5": 1,
-    "v6": 11
+    "v6": 12
   },
   "populations": [
     {
@@ -105,10 +104,12 @@
       "paths": 1,
       "containers": 1,
       "versions": {
-        "v5": 1
+        "v6": 1
       },
-      "readable": 1,
-      "refusals": {}
+      "readable": 0,
+      "refusals": {
+        "container-version-6": 1
+      }
     },
     {
       "id": "conformance-kit/placeholders",
