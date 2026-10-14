@@ -960,8 +960,17 @@ jobs:
       # So: for each site-level prefix the tree carries, list the same prefix in
       # the bucket and diff the key sets. A key in the tree and not the bucket
       # is a publish that did not finish, whatever the publisher said.
+      # RUNS UNDER `dry-run` TOO, because it reads and never writes. Gating a
+      # read-only bucket comparison on whether THIS run publishes made the one
+      # question worth asking cost a full publish to ask: a `dry-run` build with
+      # `render-over-live: false` reaches this step in minutes and carries the
+      # same 13 `assets/` files, which is all the comparison needs.
+      #
+      # Under `dry-run` it is INFORMATIONAL — it still exits non-zero, because a
+      # bucket missing objects the tree carries is a true finding whether or not
+      # this run was going to fix it, and a dry run that reports it as fine would
+      # be the same silence this step exists to break.
       - name: Does the bucket hold the site objects the tree does?
-        if: ${{ inputs.dry-run == false }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
