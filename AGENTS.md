@@ -35,6 +35,57 @@ apex is a custom domain on it, added out-of-band, and the `live` branch is its
 production branch. To promote production, fast-forward `live`; there is no other
 lever and no credential to obtain.
 
+> **SUPERSEDED IN PART — MEASURED 2026-10-14.** The paragraph above is this
+> file's own answer to "what serves blocktracer.org", and the byte check it
+> prescribes two paragraphs down now answers DIVERGENT:
+>
+> ```
+> blocktracer.org        110d053644f26ec6f0da5c11a08cc519e2b87c54cd19bfdc6da142835f8354cd
+> blocktracer.pages.dev  13703f6e1ae21e439825bb831d2251303de25a6ac8227dcc86fe401791ac4392
+> ```
+>
+> Divergent means two producers — so the apex is **no longer** the `blocktracer`
+> Pages project. The paragraph below, which says the R2 path "was never built",
+> is stale in every one of its four clauses: `publish-r2.yml` exists on `agents`
+> and has published end to end (run 38504065692), and the repository holds
+> `R2_ACCESS_KEY_ID`, `R2_BUCKET`, `R2_ENDPOINT` and `R2_SECRET_ACCESS_KEY`, all
+> set 2026-10-12.
+>
+> What has NOT changed is `live`'s staleness and the fact that nothing here
+> records the binding. `origin/live` is **251 commits behind `agents`** and
+> carries none of `client/src/assets/ct-icons/` (0 of 9 paths), which is why
+> `blocktracer.pages.dev` 404s those icons — while `blocktracer-dev.pages.dev`,
+> built from a current branch, serves them 200. The Pages table above is still
+> right about the projects; it is wrong about the apex.
+>
+> **AND THE APEX STILL 404s THE ICONS, WHICH IS NOT EXPLAINED BY EITHER.**
+> Measured against the bucket the publisher writes to, with exact-key
+> `head-object` rather than a parsed listing: all sixteen `assets/` keys present,
+> every tree byte count equal to the bucket's, each icon `image/svg+xml`, all
+> nine written `2026-10-13T10:19:10+00:00` — the same second as
+> `assets/settings.js` and `_a/0c49ff0f45fccc3a.css`, both of which the apex
+> serves 200. The apex's 404 body is Cloudflare R2's own Not Found page,
+> byte-identical to a fabricated path's. Its ETags for `/assets/search.js`,
+> `/assets/fonts/SpaceGrotesk-Bold.woff2` and `/_a/0c49ff0f45fccc3a.css` each
+> match that bucket's exactly, with a deliberately wrong expectation reporting
+> DIFFER as the control — so the apex IS serving that bucket.
+>
+> Eliminated by measurement: the publisher (the objects are there), a second
+> bucket (target and live bucket names compared equal in-workflow, printing
+> neither), key truncation (`head-object` takes the key as an argument), object
+> size and type, and path depth (`/<chain>/tx/<hash>/debug` is four segments and
+> serves 200). What is left is the binding between the hostname and the bucket,
+> which `infra`'s `terraform/cloudflare/metacraft-prod/` declares it does NOT
+> manage — `r2_custom_domains = {}` and `r2_managed_domains = {}`, with the
+> recorded reason that provider v5 has no import support for either — and whose
+> six adopted `r2_buckets` do not include `blocktracer`.
+>
+> So: an agent cannot settle this from the repository, and should not try for a
+> fourth time. It needs someone with the Cloudflare account open. Until then
+> `tools/deploy/check-design-parity.mjs --origin https://blocktracer.org` reports
+> FAIL on the `url()` arm for a reason that is NOT a publishing defect, and that
+> sentence is the one to read before chasing it.
+
 [`DEPLOY.md`](./DEPLOY.md) describes an **R2 delta-publisher path that was never
 built.** None of its four steps were carried out: `data.json` declares no
 `blocktracer` R2 bucket, `r2_custom_domains` is empty, the repository holds no
