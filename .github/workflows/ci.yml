@@ -477,7 +477,7 @@ jobs:
       # They are all offline and toolchain-free, which is why they belong in
       # THIS job rather than behind the Nix runner.
       - name: Does the replay verdict rule bite? (which outcome a driver run is)
-        # 98 assertions over twelve cases of recorded driver output. The three
+        # 105 assertions over thirteen cases of recorded driver output. The three
         # that have already
         # cost something are pinned as fixtures: a non-zero exit that is a
         # divergence and not a refusal, a refusal whose name was `unknown`
@@ -857,7 +857,7 @@ jobs:
         run: node tools/chain/yield-method-selftest.mjs
 
       - name: Does the committed `.ct` corpus census refuse a corpus that moved?
-        # 6 arms on every host, plus two more where a container reader is present.
+        # 7 arms on every host, plus two more where a container reader is present.
         # Two configurations rather than one, for `chain-health-selftest`'s reason:
         # the version census is read from the BYTES and runs anywhere, while
         # readability needs `ct-print`, which is not a dependency of this
