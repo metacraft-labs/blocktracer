@@ -189,22 +189,42 @@ method putMany*(s: LocalObjectStore, items: seq[BulkItem]) =
   ## identity. A browser fetching it gets bytes it will not decompress, every kit
   ## gets bytes it cannot parse, and nothing anywhere says why.
   ##
-  ## So it REFUSES, naming the remedy. The remedy is not "store it raw" — that
-  ## would be this backend deciding a policy its caller set — it is the Cloudflare
-  ## Pages `_headers` rule that makes a static directory able to advertise an
-  ## encoding, which is `Chain-Delivery` DEL-1b's deliverable. Until that exists,
-  ## a pre-compressed publish targets the S3/R2 backend, which carries the
-  ## metadata on the object itself.
+  ## IT NO LONGER REFUSES, AND THE REMEDY IT NAMED IS WHY. The paragraph above
+  ## said the fix "is the Cloudflare Pages `_headers` rule that makes a static
+  ## directory able to advertise an encoding, which is `Chain-Delivery` DEL-1b's
+  ## deliverable. Until that exists, a pre-compressed publish targets the S3/R2
+  ## backend." That left `--backend local` unable to represent a brotli tree at
+  ## all, so `publish-r2.yml`'s DRY RUN — the only way to exercise the publisher
+  ## without writing to production — failed the moment the exporter started
+  ## pre-compressing:
+  ##
+  ##   objectstore.nim(200) putMany
+  ##   Error: LocalObjectStore cannot store a Content-Encoding …
+  ##
+  ## A dry run that cannot represent the thing being published is not a dry run.
+  ## So this writes the `_headers` file: the bytes go down compressed and the
+  ## directory carries, beside them, the one artefact a static host reads to
+  ## advertise them. The refusal remains for the case it was really about — a
+  ## tree that is compressed and says nothing — because `_headers` is written
+  ## from the same loop and cannot be forgotten.
+  ##
+  ## THE FORMAT IS CLOUDFLARE PAGES', and it is not a choice: a path line at
+  ## column zero followed by indented `Header: value` lines. Netlify reads the
+  ## same shape. Writing our own would make the file useless to the one consumer
+  ## that would read it.
+  var headers: seq[string]
   for it in items:
     if it.contentEncoding.len > 0:
-      raise newException(CatchableError,
-        "LocalObjectStore cannot store a Content-Encoding: it is a directory and has " &
-        "no per-object metadata, so '" & it.key & "' would be written compressed and " &
-        "served as identity — which no consumer can parse and none can diagnose. " &
-        "Publish pre-compressed objects to the S3/R2 backend, which records " &
-        "Content-Encoding per object; a static Pages tree needs a `_headers` rule " &
-        "instead, which is Chain-Delivery DEL-1b's deliverable")
+      headers.add "/" & it.key.strip(chars = {'/'})
+      headers.add "  Content-Encoding: " & it.contentEncoding
     s.put(it.key, readFile(it.srcPath))
+  if headers.len > 0:
+    # APPENDED, never rewritten. `putMany` is called once per Content-Encoding
+    # group and once per chain, so a rewrite would leave only the last group's
+    # rules — which is the silent half of the very defect this guards.
+    let hp = s.root / "_headers"
+    let prior = if fileExists(hp): readFile(hp) else: ""
+    writeFile(hp, prior & headers.join("\n") & "\n")
 
 method del*(s: LocalObjectStore, key: string) =
   let p = s.pathOf(key)
