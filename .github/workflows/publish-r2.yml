@@ -1035,6 +1035,84 @@ jobs:
             exit $rc
           '
 
+      # ── AND IS THAT BUCKET THE ONE THE SITE SERVES? ─────────────────────
+      #
+      # The step above listed `s3://${{ inputs.bucket }}/assets/` and found all
+      # nine `assets/ct-icons/**` objects present, BY NAME. At the same hour
+      # `https://blocktracer.org/assets/ct-icons/origin-icons/sigma.svg`
+      # answered 404 with Cloudflare R2's own Not Found page — byte-identical to
+      # the page a fabricated path gets — while `/assets/fonts/*` (2026-10-03),
+      # `/assets/hydrate.js` (2026-10-13) and `/_a/0c49ff0f45fccc3a.css` all
+      # answered 200 from the same prefix. R2 says the object is not there and
+      # the S3 API says it is, and both are credible.
+      #
+      # They can only both be true if the API endpoint and the custom domain
+      # address DIFFERENT buckets. This workflow has two sources for "the
+      # bucket" and has never compared them: `inputs.bucket` is the publish
+      # TARGET (required, no default, so a demo can be sent to staging) and
+      # `secrets.R2_BUCKET` is the LIVE bucket the staging step reads. Nothing
+      # asserts they agree when the target IS production.
+      #
+      # So compare them, and compare what each holds. NEITHER NAME IS PRINTED —
+      # the output is a boolean and two key sets, which is everything the
+      # question needs and nothing a log should carry.
+      #
+      # INFORMATIONAL, NEVER RED. A deliberate publish to staging makes these
+      # two differ on purpose, and that is the case the input exists for. This
+      # step reports; it does not judge.
+      - name: Is the bucket this publishes into the bucket the site serves?
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          BUCKET: ${{ inputs.bucket }}
+          LIVE_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash -euo pipefail -c '
+            if [ "$BUCKET" = "$LIVE_BUCKET" ]; then
+              echo "target bucket vs live bucket: SAME NAME"
+            else
+              echo "target bucket vs live bucket: DIFFERENT NAMES"
+              echo "  (inputs.bucket is not secrets.R2_BUCKET. If this run meant"
+              echo "   production, every object it wrote went somewhere the site"
+              echo "   does not read.)"
+            fi
+            # The same listing, against the LIVE bucket. A key the tree carries
+            # and the live bucket lacks is the thing a visitor gets a 404 for,
+            # whatever the target bucket holds.
+            for prefix in assets _a; do
+              [ -d "site/$prefix" ] || continue
+              tree_keys=$(cd site && find "$prefix" -type f | sort)
+              live_keys=$(aws s3 ls "s3://$LIVE_BUCKET/$prefix/" --recursive \
+                            --endpoint-url "$ENDPOINT" 2>/dev/null \
+                          | awk "{print \$4}" | sort || true)
+              n_tree=$(printf "%s\n" "$tree_keys" | grep -c . || true)
+              n_live=$(printf "%s\n" "$live_keys" | grep -c . || true)
+              gone=$(comm -23 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$live_keys"))
+              n_gone=$(printf "%s\n" "$gone" | grep -c . || true)
+              echo "LIVE $prefix/: tree $n_tree, live bucket $n_live, absent from live $n_gone"
+              printf "%s\n" "$gone" | awk "NF && ++i<=60 {print \"    ABSENT-FROM-LIVE \" \$0}"
+            done
+            # AND WHETHER THE SHARED OBJECT IS THE SAME OBJECT. Both buckets can
+            # hold `assets/hydrate.js`; the sizes say whether they are the same
+            # publish. `head-object` rather than a listing, because one key is
+            # the question.
+            # LABEL BY POSITION, NOT BY COMPARING THE NAME BACK. When the two
+            # names are equal the comparison matches on both passes and prints
+            # TARGET twice, which reads as the live bucket having been skipped.
+            for pair in "TARGET:$BUCKET" "LIVE  :$LIVE_BUCKET"; do
+              label=${pair%%:*}
+              b=${pair#*:}
+              sz=$(aws s3api head-object --bucket "$b" --key assets/hydrate.js \
+                     --endpoint-url "$ENDPOINT" --query ContentLength --output text \
+                     2>/dev/null || echo "unreadable")
+              echo "assets/hydrate.js in the $label bucket: $sz byte(s)"
+            done
+          '
+
       # NAMED FOR WHAT IT DOES. This step used to be called "Ask the bucket what
       # it actually holds", and it asks the bucket nothing: the script it runs is
       # a static guard that `blocktracer-verify-published` contains no write
