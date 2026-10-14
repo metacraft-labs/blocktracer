@@ -990,8 +990,42 @@ jobs:
               n_bucket=$(printf "%s\n" "$bucket_keys" | grep -c . || true)
               n_missing=$(printf "%s\n" "$missing" | grep -c . || true)
               echo "$prefix/: tree $n_tree, bucket $n_bucket, missing from bucket $n_missing"
+              # PRINT THE KEYS, NOT ONLY THE TALLY. "tree 16, bucket 16, missing
+              # 0" was read as "the bucket holds what the tree does", while the
+              # origin was 404ing nine assets/ct-icons/** objects at the same
+              # minute. Equal counts and an empty comm -23 say only that the two
+              # LISTS agree; reading that as a statement about nine particular
+              # keys needs those keys to have been in the lists compared, and the
+              # tally cannot say whether they were. So print both sides. Sixteen
+              # lines is not a log problem; a tally that has to be reasoned from
+              # is.
+              #
+              # BUCKET-ONLY KEYS ARE NOT A FAILURE and are printed anyway: a
+              # content-hashed name this tree has moved past is exactly what
+              # should still be in the bucket, and an object nobody can account
+              # for is worth seeing before it is worth refusing.
+              #
+              # AWK RATHER THAN head, BECAUSE head CLOSES THE PIPE. Under
+              # set -o pipefail a truncating head makes the writer die of EPIPE
+              # and the whole pipeline report failure, so a prefix with more keys
+              # than the cap would turn this read-only step into a red one. awk
+              # stops printing and keeps reading.
+              bucket_only=$(comm -13 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$bucket_keys"))
+              n_only=$(printf "%s\n" "$bucket_only" | grep -c . || true)
+              cap=60
+              printf "%s\n" "$tree_keys"   | awk -v c=$cap "NF && ++i<=c {print \"    tree   \" \$0}"
+              printf "%s\n" "$bucket_keys" | awk -v c=$cap "NF && ++i<=c {print \"    bucket \" \$0}"
+              # `[ … ] && echo` WOULD END THE SCRIPT. Under set -e a false test is
+              # a non-zero compound command, so the common one-liner aborts the
+              # step on the ordinary case of a list that fits.
+              if [ "$n_tree"   -gt "$cap" ]; then echo "    (tree list truncated at $cap of $n_tree)"; fi
+              if [ "$n_bucket" -gt "$cap" ]; then echo "    (bucket list truncated at $cap of $n_bucket)"; fi
+              if [ "$n_only" -gt 0 ]; then
+                echo "    $n_only key(s) in the bucket and not in this tree — expected for content-hashed names:"
+                printf "%s\n" "$bucket_only" | awk -v c=$cap "NF && ++i<=c {print \"    EXTRA  \" \$0}"
+              fi
               if [ "$n_missing" -gt 0 ]; then
-                printf "%s\n" "$missing" | sed "s/^/    MISSING /"
+                printf "%s\n" "$missing" | awk -v c=$cap "NF && ++i<=c {print \"    MISSING \" \$0}"
                 rc=1
               fi
             done
@@ -999,6 +1033,137 @@ jobs:
               echo "::error::the bucket is missing site objects this tree carries."                    "The publisher reported what it DECIDED to upload; this compares"                    "what the bucket HOLDS. A publish that ends here did not finish."
             fi
             exit $rc
+          '
+
+      # ── AND IS THAT BUCKET THE ONE THE SITE SERVES? ─────────────────────
+      #
+      # The step above listed `s3://${{ inputs.bucket }}/assets/` and found all
+      # nine `assets/ct-icons/**` objects present, BY NAME. At the same hour
+      # `https://blocktracer.org/assets/ct-icons/origin-icons/sigma.svg`
+      # answered 404 with Cloudflare R2's own Not Found page — byte-identical to
+      # the page a fabricated path gets — while `/assets/fonts/*` (2026-10-03),
+      # `/assets/hydrate.js` (2026-10-13) and `/_a/0c49ff0f45fccc3a.css` all
+      # answered 200 from the same prefix. R2 says the object is not there and
+      # the S3 API says it is, and both are credible.
+      #
+      # They can only both be true if the API endpoint and the custom domain
+      # address DIFFERENT buckets. This workflow has two sources for "the
+      # bucket" and has never compared them: `inputs.bucket` is the publish
+      # TARGET (required, no default, so a demo can be sent to staging) and
+      # `secrets.R2_BUCKET` is the LIVE bucket the staging step reads. Nothing
+      # asserts they agree when the target IS production.
+      #
+      # So compare them, and compare what each holds. NEITHER NAME IS PRINTED —
+      # the output is a boolean and two key sets, which is everything the
+      # question needs and nothing a log should carry.
+      #
+      # INFORMATIONAL, NEVER RED. A deliberate publish to staging makes these
+      # two differ on purpose, and that is the case the input exists for. This
+      # step reports; it does not judge.
+      - name: Is the bucket this publishes into the bucket the site serves?
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          BUCKET: ${{ inputs.bucket }}
+          LIVE_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash -euo pipefail -c '
+            if [ "$BUCKET" = "$LIVE_BUCKET" ]; then
+              echo "target bucket vs live bucket: SAME NAME"
+            else
+              echo "target bucket vs live bucket: DIFFERENT NAMES"
+              echo "  (inputs.bucket is not secrets.R2_BUCKET. If this run meant"
+              echo "   production, every object it wrote went somewhere the site"
+              echo "   does not read.)"
+            fi
+            # The same listing, against the LIVE bucket. A key the tree carries
+            # and the live bucket lacks is the thing a visitor gets a 404 for,
+            # whatever the target bucket holds.
+            for prefix in assets _a; do
+              [ -d "site/$prefix" ] || continue
+              tree_keys=$(cd site && find "$prefix" -type f | sort)
+              live_keys=$(aws s3 ls "s3://$LIVE_BUCKET/$prefix/" --recursive \
+                            --endpoint-url "$ENDPOINT" 2>/dev/null \
+                          | awk "{print \$4}" | sort || true)
+              n_tree=$(printf "%s\n" "$tree_keys" | grep -c . || true)
+              n_live=$(printf "%s\n" "$live_keys" | grep -c . || true)
+              gone=$(comm -23 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$live_keys"))
+              n_gone=$(printf "%s\n" "$gone" | grep -c . || true)
+              echo "LIVE $prefix/: tree $n_tree, live bucket $n_live, absent from live $n_gone"
+              printf "%s\n" "$gone" | awk "NF && ++i<=60 {print \"    ABSENT-FROM-LIVE \" \$0}"
+            done
+            # AND WHETHER THE SHARED OBJECT IS THE SAME OBJECT. Both buckets can
+            # hold `assets/hydrate.js`; the sizes say whether they are the same
+            # publish. `head-object` rather than a listing, because one key is
+            # the question.
+            # ── AN EXACT-KEY LOOKUP, BECAUSE A LISTING IS PARSED ───────────
+            #
+            # `aws s3 ls --recursive | awk "{print $4}"` takes the fourth
+            # whitespace-separated field, so a key carrying anything after a
+            # space is TRUNCATED to what came before it — and a key truncated to
+            # exactly the tree key compares equal while naming a different
+            # object. The listing above therefore cannot tell "the key is there"
+            # from "a key whose printed prefix matches is there", and nothing in
+            # it would show the difference.
+            #
+            # `head-object` takes the key as an argument and cannot truncate it.
+            # So ask for each key the tree carries, by name. A key the listing
+            # claimed and `head-object` cannot find is the listing being parsed
+            # wrong. A key both agree on, while the public origin answers 404
+            # with R2 own Not Found page, is something else entirely — and
+            # knowing which of those two it is, is the whole question.
+            #
+            # NO HEREDOC. A heredoc terminator has to sit at column zero and all
+            # of this is indented inside a YAML block scalar, so it would never
+            # terminate — the same trap the registry guard above records. Process
+            # substitution keeps the loop in THIS shell, so the counter survives
+            # it, which a pipe into `while` would not.
+            for prefix in assets _a; do
+              [ -d "site/$prefix" ] || continue
+              nf=0
+              nq=0
+              while IFS= read -r k; do
+                [ -n "$k" ] || continue
+                nq=$((nq + 1))
+                meta=$(aws s3api head-object --bucket "$LIVE_BUCKET" --key "$k" \
+                         --endpoint-url "$ENDPOINT" \
+                         --query "[ContentLength,ETag,ContentType,LastModified]" --output text \
+                         2>/dev/null || true)
+                if [ -z "$meta" ]; then
+                  echo "    HEAD-404 $k"
+                  nf=$((nf + 1))
+                else
+                  # SIZE, ETAG, TYPE AND LAST-MODIFIED, because "the key
+                  # exists" is not "the object is the file". An object of the
+                  # wrong length or a different type is a publisher defect an
+                  # existence check cannot see. LAST-MODIFIED is the timeline:
+                  # an object written minutes ago and one written eleven days ago
+                  # are different explanations for the same 404 at the origin,
+                  # and the public response carries only the view the origin has.
+                  # Printed beside the tree size so the comparison needs no
+                  # second step and no second run.
+                  local_sz=$(wc -c < "site/$k" | tr -d " ")
+                  echo "    HEAD-200 $k  tree=$local_sz  bucket=$meta"
+                fi
+              done < <(cd site && find "$prefix" -type f | sort)
+              echo "exact-key lookups in the live bucket for $prefix/: $nq asked, $nf not found"
+            done
+
+            # LABEL BY POSITION, NOT BY COMPARING THE NAME BACK. When the two
+            # names are equal the comparison matches on both passes and prints
+            # TARGET twice, which reads as the live bucket having been skipped.
+            for pair in "TARGET:$BUCKET" "LIVE  :$LIVE_BUCKET"; do
+              label=${pair%%:*}
+              b=${pair#*:}
+              sz=$(aws s3api head-object --bucket "$b" --key assets/hydrate.js \
+                     --endpoint-url "$ENDPOINT" --query ContentLength --output text \
+                     2>/dev/null || echo "unreadable")
+              echo "assets/hydrate.js in the $label bucket: $sz byte(s)"
+            done
           '
 
       # NAMED FOR WHAT IT DOES. This step used to be called "Ask the bucket what
