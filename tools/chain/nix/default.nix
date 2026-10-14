@@ -150,12 +150,37 @@
   lld,
   writeShellApplication,
 
+  # ── The Path B toolchain, resolved here instead of by `build.rs` ──────────
+  #
+  # `ct-writer/build.rs` resolves clang, llvm-ar, lld, the wasi-libc headers and
+  # the zstd source by shelling out to `nix build --inputs-from <repo>`, which
+  # pins them against the RUNTIME's flake.lock rather than the invoking user's
+  # registry. That is a good argument and it cannot run inside a nix build: a
+  # sandbox has no daemon socket and no network, so the resolver aborts before
+  # one file is compiled. These five are the same pieces resolved against THIS
+  # flake's lock — the same kind of pin by the same argument — and CCP-7's
+  # per-piece environment overrides are how they get in.
+  #
+  # `nim` is the sixth and is not overridable: `build.rs` takes it from PATH and
+  # REFUSES a version other than `pins.json`'s `toolchain.nim.version`. Measured
+  # on this flake's lock: nixpkgs here is at nim 2.2.10, which is that version,
+  # so the gate is satisfied rather than worked around. If a nixpkgs bump moves
+  # nim, this build fails loudly with both versions named, which is the gate
+  # doing its job and not a breakage to route around.
+  nim,
+  llvmPackages,
+  pkgsCross,
+  zstd,
+
   # Sources, all pinned by the flake's lock.
   blocktracerSrc,
   avmRuntimeSrc,
   avmRuntimeRev,
   traceFormatSrc,
   traceFormatRev,
+  traceFormatNimSrc,
+  traceFormatNimRev,
+  traceFormatNimDeps,
 
   # The one input this repository cannot yet build. See the header.
   avmWasm ? null,
@@ -306,6 +331,21 @@ let
     cargoLock.lockFile = "${avmRuntimeSrc}/ct-writer/Cargo.lock";
     postPatch = ''
       cp ${avmRuntimeSrc}/ct-writer/Cargo.lock Cargo.lock
+
+      # `pins.json` ONE LEVEL UP, because `build.rs` reads it from there.
+      # `pins.json` is the runtime's single authority for every upstream pin
+      # (`PINS.md`), and `build.rs` resolves it as `CARGO_MANIFEST_DIR`'s parent
+      # — the repository root — rather than taking a sha1 typed into a build
+      # script. The src here is the CRATE directory, so that parent is the build
+      # sandbox's own cwd and carried no `pins.json` at all: measured, the build
+      # died with `pins.json could not be read: No such file or directory` after
+      # printing every one of CCP-7's `rerun-if-env-changed` lines, so the hooks
+      # were reaching it and the authority was not.
+      #
+      # Copied rather than symlinked, and not vendored into the crate: the file
+      # stays the runtime revision's own, so a flake bump moves the pins with
+      # the source and cannot move one without the other.
+      cp ${avmRuntimeSrc}/pins.json ../pins.json
     '';
 
     # `capnp` is a HARD build-time dependency whose absence does not say so: the
@@ -317,7 +357,56 @@ let
     # found` — several minutes of green output and then nothing to link with.
     # The workstation build gets it from the rustup toolchain, which is exactly
     # the ambient dependency this package exists to remove.
-    nativeBuildInputs = [ capnproto lld ];
+    #
+    # `nim` IS A BUILD TOOL HERE, not a language this package is written in.
+    # Under `path-b` — the runtime's default feature and its recorded decision —
+    # the writer is Nim source that `build.rs` compiles to C and links as a
+    # static library, so the compiler has to be on PATH. `build.rs` refuses a
+    # version other than the runtime's `pins.json` pin, so this is a pin and not
+    # a convenience.
+    nativeBuildInputs = [ capnproto lld nim ];
+
+    # ── WHAT MAKES PATH B BUILDABLE IN THE SANDBOX (CCP-7) ──────────────────
+    #
+    # Six values, each replacing one thing `build.rs` would otherwise reach
+    # outside the sandbox for. Without them this derivation can only build Path
+    # A, and a Path A module has no `ct_writer_set_compact_threshold` — measured
+    # 2026-10-14 on the module this flake built at the previous pins: 38 ABI
+    # functions plus `memory`, 0 imports, no lever.
+    #
+    # THE REVISION IS DECLARED AND CHECKED, NOT TRUSTED. `CT_TRACE_FORMAT_NIM_SRC`
+    # is a plain store path with no `.git`, so it cannot prove which revision it
+    # is; `CT_TRACE_FORMAT_NIM_SRC_REV` is this flake SAYING so, and `build.rs`
+    # refuses unless it equals the runtime's `trace_format_nim_writer` anchor.
+    # The two pins are therefore held together by a check rather than by a
+    # comment, and a flake bump that moves one without the other fails the build
+    # instead of producing a module built from the wrong writer.
+    CT_TRACE_FORMAT_NIM_SRC = traceFormatNimSrc;
+    CT_TRACE_FORMAT_NIM_SRC_REV = traceFormatNimRev;
+
+    # `clang-unwrapped`, not `clang`: the wrapper injects the host sysroot and
+    # host flags, and every one of these invocations is `--target=wasm32-…
+    # -nostdlib` with an explicit `-isystem`. The runtime's own resolver asks
+    # for the unwrapped one for the same reason.
+    CT_WASM_CLANG = "${llvmPackages.clang-unwrapped}/bin/clang";
+    CT_WASM_LLVM_AR = "${llvmPackages.bintools-unwrapped}/bin/llvm-ar";
+    CT_WASM_LLD_BIN = "${lld}/bin";
+    # `wasm32-wasip1` headers for a `wasm32-unknown-unknown` target. That looks
+    # wrong and is what the runtime does: libzstd needs C library DECLARATIONS to
+    # compile, nothing links against wasi at all (`-nostdlib`), and the module's
+    # import count stays at zero — which is the property the runtime asserts
+    # rather than assumes.
+    CT_WASM_SYSROOT_INCLUDE = "${pkgsCross.wasi32.wasilibc.dev}/include/wasm32-wasip1";
+    # The zstd SOURCE, cross-compiled by `build.rs` for wasm32. Not the zstd
+    # package: nothing in nixpkgs builds libzstd for this target, which is why
+    # `build.rs` builds it from source and why `zstd_bindings.nim`'s
+    # unconditional `{.passL: "-lzstd".}` would otherwise have nothing to find.
+    CT_ZSTD_SRC = zstd.src;
+
+    # The writer .nimble's `requires`, as `-p:` entries. One colon-joined list
+    # because that is the shape `build.rs` reads; the ORDER is the order
+    # `codetracer-trace-format-nim`'s own flake lists them in.
+    CT_NIM_EXTRA_PATHS = lib.concatStringsSep ":" (map toString traceFormatNimDeps);
 
     # THE BUILD PHASE IS WRITTEN OUT RATHER THAN CONFIGURED, and the reason is a
     # measured failure. `cargoBuildHook` always passes the HOST target, so adding
