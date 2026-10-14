@@ -62,6 +62,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { resolverPresence, refusalName, refusalDetail } from './lib/replay.mjs';
+import { reasonForRuntimeClass } from './lib/refusal.mjs';
 import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
          refuseBodyNotSoughtFromStore } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
@@ -313,10 +314,27 @@ for (const c of candidates) {
     // the only surviving evidence of why a transaction was lost. Duplicating the logic meant
     // fixing it twice; this asks the library instead, so it is fixed once.
     const why = refusalName(r.err);
-    console.error(`capture-chain:   refused (${why})`);
+    // ── THE CLOSED-SET REASON, WHICH THIS ROW DID NOT CARRY ────────────────
+    //
+    // `refusal` is THEIRS — the runtime's own error class, kept as evidence —
+    // and `refusalReason` is OURS, a member of the seven in
+    // `refusal-reasons.json`. This row set the first and not the second, so
+    // `assertRefusalsAreClosed` threw at the end of the capture:
+    //
+    //   0x1c714607…: outcome refused is untraced and carries NO refusalReason
+    //   — an unexplained absence
+    //
+    // Measured 2026-10-14 against the live testnet: ONE replay candidate in a
+    // 600-block window, refused `SettledTransactionNotFound`, and the whole
+    // capture aborted on the missing field rather than recording a legitimate
+    // outcome. The mapping already existed — `reasonForRuntimeClass` maps that
+    // class to `body-unavailable` — and nothing here called it.
+    const reason = reasonForRuntimeClass(why);
+    console.error(`capture-chain:   refused (${why} -> ${reason})`);
     replays.set(c.txHash, {
       replayed: false,
       refusal: why,
+      refusalReason: reason,
       reason: `This transaction could not be re-executed: the replay runtime refused with `
         + `${why}. No trace was recorded for it.`,
       detail: refusalDetail(r.err, why),
@@ -324,7 +342,17 @@ for (const c of candidates) {
     continue;
   }
   if (!existsSync(ctPath)) {
-    replays.set(c.txHash, { replayed: false, refusal: 'no-container-written', detail: 'the driver reported success and wrote no container' });
+    // `runtime-refused` is a MEMBER with its own stated condition, not a
+    // fallback: the runtime declined and the name is not one the registry
+    // classifies further. `no-container-written` is not a runtime class at
+    // all, so it goes in `refusal` as the evidence and the reason says what
+    // kind of thing it is.
+    replays.set(c.txHash, {
+      replayed: false,
+      refusal: 'no-container-written',
+      refusalReason: 'runtime-refused',
+      detail: 'the driver reported success and wrote no container',
+    });
     continue;
   }
   const bytes = (await readFile(ctPath)).length;
