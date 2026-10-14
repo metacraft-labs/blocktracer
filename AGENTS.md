@@ -77,11 +77,38 @@ lever and no credential to obtain.
 > serves 200). What is left is the binding between the hostname and the bucket,
 > which `infra`'s `terraform/cloudflare/metacraft-prod/` declares it does NOT
 > manage — `r2_custom_domains = {}` and `r2_managed_domains = {}`, with the
-> recorded reason that provider v5 has no import support for either — and whose
-> six adopted `r2_buckets` do not include `blocktracer`.
+> recorded reason that provider v5 has no import support for either.
 >
-> So: an agent cannot settle this from the repository, and should not try for a
-> fourth time. It needs someone with the Cloudflare account open. Until then
+> **CORRECTION — the sentence that stood here was read off a stale tree.** It
+> said infra's "six adopted `r2_buckets` do not include `blocktracer`". On
+> `origin/live` they are seven and `blocktracer` is among them; the six came
+> from a local checkout 33 commits behind, and `live`'s own tip at the time was
+> *"Merge pull request #1849 from metacraft-labs/feat/blocktracer-r2-publisher-secrets"*.
+> So the BUCKET is adopted and only the DOMAIN is unmanaged. Quoting a tree
+> without fetching it first is the mistake, and it is the second time in this
+> campaign.
+>
+> **AND HERE IS THE TEST THAT SETTLES WHICH ORIGIN SERVES THE APEX**, because
+> three measurements above only establish that it serves that bucket's bytes —
+> and identical bytes give identical content-derived ETags from ANY origin, so
+> the ETag match was weaker evidence than it read as. `infra`'s own cache
+> ruleset records that Cloudflare Pages "answers EVERY 200 with `cache-control:
+> public, max-age=0, must-revalidate`". Measured 2026-10-14:
+>
+> | origin | `cache-control` | `accept-ranges` |
+> |---|---|---|
+> | `blocktracer.org` | **absent** | **bytes** |
+> | `blocktracer.pages.dev` | `public, max-age=0, must-revalidate` | — |
+> | `blocktracer-dev.pages.dev` | `public, max-age=0, must-revalidate` | — |
+>
+> Both Pages origins still answer as infra recorded, so the instrument is
+> unchanged; the apex answers neither way and carries the range support an R2
+> object has. That is the discriminator to use — not an ETag, and not a body
+> hash alone.
+>
+> So: an agent cannot settle the 404 from the repository, and should not try for
+> a fourth time. It needs someone with the Cloudflare account open;
+> `metacraft-labs/infra#1883` carries the measurement to that root. Until then
 > `tools/deploy/check-design-parity.mjs --origin https://blocktracer.org` reports
 > FAIL on the `url()` arm for a reason that is NOT a publishing defect, and that
 > sentence is the one to read before chasing it.
