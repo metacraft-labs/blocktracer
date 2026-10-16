@@ -3928,9 +3928,40 @@ suite "14 — one chain carries containers from two recorders, each filed as its
   # control's own answer per container rather than against `incumbentBuild`. That
   # is the stronger form anyway — "unchanged" is the claim, and comparing to a
   # literal only tested it while every row happened to share one build.
+  #
+  # IT IS INGESTED FROM A NORMALISED COPY, NOT FROM THE FIXTURE, and that is
+  # new. The control and the subject must differ in EXACTLY the attributions
+  # this suite adds and in nothing else, and the fixture stopped supporting
+  # that when the re-record began naming the runtime on every row it produced:
+  # all 25 replayed rows now carry `recordedBy 94a96e4c…` against a chain-level
+  # `provenance.runtimeCommit` of `29bd9cfd…`.
+  #
+  # Clearing that field in the subject alone makes the two trees disagree about
+  # the 23 rows nobody attributed, which is not a finding about anything —
+  # measured, it failed `m["recorder"]["build"] == oneManifests[tx]…` with
+  # `508588d9…` against `fa46eb0a…` on every one of them. So the normalisation
+  # happens ONCE, here, and both trees are built from its output.
+  let baseCap = rd / "base"
+  copyDir(snapshotDir, baseCap)
+  block normalise:
+    # Every replayed row takes the chain default, so "the incumbent" is a
+    # non-empty set and the attributions below are the only difference between
+    # the control and the subject. `JsonNode` is a ref, so the loop variable
+    # already aliases the element.
+    var doc = parseJson(readFile(baseCap / "snapshot.json"))
+    var cleared = 0
+    for t in doc["transactions"]:
+      if t["outcome"].getStr in ["replayed", "divergent"] and
+         t.hasKey("recordedBy"):
+        t.delete("recordedBy")
+        inc cleared
+    writeFile(baseCap / "snapshot.json", doc.pretty)
+    doAssert cleared > 0,
+      "expected the fixture to attribute its replayed rows, so this suite has " &
+      "something to normalise away; cleared " & $cleared
   let oneTree = rd / "one"
   createDir(oneTree)
-  discard ingestSnapshot(IngestConfig(outDir: oneTree, snapshotDir: snapshotDir))
+  discard ingestSnapshot(IngestConfig(outDir: oneTree, snapshotDir: baseCap))
   let oneManifests = manifestsByTx(oneTree)
   # Captured NOW: the last test re-ingests the mixed capture into `oneTree` and
   # rewrites this file, so a later read would not be the control's inventory.
@@ -3943,21 +3974,37 @@ suite "14 — one chain carries containers from two recorders, each filed as its
   # ── the subject: the same capture, with SOME containers attributed to a
   #    second recorder, stated in both of the two ways a snapshot may state it ─
   let mixedCap = rd / "cap"
-  copyDir(snapshotDir, mixedCap)
+  copyDir(baseCap, mixedCap)
   var mixedDoc = parseJson(readFile(mixedCap / "snapshot.json"))
   var viaCapturesTx, viaRecordedByTx = ""
   block attribute:
     # Two recorded transactions, chosen from the capture's own JSON in a stable
     # order so the subject is the same on every run.
-    # A ROW THAT ALREADY NAMES ITS OWN RECORDER IS NOT A CANDIDATE. The capture
-    # now carries one (`0x20ed5b91…`, the frames container it publishes), and
-    # attributing this suite's second build to it would overwrite the very field
-    # under test and leave the subject indistinguishable from the fixture. The
-    # two subjects must be rows that would otherwise take the chain's default.
+    # THE SUBJECT IS MANUFACTURED HERE, AND IT HAS TO BE.
+    #
+    # Both halves of this suite need a row that takes the CHAIN'S DEFAULT
+    # recorder, because that is the state a `captures[]` entry or a
+    # `recordedBy` field is supposed to override. This used to select such rows
+    # out of the fixture — "a row that already names its own recorder is not a
+    # candidate", filtering on `recordedBy` being absent — and the fixture has
+    # since stopped containing any.
+    #
+    # It stopped when the re-record started attributing what it produced.
+    # MEASURED on `client/fixtures/chain/aztec-testnet/snapshot.json`: all 25
+    # replayed rows carry `recordedBy` `94a96e4c…`, the runtime that
+    # re-recorded them, against a chain-level `provenance.runtimeCommit` of
+    # `29bd9cfd…`. So the filter found zero and the suite died on its own
+    # precondition — `it holds 0` — which is a true statement about the fixture
+    # and tells a reader nothing about what it was trying to test.
+    #
+    # Selecting a subject out of a corpus is what broke; this builds one. The
+    # two rows have their `recordedBy` REMOVED from this suite's own copy, so
+    # they take the chain default by construction, and the attributions below
+    # are then overriding a default rather than overwriting a fact. The copy is
+    # `rd / "cap"` and nothing outside this block reads it.
     var recorded: seq[string]
     for t in mixedDoc["transactions"]:
-      if t["outcome"].getStr in ["replayed", "divergent"] and
-         t{"recordedBy"}.getStr.len == 0:
+      if t["outcome"].getStr in ["replayed", "divergent"]:
         recorded.add t["txHash"].getStr
     recorded.sort()
     doAssert recorded.len >= 2,
@@ -3965,6 +4012,10 @@ suite "14 — one chain carries containers from two recorders, each filed as its
       "about a MIXED chain; it holds " & $recorded.len
     viaCapturesTx = recorded[0]
     viaRecordedByTx = recorded[1]
+    # NOTHING TO CLEAR HERE. `baseCap` above already normalised every replayed
+    # row onto the chain default, and this copy is taken from it — so these two
+    # rows take the default by construction and the attributions below override
+    # a default rather than overwrite a fact.
     # (a) a `captures[]` entry — the follower's own contemporaneous note of
     #     which build was running when it caught this transaction.
     var attributed = 0
