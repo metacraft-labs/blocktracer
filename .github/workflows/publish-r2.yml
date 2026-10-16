@@ -971,6 +971,31 @@ jobs:
       # this run was going to fix it, and a dry run that reports it as fine would
       # be the same silence this step exists to break.
       #
+      # WITH ONE EXCEPTION, AND IT IS NOT A SOFTENING. Under `dry-run` a key
+      # missing from a CONTENT-HASHED prefix is a tautology, not a finding: the
+      # tree names the object after its own bytes, so any change to the
+      # stylesheet invents a key no bucket can hold until something uploads it,
+      # and a dry run uploads nothing. Run 38885739966 is the worked example —
+      # `assets/: tree 16, bucket 16, missing 0` (all nine `ct-icons` present by
+      # name), and then `_a/: tree 1, bucket 2, missing 1` with
+      # `MISSING _a/3d44ac2c9fc6d8d1.css`, a hash this branch's CSS had just
+      # produced. The step failed with "A publish that ends here did not
+      # finish", which was false: nothing was meant to finish.
+      #
+      # The discriminator is the PREFIX, not the run mode, and this step already
+      # draws it in the other direction — it prints bucket-only keys as
+      # "expected for content-hashed names" and does not fail on them. A
+      # content-hashed name is expected to differ between a tree and a bucket in
+      # BOTH directions; the asymmetry was the bug. Under a real publish the
+      # exception does not apply at all: the publisher was supposed to upload
+      # that key, so missing then is exactly the unfinished publish this step
+      # was written to catch, and it still exits 1.
+      #
+      # The consequence of not fixing this is that the rehearsal is unusable:
+      # no `dry-run` could be green again after any CSS change, so the one
+      # signal that says "the production shape works" would be permanently red
+      # for a reason that has nothing to do with production.
+      #
       # THREE VERDICTS, NOT TWO: 0 the bucket holds them, 1 it does not, 2 this
       # step could not look. The third is new and is the reason the listing is
       # no longer `2>/dev/null … || true` — see the comment at the listing.
@@ -1023,6 +1048,10 @@ jobs:
               exit 2
             fi
             echo "bucket: opened"
+            # `_a/` is the content-hashed prefix; `assets/` is addressed by
+            # stable names. Spelled here as data so the exception below names
+            # the reason rather than the directory.
+            content_hashed=" _a "
             for prefix in assets _a; do
               [ -d "site/$prefix" ] || { echo "$prefix/: not in the tree"; continue; }
               tree_keys=$(cd site && find "$prefix" -type f | sort)
@@ -1070,7 +1099,15 @@ jobs:
               fi
               if [ "$n_missing" -gt 0 ]; then
                 printf "%s\n" "$missing" | awk -v c=$cap "NF && ++i<=c {print \"    MISSING \" \$0}"
-                rc=1
+                if [ "${{ inputs.dry-run }}" = "true" ] && \
+                   case "$content_hashed" in *" $prefix "*) true;; *) false;; esac; then
+                  echo "    the $n_missing key(s) above are content-hashed names this" \
+                       "tree invented and this DRY RUN did not upload. Not a finding —" \
+                       "see the comment on this step. A real publish uploads them and" \
+                       "fails here if it did not."
+                else
+                  rc=1
+                fi
               fi
             done
             # 1 and 2 are different verdicts and must not merge: 1 is "the
