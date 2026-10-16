@@ -165,6 +165,35 @@ async function settled(page, timeoutMs = 20000) {
 }
 
 /**
+ * Settled, AND PAST THE PRODUCT'S OWN DEADLINE IF IT IS STILL READING.
+ *
+ * `settled` returns after three unchanged samples — 600ms — and the comment
+ * above says why that is right for comparing two whole states. It is NOT right
+ * for the one assertion that calls a session STUCK, because "Reading…" is
+ * perfectly stable while it is still legitimately pending:
+ * `live_locals.LocalsDeadlineMs` is 8000, and until it fires the pane is
+ * supposed to say exactly that.
+ *
+ * So the stuck assertion was reading at ~800ms and calling a transient state
+ * permanent. It claimed a property of the END of the wait and measured the
+ * start of it. That is the same shape as a check that passes by winning a
+ * race, pointed the other way — this one FAILED by losing one.
+ *
+ * Waiting past the deadline is what makes the claim and the measurement the
+ * same sentence: after it, a pane still saying "Reading…" is a pane that
+ * ignored its own deadline, which is the defect worth failing on.
+ */
+async function settledOrDeadlinePassed(page, readingNote, graceMs = 4000) {
+  const first = await settled(page);
+  if (first.note !== readingNote) return first;
+  // 8000 is the product's constant; the grace covers scheduler slop on a
+  // loaded runner. Re-settling after it distinguishes "still pending" from
+  // "pending forever".
+  await page.waitForTimeout(8000 + graceMs);
+  return settled(page);
+}
+
+/**
  * Click a control and wait for the engine to report the stop it caused.
  *
  * A SELECTOR AND NOT AN `ElementHandle`, which is what broke this journey as an
@@ -237,7 +266,7 @@ export async function run({ browser, site, j }) {
         j.note(`SKIPPED (never went live): ${t.debugPath} — ${v.facts.engineNotice || "no notice"}`);
         continue;
       }
-      const landing = await settled(v.page);
+      const landing = await settledOrDeadlinePassed(v.page, READING_NOTE);
 
       // AWAY AND BACK. The second reading is of the SAME coordinate, reached by
       // the path the product was already known to serve — a motion. If the
