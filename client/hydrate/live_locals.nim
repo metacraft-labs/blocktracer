@@ -69,6 +69,11 @@ const
     ## a pane that never leaves `lpUnasked` rather than as a silent revert to
     ## the defect.
 
+  EngineWireLang* = "noir"
+    ## How `ct/load-locals` must spell this site's language on the wire. A
+    ## `Lang::wire_name`, not an ordinal — `withEngineLang` states the
+    ## measurement this rests on and why one constant is the right shape.
+
   ReadingNote* = "Reading the values at this position…"
     ## What the pane says between a move and its answer. A sentence about the
     ## CURRENT position, not the previous one's values.
@@ -506,15 +511,69 @@ proc awaiting(feed: LocalsFeed; ticks: uint64): int =
     feed.scheduleTimeout(LocalsDeadlineMs, proc() =
       feed.settle(deadline, lpUnavailable, TimedOutNote))
 
+proc withEngineLang*(args: JsonNode): JsonNode =
+  ## `args`, with `lang` spelled the way the PINNED ENGINE reads it.
+  ##
+  ## ## The dialect break this exists for
+  ##
+  ## `requestLocals` sends `"lang": <ordinal>` under a comment that says the
+  ## ordinal matches "the Rust backend's `#[repr(u8)]` Lang which uses
+  ## `serde_repr`" (`replay_data_store.nim:628-663`). That was true once. The
+  ## pinned engine has retired it: `ct/load-locals` now deserialises `lang` as
+  ## a `Lang::wire_name` STRING, and answers an ordinal with
+  ##
+  ##     JSON error: invalid type: integer `0`, expected a string
+  ##
+  ## — a serde failure raised while reading the REQUEST, before the recording
+  ## is consulted at all. `live_locals.refuse` surfaces it verbatim, so the
+  ## State pane of every hydrated session on this site said the engine did not
+  ## answer with values here, on every position, in a sentence that reads like
+  ## a statement about the recording. It was a statement about the wire.
+  ##
+  ## Both ends are pinned here and neither is this repository's to change
+  ## (`ci/embed-sdk-pin.env`, and the engine behind `ci/engine-pin.env`), so
+  ## the translation belongs on the one seam between them, which is this
+  ## decorator. Measured against the pinned engine and a container from this
+  ## repository's corpus: ordinal `0` → refused; `"noir"` → `success: true`
+  ## with five named locals.
+  ##
+  ## ## WHY ONE CONSTANT AND NOT A TABLE OVER THE ORDINAL
+  ##
+  ## Translating the ordinal faithfully would send `"c"`, because `lang`'s
+  ## default in `requestLocals` is `0` and no caller in this repository passes
+  ## another: `StateVM`'s auto-load effect calls `requestLocals(dbg.rrTicks)`.
+  ## So a table would transmit, accurately, a claim that these recordings are
+  ## C. They are Noir — every container this site serves is an Aztec contract
+  ## execution — and `noir` is a name the engine knows.
+  ##
+  ## The document language is NOT the value to send, and that was measured
+  ## too. 12 of this corpus's 29 pages carry documents whose language is
+  ## `avm`, the instruction listing's own spelling, and the engine refuses it:
+  ## "unknown language name `avm` on the wire". An instruction-level recording
+  ## is still a Noir contract execution; only its DOCUMENTS are not Noir.
+  ##
+  ## And the value does not steer the answer. Over the engine's whole accepted
+  ## set — 34 names, swept one at a time against one container — the locals
+  ## came back identical, and `ct/originChain` classified identically under
+  ## `noir`, `c` and `solidity`. So this is a dialect token the engine demands
+  ## and does not read, which is why naming the site's language once here is
+  ## enough, and why a table keyed on an ordinal nothing produces would be
+  ## scaffolding around a value that changes nothing.
+  if args == nil or args.kind != JObject: return args
+  result = copy(args)
+  result["lang"] = %EngineWireLang
+
 proc withLiveLocals*(inner: BackendService; feed: LocalsFeed): BackendService =
-  ## `inner`, with the `ct/load-locals` reply read on its way back.
+  ## `inner`, with the `ct/load-locals` reply read on its way back — and its
+  ## `lang` argument rewritten on the way out, see `withEngineLang`.
   ##
   ## Every other command is passed through untouched — this is not a place to
   ## grow a second protocol layer, and a decorator that inspected more than the
   ## one command it is named for would be one.
   BackendService(
     sendProc: proc(command: string, args: JsonNode): BackendFuture[JsonNode] =
-      let fut = inner.send(command, args)
+      let outbound = if command == LoadLocalsCommand: withEngineLang(args) else: args
+      let fut = inner.send(command, outbound)
       if command == LoadLocalsCommand:
         # The position the STORE asked about, from the arguments it built,
         # rather than from the session's current position — they are the same
