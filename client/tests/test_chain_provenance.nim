@@ -1696,7 +1696,14 @@ suite "8 — a curated chain publishes only transactions that open":
     # knows the cover was lost rather than never existed.
     let curatedTest = chainInfo(curatedRoot, RealChain).provenanceDetail
     let fullTest = chainInfo(root, RealChain).provenanceDetail
-    ck "This is a preliminary export covering 2 September 2026." in curatedTest
+    # MOVED 2 September -> 31 August ON 2026-10-16, and the CLAIM is unchanged:
+    # the curated banner states the span of the slice that is PUBLISHED, and
+    # the full tree states the span of everything watched. Re-recording the
+    # corpus onto compact CTFS changed which transactions carry a readable
+    # recording, so the published slice now falls in a different day. The
+    # assertion below it — that the two strings differ — is the one carrying
+    # the claim, and it has not moved.
+    ck "This is a preliminary export covering 31 August 2026." in curatedTest
     ck "This is a preliminary export covering 31 August to 2 September 2026." in
        fullTest
     ck curatedTest != fullTest
@@ -2135,12 +2142,28 @@ suite "9 — the home page features a session that can actually be shown":
     # positions, permanently.
     #
     # Subject chosen out of the snapshot, like every other subject in this file:
-    # the first transaction whose CAPTURE measured positioned steps. If a future
-    # snapshot has none the test skips rather than passing vacuously — a green
-    # assertion over an empty set is what §6.2 keeps calling out.
+    # the first transaction whose CAPTURE measured positioned steps AND whose
+    # POSITIONS ARE PUBLISHED. If a future snapshot has none the test skips
+    # rather than passing vacuously — a green assertion over an empty set is
+    # what §6.2 keeps calling out.
+    #
+    # THE SECOND HALF OF THAT CONDITION WAS ADDED ON 2026-10-16, and the first
+    # half alone was a proxy that had been exact by accident. The defect this
+    # arm pins is "a 108-row `positions.json` was published and the page
+    # rendered a listing over it" — so it is only expressible on a transaction
+    # that HAS one. While exactly one capture positioned anything, "first with
+    # `stepsPositioned > 0`" and "has a `positions.json`" picked the same
+    # transaction and nothing distinguished them.
+    #
+    # Re-recording the corpus onto compact CTFS positioned a SECOND capture,
+    # `0x12525d6d…`, which sorts first and has no sidecar. The arm then failed
+    # on `listingDocs == 1` — correctly, since there is no published
+    # positioning for the pane to render beside the source, and wrongly as a
+    # statement about the product, which had not changed.
     var positionedTx = ""
     for t in snap["transactions"]:
-      if t{"recording"}{"stepsPositioned"}.getInt(0) > 0:
+      if t{"recording"}{"stepsPositioned"}.getInt(0) > 0 and
+         fileExists(snapshotDir / "positions" / (t["txHash"].getStr & ".json")):
         positionedTx = t["txHash"].getStr
         break
     if positionedTx.len == 0:
@@ -3659,12 +3682,42 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     while true:
       let page = txsFrom(root, realInfo, fromH)
       for row in page.rows:
-        if row.sources.state == scAll:
+        # THE SUBJECT IS AN UNPOSITIONED ONE, AND THAT IS THE CLAIM'S OWN
+        # CONDITION rather than a narrowing. The badge is being held to "do not
+        # promise source for a recording that positions nothing" — the two
+        # lines below this loop assert `postHoc` and `not positioned`, which
+        # ARE the case being judged. Selecting on `scAll` alone was exact only
+        # while no capture both carried every source and positioned steps.
+        #
+        # Re-recording the corpus onto compact CTFS produced three that do, and
+        # since this loop keeps the LAST match the subject became one of them:
+        # a row that correctly says "Sources available", failing three
+        # assertions that describe the other case entirely.
+        if row.sources.state == scAll and row.sources.postHoc and
+           not row.sources.positioned:
           inc found
           subject = row.sources
       if not page.hasMore: break
       fromH = page.nextFrom
-    ck found > 0
+
+    # ── THE SUBJECT IS CONSTRUCTED, AND THE CORPUS IS ASKED SEPARATELY ──────
+    #
+    # `found` is allowed to be ZERO now, and the claim is still judged. After
+    # the corpus was re-recorded onto compact CTFS, every capture that carries
+    # all of its sources also positions steps — so the case this arm is about,
+    # all sources and nothing positioned, has no subject left in the tree.
+    #
+    # Skipping would have been the file's usual answer to an empty set, and it
+    # is the wrong one HERE: a user paid for this line. The claim is a property
+    # of `sourcesState`/`sourcesClass`/`sourcesNote`, not of whichever capture
+    # happens to be in the corpus this month, so the subject is built directly
+    # and the functions are held to it. That makes the guard permanent — no
+    # future re-record can take it away — and it is strictly more than the old
+    # arm, which could only ever judge whatever the corpus happened to hold.
+    if found == 0:
+      echo "    (no capture currently carries every source while positioning " &
+           "nothing — the badge rule below is judged on a constructed view)"
+      subject = SourceCoverageView(state: scAll, postHoc: true, positioned: false)
     # THE BADGE, AND A USER PAID FOR THIS LINE. It used to assert
     # `Sources available` here, with the caveat carrying the correction. A
     # visitor read the badge on this exact transaction, clicked, and got
@@ -3683,6 +3736,33 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     ck sourcesNote(subject).contains("matches what ran on the chain")
     # No surface claims the strong word — §9 owns `verified`.
     ck not sourcesNote(subject).toLowerAscii.contains("verified")
+
+    # ── AND THE OTHER DIRECTION, WHICH THE CORPUS GAINED ───────────────────
+    #
+    # A badge that said "Source not recorded" for everything would satisfy
+    # every assertion above. Re-recording positioned three captures that carry
+    # all their sources, so the affirmative case is now witnessed by real data
+    # for the first time, and it is asserted here rather than left implied.
+    # ASSERTED AS AN AGGREGATE, not once per row: a per-row `ck` would make
+    # this suite's declared assertion count a function of how many captures
+    # happen to match, so every future re-record would move a number that has
+    # nothing to do with the claim.
+    var positionedWithSources = 0
+    var allSayAvailable = true
+    var noneMuted = true
+    fromH = -1
+    while true:
+      let page = txsFrom(root, realInfo, fromH)
+      for row in page.rows:
+        if row.sources.state == scAll and row.sources.positioned:
+          inc positionedWithSources
+          if sourcesState(row.sources) != "Sources available": allSayAvailable = false
+          if sourcesClass(row.sources) == "muted": noneMuted = false
+      if not page.hasMore: break
+      fromH = page.nextFrom
+    ck positionedWithSources > 0
+    ck allSayAvailable
+    ck noneMuted
 
   # ── mutation arms ────────────────────────────────────────────────────────
   #
@@ -3777,7 +3857,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     ck not sourcesNote(positioned).contains("not its source code")
 
   test "assertion count":
-    expectCount(136)
+    expectCount(138)
 
 # ───────────────────────────────────────────────────────────────────────────
 # SUITE 14 — ONE CHAIN, TWO RECORDERS, NEITHER MISFILED
