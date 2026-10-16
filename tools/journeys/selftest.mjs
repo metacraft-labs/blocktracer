@@ -2659,6 +2659,7 @@ async function verdictFor(journey, assertion) {
   // independent closures of one hole. Both are kept: the raise depends on
   // `run.mjs` spending exit 2 correctly, and this does not depend on anything.
   await rm(REPORT, { force: true });
+  let lastOutput = "";
   try {
     await run("node", [join(HERE, "run.mjs"), "--only", journey, "--json", REPORT], {
       cwd: REPO,
@@ -2705,6 +2706,13 @@ async function verdictFor(journey, assertion) {
       );
     }
     /* a red journey exits 1; the verdict comes from the report, not from this */
+    // KEEP WHAT IT SAID, THOUGH. A red journey's own output is noise when the
+    // report arrives, and it is the ONLY evidence when the report does not —
+    // the `no-report` branch below can say that nothing was written and
+    // nothing about why, and the next person is told to go and re-run the
+    // journey by hand. That round trip is avoidable: the child already
+    // printed the reason into this variable.
+    lastOutput = String(err.stdout ?? "") + String(err.stderr ?? "");
   }
   const report = JSON.parse(await readFile(REPORT, "utf8").catch(() => "{}"));
   // THREE WAYS TO MISS, AND THEY USED TO ARRIVE AS ONE SENTENCE.
@@ -2726,7 +2734,7 @@ async function verdictFor(journey, assertion) {
   // exit 2 is now named, exit 1 with an unusable report still is not.
   const journeys = report.journeys ?? [];
   if (journeys.length === 0) {
-    return { found: false, why: "no-report" };
+    return { found: false, why: "no-report", tail: lastOutput.trim().split("\n").slice(-12) };
   }
   // DEFENSIVE, and said so rather than left to be chased: `run.mjs --only X`
   // writes a report holding exactly that journey or refuses with exit 2 (which
@@ -3019,8 +3027,14 @@ async function main() {
         log(`               THE UNMUTATED RUN PRODUCED NO REPORT AT ALL — it did not`);
         log(`               exit 2 (that is raised as DID NOT RUN), so it ran and judged`);
         log(`               nothing. Every arm after this one will say the same thing.`);
-        log(`               Run \`node tools/journeys/run.mjs --only ${arm.journey}\` and`);
-        log(`               read ITS output; the cause is there and not here.`);
+        const tail = before.tail ?? [];
+        if (tail.length) {
+          log(`               ITS LAST LINES, which are the only evidence there is:`);
+          for (const line of tail) log(`                 ${line}`);
+        } else {
+          log(`               Run \`node tools/journeys/run.mjs --only ${arm.journey}\` and`);
+          log(`               read ITS output; the cause is there and not here.`);
+        }
       } else if (before.why === "no-journey") {
         log(`               THE REPORT HOLDS NO JOURNEY '${arm.journey}'. It holds:`);
         log(`               ${(before.saw ?? []).join(", ") || "(none)"}`);
