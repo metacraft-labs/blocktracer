@@ -1265,18 +1265,50 @@ async function run(opts) {
     else checks.push({ id: "D1", title: "the shipped CSS declares exactly the derived token set", ok: null, detail });
   } else {
     const html = await readFile(BUILT_HTML, "utf8");
-    const style = /<style>([\s\S]*?)<\/style>/.exec(html);
-    if (!style) {
-      add("D1", "the shipped CSS declares exactly the derived token set", false, "the built page has no <style> block");
+    // THE STYLESHEET IS WHEREVER THE PAGE SAYS IT IS, and for this exporter
+    // that has not been a `<style>` block for some time.
+    //
+    // D1 and D2 read `/<style>([\s\S]*?)<\/style>/` and nothing else, and the
+    // export has shipped ONE external sheet per tree since it stopped inlining
+    // the CSS into every page — `+ stylesheet: /_a/<hash>.css (342879 bytes,
+    // once instead of per page)` is the exporter's own line about it. So both
+    // checks answered "the built page has no <style> block" against every
+    // build that has ever been handed to them, which under `--require-built`
+    // is a hard fail nobody could fix and without it is NOT RUN. Measured on
+    // this tree with both shapes: `just export` and `just export-hydrated`
+    // each produce a page whose only stylesheet is a `<link>`.
+    //
+    // A check that cannot pass is not a strict check, it is an absent one —
+    // and D1 is the only thing asserting that the token set a visitor receives
+    // IS the set `web.tokens.json` defines. So follow the link, the way
+    // `check-design-parity.mjs` already does against a served origin, and keep
+    // the inline form working for a build that has one. Neither present is
+    // still a failure, because then there is genuinely nothing to read.
+    const inline = /<style>([\s\S]*?)<\/style>/.exec(html);
+    const link = /<link[^>]+rel=["']?stylesheet["']?[^>]*>/i.exec(html);
+    const href = link ? /href=["']([^"']+)["']/i.exec(link[0]) : null;
+    let css = inline ? inline[1] : null;
+    let cssFrom = inline ? "the page's inline <style> block" : null;
+    if (css === null && href) {
+      const sheet = join(dirname(BUILT_HTML), href[1].replace(/^\//, ""));
+      if (existsSync(sheet)) {
+        css = await readFile(sheet, "utf8");
+        cssFrom = `${relative(REPO_ROOT, sheet)}, the one sheet the page links`;
+      }
+    }
+    if (css === null) {
+      add("D1", "the shipped CSS declares exactly the derived token set", false,
+        link
+          ? `the built page links ${href ? href[1] : "a stylesheet"} and that file is not in the tree`
+          : "the built page has neither a <style> block nor a stylesheet <link>");
     } else {
-      const css = style[1];
       const shipped = new Set([...css.matchAll(/(--bt-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
       const missing = diff(declared, shipped);
       const extra = diff(shipped, declared);
       const ctLeak = [...css.matchAll(/--ct-[a-z0-9-]+/g)].map((m) => m[0]);
       const ok = missing.length === 0 && extra.length === 0 && ctLeak.length === 0;
       add("D1", "the shipped CSS declares exactly the derived token set", ok,
-        ok ? `${shipped.size} --bt-* variables in the shipped page, exactly the set web.tokens.json defines; 0 --ct-* primitives leaked`
+        ok ? `${shipped.size} --bt-* variables in ${cssFrom}, exactly the set web.tokens.json defines; 0 --ct-* primitives leaked`
           : [
               missing.length ? `defined but not shipped: ${missing.join(", ")}` : "",
               extra.length ? `shipped but not defined: ${extra.join(", ")}` : "",

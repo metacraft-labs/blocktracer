@@ -617,10 +617,15 @@ a.lm_title{display:block;line-height:inherit}
    THE FLOOR IS IN THE SAME UNITS THE TAB IS BUILT FROM, so it cannot drift
    from it. `.srctab` carries the design system's `ct-tab`, whose box is
    em-relative all the way down — `padding:0.5em 0.75em`, `line-height:1.2`,
-   `border-bottom:0.125em` — which is 2.325em of vertical box at whatever font
-   size the strip is set to. Add the list's own `3xs` padding top and bottom
-   and this row's hairline, and the floor is the closed row, expressed as the
-   same arithmetic rather than as the 36.8px it currently comes to.
+   `border-bottom:0.125em` — which is the 2.325em of vertical box that
+   `--bt-layout-tabstrip-row-min` holds. Add the list's own `3xs` padding top
+   and bottom and this row's hairline, and the floor is the closed row,
+   expressed as the same arithmetic rather than as the 36.8px it comes to.
+
+   THE EM LIVES IN THE TOKEN AND NOT HERE, and A2 is why: a Layer 2 view may
+   carry no raw length, and it caught this one — `debugger_css.nim:632
+   2.325em`. The rule is right and the token is the better home anyway: the
+   quantity is the design system's tab box, which is Layer 1's to state.
 
    It is a FLOOR and deliberately a hair above the natural height: a rounded
    border makes the exact natural height a fraction smaller, and a floor that
@@ -629,8 +634,8 @@ a.lm_title{display:block;line-height:inherit}
    cannot move. */
 .srcstrip{position:relative;display:flex;align-items:stretch;flex:0 0 auto;
   min-width:0;
-  min-height:calc(2.325em + 2 * var(--bt-space-3xs) +
-    var(--bt-stroke-hairline));
+  min-height:calc(var(--bt-layout-tabstrip-row-min) +
+    2 * var(--bt-space-3xs) + var(--bt-stroke-hairline));
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
 .srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:nowrap;
