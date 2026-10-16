@@ -44,6 +44,18 @@
    65486,
    65475,
    65464
+  ],
+  "rerecordings": [
+   {
+    "at": "2026-10-16T04:01:01.483Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 8,
+    "compactThreshold": 1048576,
+    "containerVersions": {
+     "v6": 8
+    },
+    "url": "http://127.0.0.1:8098"
+   }
   ]
  },
  "captures": [
@@ -1862,7 +1874,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x1029a76600a30fd1faaa8f67825e002a6eea112662748e8203bbe0b97990726c.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 65497,
    "preStateReadAt": 65496,
    "contractReferenceBlock": 65497,
@@ -1881,7 +1893,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -1988,7 +2000,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x0b2eee5f7c7f57a3b1eabdf9b52b448a4d9030407c4ce77108580b9a2c6101f1.ct",
-   "containerBytes": 192512,
+   "containerBytes": 118028,
    "l2BlockNumber": 65489,
    "preStateReadAt": 65488,
    "contractReferenceBlock": 65489,
@@ -2007,7 +2019,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 192512,
+    "bytes": 118028,
     "events": 532,
     "steps": 532,
     "callsOpened": 1,
@@ -2126,7 +2138,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x2fc91663cb5ee6429d0cedac99a0283f9c2a50775e8260110e58c2c91ea141a1.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 65486,
    "preStateReadAt": 65485,
    "contractReferenceBlock": 65486,
@@ -2145,7 +2157,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -2252,7 +2264,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x13b4009bc90f4455805a6731ce63508f3b70d72ca9945bf07fa9ab4d373f0da8.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 65475,
    "preStateReadAt": 65474,
    "contractReferenceBlock": 65475,
@@ -2271,7 +2283,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -2378,7 +2390,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x113b1d870995d53463dd4a4f7c24c1277d53df37f181e364d9a248a74aa7bf37.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 65464,
    "preStateReadAt": 65463,
    "contractReferenceBlock": 65464,
@@ -2397,7 +2409,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -2634,7 +2646,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x12495b2b5c99d5e7d4ab37ae084845bf81a8f8302872d60bcc0351c2df02ee00.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 65508,
    "preStateReadAt": 65507,
    "contractReferenceBlock": 65508,
@@ -2653,7 +2665,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -2760,7 +2772,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x0bfaca33e34bb27689896568f5eb3a631c0d202cbe3a0055b3182b30fee8145f.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 65519,
    "preStateReadAt": 65518,
    "contractReferenceBlock": 65519,
@@ -2779,7 +2791,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -2886,7 +2898,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x1d577f351f6c3334730a6a0ff4150fd3fbb00306eb89add8c2a0f5208ae3d822.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 65530,
    "preStateReadAt": 65529,
    "contractReferenceBlock": 65530,
@@ -2905,7 +2917,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,

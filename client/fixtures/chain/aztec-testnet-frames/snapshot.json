@@ -20,7 +20,19 @@
   "frozen": true,
   "frozenAt": "2026-09-01T04:50:32.529Z",
   "completeBlocks": [],
-  "firstCapturedAt": "2026-08-31T07:40:55.566Z"
+  "firstCapturedAt": "2026-08-31T07:40:55.566Z",
+  "rerecordings": [
+   {
+    "at": "2026-10-16T03:55:36.614Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 6,
+    "compactThreshold": 1048576,
+    "containerVersions": {
+     "v6": 6
+    },
+    "url": "http://127.0.0.1:8098"
+   }
+  ]
  },
  "window": {
   "tip": 69361,
@@ -398,7 +410,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592.ct",
-   "containerBytes": 200704,
+   "containerBytes": 116387,
    "l2BlockNumber": 69361,
    "preStateReadAt": 69360,
    "contractReferenceBlock": 69361,
@@ -417,7 +429,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 200704,
+    "bytes": 116387,
     "events": 459,
     "steps": 459,
     "callsOpened": 46,
@@ -700,7 +712,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x0843f42e2d1624f2b0566c73e16a88265e645a7957282ce228b91bd20b07f9cf.ct",
-   "containerBytes": 180224,
+   "containerBytes": 42745,
    "l2BlockNumber": 69360,
    "preStateReadAt": 69359,
    "contractReferenceBlock": 69360,
@@ -719,7 +731,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 180224,
+    "bytes": 42745,
     "events": 169,
     "steps": 169,
     "callsOpened": 1,
@@ -838,7 +850,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x04a620e2b845ac6627d2eda7d2d8f286f4a8ee727f8f6990e7b34218a9fbbfb8.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 69358,
    "preStateReadAt": 69357,
    "contractReferenceBlock": 69358,
@@ -857,7 +869,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -980,7 +992,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x00689495de42670d932a5722e480f6bd7513825e27ecfc73065346060197285d.ct",
-   "containerBytes": 204800,
+   "containerBytes": 174195,
    "l2BlockNumber": 69357,
    "preStateReadAt": 69356,
    "contractReferenceBlock": 69357,
@@ -999,7 +1011,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 204800,
+    "bytes": 174195,
     "events": 790,
     "steps": 790,
     "callsOpened": 2,
@@ -1151,7 +1163,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x2a9eb99835b8ab098bd9880bbba92ebf840e251d9c44c51eb737ceb032490863.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 69347,
    "preStateReadAt": 69346,
    "contractReferenceBlock": 69347,
@@ -1170,7 +1182,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -1369,7 +1381,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x27e48c9c66661851a5437df2a8b8155877af1f1ceb34c2407f66fa7789f09b14.ct",
-   "containerBytes": 188416,
+   "containerBytes": 79676,
    "l2BlockNumber": 69336,
    "preStateReadAt": 69335,
    "contractReferenceBlock": 69336,
@@ -1388,7 +1400,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 79676,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,

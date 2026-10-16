@@ -2066,8 +2066,8 @@ jobs:
       # journeys below are going to refuse and this names the reason in one
       # screen.
       #
-      # The figures are ASSERTED, not printed. `--expect-opened 12
-      # --expect-refused 43` is today's engine against today's corpus; either
+      # The figures are ASSERTED, not printed. `--expect-opened 52
+      # --expect-refused 3` is today's engine against today's corpus; either
       # number moving is a finding — a re-pin, a container re-encoded, or a
       # corpus that gained or lost a recording — and the commit that changes a
       # number has to say which.
@@ -2077,9 +2077,19 @@ jobs:
       # container 3 to container 6 with the compact profile, and the ten
       # `fixtures/trace` containers were CONVERTED from container 5 to container
       # 6 by `tools/chain/compact_container.nim` applying `ctfs-container.md`
-      # §1e at its RECOMMENDED 1 MiB raw ceiling. All twelve the engine opens
-      # are compact; the largest raw total in the corpus is `zk_shields` at
-      # 731,774 B, well under the threshold.
+      # §1e at its RECOMMENDED 1 MiB raw ceiling.
+      #
+      # MOVED 12/43 -> 52/3 ON 2026-10-16, and it is one cause: the FORTY
+      # REMAINING container-3 recordings were re-recorded. Every `.ct` this
+      # repository commits is now container 6 / `meta.dat` 6 / profile 1, and
+      # the pinned engine opens all fifty-two.
+      #
+      # THE THREE REFUSALS ARE NOW A FIXED SET and not a remainder: the
+      # conformance kit's 229-byte ASCII placeholders, which are not containers
+      # by design. `--expect-refused 3` therefore asserts something stronger
+      # than it used to — that nothing in the corpus is unreadable EXCEPT the
+      # three files that are deliberately not containers. A forty-first
+      # refusal is now visible as a finding instead of being lost in a count.
       #
       # THE SELFTEST RUNS FIRST, HERE AND NOT IN `deploy-gates`, because this is
       # the one job with an engine staged. Six of its ten arms need a verdict
@@ -2093,7 +2103,7 @@ jobs:
         run: |
           nix develop .#ci --command node tools/deploy/engine-opens.mjs \
             --engine client/.replay-engine-cache --corpus \
-            --expect-opened 12 --expect-refused 43
+            --expect-opened 52 --expect-refused 3
 
       # THE WORKING TREE IS NOT THE NIX BUILD, and the selftest below uses the
       # working tree.
