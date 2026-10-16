@@ -1657,7 +1657,23 @@ proc noteFor*`,
     find: `  h.session.requestLandingLocals()`,
     replace: `  discard  # MUTATED: the landing locals request is not issued`,
     journey: "a-session-shows-the-values-it-landed-on",
-    assertion: "the Values pane at the landing position says what it says on returning to it",
+    // THE EQUALITY CANNOT SEE THIS DEFECT, AND THE NON-VACUITY CONTROL CAN.
+    //
+    // This named "the Values pane at the landing position says what it says on
+    // returning to it" and SURVIVED on CI run 38918156174, shard 8. Remove
+    // `requestLandingLocals()` and the landing has no values until the visitor
+    // steps — so the landing reading is empty, the returned reading is empty,
+    // and an equality over two empty sets is satisfied. The assertion is
+    // correct and simply cannot be the one that sees this: it compares two
+    // readings, and the mutation empties both.
+    //
+    // The journey already carries the reading that can. Unmutated it counts
+    // four: "at least one session paints Values rows at the position it landed
+    // on, before any motion" — which is the arm's own title stated as a
+    // verdict, and which the mutation takes to zero by construction.
+    assertion:
+      "at least one session paints Values rows at the position it landed on, " +
+      "before any motion",
   },
   {
     id: "S/the-file-list-unfolds-in-place",
