@@ -1558,9 +1558,23 @@ proc noteFor*`,
       " eleven kinds and renders every string, bool, char, array and tuple as the" +
       " empty string, which is why the ordinals here were derived against the" +
       " engine rather than borrowed. A count cannot see it.",
+    // A KIND THIS JOURNEY'S SUBJECT ACTUALLY RENDERS. This blanked `tkInt`
+    // and SURVIVED on CI run 38918156174, shard 5 — not because the overlay
+    // is unguarded but because nothing it draws is an integer. Measured by
+    // asking the engine for the locals of the capture this journey walks and
+    // reading `value.kind` off the wire: kind 0 (Seq), 12 (Bool), 9 (String),
+    // and `tkInt` is 7.
+    //
+    // `tkString` is the kind the overlay draws most of, and it is present on
+    // both this subject and the chain captures. Blanking it is the same
+    // defect class the `why` above describes — a mis-read ordinal rendering a
+    // whole kind as the empty string — aimed at a value the overlay puts on a
+    // line. `L/the-value-kind-is-misread` keeps `tkInt`, against the Values
+    // pane's chain arm where integers do appear, so the two arms stay
+    // distinct defects rather than one mutation named twice.
     file: join(CLIENT, "hydrate", "live_locals.nim"),
-    find: `  of tkInt: node{"i"}.getStr("")`,
-    replace: `  of tkInt: ""`,
+    find: `  of tkString: "\\"" & node{"text"}.getStr("") & "\\""`,
+    replace: `  of tkString: ""`,
     journey: "a-stepped-session-shows-the-values-recorded-on-its-lines",
     assertion: "every value label carries a value and not just a name",
   },
