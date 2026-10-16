@@ -2059,11 +2059,31 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
   font-size:var(--bt-type-body-sm-size)}
 .mdrevert.bad{color:var(--bt-status-danger-fg)}
 .mdrevert.note{color:var(--bt-text-muted)}
-.mddl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0}
+/* THE LABEL COLUMN MUST BE ABLE TO SHRINK, AND IT COULD NOT.
+   `auto` sizes the first column to its widest label, and `.mddl dt` was
+   `white-space:nowrap`, so the longest label was UNBREAKABLE and took whatever
+   width it wanted. On this corpus that label is `Cost · Transaction<nbsp>fee`,
+   and at @laptop it left the value column too narrow for its own contents:
+
+     AGE       `No timestamp published`  overflows its <dd> by 14px
+     FINALITY  `Finalized`               overflows its <dd> by  6px
+     SOURCES   `Instruction level`       overflows its <dd> by 19px
+
+   `FINALIZED` IS WHY THIS IS A COLUMN FIX AND NOT A WRAPPING ONE. The other
+   two are phrases and `white-space:normal` on the pill lets them wrap — that
+   rule is already here, at `.mddl dd .badge`, and already shipped. A single
+   word cannot wrap, so a six-pixel overflow on `Finalized` says the CELL is
+   too narrow and no amount of pill wrapping will reach it.
+
+   So the column is `minmax(0,auto)`, which lets it shrink below its content,
+   and the label may wrap. THE NON-BREAKING SPACE STAYS: it holds
+   `Transaction fee` together while permitting the break after `Cost ·`, which
+   is the break a reader would choose. */
+.mddl{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:0}
 .mddl dt{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);
   letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;
-  color:var(--bt-text-subtle);white-space:nowrap;
+  color:var(--bt-text-subtle);white-space:normal;overflow-wrap:break-word;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
 /* `word-break:break-all` applied to the whole cell broke WORDS as well as
    hashes: `mana (FeeJuice)` came out as `mana (Fe` / `eJuice)`, which three
