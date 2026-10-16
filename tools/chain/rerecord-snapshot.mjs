@@ -57,6 +57,7 @@
 
 import { readFile, writeFile, mkdir, rm, copyFile, mkdtemp } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -247,6 +248,45 @@ async function main() {
   console.log(`  body store ${bodyStore || '— (the node, which has a ~1h horizon on getTxByHash)'}`);
   console.log(`  writer     ${ctWriter}\n`);
 
+  // ── WHICH RUNTIME IS ABOUT TO PRODUCE THESE BYTES ────────────────────────
+  //
+  // Read from the runtime checkout itself, not taken on trust, because it
+  // becomes the snapshot's `provenance.runtimeCommit` and therefore every new
+  // container's `/t/**` address (`ingest.nim:recorderForTx` ->
+  // `deriveTraceArtifactId`). A wrong value here does not fail — it silently
+  // files new recordings under the old recorder's addresses.
+  //
+  // REFUSED RATHER THAN GUESSED. A runtime whose revision cannot be read is a
+  // runtime whose output cannot be addressed honestly, and the all-or-nothing
+  // rule above means refusing costs nothing: no container is installed.
+  let runtimeCommit = null;
+  let previousRuntimeCommit = null;
+  {
+    const r = spawnSync('git', ['-C', resolve(runtime), 'rev-parse', 'HEAD'],
+                        { encoding: 'utf8' });
+    const sha = (r.stdout ?? '').trim();
+    if (r.status !== 0 || !/^[0-9a-f]{40}$/.test(sha)) {
+      die(`cannot read the runtime's revision from ${resolve(runtime)} — `
+        + `git rev-parse HEAD exited ${r.status}${sha ? ` with [${sha}]` : ''}. `
+        + `That revision becomes provenance.runtimeCommit, and every re-recorded `
+        + `container's /t/** address derives from it (contract/ids.nim: `
+        + `"changing the recorder must change the URL so a stale artifact cannot `
+        + `outlive a bug fix"). Guessing it would file these bytes under the `
+        + `PREVIOUS recorder's addresses and overwrite its containers in place.`);
+    }
+    runtimeCommit = sha;
+    const was = snapshot?.provenance?.runtimeCommit ?? null;
+    console.log(`  runtime    ${sha}${was && was !== sha ? `  (was ${was})` : ''}`);
+    if (was === sha) {
+      console.log('             unchanged — the re-recorded containers keep their');
+      console.log('             current /t/** addresses and supersede the bytes there.');
+    } else {
+      console.log('             CHANGED — the re-recorded containers get NEW /t/**');
+      console.log('             addresses; the current ones stay valid where they are.');
+    }
+  }
+  console.log('');
+
   const stage = await mkdtemp(join(tmpdir(), 'rerecord-'));
   const results = [];
   let refused = 0;
@@ -316,12 +356,40 @@ async function main() {
   // container against `capturedAt` would otherwise conclude the producer wrote
   // it then, which is the sentence this entry exists to prevent.
   snapshot.provenance = snapshot.provenance ?? {};
+
+  // ── THE RECORDER IDENTITY MOVES, OR THE NEW BYTES INHERIT THE OLD URL ─────
+  //
+  // `contract/ids.nim:deriveTraceArtifactId` states the contract on itself:
+  // "`recorderBuild` is load-bearing: changing the recorder must change the URL
+  // so a stale artifact cannot outlive a bug fix." `ingest.nim` derives every
+  // `/t/**` address from it, via `recorderForTx` -> `provenance.runtimeCommit`.
+  //
+  // This tool re-records with a DIFFERENT producer by construction — that is
+  // what it is for — and until now it left `runtimeCommit` alone. So the new
+  // containers were addressed as the old recorder's work, and a publish would
+  // overwrite the old bytes AT THE SAME URL. Measured on this corpus:
+  // `0x12525d6d…` went `callsOpened` 1 -> 45, a materially different recording,
+  // and both versions derived the same `/t/**` path. Nothing downstream — not a
+  // cache, not a consumer holding the old address, not `check-freshness`'s
+  // frozen-capture rule — could have told them apart.
+  //
+  // So the runtime that actually produced these bytes is recorded, and the old
+  // value is kept beside it rather than discarded: the previous containers are
+  // still valid at their own addresses, and a reader needs to know which
+  // recorder those were.
+  if (runtimeCommit && snapshot.provenance.runtimeCommit !== runtimeCommit) {
+    previousRuntimeCommit = snapshot.provenance.runtimeCommit ?? null;
+    snapshot.provenance.runtimeCommit = runtimeCommit;
+  }
+
   snapshot.provenance.rerecordings = snapshot.provenance.rerecordings ?? [];
   snapshot.provenance.rerecordings.push({
     at: new Date().toISOString(),
     by: 'tools/chain/rerecord-snapshot.mjs',
     subjects: subjects.length,
     compactThreshold: Number(compactThreshold),
+    runtimeCommit: runtimeCommit ?? '(unknown — see the refusal above)',
+    previousRuntimeCommit,
     containerVersions: Object.fromEntries(
       Object.entries(results.reduce((acc, r) => {
         const k = `v${r.afterHdr.container}`;
