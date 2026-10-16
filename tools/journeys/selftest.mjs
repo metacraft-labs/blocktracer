@@ -1451,6 +1451,15 @@ proc noteFor*`,
     find: `  result.positioned = engineReported or served.positioned`,
     replace: `  result.positioned = step > 0`,
     journey: "position-survives-hydration",
+    // LEFT ON THE `HYDRATED` ARM, AND THE OTHER ONE WAS TRIED. The defect is
+    // `positioned = step > 0`, so it bites only where the step IS zero, and
+    // the obvious repair was to point this at `HYDRATED-REAL` — the chain
+    // capture whose SERVED frame stands at step 0 of 790. Measured: it
+    // survives there too, and the reading says why — `step 1 of 790 names
+    // tick 1 of 48 — drew 48 ticks, playhead on 1 (1 marked)`. By the time
+    // either arm reads, the engine has reported and the step is 1, so the
+    // sentinel is true on both. Moving the target buys nothing, so it stays
+    // where it was and the gap is registered in `known-survivors.json`.
     assertion: "HYDRATED: the playhead is on the tick the session's own step names",
   },
 
