@@ -1490,12 +1490,45 @@ jobs:
           nix develop .#ci --command bash -c \
             'cd client && nim c -r --mm:orc -d:isServer -d:release --hints:off src/static_export.nim'
 
+      # Does the canary tell a dead browser from a moved harness? Bare `node`
+      # is deliberate here and nowhere else in this job: the arms are pure
+      # string classification over CI output captured verbatim, with no browser,
+      # no build and no pinned environment to need.
+      - name: Does the canary tell a dead browser from a moved harness?
+        run: nix run .#capture-env -- node tools/capture/canary-retry-selftest.mjs
+
       - name: Tier 1 — the determinism canary, byte-identical
         # verify_canary_capture_is_byte_identical. Two captures of the canary
         # set in two separate processes; the assertion is byte-identity, not a
         # threshold, because at this scope anything less exact is not answering
         # the question.
-        run: nix run .#capture-env -- node tools/capture/check-canary.mjs --no-build
+        #
+        # ── EXIT 3 IS "DID NOT RUN", NOT "THE HARNESS MOVED" ──────────────
+        #
+        # Measured across four runs of this job: it failed on
+        # `garm-kkxhwoqhagaz` and on `gpu-server-002-mcl-001`, capturing 0 of
+        # 5 images and naming `Target page, context or browser has been
+        # closed`, and PASSED on `gpu-server-002-mcl-003` with the same
+        # labels, the same commit shape and the same pinned environment.
+        # `--disable-dev-shm-usage` and `chromiumSandbox: false` are both
+        # already set, so the usual container causes are not it; what varies
+        # is the host.
+        #
+        # The checker retries a dead browser (three attempts) and exits 3 if it
+        # stays dead, which is a different sentence from exit 1. BOTH ARE RED —
+        # a canary that cannot run leaves every tier-2 baseline unverified and
+        # passing would be worse — but the title says which, so nobody looks
+        # for a rasterisation change that did not happen. Same shape as the
+        # `rc -eq 3` arm on the gate-selftest step below.
+        run: |
+          set -uo pipefail
+          rc=0
+          nix run .#capture-env -- node tools/capture/check-canary.mjs --no-build || rc=$?
+          if [ "$rc" -eq 3 ]; then
+            echo "::error title=DID NOT RUN — the canary browser died::The browser closed before any image was captured, on every attempt. Nothing was compared, so this is not a verdict about determinism. What varies is the host; see the step comment."
+            exit 1
+          fi
+          exit "$rc"
 
       - name: The tier-1 verdict is USABLE — not advisory, not incoherent
         # verify_canary_failure_invalidates_the_baselines, from the other side.

@@ -2221,8 +2221,28 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     # Everything from the pane body's opening tag to the listing is anchors and
     # the rail: no element opens between them that could become their parent.
     let between = served[bodyAt + body.len ..< served.find("<div class=\"srcwrap\"", bodyAt)]
-    check between.startsWith("<span class=\"frtarget\" id=\"fit-0\">")
-    check occurrences(between, "<div") == 1          # the rail itself
+    #
+    # ── ASSERTED AS A RELATION, NOT AS A SHAPE ──────────────────────────────
+    #
+    # This used to require that `between` START with the first anchor and
+    # contain exactly ONE `<div>` (the rail). Both were proxies for the property
+    # that matters — the anchors and `.srcwrap` share a parent, so
+    # `#fit-N:target ~ .srcwrap` matches — and both went stale the moment the
+    # CodeTracer port wrapped the pane body in `<div class="component-container">`.
+    # Measured: `between` now opens with that wrapper and carries two `<div>`s,
+    # of which only one closes (open=2, close=1) — so the wrapper is STILL OPEN
+    # when `.srcwrap` begins, which means `.srcwrap` is inside it, beside the
+    # anchors. The relation holds; only the shape moved.
+    #
+    # A wrapper opened BEFORE the first anchor contains both and is harmless. A
+    # div opened after the first anchor and left open is exactly the defect:
+    # it would become `.srcwrap`'s parent and the anchors' sibling instead. So
+    # the check is over the region FROM the first anchor, and it is a balance.
+    let firstAnchor = "<span class=\"frtarget\" id=\"fit-0\">"
+    let anchorAt = between.find(firstAnchor)
+    check anchorAt >= 0
+    let fromAnchor = between[anchorAt .. ^1]
+    check occurrences(fromAnchor, "<div") == occurrences(fromAnchor, "</div>")
     check "class=\"flowrail\"" in between
 
   test "a loop longer than the ladder is CLAMPED and says so":

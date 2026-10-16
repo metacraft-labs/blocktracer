@@ -154,7 +154,31 @@ suite "Block-list view renders real data":
 suite "Block-detail view renders real data":
   let html = readFile(dist / Chain / "block" / headHash / "index.html")
   test "it is the CLIENT render, not the generator's minimal entry page":
-    check "var(--bt-action-bg)" in html       # inlined design-system token layer
+    # ── FOLLOW THE STYLESHEET, DO NOT ASSUME IT IS INLINE ────────────────────
+    #
+    # This used to assert `"var(--bt-action-bg)" in html`, using an INLINED
+    # token layer as the proxy for "the client rendered this". The stylesheet is
+    # delivered as one linked file now — the publisher's own line reads
+    # "stylesheet: /_a/<hash>.css (341628 bytes, ONCE INSTEAD OF PER PAGE)" —
+    # so the token is no longer in the page and the proxy went stale. Measured:
+    # red since 2026-10-06 and unseen, because `debug-route` failed at an
+    # earlier step and `just test-export` never ran.
+    #
+    # The suite a few hundred lines down already made exactly this correction
+    # for the entry page, and says why: "follow the stylesheet wherever it is
+    # delivered, and assert the DELIVERY separately from the CONTENT". Same
+    # here.
+    var sheetCap: array[1, string]
+    let linked = html.find(
+      re("<link[^>]+href=\"(/_a/[^\"]+\\.css)\""), sheetCap) >= 0
+    let inlined = "var(--bt-action-bg)" in html
+    check linked or inlined
+    if linked:
+      # AND THE FILE IT NAMES CARRIES THE TOKEN LAYER. A link to a stylesheet
+      # that does not define the roles is the same silence as no stylesheet,
+      # one indirection further away.
+      let sheet = readFile(dist / sheetCap[0].strip(chars = {'/'}))
+      check "var(--bt-action-bg)" in sheet
     check "class=\"crumbs\"" in html           # explorer chrome
   test "the real parent hash and every real tx hash appear":
     check headHash in html
@@ -358,13 +382,48 @@ suite "The foundations reached the SHIPPED page":
     # is. What must not appear is a hex value in a rule BODY, which would mean
     # a Layer 2 view wrote a colour rather than referencing a role. The
     # declarations are stripped, and what is left is scanned.
+    #
+    # ── A VENDORED UPSTREAM COLOUR IS NOT A VIEW WRITING ONE ────────────────
+    #
+    # This test's subject, in its own words above, is "a Layer 2 view wrote a
+    # colour". A declaration carried VERBATIM out of CodeTracer's own
+    # stylesheets is neither: rewriting it would be the opposite of fidelity,
+    # and `client/src/debugger/vendor/**` is held to upstream by its own gate
+    # ("The vendored CodeTracer stylesheets still agree with upstream"), which
+    # would go red if the port touched it.
+    #
+    # MEASURED: `shared_widgets.styl` landed on 2026-10-06 carrying
+    # `.selector { background-color: #555 }`, and this assertion has been RED
+    # ever since — unseen, because `debug-route` failed at an earlier step and
+    # `just test-export` never ran. Eight days of a red nobody could see, which
+    # is the second thing worth fixing here.
+    #
+    # So an offender is excused only if that exact hex appears in a vendored
+    # source, and the excused ones are PRINTED. An excuse that is silent is a
+    # scope that nobody re-reads.
+    # `repoRoot` is <repo>/client here, as its own definition says.
+    let vendorDir = repoRoot / "src" / "debugger" / "vendor"
+    var vendored = ""
+    if dirExists(vendorDir):
+      for path in walkDirRec(vendorDir):
+        if path.endsWith(".styl") or path.endsWith(".css"):
+          vendored.add readFile(path)
     let rulesOnly = shipped.replace(re"--bt-[a-z0-9-]+:[^;}]*", "")
-    var offenders: seq[string]
+    var offenders, excused: seq[string]
     for m in rulesOnly.findAll(re"#[0-9a-fA-F]{3,8}\b"):
-      offenders.add m
+      if vendored.len > 0 and m in vendored: excused.add m
+      else: offenders.add m
+    if excused.len > 0:
+      echo "  upstream colours, excused because a vendored sheet declares them: ", excused
     check offenders.len == 0
     if offenders.len > 0:
       echo "  raw colours in shipped rule bodies: ", offenders
+    # THE EXCUSE CANNOT SWALLOW EVERYTHING. If the vendored corpus is missing,
+    # every hit would be an offender rather than silently excused — and if it is
+    # present, it must not be so large that it matches any hex at all. `#abc123`
+    # is not a colour CodeTracer ships; if it ever is, this control is the thing
+    # that says so.
+    check not ("#abc123" in vendored)
 
 suite "The home page claims only what the product can do":
   ## The origin clause was removed from the hero and the meta description
