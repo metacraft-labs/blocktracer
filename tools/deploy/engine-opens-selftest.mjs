@@ -105,16 +105,45 @@ if (!HAVE_ENGINE) {
   console.log("          or ENGINE_DIR=<dir> to point at one already staged.");
 } else {
   const OPENABLE = join(REPO, "fixtures/trace/tour/values/tour_values.ct");
-  const REFUSED = join(REPO, "client/fixtures/chain/aztec-testnet/ct/0x009fb0c0fc8ef1d2ea15322e0f9b57b3d40bd5e3cbecb91a307d2ae9fb6ef53a.ct");
+  // ── THE REFUSED SUBJECT IS MADE HERE, NOT BORROWED FROM THE CORPUS ───────
+  //
+  // It used to be a committed container-3 recording
+  // (`chain/aztec-testnet/ct/0x009fb0c0…`). That worked only while the corpus
+  // still HELD a container the engine refuses, and on 2026-10-16 the last
+  // forty were re-recorded to container 6. The arm then reported
+  //
+  //   BITE DID NOT LAND  a container the engine refuses is reported REFUSED
+  //
+  // which is the correct verdict and the wrong subject: fixing the corpus
+  // removed the defect this arm was borrowing. A mutation arm whose defect
+  // lives in data someone else maintains expires the moment that data is
+  // repaired, and it expires SILENTLY in the direction that looks like
+  // success.
+  //
+  // So the refusal is synthesised: a real container with its container-version
+  // byte stamped to 3. The engine refuses it on the version, which is exactly
+  // the axis this arm is about, and the subject cannot be repaired out from
+  // under it. Byte 5 is the container version (`ctfs-container.md` §1).
+  const stubDir = mkdtempSync(join(tmpdir(), "engine-opens-selftest-"));
+  const REFUSED = join(stubDir, "stamped-v3.ct");
+  {
+    const bytes = Buffer.from(readFileSync(OPENABLE));
+    bytes[5] = 3;
+    writeFileSync(REFUSED, bytes);
+  }
   {
     const r = run(["--engine", ENGINE, OPENABLE]);
     bite("a container the engine opens is reported OPENED, with both version axes",
-         r.status === 0 && /OPENED\s+container=5 meta\.dat=6/.test(r.out));
+         r.status === 0 && /OPENED\s+container=6 meta\.dat=6/.test(r.out));
   }
   {
+    // `meta.dat=6` and not 3: only the CONTAINER version is stamped, so the
+    // member still reads 6. That the two axes disagree is the point — §1c's
+    // rule is per FIELD, and this proves the tool refuses on the container
+    // version while still reading the member's own.
     const r = run(["--engine", ENGINE, REFUSED]);
     bite("a container the engine refuses is reported REFUSED",
-         r.status === 0 && /REFUSED\s+container=3 meta\.dat=3/.test(r.out));
+         r.status === 0 && /REFUSED\s+container=3 meta\.dat=6/.test(r.out));
   }
   {
     // THE DISCRIMINATION ARM. Both subjects in one run: if the tool answered
