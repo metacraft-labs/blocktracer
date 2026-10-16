@@ -230,7 +230,25 @@ const ARMS = [
     find: `  of tkInt: node{"i"}.getStr("")`,
     replace: `  of tkInt: ""`,
     journey: "a-stepped-session-shows-the-values-it-is-at",
-    assertion: "every row the pane draws carries both a name and a value",
+    // THE *REAL* ARM, AND THE MUTATION ONLY REACHES THAT ONE. This named the
+    // synthetic arm's copy of the claim — "every row the pane draws carries
+    // both a name and a value" — and SURVIVED on CI run 38918156174, shard 8.
+    //
+    // Not because the assertion is weak: because no value it quantifies over
+    // is an integer. MEASURED by asking the engine for the locals of both
+    // subjects this journey drives and reading `value.kind` off the wire:
+    //
+    //   demo  `kc5nqr…`  kind 0 (Seq), 12 (Bool), 9 (String)
+    //   chain `um3w46…`  kind 7 (INT), 9 (String)
+    //
+    // `tkInt` is 7, so blanking it changes nothing a demo-only walk can see,
+    // and the one surface that would see it is the chain capture — whose
+    // `contextId` is an integer. The claim is made there too, a few lines
+    // down, under the "REAL: " prefix this file's own ambiguity note warns
+    // about. Pointing the arm at that copy is the whole repair; the two
+    // strings are not substrings of each other, so the match stays exactly
+    // one.
+    assertion: "REAL: every row carries both a name and a value",
   },
   {
     id: "C/phase-renamed",
