@@ -1159,3 +1159,122 @@ a valid tree, and `ingest.nim` publishes whatever is there. And one capture
 cannot be derived; `test_instruction_listing.nim` counts it in
 `positionedWithoutSidecar` and asserts it is exactly one, so both a second
 appearing and this reaching zero are findings.
+
+---
+
+## 8. The ingestion layer: a service, and the manual run of it
+
+### 8.1 Whose job is it to sync chain history
+
+**CI deploys software. It does not sync chain history.** Chain history is
+produced by a persistent ingestion service that follows the target network,
+records what it catches and uploads it; and by an operator running that same
+pipeline by hand when a range needs to be back-filled, a recorder has changed,
+or a catch has to be made from a machine with a toolchain CI does not carry.
+
+This section exists because the repository had the pipeline and not the
+sentence, and the gap showed: the shape that kept suggesting itself was "a
+workflow that records and publishes", which makes every new transaction a
+`workflow_dispatch` and every re-record a CI run against production data. The
+division is the other way round. A workflow builds and deploys the SITE. The
+transactions it renders arrive from the follower.
+
+Nothing here is new machinery. The Justfile already states the pipeline in one
+line — **follower → recorder → snapshot producer → publisher → bucket** — and
+§5 documents the first two. What was missing is the whole of it written down
+once, with the hand-run of each stage beside the service that normally does it.
+
+### 8.2 The service
+
+`infra`'s `services/blocktracer-ingest` is the NixOS module: a systemd service
+that runs the follower against a chain, records what it catches and uploads the
+result to the bucket the site serves. It carries the compact-CTFS threshold and
+the brotli content-encoding for `.ct` objects (infra #1906) — a container goes
+up as `Content-Encoding: br` or the upload is refused, never silently raw,
+because a `.ct` stored without its declared encoding is unreadable rather than
+merely large.
+
+**It is enabled on no host.** The module and its deployment test exist; no
+machine imports it. Until one does, every transaction on the site arrived by
+the manual procedure below, which is the same pipeline run by hand.
+
+### 8.3 The manual run, end to end
+
+Five stages. Each is a command, each is resumable, and each writes something
+the next one reads — so a run that stops between two of them is continued by
+repeating from the one that did not finish, not from the beginning.
+
+**The toolchain is operator-held and nothing here guesses it.** This repository
+carries no AVM, no ct-writer and no Node with `--experimental-wasm-exnref`;
+`preflightToolchain` refuses before the first transaction rather than recording
+hundreds of false refusals, which is what a wrong `--node` cost this campaign
+on 2026-09-09. `docs/Replay-Toolchain-Artifacts.md` names the four artifacts.
+
+**1. Catch, or back-fill.** The follower for the tip (§5), the range command
+for anything below it:
+
+```sh
+# the tip, supervised and re-arming
+WT=$PWD RUNTIME=…/aztec-avm-runtime NODE_BIN=…/node \
+AVM_WASM_PATH=…/avm.wasm CT_WRITER_WASM_PATH=…/aztec_ct_writer.wasm \
+UNTIL_COMPLETE=3 DEADLINE_MIN=360 \
+  sh tools/chain/watch-chain.sh /path/to/log.jsonl
+
+# or a named range, below the replayable window, through the body proxy
+just chain-replay-range 45000 45199 \
+  ../aztec-avm-runtime /path/to/node /path/to/avm.wasm /path/to/aztec_ct_writer.wasm
+```
+
+Both grow ONE snapshot per chain under `client/fixtures/chain/<slug>/` (§1.6:
+the follower is worth having and is not load-bearing — a block that passes
+unwatched is not lost). Both are idempotent: neither redoes a transaction it
+has already traced, which is what makes a run cut short by a rate-limit ban
+continuable by repeating the command.
+
+**2. Derive the sidecars.** `just chain-instructions`, `just chain-calltrace`
+and `tools/chain/derive-positions.mjs` (a script, not a recipe — only the first
+two have one) read the containers by hand, ahead of the build, and commit JSON
+— the mechanism §6.6 describes. **Read §7.2 first on a compact
+corpus:** `ct-print` reads container 5 only, so these three cannot be re-run
+over a re-recorded tree until that gate moves upstream. A tree with no
+`calltrace/` is valid and `ingest.nim` publishes what is there.
+
+**3. Turn the snapshot into the published layout.**
+
+```sh
+nim c --hints:off -d:release -o:blocktracer-chain-ingest src/blocktracer_chain_ingest.nim
+./blocktracer-chain-ingest --snapshot client/fixtures/chain/<slug> --out <tree> --scope full
+```
+
+`--scope full` is the default and the right one for a range operation: a
+range whose output silently shrank to a curated window would report coverage it
+did not publish. It prints the scope it CHOSE and `scopeFellBack`, so which one
+ran is in the output rather than inferred from the counts.
+
+**4. Rehearse the upload against a directory.** The local backend's
+`putIfAbsent` is a real `O_CREAT|O_EXCL`, so the lease it proves is the lease
+production takes:
+
+```sh
+just publish <tree> published      # local directory, credential-free
+```
+
+**5. Upload.**
+
+```sh
+./blocktracer-publish --tree <tree> --backend s3 --bucket "$BUCKET" --endpoint "$ENDPOINT"
+```
+
+Add `--refresh` when the bytes under an existing key changed. Without it the
+default cycle skips every object whose key already exists — the documented
+key-existence behaviour, and the reason a green publish can change nothing.
+
+### 8.4 The credential boundary
+
+Steps 1 to 4 need no production credential and must keep needing none; step 5
+is the only one that touches the bucket. `Deployment-And-Operations.md` §6c is
+the rule and it is not negotiable here: *"Agents never hold production
+credentials, and do not need to: they write and test the infrastructure code,
+and the reviewed plan is applied by a protected identity."* An agent runs the
+pipeline to step 4, hands over a tree and the rehearsal that says it publishes
+whole, and an operator or the deployed service performs step 5.
