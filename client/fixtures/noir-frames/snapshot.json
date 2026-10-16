@@ -36,6 +36,18 @@
      "v6": 1
     },
     "url": "http://127.0.0.1:8098"
+   },
+   {
+    "at": "2026-10-16T10:03:41.898Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 1,
+    "compactThreshold": 1048576,
+    "runtimeCommit": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f",
+    "recordedByWritten": 1,
+    "containerVersions": {
+     "v6": 1
+    },
+    "url": "http://127.0.0.1:8098"
    }
   ]
  },
@@ -311,7 +323,8 @@
      "reason": "emitted-by-this-transaction"
     }
    ],
-   "sourceBundles": "sources/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json"
+   "sourceBundles": "sources/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json",
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   }
  ]
 }

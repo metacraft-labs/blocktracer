@@ -31,6 +31,18 @@
      "v6": 6
     },
     "url": "http://127.0.0.1:8098"
+   },
+   {
+    "at": "2026-10-16T10:03:21.433Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 6,
+    "compactThreshold": 1048576,
+    "runtimeCommit": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f",
+    "recordedByWritten": 6,
+    "containerVersions": {
+     "v6": 6
+    },
+    "url": "http://127.0.0.1:8098"
    }
   ]
  },
@@ -674,7 +686,8 @@
      "reason": "emitted-by-this-transaction"
     }
    ],
-   "sourceBundles": "sources/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592.json"
+   "sourceBundles": "sources/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592.json",
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x0843f42e2d1624f2b0566c73e16a88265e645a7957282ce228b91bd20b07f9cf",
@@ -812,7 +825,8 @@
      "value": "0x177746797f0944e3ef0b610a36c242c9e1d6ade79a6f3663283be90d95fc972c",
      "reason": "absent-on-chain-at-parent"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x04a620e2b845ac6627d2eda7d2d8f286f4a8ee727f8f6990e7b34218a9fbbfb8",
@@ -954,7 +968,8 @@
      "value": "0x021bfbc0477a5c99993fc05611dcd76db531a02737cc7c9b167d3ed19a6d7ea5",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x00689495de42670d932a5722e480f6bd7513825e27ecfc73065346060197285d",
@@ -1125,7 +1140,8 @@
      "value": "0x2def8f89b10c2da1828a20244e53b32d45850b35ec65ff5a784f318d7154607e",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x2a9eb99835b8ab098bd9880bbba92ebf840e251d9c44c51eb737ceb032490863",
@@ -1267,7 +1283,8 @@
      "value": "0x118fba7be8463f2b7e340fd333b889ee566e3fa8a247792f7c8ca77e1130dcf2",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x1f9b05bbd01097f9585afa11a60950823815ef587fe30e5b0cfabf58eacdf98f",
@@ -1485,7 +1502,8 @@
      "value": "0x065dda41466b9705e67476a157b67329282a56e4bb57e1ddf844eea1f38418f2",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   }
  ],
  "captures": [

@@ -44,6 +44,18 @@
      "v6": 2
     },
     "url": "https://aztec.drpc.org"
+   },
+   {
+    "at": "2026-10-16T10:02:20.412Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 2,
+    "compactThreshold": 1048576,
+    "runtimeCommit": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f",
+    "recordedByWritten": 2,
+    "containerVersions": {
+     "v6": 2
+    },
+    "url": "https://aztec.drpc.org"
    }
   ]
  },
@@ -39182,7 +39194,8 @@
      "value": "0x12b4e2785ecbd8c1f85e0db9e5b2c6a8cb9b5e486258a62470a42c2aa76dd8cb",
      "reason": "absent-on-chain-at-parent"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x0f191b2da9d6f4ccdb1711dd015edb8755bf551933a74b509860307ee8699dbb",
@@ -39346,7 +39359,8 @@
      "value": "0x2f4d2c599d510919e8e4ddaaa9a0f3cb13a8a089dce6e668ab541ec1d84378c6",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x1c7d63a22c19da8abbdc3531c947f0fdb1b0aed9d36c3311de1155bff49974d5",

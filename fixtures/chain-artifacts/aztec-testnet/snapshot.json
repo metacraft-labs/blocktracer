@@ -55,6 +55,18 @@
      "v6": 8
     },
     "url": "http://127.0.0.1:8098"
+   },
+   {
+    "at": "2026-10-16T10:03:40.423Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 8,
+    "compactThreshold": 1048576,
+    "runtimeCommit": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f",
+    "recordedByWritten": 8,
+    "containerVersions": {
+     "v6": 8
+    },
+    "url": "http://127.0.0.1:8098"
    }
   ]
  },
@@ -1978,7 +1990,8 @@
      "value": "0x01c4988bfbedf8a3308d8c47256c67ec3f6c9814afffe587da1009f3866ae9ce",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x0b2eee5f7c7f57a3b1eabdf9b52b448a4d9030407c4ce77108580b9a2c6101f1",
@@ -2116,7 +2129,8 @@
      "value": "0x106e089e737f847fe0eb4394fc9f7733d45ef27bb388448901837064b50999c6",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x2fc91663cb5ee6429d0cedac99a0283f9c2a50775e8260110e58c2c91ea141a1",
@@ -2242,7 +2256,8 @@
      "value": "0x1841ebfb7b4b187176ad113b1bedfedfdf24e2660c4400216db048cf1b00ea75",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x13b4009bc90f4455805a6731ce63508f3b70d72ca9945bf07fa9ab4d373f0da8",
@@ -2368,7 +2383,8 @@
      "value": "0x25c358ee7aa9a7d0d836a639f8916f1341a0bb48f7809e6054aeda0c25445664",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x113b1d870995d53463dd4a4f7c24c1277d53df37f181e364d9a248a74aa7bf37",
@@ -2494,7 +2510,8 @@
      "value": "0x21e85e05c14988642908789efaf515c103074e880362f62959a14112dbfc71d2",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x0f6680977f00ac36af302c43f97c96d622972ace189768d8198e3e13d7107129",
@@ -2750,7 +2767,8 @@
      "value": "0x2001223b3afae0f5171789392de4682d049023e74488b18fc08e3d3b1e00e1e3",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x0bfaca33e34bb27689896568f5eb3a631c0d202cbe3a0055b3182b30fee8145f",
@@ -2876,7 +2894,8 @@
      "value": "0x0d0e6be056badc0549d17b0b4f81ba53e9d5ae3b72417455f3833f557b03513f",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x1d577f351f6c3334730a6a0ff4150fd3fbb00306eb89add8c2a0f5208ae3d822",
@@ -3002,7 +3021,8 @@
      "value": "0x19c86be1f1cbab9d6bc3c235a3f47350c813a8ced4b6c00dc540691459325baf",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   }
  ]
 }

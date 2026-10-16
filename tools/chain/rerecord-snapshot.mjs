@@ -260,7 +260,6 @@ async function main() {
   // runtime whose output cannot be addressed honestly, and the all-or-nothing
   // rule above means refusing costs nothing: no container is installed.
   let runtimeCommit = null;
-  let previousRuntimeCommit = null;
   {
     const r = spawnSync('git', ['-C', resolve(runtime), 'rev-parse', 'HEAD'],
                         { encoding: 'utf8' });
@@ -377,9 +376,26 @@ async function main() {
   // value is kept beside it rather than discarded: the previous containers are
   // still valid at their own addresses, and a reader needs to know which
   // recorder those were.
-  if (runtimeCommit && snapshot.provenance.runtimeCommit !== runtimeCommit) {
-    previousRuntimeCommit = snapshot.provenance.runtimeCommit ?? null;
-    snapshot.provenance.runtimeCommit = runtimeCommit;
+  // AT THE ROW, NOT AT THE SNAPSHOT. `ingest.nim` resolves a transaction's
+  // recorder in three steps and says so: (1) `transactions[].recordedBy` — "the
+  // row's own statement, which is what a row should be able to say for itself";
+  // (2) the `captures[]` entry that yielded it; (3) `provenance.runtimeCommit`,
+  // "the right answer for the transactions of the initial one-shot scan".
+  //
+  // The first attempt at this fix wrote (3), and MEASURED IT WRONG: only
+  // `aztec-testnet` moved. `aztec` and `aztec-testnet-frames` have `captures[]`
+  // entries claiming their transactions, so (2) won and the snapshot-wide value
+  // was never consulted — the published manifests still named `l3-86c36ad441`
+  // and `l3-94e7d4bb97`. Writing (3) was also wrong on its own terms: it
+  // restates who performed the ORIGINAL capture, which this tool did not do.
+  //
+  // A re-record is a per-transaction fact — THIS container was produced by THIS
+  // runtime — so it belongs at the level the ingest reads first, and only on
+  // the rows actually re-recorded. Rows this run did not touch keep whatever
+  // they said before.
+  for (const r of results) {
+    if (!r.ok) continue;            // `ok`, not `wrote` — see `results.push`
+    r.row.recordedBy = runtimeCommit;
   }
 
   snapshot.provenance.rerecordings = snapshot.provenance.rerecordings ?? [];
@@ -389,7 +405,7 @@ async function main() {
     subjects: subjects.length,
     compactThreshold: Number(compactThreshold),
     runtimeCommit: runtimeCommit ?? '(unknown — see the refusal above)',
-    previousRuntimeCommit,
+    recordedByWritten: results.filter((r) => r.ok).length,
     containerVersions: Object.fromEntries(
       Object.entries(results.reduce((acc, r) => {
         const k = `v${r.afterHdr.container}`;
