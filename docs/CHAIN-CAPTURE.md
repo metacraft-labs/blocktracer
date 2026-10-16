@@ -1079,3 +1079,83 @@ resolution reports `corroboration` and the distributors that agree on the debug
 digest separately from the proof itself; `single-distributor` is the honest
 label for source text only one party attests, and `requireCorroboration` exists
 for a caller who will not claim source level over it.
+
+---
+
+## 7. Re-recording onto compact CTFS, and the one thing it costs
+
+On 2026-10-16 the whole committed corpus moved to CTFS container 6, profile 1
+(the compact profile). `tools/chain/rerecord-snapshot.mjs` did it, 40
+containers across four populations, and `tools/deploy/engine-opens.mjs` reports
+**52 opened, 0 refused** against the pinned engine — the three remaining
+refusals are the conformance kit's 229-byte ASCII placeholders, which are not
+containers by design.
+
+### 7.1 The retired testnet rollup is reachable, and the node is not how
+
+31 of those captures are from testnet rollup version `1821665230`. The live
+node serves `3409706519` and answers `getTxEffect` for them with `null`; the
+replacement rollup has had **no transactions at all** in its last 300 blocks,
+so there is nothing to capture in its place either. The deployment is gone from
+the node and from nowhere else:
+
+| source | retired rollup |
+|---|---|
+| `aztec-testnet.drpc.org` | `null` |
+| `…/testnet/txs/<basePath>/txs/<hash>.bin` | **200**, self-verifying |
+| `…/testnet/<basePath>/index.json` | **200**, world state at L2 block 117,820 |
+
+`basePath` is `aztec-<l1ChainId>-<rollupVersion>-<rollupAddress>`
+(`backfill-bodies.mjs:storeBasePath`). Every captured transaction settled
+between L2 blocks 63,642 and 69,361, far below that snapshot.
+
+**Two things that are not obvious and cost a day between them:**
+
+* **A snapshot-bootstrapped node cannot answer these.** Its world state keeps
+  64 blocks of history — `Unable to find leaf for block 69359 in the archive
+  tree: world state history has been pruned to block 117739` — so the
+  witnesses a replay needs are not in it. The sync must be `--sync-mode full`,
+  from checkpoint 0.
+* **The archiver will not serve until it reaches L1's head, and for a retired
+  rollup it never can.** The checkpoints above the published snapshot reference
+  blobs that were never published; every URL shape answers 404, and the
+  archiver loops on `Failed to fetch all blobs` forever. The remedy is to pin
+  L1's head — with a proxy in front of the node's `--l1-rpc-urls` — to a block
+  the published blobs cover. The node then starts synced and asks for nothing
+  that is missing. Blobs were present up to checkpoint ~91,671, comfortably
+  past the ~64,866 these captures need.
+
+Also needed, and each wrong by default: `MAX_ALLOWED_ETH_CLIENT_DRIFT_SECONDS=0`
+(the pinned head is hours old by construction), `PROVER_REAL_PROOFS=false` (the
+node otherwise starts a Barretenberg verifier it does not need to serve archive
+reads), and an L1 endpoint that serves **both** archival `eth_call` and
+`eth_getLogs` — measured, only `sepolia.gateway.tenderly.co` did both; drpc's
+free tier refuses `eth_getLogs` and publicnode prunes the state.
+
+### 7.2 `ct-print` cannot read what the corpus now is
+
+**`derive-calltrace.mjs`, `derive-instructions.mjs` and `derive-positions.mjs`
+all read containers through `ct-print`, and no `ct-print` at any revision of
+`codetracer-trace-format-nim` — including its HEAD — reads a container 6.**
+
+`codetracer_ctfs/container.nim`'s doors gate on `ctfsVersionError`, which
+accepts version 5 only. That is correct rather than an oversight, and
+`types.nim` says why: a version-6 container's `FileEntry` array starts at
+`24 + R` rather than `16 + R`, so "a reader that accepted the version without
+implementing the body would resolve every `FileEntry` out of the reserved
+bytes". Swapping the gate was tried; the refusal simply moves to the next door.
+
+The library already reads version 6 in both profiles through
+`readInternalFile` / `hasInternalFile` / `ctfsReadableVersionError`. Closing
+this gap is a matter of moving `ct-print`'s path onto those doors upstream, and
+until that happens the three derivations above cannot be re-run over a
+re-recorded corpus.
+
+**What it cost here, exactly:** one calltrace
+(`aztec-testnet/0x12525d6d…`) declared `frames: 2` against a recording that now
+measures `callsOpened: 45` and was removed — a snapshot with no `calltrace/` is
+a valid tree, and `ingest.nim` publishes whatever is there. And one capture
+(the same transaction) measures 86 positioned steps whose `positions.json`
+cannot be derived; `test_instruction_listing.nim` counts it in
+`positionedWithoutSidecar` and asserts it is exactly one, so both a second
+appearing and this reaching zero are findings.
