@@ -84,6 +84,47 @@ echo "=== probe 2: SIGTERM mid-arm — a verdict, and the mutation put back ==="
 # restore is a `finally` and a `finally` does not run when a process is
 # signalled. Everything after it measured a defective tree.
 rm -f "$J"
+# ── WAIT FOR THE HOLD, AND SAY WHICH WAY THE WAIT ENDED ────────────────────
+#
+# Three endings, and only one of them leaves a subject to signal: the hold
+# file appeared; the subject EXITED before it mutated anything; or the wait
+# ran out. The loop used to `break` on all three and fall straight into
+# `mutation_applied`, so an ending with no subject at all was reported as four
+# separate assertion failures about a process that had already gone —
+# measured on CI run 38903629511, where probe 2 lasted eight seconds and
+# printed `kill: (3632304) - No such process` above
+#
+#   [FAILED] the arm's mutation is on disk — the probe has a subject
+#   [FAILED] SIGTERM prints a DID NOT RUN verdict
+#   [FAILED] exits 2 — not 0, and not the 1 a red run uses (got 1)
+#   [FAILED] says it restored the file
+#   [FAILED] and the journal agrees
+#
+# None of those is a statement about SIGTERM handling, which is what this
+# probe exists to measure. The subject refused to start — on that runner in
+# about eight seconds, which is the shape of a provenance or build refusal,
+# not of an arm that ran. So the wait now names the ending and prints the
+# subject's own last lines, because the reason it declined to run is in its
+# log and nowhere else.
+await_hold() {
+  local hold="$1" pid="$2" log="$3" i
+  for i in $(seq 1 600); do
+    [ -e "$hold" ] && return 0
+    kill -0 "$pid" 2>/dev/null || {
+      echo "  THE SUBJECT EXITED BEFORE IT MUTATED ANYTHING — this probe measured"
+      echo "  nothing about SIGTERM. Its last lines:"
+      tail -n 6 "$log" 2>/dev/null | sed "s/^/      /"
+      return 1
+    }
+    sleep 0.5
+  done
+  echo "  THE HOLD NEVER APPEARED within 300s and the subject is still alive —"
+  echo "  this probe measured nothing about SIGTERM. Its last lines:"
+  tail -n 6 "$log" 2>/dev/null | sed "s/^/      /"
+  kill -TERM "$pid" 2>/dev/null || true
+  return 1
+}
+
 # ── THE SUBJECT IS HELD, NOT CHASED ────────────────────────────────────────
 #
 # This used to poll for the mutated file every 500ms and kill whatever it
@@ -104,11 +145,8 @@ HOLD="$LOGS/hold-p2"
 rm -f "$HOLD"
 JOURNEY_SELFTEST_HOLD="$HOLD" node tools/journeys/selftest.mjs --arm A/no-position-mark > "$LOGS/p2" 2>&1 &
 pid=$!
-for _ in $(seq 1 600); do
-  [ -e "$HOLD" ] && break
-  kill -0 $pid 2>/dev/null || break
-  sleep 0.5
-done
+await_hold "$HOLD" "$pid" "$LOGS/p2"
+ck "the subject reached its mutation, so this probe has something to signal" $?
 mutation_applied
 ck "the arm's mutation is on disk — the probe has a subject" $?
 kill -TERM $pid
@@ -147,11 +185,8 @@ HOLD="$LOGS/hold-p2b"
 rm -f "$HOLD"
 JOURNEY_SELFTEST_HOLD="$HOLD" node tools/journeys/selftest.mjs --arm A/no-position-mark > >(cat > "$LOGS/p2b") 2>&1 &
 pid=$!
-for _ in $(seq 1 600); do
-  [ -e "$HOLD" ] && break
-  kill -0 $pid 2>/dev/null || break
-  sleep 0.5
-done
+await_hold "$HOLD" "$pid" "$LOGS/p2b"
+ck "the subject reached its mutation, so this probe has something to signal" $?
 mutation_applied
 ck "the arm's mutation is on disk — the probe has a subject" $?
 kill -TERM $pid
