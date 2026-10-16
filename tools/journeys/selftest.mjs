@@ -83,7 +83,7 @@
 //    behaviour in a browser instead — which is what the journeys are for.
 
 import { readFile, writeFile, readdir, rm } from "node:fs/promises";
-import { writeFileSync, readFileSync, writeSync } from "node:fs";
+import { writeFileSync, readFileSync, writeSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -3015,6 +3015,39 @@ async function main() {
     // exactly that.
     inFlight = { file: arm.file, original };
     await writeFile(arm.file, original.split(arm.find).join(arm.replace));
+    // ── A HOLD POINT, FOR THE ONE TEST THAT HAS TO CATCH THIS MOMENT ───────
+    //
+    // `selftest-verdict-test.sh`'s SIGTERM probes need a run that is MID-ARM:
+    // the mutation on disk and the process still alive, so that signalling it
+    // proves the restore happens without a `finally`. They used to find that
+    // moment by polling for the mutated file every 500ms — which worked only
+    // because the arm was slow.
+    //
+    // It stopped being slow. Until 2026-10-16 the journeys REFUSED on a
+    // container-3 corpus, so every arm spent its time failing; with the corpus
+    // re-recorded the same arm completes in 18 seconds, and the probe began
+    // sampling after the mutation had already been put back:
+    //
+    //   [FAILED] the arm's mutation is on disk — the probe has a subject
+    //   kill: (3880677) - No such process
+    //
+    // A faster subject is not a reason to loosen the probe, and a slower one
+    // is not something to arrange. The race is removed instead: when
+    // `JOURNEY_SELFTEST_HOLD` names a path, the mutation is announced by
+    // creating it and the run waits until it is deleted. The probe then has no
+    // window to miss — it waits for the file, kills, and deletes.
+    //
+    // INERT WITHOUT THE VARIABLE, which is why it is safe here: no CI job and
+    // no developer run sets it, and the branch is one `if` on an env read.
+    const holdPath = process.env.JOURNEY_SELFTEST_HOLD;
+    if (holdPath) {
+      await writeFile(holdPath, `${arm.id}\n`);
+      // Bounded, so a probe that dies without cleaning up cannot wedge a run
+      // forever — it becomes a slow arm, which is the old behaviour.
+      for (let i = 0; i < 1200 && existsSync(holdPath); i++) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
     let verdict;
     let mutatedId = beforeId;
     try {

@@ -84,16 +84,35 @@ echo "=== probe 2: SIGTERM mid-arm — a verdict, and the mutation put back ==="
 # restore is a `finally` and a `finally` does not run when a process is
 # signalled. Everything after it measured a defective tree.
 rm -f "$J"
-node tools/journeys/selftest.mjs --arm A/no-position-mark > "$LOGS/p2" 2>&1 &
+# ── THE SUBJECT IS HELD, NOT CHASED ────────────────────────────────────────
+#
+# This used to poll for the mutated file every 500ms and kill whatever it
+# caught. That worked only while the arm was SLOW: until 2026-10-16 the
+# journeys refused on a container-3 corpus and every arm spent its time
+# failing. With the corpus re-recorded the same arm completes in 18 seconds,
+# and the probe started sampling after the mutation had already been put back:
+#
+#   [FAILED] the arm's mutation is on disk — the probe has a subject
+#   kill: (3880677) - No such process
+#
+# A faster subject is not a reason to loosen the probe. `JOURNEY_SELFTEST_HOLD`
+# makes the moment deterministic: the selftest creates that path once the
+# mutation is on disk and waits until it is deleted, so there is no window to
+# miss. The hold is bounded at 60s on the other side, so a probe that dies
+# here degrades to the old slow-arm behaviour rather than wedging a run.
+HOLD="$LOGS/hold-p2"
+rm -f "$HOLD"
+JOURNEY_SELFTEST_HOLD="$HOLD" node tools/journeys/selftest.mjs --arm A/no-position-mark > "$LOGS/p2" 2>&1 &
 pid=$!
 for _ in $(seq 1 600); do
-  mutation_applied && break
+  [ -e "$HOLD" ] && break
   kill -0 $pid 2>/dev/null || break
   sleep 0.5
 done
 mutation_applied
 ck "the arm's mutation is on disk — the probe has a subject" $?
 kill -TERM $pid
+rm -f "$HOLD"
 wait $pid
 rc=$?
 grep -q "RESULT: DID NOT RUN — SIGTERM" "$LOGS/p2"
@@ -124,16 +143,19 @@ echo "=== probe 2b: the same, with stdout through a PIPE ==="
 # process substitution leaves `$!` as NODE's pid. In a pipeline `$!` is the last
 # stage, and signalling that would test nothing.
 rm -f "$J"
-node tools/journeys/selftest.mjs --arm A/no-position-mark > >(cat > "$LOGS/p2b") 2>&1 &
+HOLD="$LOGS/hold-p2b"
+rm -f "$HOLD"
+JOURNEY_SELFTEST_HOLD="$HOLD" node tools/journeys/selftest.mjs --arm A/no-position-mark > >(cat > "$LOGS/p2b") 2>&1 &
 pid=$!
 for _ in $(seq 1 600); do
-  mutation_applied && break
+  [ -e "$HOLD" ] && break
   kill -0 $pid 2>/dev/null || break
   sleep 0.5
 done
 mutation_applied
 ck "the arm's mutation is on disk — the probe has a subject" $?
 kill -TERM $pid
+rm -f "$HOLD"
 wait $pid 2>/dev/null
 sleep 1   # let the `cat` on the other end of the pipe finish writing
 grep -q "RESULT: DID NOT RUN — SIGTERM" "$LOGS/p2b"
