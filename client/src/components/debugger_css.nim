@@ -606,8 +606,31 @@ a.lm_title{display:block;line-height:inherit}
    instruction-listing page, and an earlier draft of this paragraph quoted it
    literally — which put one occurrence on every listing page in the build and
    turned a comment into a red suite. */
+/* THE ROW'S HEIGHT IS ITS OWN, NOT ITS TALLEST CHILD'S, and that is what the
+   paragraph above promises: "it leaves the flow entirely, so the row keeps its
+   height, the document keeps its position". It did not. MEASURED at 1280 and
+   1440 on three subjects: opening the list took 5px out of the row and pulled
+   the source up with it, because the tab row IS the tallest child and taking
+   it out of flow leaves the trigger — five pixels shorter — setting the
+   height on its own.
+
+   THE FLOOR IS IN THE SAME UNITS THE TAB IS BUILT FROM, so it cannot drift
+   from it. `.srctab` carries the design system's `ct-tab`, whose box is
+   em-relative all the way down — `padding:0.5em 0.75em`, `line-height:1.2`,
+   `border-bottom:0.125em` — which is 2.325em of vertical box at whatever font
+   size the strip is set to. Add the list's own `3xs` padding top and bottom
+   and this row's hairline, and the floor is the closed row, expressed as the
+   same arithmetic rather than as the 36.8px it currently comes to.
+
+   It is a FLOOR and deliberately a hair above the natural height: a rounded
+   border makes the exact natural height a fraction smaller, and a floor that
+   can sit below it would let the two states diverge again on a platform whose
+   font metrics differ. Above it, both states resolve to the floor and the row
+   cannot move. */
 .srcstrip{position:relative;display:flex;align-items:stretch;flex:0 0 auto;
   min-width:0;
+  min-height:calc(2.325em + 2 * var(--bt-space-3xs) +
+    var(--bt-stroke-hairline));
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
 .srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:nowrap;
