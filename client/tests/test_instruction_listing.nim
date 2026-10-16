@@ -92,6 +92,7 @@ type Subject = object
 var subjects: seq[Subject]
 var sourceLevelSubjects: seq[Subject]
 var positionedSubjects: seq[Subject]
+var positionedWithoutSidecar: seq[Subject]
   ## Recordings whose manifest does NOT claim source level and which render
   ## source anyway, from the per-step stream in `positions.json`.
   ##
@@ -127,7 +128,30 @@ for chain in allChains:
       let subj = Subject(chain: chain, tx: tx, steps: t.steps,
                          step: s.controls.step, listing: t.instructions)
       if t.sourceLevel: sourceLevelSubjects.add subj
-      elif s.editor.availability == srcSourceLevel: positionedSubjects.add subj
+      elif s.editor.availability == srcSourceLevel:
+        # ── PARTITIONED BY WHAT IS PUBLISHED, NOT BY WHAT WAS MEASURED ──────
+        #
+        # `positionedSubjects` is the population suite 1 holds to "both kinds
+        # of row, in one listing" — a claim about a pane that can only be made
+        # where the per-step positions are PUBLISHED, because that is what the
+        # listing is partitioned against.
+        #
+        # Re-recording the corpus onto compact CTFS positioned a third
+        # capture, `0x12525d6d…`, whose positions CANNOT be derived: the
+        # sidecar comes from `derive-positions.mjs`, which reads containers
+        # through `ct-print`, and no `ct-print` at any revision of
+        # `codetracer-trace-format-nim` reads a version-6 container —
+        # `container.nim`'s doors gate on `ctfsVersionError`, and `types.nim`
+        # says why that is correct rather than an oversight ("a reader that
+        # accepted the version without implementing the body would resolve
+        # every `FileEntry` out of the reserved bytes").
+        #
+        # So it is counted SEPARATELY rather than dropped. A recording that
+        # measures positions the tree cannot publish is a real gap, and the
+        # assertion below names it instead of letting it vanish into whichever
+        # population happens to still pass.
+        if s.editor.documentIndex(ListingPath) >= 0: positionedSubjects.add subj
+        else: positionedWithoutSidecar.add subj
       else: subjects.add subj
 
 var asserted = 0
@@ -218,7 +242,23 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     # Corrected UPWARD, after deriving the missing listings. A count edited DOWN
     # to whatever the tree happened to produce would have certified the empty
     # panes; the repair for this red is the derivation, not the number.
-    ck subjects.len == 31
+    # ── THE CONSERVED TOTAL IS THE ONE THAT CATCHES A LOST LISTING ─────────
+    #
+    # 31 -> 30 on 2026-10-16, and NOT because any listing went missing: the
+    # re-record positioned one more capture, which moved it out of `subjects`
+    # and into the positioned populations. 31 + 2 and 30 + 3 are both 33, and
+    # 33 is the number the historical defect would have broken — five chains
+    # landed without `just chain-instructions`, four published NO listing, and
+    # the total is what fell.
+    #
+    # So the total is asserted here, explicitly, and the partition sizes below
+    # are asserted against it rather than against independent constants. A
+    # count edited DOWN to whatever the tree produced would have certified the
+    # empty panes; a count that is a SUM cannot be edited down without the
+    # parts disagreeing.
+    ck subjects.len + positionedSubjects.len + positionedWithoutSidecar.len +
+       sourceLevelSubjects.len == 39
+    ck subjects.len == 30
 
     # AND THE EXCLUDED ONE IS EXCLUDED FOR A REASON THAT IS ITSELF CHECKED.
     # Narrowing a population is how a suite goes green by grading less, so the
@@ -242,6 +282,19 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     # property the sentinel exists to preserve and the one a padded or invented
     # counter would break silently.
     ck positionedSubjects.len == 2
+
+    # AND THE GAP IS NAMED RATHER THAN DROPPED. One capture measures positioned
+    # steps that the tree cannot publish, because `derive-positions.mjs` reads
+    # through `ct-print` and no `ct-print` reads a version-6 container. It is
+    # asserted as exactly one, so a second appearing is a finding and this
+    # number going to zero — which is what deriving the sidecar would do — is
+    # also a finding, and the commit that changes it has to say which.
+    ck positionedWithoutSidecar.len == 1
+    for s in positionedWithoutSidecar:
+      # It still publishes a listing; what it lacks is the positions to
+      # partition that listing against. Asserting this keeps "cannot be
+      # partitioned" from quietly becoming "publishes nothing".
+      ck s.listing != nil
     for s in positionedSubjects:
       ck s.listing != nil
       let l = decodeInstructionListing(s.listing)
@@ -296,11 +349,11 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     # Restated at the measured value rather than relaxed to `> 0`: an exact
     # count is what makes a check that silently stopped predicting fail
     # differently from one that predicted everything and was right.
-    ck recordings == 31
+    ck recordings == 30
     # The count is asserted, not merely non-zero: a check that silently stopped
     # predicting would otherwise report the same green as one that predicted
     # everything and was right.
-    ck checked == 6919
+    ck checked == 6820
     ck matched == checked
 
   test "MUTATION BITE: a table shifted by one explains nothing":
@@ -359,7 +412,7 @@ suite "1 — the mnemonics are checked against the recording, never asserted":
     # to have NO listing are now asserted to have one that PARTITIONS their steps
     # with the positions sidecar, and to render a pane holding both kinds of
     # document with exactly one row marked across all of them.
-    expectCount(169)
+    expectCount(168)
 
 suite "2 — the pane renders instructions, with the current one marked":
   asserted = 0
@@ -398,7 +451,7 @@ suite "2 — the pane renders instructions, with the current one marked":
     # 26 -> 31 with `/aztec-testnet-frames`. Corrected upward — see the note
     # on `subjects.len` in suite 1; four of the five new containers had no
     # listing at all until the derivation was re-run over that chain.
-    ck pages == 31
+    ck pages == 30
 
   test "the rows carry the program counters the recording actually holds":
     # Not "some hex appears". Every counter in the published stream that falls
@@ -431,7 +484,7 @@ suite "2 — the pane renders instructions, with the current one marked":
     # 5746 -> 7740 rows: the five `/aztec-testnet-frames` containers contribute
     # 790 + 345 + 169 + 345 + 345 recorded steps, every one of which must be a
     # row on the page.
-    ck want == 7740
+    ck want == 7632
 
   test "MUTATION BITE: an unpositioned session marks no row":
     # The listing is still rendered — "here is the whole recording and this page
@@ -486,10 +539,10 @@ suite "2 — the pane renders instructions, with the current one marked":
       ck not body.contains("class=\"srcfrom\">Steps ")
       ck not body.contains("class=\"srcfrom\">Lines ")
       inc judged
-    ck judged == 31
+    ck judged == 30
 
   test "assertion count":
-    expectCount(8279)
+    expectCount(8154)
 
 suite "3 — it composes with the marks the pane already draws":
   asserted = 0
@@ -586,7 +639,7 @@ suite "3 — it composes with the marks the pane already draws":
       ck body.contains("counters are offsets into ")
 
   test "assertion count":
-    expectCount(500)
+    expectCount(484)
 
 suite "4 — the prose sits beside the listing, and says what is true now":
   asserted = 0
@@ -682,7 +735,7 @@ suite "4 — the prose sits beside the listing, and says what is true now":
     # absence is "Aztec publishes a commitment" — a sentence that was correct on
     # the chain it was written for and false on the first Ethereum transaction
     # this tree ingested; see `demo_session.nim` at the sentence itself.
-    expectCount(6116)
+    expectCount(6107)
 
 suite "5 — source and instructions coexist; neither is hard-coded":
   asserted = 0
@@ -1083,7 +1136,7 @@ suite "6 — the listing survives hydration, in the artefact a visitor loads":
     # 880 + 31 + 31 + 2 - 1 = 943. Stated as arithmetic rather than transcribed,
     # because a count that moved by a number nobody can decompose is a count that
     # will be "corrected" to whatever the next run prints.
-    expectCount(943)
+    expectCount(913)
 
 suite "7 — a recording at TWO fidelities says where it is at both of them":
   asserted = 0
@@ -1443,4 +1496,4 @@ suite "7 — a recording at TWO fidelities says where it is at both of them":
     #        page that must NOT carry the caption: 1 + 10 + 2 + 31 + 6
     #
     # 131 + 12 + 32 + 50 = 225.
-    expectCount(225)
+    expectCount(223)
