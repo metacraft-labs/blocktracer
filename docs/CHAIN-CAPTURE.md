@@ -1251,6 +1251,14 @@ range whose output silently shrank to a curated window would report coverage it
 did not publish. It prints the scope it CHOSE and `scopeFellBack`, so which one
 ran is in the output rather than inferred from the counts.
 
+`--container-encoding` defaults to `br`, which is the shape the site build
+publishes — containers stored pre-compressed with `encoding`, `storedBytes`
+and `storedHash` in the manifest beside the raw figures. Measured on
+`aztec-testnet-frames`, that is 572,355 bytes of container stored as 35,623.
+`identity` keeps the pre-CCP-6 shape reachable by name, for a store whose
+delivery layer does not set `Content-Encoding`; an unknown value is refused
+with exit 2 and no tree written.
+
 **4. Rehearse the upload against a directory.** The local backend's
 `putIfAbsent` is a real `O_CREAT|O_EXCL`, so the lease it proves is the lease
 production takes:
@@ -1258,6 +1266,12 @@ production takes:
 ```sh
 just publish <tree> published      # local directory, credential-free
 ```
+
+Run over `aztec-testnet-frames` while this section was written: 80 objects
+uploaded and the pointer flipped; the same tree again uploaded 0 and skipped
+80. Both numbers are the point — the first says the tree publishes whole, the
+second says the step is resumable, and an operator who sees neither has not
+rehearsed anything.
 
 **5. Upload.**
 
