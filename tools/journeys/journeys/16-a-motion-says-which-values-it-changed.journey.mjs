@@ -94,6 +94,43 @@ async function settled(page, timeoutMs = 15000) {
   return paneOf(facts);
 }
 
+// ── THE CHAIN ARM'S ZERO IS NOT YET A VERDICT ABOUT THE PRODUCT ───────────
+//
+// `CHAIN: CONTROL — transitions with values on both sides` reads 0 on
+// `aztec-testnet-frames/0x00689495…`, and the engine is not the reason. Asked
+// directly over the worker protocol, it answers `ct/load-locals` at every tick
+// of that walk — ticks 5 through 13, five named locals each time.
+//
+// WHAT THE PAGE DOES DEPENDS ON HOW THE DRIVER WAITS, which is the part that
+// has to be settled before this is called a defect. Three drives of the same
+// subject, same clicks, same `settled`:
+//
+//   click, then sleep and sample for 20s          5 rows at every sample,
+//                                                 from +500ms to +20s
+//   click, then `settled` and click again         7 positions of 9 with rows
+//   click, then `waitForConsoleLine` + `waitForFacts`
+//     then `settled` — i.e. THIS walk             1 position of 9 with rows
+//
+// The third is the one that is red, and it is also the one that waits
+// LONGEST, so "the driver is too fast" does not explain it. Making
+// `waitForConsoleLine`'s scan linear instead of quadratic did not move it
+// either (1 of 9 before and after), so neither does "the driver starves the
+// page", at least not through that loop.
+//
+// What is known: the page emits ~10,000 console lines on landing and ~7,600
+// per step, nearly all of them the replay engine's own INFO and WARN output,
+// and the hydration bundle logs TWO `updateDebuggerPosition` and ONE
+// `updateLocals` per move. One reply for two position writes is consistent
+// with the pane being put back to `lpPending` by a second request the engine
+// never answers — `live_locals.LocalsDeadlineMs` would then end it 8s later —
+// but the 20s sample above shows no such regression, so that story is not
+// established either.
+//
+// Left RED deliberately. The arm is not ledgered and the wait is not relaxed:
+// a journey that goes green by waiting differently would be measuring the
+// driver, and the next person should start from the three readings above
+// rather than from a silenced assertion.
+
 async function walk(page) {
   const readings = [await settled(page)];
   for (let i = 0; i < WALK; i++) {

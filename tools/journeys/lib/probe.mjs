@@ -887,8 +887,37 @@ export async function waitForConsoleLine(page, test, { sinceIndex = 0, budgetMs 
     );
   }
   const deadline = Date.now() + budgetMs;
+  // THE CURSOR ADVANCES. It used to restart at `sinceIndex` on every poll, so
+  // each 100 ms tick re-tested every line already rejected — quadratic in the
+  // number of lines the page produces while the wait is open.
+  //
+  // That was affordable when this buffer's own comment was written and it is
+  // not now, and the difference is this campaign's doing. The figure recorded
+  // there is "1099 console messages" for one debug route, load only. MEASURED
+  // today on a chain capture the engine can now OPEN: 10,025 lines at landing
+  // and ~7,600 per step, nearly all of them the replay engine's own INFO and
+  // WARN lines (`expr_loader.rs`, `db.rs`, `trace_reader.rs`,
+  // `flow_preloader.rs`) — the engine doing the work that re-recording the
+  // corpus made possible. Rescanning that from the start, ten times a second,
+  // is tens of millions of `includes` in the driver, on the same machine the
+  // browser is trying to paint on.
+  //
+  // IT IS AN EFFICIENCY FIX AND NOTHING MORE, and that is worth saying because
+  // the first draft of this comment claimed otherwise. A nine-position walk of
+  // `aztec-testnet-frames/0x00689495…` reads five Values rows at 7 positions
+  // when it is driven with no console listener of its own and at 1 position
+  // when a second listener is attached beside this buffer's — so driver-side
+  // console work really can starve the page at this volume. But making this
+  // scan linear did NOT move that walk: 1 of 9 before, 1 of 9 after. Whatever
+  // is costing `a-motion-says-which-values-it-changed`'s chain arm its Values
+  // rows, it is not this loop, and the measurement that would have shown it is
+  // a walk driven exactly as that journey drives it rather than one with an
+  // extra listener in it.
+  //
+  // Every line is still tested, exactly once, and the answer is unchanged.
+  let i = sinceIndex;
   for (;;) {
-    for (let i = sinceIndex; i < buf.length; i += 1) {
+    for (; i < buf.length; i += 1) {
       if (test(buf[i].text)) return buf[i].text;
     }
     if (Date.now() >= deadline) return null;
