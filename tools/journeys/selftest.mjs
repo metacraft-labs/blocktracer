@@ -2707,10 +2707,47 @@ async function verdictFor(journey, assertion) {
     /* a red journey exits 1; the verdict comes from the report, not from this */
   }
   const report = JSON.parse(await readFile(REPORT, "utf8").catch(() => "{}"));
-  const j = (report.journeys ?? []).find((x) => x.id === journey);
-  if (!j || !j.records) return { found: false };
+  // THREE WAYS TO MISS, AND THEY USED TO ARRIVE AS ONE SENTENCE.
+  //
+  // `{ found: false }` with nothing else on it printed "no single assertion
+  // matched that name on the unmutated tree" whether the report held no such
+  // JOURNEY, held the journey with no matching RECORD, or was not written at
+  // all. Those are three different problems — a run that produced nothing, an
+  // arm naming a journey that no longer exists, and an assertion that was
+  // reworded — and only the last is about the arm.
+  //
+  // It costs a CI afternoon each time it happens. Measured on run 38903629511:
+  // every arm of `journeys-bite` shards 5 and 8 reported NEVER RAN, nine at a
+  // time, about 1.8 seconds apart, and the summary said `RESULT: FAILED` while
+  // naming none of the cause. The comment above `rm(REPORT)` records the same
+  // shape from the settings-bundle incident — "all 65 arms scored NEVER RAN,
+  // in about a second, and the run reported FAILED while naming none of it" —
+  // and the refusal path was closed then. This is the other half of that hole:
+  // exit 2 is now named, exit 1 with an unusable report still is not.
+  const journeys = report.journeys ?? [];
+  if (journeys.length === 0) {
+    return { found: false, why: "no-report" };
+  }
+  // DEFENSIVE, and said so rather than left to be chased: `run.mjs --only X`
+  // writes a report holding exactly that journey or refuses with exit 2 (which
+  // is raised above), so under this caller a report with journeys in it and
+  // not this one cannot arise. Tried: pointing an arm at a journey id that
+  // does not exist produces `--only … matched no journey` and exit 2, which
+  // comes out as DID NOT RUN. The branch stays because the alternative is
+  // returning the bare `{found:false}` this whole block exists to stop.
+  const j = journeys.find((x) => x.id === journey);
+  if (!j || !j.records) {
+    return { found: false, why: "no-journey", saw: journeys.map((x) => x.id) };
+  }
   const hits = j.records.filter((r) => r.what.includes(assertion));
-  if (hits.length !== 1) return { found: false, ambiguous: hits.length };
+  if (hits.length !== 1) {
+    return {
+      found: false,
+      ambiguous: hits.length,
+      why: hits.length === 0 ? "no-record" : "ambiguous",
+      records: j.records.length,
+    };
+  }
   // `vacuous` is carried through because a red that is only a poisoned
   // zero-against-zero is NOT a kill — see the verdict block below and
   // `harness.mjs`'s `#vacuityCheck`.
@@ -2975,6 +3012,24 @@ async function main() {
     const before = await verdictFor(arm.journey, arm.assertion);
     if (!before.found) {
       log(`    NEVER RAN — no single assertion matched that name on the unmutated tree`);
+      // WHICH OF THE THREE MISSES, named rather than left to be guessed. See
+      // `verdictFor` for what each one means and what it cost to read them as
+      // one.
+      if (before.why === "no-report") {
+        log(`               THE UNMUTATED RUN PRODUCED NO REPORT AT ALL — it did not`);
+        log(`               exit 2 (that is raised as DID NOT RUN), so it ran and judged`);
+        log(`               nothing. Every arm after this one will say the same thing.`);
+        log(`               Run \`node tools/journeys/run.mjs --only ${arm.journey}\` and`);
+        log(`               read ITS output; the cause is there and not here.`);
+      } else if (before.why === "no-journey") {
+        log(`               THE REPORT HOLDS NO JOURNEY '${arm.journey}'. It holds:`);
+        log(`               ${(before.saw ?? []).join(", ") || "(none)"}`);
+        log(`               An arm names a journey by id; this one names one that did not run.`);
+      } else if (before.why === "no-record") {
+        log(`               THE JOURNEY RAN — ${before.records} assertion(s) — and none of them`);
+        log(`               contains that text. The assertion was reworded and this arm`);
+        log(`               still names the old wording.`);
+      }
       // AND WHICH OF THE TWO WAYS IT MISSED. `verdictFor` matches with
       // `r.what.includes(assertion)` and treats any count but 1 as no match, so
       // "the assertion was renamed" and "a SECOND assertion's text now CONTAINS
