@@ -113,14 +113,20 @@ await_hold() {
     kill -0 "$pid" 2>/dev/null || {
       echo "  THE SUBJECT EXITED BEFORE IT MUTATED ANYTHING — this probe measured"
       echo "  nothing about SIGTERM. Its last lines:"
-      tail -n 6 "$log" 2>/dev/null | sed "s/^/      /"
+      # TWENTY AND NOT SIX. Measured on CI run 38937095017: six lines reached
+      # the per-run summary — "1 arm(s): 0 killed, 0 survived, 1 never ran" and
+      # "NEVER RAN  A/no-position-mark" — and stopped one line short of the
+      # sentence that says WHY the arm never ran, which `selftest.mjs` prints
+      # directly under the verdict. The whole point of printing the subject's
+      # output is that the reason is in it and nowhere else.
+      tail -n 20 "$log" 2>/dev/null | sed "s/^/      /"
       return 1
     }
     sleep 0.5
   done
   echo "  THE HOLD NEVER APPEARED within 300s and the subject is still alive —"
   echo "  this probe measured nothing about SIGTERM. Its last lines:"
-  tail -n 6 "$log" 2>/dev/null | sed "s/^/      /"
+  tail -n 20 "$log" 2>/dev/null | sed "s/^/      /"
   kill -TERM "$pid" 2>/dev/null || true
   return 1
 }
