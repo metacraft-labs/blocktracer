@@ -250,6 +250,11 @@ export const ALLOWLIST = [
     why: "`transparent` is the ABSENCE of a colour, not a colour. `.btn` uses it for the base border so that every variant class must set a real border-colour token — which is what stops a variant inheriting a user-agent default, the defect that made the primary action 1.04:1.",
   },
   {
+    id: "data-uri",
+    re: /\bdata:[^\s"'`)]+/g,
+    why: "A `data:` URI is CONTENT, not a design value, and it reaches A5 for exactly the reason `absolute-url` below does: `looksLikeCssDecl` reads `data:image/svg+xml;base64,PHN2Zy…` as the property `data` with the value `image/svg+xml;base64,…`, which is the same shape as `color:red`. It is blanked WHOLE, before the colour and length scans, and that matters more here than for an http URL — a base64 payload is arbitrary text and will eventually contain something that reads as a hex colour or a px length by chance. What is carried this way is the nine vendored CodeTracer icons: `ct_components_css.CtIconRows` emits their bytes inline because the production origin refuses to serve `.svg` at all, measured with three probe objects on 2026-10-17 and recorded on infra #1883. Nothing is lost by the exemption: an icon's bytes are not a token and no token could hold them, and `check-assets.mjs` A6 still checks the published copies.",
+  },
+  {
     id: "absolute-url",
     re: /\bhttps?:\/\/[^\s"'`)]+/g,
     why: "An absolute URL is a DESTINATION, not a design value: nothing is coloured, sized or spaced by it, and there is no token that could hold it. It is exempted because the classifier cannot otherwise tell one from a CSS declaration — `looksLikeCssDecl` reads `https://codetracer.com` as the property `https` with the value `//codetracer.com`, one 'word', which is the same shape as `color:red`. That misreading made the footer's three provenance links fail A5 as inline styles, so the exemption is what lets this repository say who built it and where its source is. Nothing is lost: the URL is blanked BEFORE the colour and length scans, and no absolute URL is a colour or a length. Whether a URL is a FETCH or a hyperlink is a different rule with a different owner — tests/test_explorer_breadth.externalReferences.",
