@@ -358,7 +358,7 @@ suite "url() — the nine icons that shipped as 404s":
       let close = debugRouteCss.find(')', hit + 4)
       check close > hit
       let payload = debugRouteCss[hit + 4 ..< close].strip(chars = {'"', '\'', ' '})
-      if payload.startsWith("/assets/ct-icons/"): inc placed
+      if payload.startsWith("data:image/svg+xml;base64,"): inc placed
       elif not payload.startsWith("/") and not payload.startsWith("data:") and
            not payload.startsWith("http"):
         inc relatives
@@ -378,7 +378,7 @@ suite "url() — the nine icons that shipped as 404s":
       s
     check published.len == 9
     for url in published:
-      check url.startsWith("/assets/ct-icons/")
+      check url.startsWith("data:image/svg+xml;base64,")
       check ("url(\"" & url & "\")") in debugRouteCss
 
   test "a vendored relative url is rewritten to the published copy":

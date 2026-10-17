@@ -23,6 +23,40 @@
   "completeBlocks": [
    68231,
    68062
+  ],
+  "rerecordings": [
+   {
+    "at": "2026-10-14T08:20:06.225Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 2,
+    "compactThreshold": 100000000,
+    "containerVersions": {
+     "v6": 2
+    },
+    "url": "https://aztec.drpc.org"
+   },
+   {
+    "at": "2026-10-14T08:56:11.066Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 2,
+    "compactThreshold": 100000000,
+    "containerVersions": {
+     "v6": 2
+    },
+    "url": "https://aztec.drpc.org"
+   },
+   {
+    "at": "2026-10-16T10:02:20.412Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 2,
+    "compactThreshold": 1048576,
+    "runtimeCommit": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f",
+    "recordedByWritten": 2,
+    "containerVersions": {
+     "v6": 2
+    },
+    "url": "https://aztec.drpc.org"
+   }
   ]
  },
  "window": {
@@ -39066,7 +39100,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x00c67f6f41a5870eb280120ccc6e9288a876bc38630aa7a36346cc47753ed18d.ct",
-   "containerBytes": 180224,
+   "containerBytes": 51002,
    "l2BlockNumber": 68062,
    "preStateReadAt": 68061,
    "contractReferenceBlock": 68062,
@@ -39085,16 +39119,28 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 180224,
+    "bytes": 51002,
     "events": 208,
     "steps": 208,
     "callsOpened": 1,
-    "logEvents": 5,
+    "logEvents": 6,
     "declaredRung": 3,
     "distinctOpcodes": 22,
     "contexts": 1,
     "stepsPositioned": 0,
-    "stepsUnpositioned": 208
+    "stepsUnpositioned": 208,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x2e384847ef23aa143710e34352ada347e7cd206a53799ae5e1af26722b81b2f6",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 208,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
    },
    "roots": [
     {
@@ -39148,7 +39194,8 @@
      "value": "0x12b4e2785ecbd8c1f85e0db9e5b2c6a8cb9b5e486258a62470a42c2aa76dd8cb",
      "reason": "absent-on-chain-at-parent"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x0f191b2da9d6f4ccdb1711dd015edb8755bf551933a74b509860307ee8699dbb",
@@ -39186,7 +39233,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x0f191b2da9d6f4ccdb1711dd015edb8755bf551933a74b509860307ee8699dbb.ct",
-   "containerBytes": 188416,
+   "containerBytes": 78517,
    "l2BlockNumber": 68231,
    "preStateReadAt": 68230,
    "contractReferenceBlock": 68231,
@@ -39205,16 +39252,28 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 188416,
+    "bytes": 78517,
     "events": 338,
     "steps": 338,
     "callsOpened": 1,
-    "logEvents": 5,
+    "logEvents": 6,
     "declaredRung": 3,
     "distinctOpcodes": 26,
     "contexts": 1,
     "stepsPositioned": 0,
-    "stepsUnpositioned": 338
+    "stepsUnpositioned": 338,
+    "sourceLevel": false,
+    "contractRungs": [
+     {
+      "address": "0x0b6e99c4da6082a55590191da91abde2b7d5a5c0694b3fc2b12cd928c336fbb1",
+      "rung": 3,
+      "reason": "RUNG 3 (BYTECODE) IS THE CEILING FOR A CHAIN-FETCHED CONTRACT, BY PROTOCOL DESIGN AND NOT BY OMISSION. Rungs 1 and 2 need the compiled artifact's debug_symbols, and rung 1 additionally needs its file_map WITH SOURCE TEXT. An Aztec node serves neither: getContractClass returns ContractClassPublic, which is exactly { id, privateFunctionsRoot, version, artifactHash, packedBytecode } — no debug symbols, no file map, no function table, no source. Upstream's own doc comment on artifactHash says it is \"intended to be used by clients to verify that an OFFCHAIN FETCHED ARTIFACT matches a registered class\", i.e. the chain holds a commitment to the artifact and not the artifact. No method on AztecNode serves one either. THAT OFF-CHAIN RESOLUTION IS BUILT (replay/src/artifact_resolution.ts) AND IT WAS RUN FOR THIS CONTRACT AND PROVED NOTHING: no candidate artifact matched this class's artifactHash, its packedBytecode and its class id, so there is no debug map to position a program counter with and the rung is 3. See ct.source-provenance in this container for which sources were asked and what each answered.",
+      "steps": 338,
+      "positioned": 0,
+      "firstUnpositionedPc": 0,
+      "resolved": false
+     }
+    ]
    },
    "roots": [
     {
@@ -39300,7 +39359,8 @@
      "value": "0x2f4d2c599d510919e8e4ddaaa9a0f3cb13a8a089dce6e668ab541ec1d84378c6",
      "reason": "emitted-by-this-transaction"
     }
-   ]
+   ],
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   },
   {
    "txHash": "0x1c7d63a22c19da8abbdc3531c947f0fdb1b0aed9d36c3311de1155bff49974d5",

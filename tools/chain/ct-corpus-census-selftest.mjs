@@ -19,8 +19,9 @@
 // WRONG reading fails, and without a third arm proving the RIGHT reading passes
 // they would both be satisfied by a comparison that refuses everything.
 
-import { census, compare, loadRegistry, findReader, trackedCtPaths, readIdentity, REPO_ROOT } from './ct-corpus-census.mjs';
+import { census, compare, loadRegistry, findReader, requireReader, trackedCtPaths, readIdentity, REPO_ROOT } from './ct-corpus-census.mjs';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
 // ── THE DECLARED ASSERTION COUNT, in the shape `chain-health-selftest.mjs`
@@ -36,7 +37,7 @@ import { join } from 'node:path';
 // A SUITE THAT RAN FEWER ARMS THAN IT DECLARES IS A FAILURE, not a quieter
 // pass. An arm that silently stopped running is the failure mode a count exists
 // to catch, and the two configurations are exactly where one could hide.
-const BASE_ARMS = 6;
+const BASE_ARMS = 7;
 const READER_ARMS = 2;
 
 let pass = 0, fail = 0;
@@ -54,7 +55,12 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 export async function selftest() {
   console.log('self-test — the committed reading must refuse a corpus that moved, field by field');
 
-  const reader = findReader();
+  // `--reader` FIRST, then the sibling walk. The parent forwards the flag now;
+  // without it this suite measured whichever `ct-print` the host had, which is
+  // how its base case came to fail on a workstation and pass on CI.
+  const argv = process.argv.slice(2);
+  const i = argv.indexOf('--reader');
+  const reader = (i >= 0 && i + 1 < argv.length) ? requireReader(argv[i + 1]) : findReader();
   const actual = census({ reader });
   const readingPath = join(REPO_ROOT, 'tools', 'chain', 'measurements', 'ct-corpus.json');
   const reading = JSON.parse(readFileSync(readingPath, 'utf8'));
@@ -103,15 +109,24 @@ export async function selftest() {
     bite('a population re-attributed to the wrong producer', compare(r, actual), 'noir/space-ship.producer');
   }
 
-  // ── arm 6: a refusal that changed FIELD. "refused" and "refused on meta.dat
-  // schema 3" are different facts, and the campaign turns on the second: a
-  // chain container refused on its CONTAINER VERSION instead would mean a
+  // ── arm 6: a refusal that changed FIELD. "refused" and "refused on container
+  // version 3" are different facts, and the campaign turns on the second: a
+  // chain container refused on its `meta.dat` SCHEMA instead would mean a
   // different reader or different bytes.
+  //
+  // THE PERTURBATION WAS THE TRUTH FOR A WHILE. It used to set
+  // `container-version-3` and expect a delta, which worked only while the
+  // committed reading said `meta.dat-schema-3`. That label was itself stale —
+  // it came from a `ct-print` older than `pins.json`'s own — and correcting the
+  // reading on 2026-10-14 made this arm's mutation a no-op: "expected a delta
+  // on `chain/aztec-testnet.refusals.container-version-3`, got none at all".
+  // A bite arm must perturb AWAY from whatever the reading says, so it now
+  // writes the label that is wrong today.
   if (actual.readerPresent) {
     const r = clone(reading);
     const pop = r.populations.find((p) => p.id === 'chain/aztec-testnet');
-    pop.refusals = { 'container-version-3': pop.containers };
-    bite('a refusal attributed to the container version instead of the schema',
+    pop.refusals = { 'meta.dat-schema-3': pop.containers };
+    bite('a refusal attributed to the meta.dat schema instead of the container version',
          compare(r, actual), 'chain/aztec-testnet.refusals.container-version-3');
   } else {
     console.log('  SKIP  arm 6 (refusal field) — no container reader on this host; it is NOT counted as passed');
@@ -141,15 +156,59 @@ export async function selftest() {
     const ph = paths.find((p) => p.startsWith('conformance-kit/template/complete/ct/'));
     const a = readIdentity(join(REPO_ROOT, tour));
     const b = readIdentity(join(REPO_ROOT, ph));
-    if (a.container && a.version === 5 && !b.container && b.reason === 'no CTFS magic') {
-      ok('arm 8: identity comes from the bytes — a tour container reads v5 and a placeholder reads "no CTFS magic"');
+    // THE VERSION MOVED 5 -> 6 when the Noir corpus was re-recorded onto CTFS
+    // §1e's compact profile, and this arm was the only thing that noticed —
+    // by going red with `tour={"container":true,"version":6,"size":9057}`.
+    // That is the arm working: a corpus whose container version changes under
+    // a reader is exactly what it is here to report.
+    //
+    // IT IS STILL PINNED TO ONE NUMBER rather than relaxed to a set. The
+    // property being measured is that identity is read from the BYTES and not
+    // from a path, and a single expected version is what makes a silent
+    // re-record impossible to miss; `version >= 5` would have let this one
+    // through without a word. The cost is this comment every time the corpus
+    // moves deliberately, which is the right side of the trade.
+    const vWant = 6;
+    const aOk = a.container && a.version === vWant;
+    const bOk = !b.container && b.reason === 'no CTFS magic';
+    if (aOk && bOk) {
+      ok(`arm 8: identity comes from the bytes — a tour container reads v${vWant} and a placeholder reads "no CTFS magic"`);
     } else {
-      bad('arm 8', `tour=${JSON.stringify(a)} placeholder=${JSON.stringify(b)}`);
+      // WHICH HALF, because the two have different remedies: a changed tour
+      // version is a corpus move to confirm and renumber, while a placeholder
+      // that suddenly reads as a container means `readIdentity` is matching
+      // something it should not.
+      bad('arm 8', (aOk ? '' : `the tour container is not v${vWant}: ${JSON.stringify(a)}  `) +
+                   (bOk ? '' : `the placeholder is not "no CTFS magic": ${JSON.stringify(b)}`));
     }
   }
 
   console.log('');
   const expected = BASE_ARMS + (actual.readerPresent ? READER_ARMS : 0);
+  // ── arm 9: a NAMED reader that is not there is refused, not NOT MEASURED ──
+  //
+  // Needs no reader of its own, so it is a base arm. Spawned, because the
+  // refusal is a throw and the subject is the process's own answer: `--reader`
+  // never checked the path it was handed, so `--reader /nonexistent` made
+  // `readerPresent` TRUE with every read failing, which reported as three
+  // failing arms about the corpus. `findReader` has always checked the sibling
+  // walk and `$CT_PRINT`; the flag is held to the same rule now.
+  {
+    const r = spawnSync(process.execPath,
+      [join(REPO_ROOT, 'tools', 'chain', 'ct-corpus-census.mjs'), '--reader', '/nonexistent-reader'],
+      { encoding: 'utf8' });
+    const said = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    // `ok()` here takes ONE argument and always passes — it is a reporter, not
+    // an assert. Called with a condition as a second argument it would have
+    // been a check that cannot fail, which is the shape this whole file exists
+    // to refuse. So the condition is the `if`.
+    const claim = 'a --reader that does not exist is REFUSED by name, not folded into NOT MEASURED';
+    if (r.status === 1
+        && /--reader \/nonexistent-reader does not exist/.test(said)
+        && /not a NOT MEASURED/.test(said)) ok(claim);
+    else bad(claim, `exit=${r.status}, said: ${said.split('\n').filter((l) => l.trim()).slice(-1)[0] ?? '(nothing)'}`);
+  }
+
   const ran = pass + fail;
   const config = actual.readerPresent ? 'reader-present' : 'reader-absent';
   if (ran !== expected) {

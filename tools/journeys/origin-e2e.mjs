@@ -20,6 +20,7 @@
 //                                           [--expect-classified N]
 
 import { createServer } from "node:http";
+import { storedEncodingHeader } from "../lib/stored-encoding.mjs";
 import { readFile, stat } from "node:fs/promises";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,6 +66,7 @@ async function serve(root) {
       res.writeHead(200, {
         "content-type": MIME[extname(f)] ?? "application/octet-stream",
         "cache-control": "no-store",
+        ...storedEncodingHeader(f),
       });
       res.end(body);
     } catch {

@@ -477,7 +477,7 @@ jobs:
       # They are all offline and toolchain-free, which is why they belong in
       # THIS job rather than behind the Nix runner.
       - name: Does the replay verdict rule bite? (which outcome a driver run is)
-        # 98 assertions over twelve cases of recorded driver output. The three
+        # 105 assertions over thirteen cases of recorded driver output. The three
         # that have already
         # cost something are pinned as fixtures: a non-zero exit that is a
         # divergence and not a refusal, a refusal whose name was `unknown`
@@ -857,7 +857,7 @@ jobs:
         run: node tools/chain/yield-method-selftest.mjs
 
       - name: Does the committed `.ct` corpus census refuse a corpus that moved?
-        # 6 arms on every host, plus two more where a container reader is present.
+        # 7 arms on every host, plus two more where a container reader is present.
         # Two configurations rather than one, for `chain-health-selftest`'s reason:
         # the version census is read from the BYTES and runs anywhere, while
         # readability needs `ct-print`, which is not a dependency of this
@@ -1490,12 +1490,45 @@ jobs:
           nix develop .#ci --command bash -c \
             'cd client && nim c -r --mm:orc -d:isServer -d:release --hints:off src/static_export.nim'
 
+      # Does the canary tell a dead browser from a moved harness? Bare `node`
+      # is deliberate here and nowhere else in this job: the arms are pure
+      # string classification over CI output captured verbatim, with no browser,
+      # no build and no pinned environment to need.
+      - name: Does the canary tell a dead browser from a moved harness?
+        run: nix run .#capture-env -- node tools/capture/canary-retry-selftest.mjs
+
       - name: Tier 1 — the determinism canary, byte-identical
         # verify_canary_capture_is_byte_identical. Two captures of the canary
         # set in two separate processes; the assertion is byte-identity, not a
         # threshold, because at this scope anything less exact is not answering
         # the question.
-        run: nix run .#capture-env -- node tools/capture/check-canary.mjs --no-build
+        #
+        # ── EXIT 3 IS "DID NOT RUN", NOT "THE HARNESS MOVED" ──────────────
+        #
+        # Measured across four runs of this job: it failed on
+        # `garm-kkxhwoqhagaz` and on `gpu-server-002-mcl-001`, capturing 0 of
+        # 5 images and naming `Target page, context or browser has been
+        # closed`, and PASSED on `gpu-server-002-mcl-003` with the same
+        # labels, the same commit shape and the same pinned environment.
+        # `--disable-dev-shm-usage` and `chromiumSandbox: false` are both
+        # already set, so the usual container causes are not it; what varies
+        # is the host.
+        #
+        # The checker retries a dead browser (three attempts) and exits 3 if it
+        # stays dead, which is a different sentence from exit 1. BOTH ARE RED —
+        # a canary that cannot run leaves every tier-2 baseline unverified and
+        # passing would be worse — but the title says which, so nobody looks
+        # for a rasterisation change that did not happen. Same shape as the
+        # `rc -eq 3` arm on the gate-selftest step below.
+        run: |
+          set -uo pipefail
+          rc=0
+          nix run .#capture-env -- node tools/capture/check-canary.mjs --no-build || rc=$?
+          if [ "$rc" -eq 3 ]; then
+            echo "::error title=DID NOT RUN — the canary browser died::The browser closed before any image was captured, on every attempt. Nothing was compared, so this is not a verdict about determinism. What varies is the host; see the step comment."
+            exit 1
+          fi
+          exit "$rc"
 
       - name: The tier-1 verdict is USABLE — not advisory, not incoherent
         # verify_canary_failure_invalidates_the_baselines, from the other side.
@@ -1850,6 +1883,21 @@ jobs:
             bash ci/test/ct-styles-vendor.sh &&
             bash ci/test/ct-styles-vendor-test.sh'
 
+      - name: Every shell that can run the exporter carries what it needs
+        # `devShells.capture` ran the exporter without `brotli` and nothing
+        # said so until a full canary capture had failed on it (run
+        # 38643115341). The exporter REFUSES rather than degrading, which is
+        # right — but a multi-minute browser capture is the wrong place to
+        # learn that a 1 MB binary is missing from a package list.
+        #
+        # The rule is `nim` implies `brotli`, over the REALISED inputs of every
+        # dev shell rather than the text of `flake.nix`: `devShells.default`
+        # names neither package and has both, so a grep would have passed it.
+        run: |
+          nix develop .#ci --command bash -c '
+            bash ci/test/devshell-exporter-deps.sh &&
+            bash ci/test/devshell-exporter-deps-test.sh'
+
       # DOES `test_selection_detail.nim` BITE? The proof-of-bite for the one Nim
       # suite that exists BECAUSE a guard somewhere else was dead.
       #
@@ -2018,11 +2066,30 @@ jobs:
       # journeys below are going to refuse and this names the reason in one
       # screen.
       #
-      # The figures are ASSERTED, not printed. `--expect-opened 10
-      # --expect-refused 45` is today's engine against today's corpus; either
+      # The figures are ASSERTED, not printed. `--expect-opened 52
+      # --expect-refused 3` is today's engine against today's corpus; either
       # number moving is a finding — a re-pin, a container re-encoded, or a
       # corpus that gained or lost a recording — and the commit that changes a
       # number has to say which.
+      #
+      # MOVED 10/45 -> 12/43 ON 2026-10-14, and both halves are "a container
+      # re-encoded". The two `chain/aztec` containers were RE-RECORDED from
+      # container 3 to container 6 with the compact profile, and the ten
+      # `fixtures/trace` containers were CONVERTED from container 5 to container
+      # 6 by `tools/chain/compact_container.nim` applying `ctfs-container.md`
+      # §1e at its RECOMMENDED 1 MiB raw ceiling.
+      #
+      # MOVED 12/43 -> 52/3 ON 2026-10-16, and it is one cause: the FORTY
+      # REMAINING container-3 recordings were re-recorded. Every `.ct` this
+      # repository commits is now container 6 / `meta.dat` 6 / profile 1, and
+      # the pinned engine opens all fifty-two.
+      #
+      # THE THREE REFUSALS ARE NOW A FIXED SET and not a remainder: the
+      # conformance kit's 229-byte ASCII placeholders, which are not containers
+      # by design. `--expect-refused 3` therefore asserts something stronger
+      # than it used to — that nothing in the corpus is unreadable EXCEPT the
+      # three files that are deliberately not containers. A forty-first
+      # refusal is now visible as a finding instead of being lost in a count.
       #
       # THE SELFTEST RUNS FIRST, HERE AND NOT IN `deploy-gates`, because this is
       # the one job with an engine staged. Six of its ten arms need a verdict
@@ -2036,7 +2103,7 @@ jobs:
         run: |
           nix develop .#ci --command node tools/deploy/engine-opens.mjs \
             --engine client/.replay-engine-cache --corpus \
-            --expect-opened 10 --expect-refused 45
+            --expect-opened 52 --expect-refused 3
 
       # THE WORKING TREE IS NOT THE NIX BUILD, and the selftest below uses the
       # working tree.

@@ -116,6 +116,25 @@ on:
           one. See `client/hydrate/engine-pin.txt`'s 2026-10-12 section.
         type: boolean
         default: true
+      refresh:
+        description: >-
+          Supersede objects whose KEY already exists, instead of skipping
+          them. Off by default, because the continuous path's "a re-run
+          uploads zero" rests on that default and is the property that
+          matters there. MEASURED on runs 38957112297 and 38995672069: this
+          was reachable ONLY through `render-over-live`, which conflates two
+          independent decisions — WHAT to render (the repo's own tree, or the
+          live bucket's data) and WHETHER to overwrite keys that already
+          exist. The combination a branch needs to ship re-recorded captures
+          is the repo's tree WITH overwriting, and it had no spelling: with
+          `render-over-live: false` the publisher reported success and skipped
+          every one of the thirteen debug pages, because their keys were
+          already in the bucket, so production kept serving pages that name no
+          container while the containers themselves sat beside them. Turn this
+          on to replace existing objects from an ordinary build.
+        type: boolean
+        default: false
+
       render-over-live:
         description: >-
           Render the client over the LIVE bucket's data instead of over this
@@ -904,8 +923,25 @@ jobs:
           # on top of 75 min staging and 85 min rendering — comfortably inside
           # the 600-minute ceiling, which is why `timeout-minutes` was raised to
           # 600 rather than left at the 240 I first wrote.
+          # EITHER REASON IS ENOUGH, and they are different reasons.
+          #
+          # `render-over-live` implies it by construction — that mode exists to
+          # replace what the bucket serves for keys the bucket already has. But
+          # it was the ONLY way to ask for it, which made "render the repo's
+          # tree" and "overwrite existing keys" one choice instead of two, and
+          # the combination a branch needs to ship re-recorded captures — the
+          # repo's tree, overwriting — could not be expressed at all.
+          #
+          # Run 38995672069 is the worked example: `render-over-live: false`,
+          # every step green including "does the bucket hold the site objects
+          # the tree does?", and all thirteen Aztec debug pages still serving
+          # `data-trace=""` afterwards. The publisher had skipped them on key
+          # existence. The containers those pages point at were already in the
+          # bucket and byte-identical, so the publish was simultaneously
+          # correct and useless.
           REFRESH=""
-          if [ "${{ inputs.render-over-live }}" = "true" ]; then
+          if [ "${{ inputs.render-over-live }}" = "true" ] || \
+             [ "${{ inputs.refresh }}" = "true" ]; then
             REFRESH="--refresh"
             echo "publishing with --refresh: every key-existence object is re-read" \
                  "and superseded where the bytes differ. Without it the entry pages" \
@@ -970,6 +1006,35 @@ jobs:
       # bucket missing objects the tree carries is a true finding whether or not
       # this run was going to fix it, and a dry run that reports it as fine would
       # be the same silence this step exists to break.
+      #
+      # WITH ONE EXCEPTION, AND IT IS NOT A SOFTENING. Under `dry-run` a key
+      # missing from a CONTENT-HASHED prefix is a tautology, not a finding: the
+      # tree names the object after its own bytes, so any change to the
+      # stylesheet invents a key no bucket can hold until something uploads it,
+      # and a dry run uploads nothing. Run 38885739966 is the worked example —
+      # `assets/: tree 16, bucket 16, missing 0` (all nine `ct-icons` present by
+      # name), and then `_a/: tree 1, bucket 2, missing 1` with
+      # `MISSING _a/3d44ac2c9fc6d8d1.css`, a hash this branch's CSS had just
+      # produced. The step failed with "A publish that ends here did not
+      # finish", which was false: nothing was meant to finish.
+      #
+      # The discriminator is the PREFIX, not the run mode, and this step already
+      # draws it in the other direction — it prints bucket-only keys as
+      # "expected for content-hashed names" and does not fail on them. A
+      # content-hashed name is expected to differ between a tree and a bucket in
+      # BOTH directions; the asymmetry was the bug. Under a real publish the
+      # exception does not apply at all: the publisher was supposed to upload
+      # that key, so missing then is exactly the unfinished publish this step
+      # was written to catch, and it still exits 1.
+      #
+      # The consequence of not fixing this is that the rehearsal is unusable:
+      # no `dry-run` could be green again after any CSS change, so the one
+      # signal that says "the production shape works" would be permanently red
+      # for a reason that has nothing to do with production.
+      #
+      # THREE VERDICTS, NOT TWO: 0 the bucket holds them, 1 it does not, 2 this
+      # step could not look. The third is new and is the reason the listing is
+      # no longer `2>/dev/null … || true` — see the comment at the listing.
       - name: Does the bucket hold the site objects the tree does?
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -981,10 +1046,54 @@ jobs:
           set -euo pipefail
           nix develop .#ci --command bash -euo pipefail -c '
             rc=0
+            # ── DOES THE BUCKET EXIST AND CAN THIS IDENTITY READ IT? ───────
+            #
+            # ASKED SEPARATELY, BEFORE ANY PREFIX, because the listing below
+            # cannot answer it. `aws s3 ls` reports an absent bucket, a wrong
+            # endpoint, a rejected key AND an empty prefix all as zero keys —
+            # and zero keys against a 16-file tree prints "missing from bucket
+            # 16", naming sixteen objects as absent from a bucket nobody
+            # managed to look inside. Measured on run 38639811606: `assets/:
+            # tree 16, bucket 0, missing from bucket 16` for a bucket whose
+            # existence was never established.
+            #
+            # NOT BY READING `s3 ls`s EXIT CODE EITHER, and this is checked
+            # rather than remembered: awscli 2.35.11,
+            # `customizations/s3/subcommands.py:_check_no_objects` —
+            #
+            #     if self._empty_result and self._at_first_page:
+            #         # Nothing was returned in the first page of results when
+            #         # listing the objects.
+            #         return 1
+            #
+            # — so a prefix with no objects exits 1 with no output, and an
+            # exit-code test would call an empty-but-valid `_a/` a failed
+            # lookup. That is the same defect pointed the other way, which is
+            # also why the `|| true` on the listing below STAYS. `head-bucket`
+            # asks the bucket question with a call whose answer is only about
+            # the bucket.
+            if ! hb=$(aws s3api head-bucket --bucket "$BUCKET" \
+                        --endpoint-url "$ENDPOINT" 2>&1); then
+              echo "COULD NOT OPEN THE BUCKET — this step measured nothing."
+              echo "$hb" | sed "s/^/      /"
+              echo "::error title=DID NOT RUN::the bucket could not be opened, so" \
+                   "\"missing from bucket\" could not be computed. An absent bucket," \
+                   "a wrong endpoint and a rejected key are not an empty bucket, and" \
+                   "an empty bucket against a populated tree reads as every object" \
+                   "missing. Exiting 2 (did not run), not 1 (a finding)."
+              exit 2
+            fi
+            echo "bucket: opened"
+            # `_a/` is the content-hashed prefix; `assets/` is addressed by
+            # stable names. Spelled here as data so the exception below names
+            # the reason rather than the directory.
+            content_hashed=" _a "
             for prefix in assets _a; do
               [ -d "site/$prefix" ] || { echo "$prefix/: not in the tree"; continue; }
               tree_keys=$(cd site && find "$prefix" -type f | sort)
-              bucket_keys=$(aws s3 ls "s3://$BUCKET/$prefix/" --recursive                               --endpoint-url "$ENDPOINT" 2>/dev/null                             | awk "{print \$4}" | sort || true)
+              bucket_keys=$(aws s3 ls "s3://$BUCKET/$prefix/" --recursive \
+                              --endpoint-url "$ENDPOINT" 2>/dev/null \
+                            | awk "{print \$4}" | sort || true)
               missing=$(comm -23 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$bucket_keys"))
               n_tree=$(printf "%s\n" "$tree_keys" | grep -c . || true)
               n_bucket=$(printf "%s\n" "$bucket_keys" | grep -c . || true)
@@ -1026,10 +1135,22 @@ jobs:
               fi
               if [ "$n_missing" -gt 0 ]; then
                 printf "%s\n" "$missing" | awk -v c=$cap "NF && ++i<=c {print \"    MISSING \" \$0}"
-                rc=1
+                if [ "${{ inputs.dry-run }}" = "true" ] && \
+                   case "$content_hashed" in *" $prefix "*) true;; *) false;; esac; then
+                  echo "    the $n_missing key(s) above are content-hashed names this" \
+                       "tree invented and this DRY RUN did not upload. Not a finding —" \
+                       "see the comment on this step. A real publish uploads them and" \
+                       "fails here if it did not."
+                else
+                  rc=1
+                fi
               fi
             done
-            if [ "$rc" -ne 0 ]; then
+            # 1 and 2 are different verdicts and must not merge: 1 is "the
+            # bucket is missing objects", a claim about the publish; 2 is "this
+            # step could not look", a claim about itself. The message below is
+            # only true of the first.
+            if [ "$rc" -eq 1 ]; then
               echo "::error::the bucket is missing site objects this tree carries."                    "The publisher reported what it DECIDED to upload; this compares"                    "what the bucket HOLDS. A publish that ends here did not finish."
             fi
             exit $rc

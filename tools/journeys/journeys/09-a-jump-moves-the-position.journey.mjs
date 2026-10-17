@@ -610,13 +610,46 @@ async function realArm(browser, site, j, subject) {
     // instruction-level arm for these two panes — so every row on screen here
     // came from the engine and nothing else could have put it there.
     const servedRows = await servedNavRows(page, site.origin + subject.debugPath);
+    // WAIT FOR THE ANSWER, AND LET THE WAIT RUNNING OUT BE THE FAILURE.
+    //
+    // `settle` above is `phase === "ready" && controlsLive > 0`, which is the
+    // session being usable — not the navigation feed having answered. On the
+    // SOURCE-LEVEL arm those coincide closely enough that reading straight
+    // after `ready` sees the engine's rows. On a chain capture they do not:
+    // measured on this subject, the pane holds the export's six rows at
+    // `ready` and carries the engine's eight about three seconds later, which
+    // is `hydrate.writePane`'s own stated rule — a served pane is replaced
+    // only by one that has frames, so the export's rows are what a visitor
+    // reads until the reply lands. This assertion was reading the gap and
+    // reporting `served 9, hydrated 9` as a dead feed.
+    //
+    // IT IS A WAIT FOR THE ASSERTED CONDITION, NOT A SLEEP, and that is the
+    // difference that keeps it a verdict: the predicate is the claim itself,
+    // the budget is bounded, and a feed that never answers runs the budget out
+    // and fails with the same counts it failed with before. Nothing is
+    // excused — "the engine's rows arrived" and "the engine's rows arrived
+    // within fifteen seconds" are the same claim for a pane a visitor is
+    // looking at.
+    const navAnswered = await page
+      .waitForFunction(
+        // The CALL TRACE specifically, not the union: the Event Log is read
+        // at the end of this arm once its tab is chosen, so a union predicate
+        // can be satisfied by the half this arm is not about to judge, and
+        // the call-trace assertion below would read early again.
+        (served) => document.querySelectorAll(".ctrow").length !== served.ct,
+        servedRows,
+        { timeout: 15000 },
+      )
+      .then(() => true)
+      .catch(() => false);
     const hydratedRows = await page.evaluate(
       () => document.querySelectorAll(".ctrow,.evrow").length,
     );
     j.expect(
       hydratedRows > 0 && hydratedRows !== servedRows.total,
       "REAL: CONTROL — the navigation rows are the engine's, not the export's",
-      `served ${servedRows.total} row(s), hydrated ${hydratedRows}`,
+      `served ${servedRows.total} row(s), hydrated ${hydratedRows}` +
+        (navAnswered ? "" : " — the feed did not answer within 15s"),
     );
 
     // ROWS ARE REQUIRED, NOT EXCUSED. This assertion was written the day

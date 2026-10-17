@@ -99,7 +99,7 @@ export async function run({ browser, site, j }) {
   // that reports none has nothing to show, and demanding a statement of it
   // would be inventing a requirement §14.1a does not make.
   const positioned = seen.filter(
-    (s) => Number(s.facts.step) > 0 && Number(s.facts.totalSteps) > 0,
+    (s) => s.facts.positioned && Number(s.facts.totalSteps) > 0,
   );
   // THE SUBJECT COUNTS, AND WHY `atLeast(…, 1)` WAS NOT ENOUGH HERE.
   //
@@ -111,6 +111,23 @@ export async function run({ browser, site, j }) {
   // capture at step 0 would have left this file green over eight fewer subjects
   // than it believed it had — §4b's "one member of five", applied to the guard
   // rather than to the claim.
+  //
+  // AND THEN THE PREDICATE ITSELF WAS THE DEFECT, which counting against the
+  // corpus is what exposed. The count below went to `0 of 11` and stayed
+  // there: every instruction-level chain capture serves `data-step="0"`,
+  // because an instruction listing's first step IS step 0, and `step > 0`
+  // called all eleven unpositioned. The product does not have this bug and
+  // never did — `debug.nim` emits `data-positioned` beside the step for
+  // exactly this question, under a comment that retires the sentinel by name:
+  // "step 0 is a real position, so `0` cannot also spell `no position`. The
+  // page knows which it is and now says so." This journey was asking the
+  // number. It now asks the page, which is `probe.mjs`'s `positioned` fact,
+  // and the eleven are subjects again rather than a red.
+  //
+  // The claim is NOT weakened by the change: `countIs(…, withoutSource.length)`
+  // still demands that EVERY source-less session report a position, and the
+  // assertions below still demand each one say where it is stopped. What moved
+  // is which of the page's own statements is read to decide it.
   //
   // The no-source branch is now counted against the CORPUS instead. `hasSource`
   // is read from the served markup by `corpus.mjs`, before any page is opened,

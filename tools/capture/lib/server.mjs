@@ -6,6 +6,7 @@
 // origin model and a different font-loading path from the one that ships.
 
 import { createServer } from "node:http";
+import { storedEncodingHeader } from "../../lib/stored-encoding.mjs";
 import { readFile, stat } from "node:fs/promises";
 import { join, extname, normalize } from "node:path";
 
@@ -101,7 +102,14 @@ export async function serveDist(root, { overlay = null } = {}) {
       return;
     }
     const type = MIME[extname(file)] ?? "application/octet-stream";
-    res.writeHead(200, { ...headers, "Content-Type": type });
+    // A container is stored brotli-encoded (see `tools/lib/stored-encoding.mjs`);
+    // without this header the engine is handed a brotli stream and reports a
+    // corrupt container, on a tree that is perfectly good.
+    res.writeHead(200, {
+      ...headers,
+      "Content-Type": type,
+      ...storedEncodingHeader(file),
+    });
     res.end(await readFile(file));
   });
 

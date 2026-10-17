@@ -606,8 +606,36 @@ a.lm_title{display:block;line-height:inherit}
    instruction-listing page, and an earlier draft of this paragraph quoted it
    literally — which put one occurrence on every listing page in the build and
    turned a comment into a red suite. */
+/* THE ROW'S HEIGHT IS ITS OWN, NOT ITS TALLEST CHILD'S, and that is what the
+   paragraph above promises: "it leaves the flow entirely, so the row keeps its
+   height, the document keeps its position". It did not. MEASURED at 1280 and
+   1440 on three subjects: opening the list took 5px out of the row and pulled
+   the source up with it, because the tab row IS the tallest child and taking
+   it out of flow leaves the trigger — five pixels shorter — setting the
+   height on its own.
+
+   THE FLOOR IS IN THE SAME UNITS THE TAB IS BUILT FROM, so it cannot drift
+   from it. `.srctab` carries the design system's `ct-tab`, whose box is
+   em-relative all the way down — `padding:0.5em 0.75em`, `line-height:1.2`,
+   `border-bottom:0.125em` — which is the 2.325em of vertical box that
+   `--bt-layout-tabstrip-row-min` holds. Add the list's own `3xs` padding top
+   and bottom and this row's hairline, and the floor is the closed row,
+   expressed as the same arithmetic rather than as the 36.8px it comes to.
+
+   THE EM LIVES IN THE TOKEN AND NOT HERE, and A2 is why: a Layer 2 view may
+   carry no raw length, and it caught this one — `debugger_css.nim:632
+   2.325em`. The rule is right and the token is the better home anyway: the
+   quantity is the design system's tab box, which is Layer 1's to state.
+
+   It is a FLOOR and deliberately a hair above the natural height: a rounded
+   border makes the exact natural height a fraction smaller, and a floor that
+   can sit below it would let the two states diverge again on a platform whose
+   font metrics differ. Above it, both states resolve to the floor and the row
+   cannot move. */
 .srcstrip{position:relative;display:flex;align-items:stretch;flex:0 0 auto;
   min-width:0;
+  min-height:calc(var(--bt-layout-tabstrip-row-min) +
+    2 * var(--bt-space-3xs) + var(--bt-stroke-hairline));
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
 .srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:nowrap;
@@ -2059,11 +2087,31 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
   font-size:var(--bt-type-body-sm-size)}
 .mdrevert.bad{color:var(--bt-status-danger-fg)}
 .mdrevert.note{color:var(--bt-text-muted)}
-.mddl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0}
+/* THE LABEL COLUMN MUST BE ABLE TO SHRINK, AND IT COULD NOT.
+   `auto` sizes the first column to its widest label, and `.mddl dt` was
+   `white-space:nowrap`, so the longest label was UNBREAKABLE and took whatever
+   width it wanted. On this corpus that label is `Cost · Transaction<nbsp>fee`,
+   and at @laptop it left the value column too narrow for its own contents:
+
+     AGE       `No timestamp published`  overflows its <dd> by 14px
+     FINALITY  `Finalized`               overflows its <dd> by  6px
+     SOURCES   `Instruction level`       overflows its <dd> by 19px
+
+   `FINALIZED` IS WHY THIS IS A COLUMN FIX AND NOT A WRAPPING ONE. The other
+   two are phrases and `white-space:normal` on the pill lets them wrap — that
+   rule is already here, at `.mddl dd .badge`, and already shipped. A single
+   word cannot wrap, so a six-pixel overflow on `Finalized` says the CELL is
+   too narrow and no amount of pill wrapping will reach it.
+
+   So the column is `minmax(0,auto)`, which lets it shrink below its content,
+   and the label may wrap. THE NON-BREAKING SPACE STAYS: it holds
+   `Transaction fee` together while permitting the break after `Cost ·`, which
+   is the break a reader would choose. */
+.mddl{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:0}
 .mddl dt{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);
   letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;
-  color:var(--bt-text-subtle);white-space:nowrap;
+  color:var(--bt-text-subtle);white-space:normal;overflow-wrap:break-word;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
 /* `word-break:break-all` applied to the whole cell broke WORDS as well as
    hashes: `mana (FeeJuice)` came out as `mana (Fe` / `eJuice)`, which three

@@ -580,7 +580,7 @@ async function sourceBundleCount(path) {
  *  not knowable before the replay has run. */
 export async function replayTransaction({
   nodeBin, runtime, url, txHash, ctPath, ctRelative, sourcesPath, sourcesRelative,
-  avm, ctWriter,
+  avm, ctWriter, compactThreshold = 0, bodyStore = '',
 }) {
   const r = await run(nodeBin, [
     '--experimental-wasm-exnref',
@@ -590,6 +590,45 @@ export async function replayTransaction({
     '--module', resolve(avm),
     '--ct', ctPath,
     '--ct-writer', resolve(ctWriter),
+    // ── CCP-6/7's COMPACT PROFILE, PASSED UNCONDITIONALLY ──────────────────
+    //
+    // `ctfs-container.md` §1e's threshold is a CEILING IN RAW BYTES: a
+    // container whose raw size is at or below it is written at container
+    // version 6 with profile byte 1, and one above it is written full, at
+    // version 5. Zero therefore means "never compact", which is the default
+    // here and leaves every container byte-identical to one written before
+    // this argument existed.
+    //
+    // PASSED EVEN WHEN ZERO, and that is deliberate rather than tidy: the
+    // runtime's own driver takes the same position, because an option
+    // exercised only when someone asks for it is an option whose absence is
+    // discovered by the one run that needs it. A driver too old to know the
+    // flag fails HERE, on the first transaction, instead of silently writing a
+    // corpus in the wrong profile.
+    //
+    // Measured 2026-10-14 on the module this repository builds: threshold
+    // 1,000 over a 73,728-byte container gives version 5; threshold 100,000
+    // over the same input gives 2,174 bytes at version 6, profile 1. The two
+    // arms either side of the container's own size are what make the ceiling
+    // reading a measurement rather than a reading of the spec.
+    '--compact-threshold', String(compactThreshold),
+    // ── `--body-store`, AND IT IS PASSED ONLY WHEN ASKED ───────────────────
+    //
+    // The ONE call with a horizon is `getTxByHash`: a node serves a body out of
+    // its active pool for about an hour and then answers null. `--body-store
+    // auto` answers that one call from Aztec's published `TxFileStore` instead,
+    // reading the base from the network config, and leaves every other call on
+    // the node. Measured by the runtime on mainnet: a transaction settled
+    // 50,163 blocks behind the tip replayed exactly, reproducing the corpus's
+    // own frozen row.
+    //
+    // THE ASYMMETRY WITH `--compact-threshold` ABOVE IS DELIBERATE. The
+    // threshold has a meaningful zero — "never compact" — so it can be sent on
+    // every run and an old driver fails on the first transaction. A body store
+    // has no off value: there is no string that means "ask the node", and an
+    // empty one would be a malformed argument. So it is sent only when a caller
+    // asks, and a driver too old to know it fails on the run that asks.
+    ...(bodyStore ? ['--body-store', String(bodyStore)] : []),
     ...(sourcesPath ? ['--sources', sourcesPath] : []),
     '--json',
   ], runtime);

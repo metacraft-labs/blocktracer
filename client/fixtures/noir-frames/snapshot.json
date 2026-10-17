@@ -25,7 +25,31 @@
  "provenance": {
   "note": "NOT A CAPTURE. This snapshot describes the fixture container written by tools/chain/record-noir-frames-fixture.mjs; see provenance.json beside it for what in that container is measured, what is reconstructed and what is zero.",
   "chain": "aztec-testnet",
-  "of": "client/fixtures/chain/aztec-testnet/snapshot.json, for this one transaction, with the recording counts replaced by the fixture recorder's own"
+  "of": "client/fixtures/chain/aztec-testnet/snapshot.json, for this one transaction, with the recording counts replaced by the fixture recorder's own",
+  "rerecordings": [
+   {
+    "at": "2026-10-16T04:01:03.983Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 1,
+    "compactThreshold": 1048576,
+    "containerVersions": {
+     "v6": 1
+    },
+    "url": "http://127.0.0.1:8098"
+   },
+   {
+    "at": "2026-10-16T10:03:41.898Z",
+    "by": "tools/chain/rerecord-snapshot.mjs",
+    "subjects": 1,
+    "compactThreshold": 1048576,
+    "runtimeCommit": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f",
+    "recordedByWritten": 1,
+    "containerVersions": {
+     "v6": 1
+    },
+    "url": "http://127.0.0.1:8098"
+   }
+  ]
  },
  "transactions": [
   {
@@ -48,7 +72,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.ct",
-   "containerBytes": 172032,
+   "containerBytes": 42663,
    "l2BlockNumber": 67011,
    "preStateReadAt": 67010,
    "contractReferenceBlock": 67011,
@@ -67,7 +91,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 172032,
+    "bytes": 42663,
     "events": 108,
     "steps": 108,
     "callsOpened": 45,
@@ -88,11 +112,7 @@
       "firstUnpositionedPc": 0,
       "resolved": true
      }
-    ],
-    "noirFramesOpened": 44,
-    "noirMaxDepth": 9,
-    "distinctNoirFunctions": 33,
-    "pathsInterned": 18
+    ]
    },
    "artifacts": [
     {
@@ -303,7 +323,8 @@
      "reason": "emitted-by-this-transaction"
     }
    ],
-   "sourceBundles": "sources/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json"
+   "sourceBundles": "sources/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json",
+   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
   }
  ]
 }

@@ -303,30 +303,83 @@ suite "a healthy corpus meets every cell and produces no finding":
 # ═══ the broken corpora: each must be REFUSED, by name ═════════════════════
 
 suite "a corpus whose trees each know only their own chain LOSES a chain":
-  test "the registry clobber is found from a partial rehearsal":
+  # ── THIS TEST CHANGED SHAPE, BECAUSE THE PUBLISHER GAINED A GUARD ────────
+  #
+  # It used to demand `invariant/global-pointer-no-chain-loss` as a FINDING: the
+  # drill published tree b over a store holding tree a, then subtracted the
+  # global objects and reported that `registry/chains.v1.json` had stopped
+  # naming `alpha`. That is detection AFTER the damage, and it was the only
+  # thing standing between this corpus and a lost chain.
+  #
+  # `publishTree` now calls `assertRegistryKeepsKnownChains` BEFORE the lease
+  # and before any write, so the second publish is REFUSED and the loss never
+  # happens. `drill.nim`'s B1 emits that finding only `if not bRefused` — so the
+  # finding being absent is the guard working, and demanding it was demanding
+  # that the guard be gone.
+  #
+  # The property is therefore asserted where it now lives: the refusal, its
+  # reason, and the ledger cell that records the measurement either way. The old
+  # expectation is kept as the NEGATIVE: if that finding ever comes back, the
+  # up-front refusal has stopped refusing.
+  test "the registry clobber is REFUSED before the second publish writes":
     let dir = scratch("clobber")
     buildTree(dir / "a", "alpha", @["1", "2"], @["alpha"])   # registry: alpha only
     buildTree(dir / "b", "beta", @["1", "2"], @["beta"])     # registry: beta only
     let r = runOver(@[dir / "a", dir / "b"], "clobber", rmPartial)
-    check "invariant/global-pointer-no-chain-loss" in r.findingIdsOf()
-    # and it must say WHICH object and WHICH chain, not merely that it failed
-    let f = r.findings.filterIt(it.id == "invariant/global-pointer-no-chain-loss")[0]
-    check "registry/chains.v1.json" in f.detail
-    check "alpha" in f.detail
-    # the coverage cell is still MET: the property was measured, and was false.
-    check r.ledger.cells[cellId(dimInvariant,
-      "global-pointer-no-chain-loss/refuses")].hits > 0
+
+    # The coverage cell is MET either way: the property was measured.
+    let cell = r.ledger.cells[cellId(dimInvariant,
+      "global-pointer-no-chain-loss/refuses")]
+    check cell.hits > 0
+
+    # And what it measured is a refusal, naming the object and the chain.
+    check "publish refused" in cell.witness
+    check "registry/chains.v1.json" in cell.witness
+    check "alpha" in cell.witness
+
+    # THE NEGATIVE: the post-hoc finding must NOT appear. It can only appear if
+    # the publish was accepted, which is the state this guard exists to prevent.
+    check "invariant/global-pointer-no-chain-loss" notin r.findingIdsOf()
 
 suite "a corpus carrying an object no chain's cycle publishes":
-  test "tree minus store is reported, with the shapes":
+  # ── AND THIS ONE CHANGED SHAPE FOR THE SAME REASON, ONE NOTCH EARLIER ────
+  #
+  # It used to demand `invariant/every-object-is-published` over a tree carrying
+  # `404.html` and `about/index.html`, because `publishChain`'s `belongs` was an
+  # ALLOWLIST of three site-root names and dropped everything else at exit 0.
+  # That rule is gone: `belongs` now asks whether a key is SCOPED TO A CHAIN and
+  # carries everything else as site-level, so those two keys are published and
+  # the subtraction is empty. The finding's absence is that fix holding.
+  #
+  # The old corpus is kept, asserting CLEAN, because it is the regression test
+  # for the inversion — a return to an allowlist reddens here.
+  test "the site-root keys an allowlist used to drop are published now":
     let dir = scratch("orphan")
     buildTree(dir / "a", "alpha", @["1", "2"], @["alpha", "beta"],
               extraKeys = @["404.html", "about/index.html"])
     buildTree(dir / "b", "beta", @["1", "2"], @["alpha", "beta"])
     let r = runOver(@[dir / "a", dir / "b"], "orphan", rmFull)
-    check "invariant/every-object-is-published" in r.findingIdsOf()
-    let f = r.findings.filterIt(it.id == "invariant/every-object-is-published")[0]
-    check "404.html" in f.detail
+    check "invariant/every-object-is-published" notin r.findingIdsOf()
+    # MET, not merely unviolated: the subtraction ran and found nothing.
+    check r.ledger.cells[cellId(dimInvariant,
+      "every-object-is-published/holds")].hits > 0
+
+  # THE PROPERTY IS STILL VIOLABLE, and here is the shape that still violates
+  # it: a key scoped to a chain the tree does not contain. `belongs` skips it
+  # (its first segment is `src/`, and no `src/<chain>/` matches), so it would be
+  # absent from the store at exit 0 — which is why `assertEveryObjectIsClaimed`
+  # refuses the tree BEFORE the lease. The drill sees that refusal as its A1
+  # scenario failing, which is the earliest any caller can see it.
+  test "a key scoped to a chain the tree does not contain is REFUSED up front":
+    let dir = scratch("misfiled")
+    buildTree(dir / "a", "alpha", @["1", "2"], @["alpha", "beta"],
+              extraKeys = @["src/gamma/0xcode/0xbundle.json"])
+    buildTree(dir / "b", "beta", @["1", "2"], @["alpha", "beta"])
+    let r = runOver(@[dir / "a", dir / "b"], "misfiled", rmFull)
+    check "scenario/A1" in r.findingIdsOf()
+    let f = r.findings.filterIt(it.id == "scenario/A1")[0]
+    check "belong to no chain" in f.detail
+    check "src/gamma/0xcode/0xbundle.json" in f.detail
 
   test "MUTATION BITE: without those two keys the same corpus is clean":
     let dir = scratch("orphan-control")

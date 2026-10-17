@@ -22,13 +22,14 @@
 // redden the assertion written for it (§4a: the pairing is the control — a negative
 // assertion with no positive twin running through the same code path has nothing to fail).
 
-import { mkdtemp, mkdir, writeFile, chmod, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, chmod, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { decideOutcome, refusalName, refusalDetail, completeBlockCount,
-         completeBlockNumbers, preflightToolchain, resolverPresence, RESOLVER_PATH }
+         completeBlockNumbers, preflightToolchain, resolverPresence, RESOLVER_PATH,
+         replayTransaction }
   from './lib/replay.mjs';
 
 let asserted = 0;
@@ -767,7 +768,72 @@ async function main() {
   // input is driven through the same call three ways — refused in the path's own terms,
   // NOT carrying the flag diagnosis, and the converse. The last two are what make the
   // negative arm unsatisfiable by ENOENT rather than merely differently-worded.
-  expectCount(98);
+  // ── case 13 — the compact threshold reaches the driver, always ──────────────────
+  //
+  // CCP-6 made `ctfs-container.md` §1e's compact profile reachable from the production
+  // driver; CCP-7 made this repository build a writer that has the lever at all. The
+  // thing between them is one argv entry, and nothing asserted it.
+  //
+  // IT IS PASSED EVEN WHEN ZERO, which is the property worth a test. An option forwarded
+  // only when someone asks for it is an option whose absence is discovered by the one
+  // run that needs it — and that run is a re-record of a whole corpus. A driver too old
+  // to know the flag must fail on the FIRST transaction, not write the corpus in the
+  // wrong profile and report success.
+  //
+  // THE DRIVER IS A STUB THAT PRINTS ITS ARGV, for the reason case 12 writes its own
+  // interpreters: the real one needs a node, a network and a wasm, and an arm that
+  // cannot run is an arm that passes for the wrong reason. `nodeBin` here is a
+  // `#!/bin/sh` script that writes `"$@"` to a file, so what is asserted is exactly the
+  // argument vector `replayTransaction` built.
+  console.error('\ncase 13 — --compact-threshold is forwarded to the driver, zero included');
+  {
+    const rt13 = join(dir, 'runtime-argv');
+    await mkdir(rt13, { recursive: true });
+    const argvFile = join(dir, 'argv.txt');
+    const stubNode = join(dir, 'stub-node-prints-argv');
+    await writeFile(stubNode,
+      '#!/bin/sh\n# Writes its argument vector, one per line, and succeeds.\n'
+      + `for a in "$@"; do echo "$a"; done > ${argvFile}\nexit 0\n`);
+    await chmod(stubNode, 0o755);
+    ck('the argv stub EXISTS, so neither arm below can be an ENOENT',
+       existsSync(stubNode));
+
+    const drive = async (opts) => {
+      await replayTransaction({
+        nodeBin: stubNode, runtime: rt13, url: 'http://unused', txHash: '0xdead',
+        ctPath: join(dir, 'unwritten.ct'), ctRelative: 'ct/0xdead.ct',
+        sourcesPath: join(dir, 'unwritten.json'), sourcesRelative: 'sources/0xdead.json',
+        avm: stubNode, ctWriter: stubNode, ...opts,
+      });
+      return (await readFile(argvFile, 'utf8')).split('\n');
+    };
+
+    const dflt = await drive({});
+    ck('the flag is present with NO threshold given', dflt.includes('--compact-threshold'));
+    ck('…and its value is 0, which §1e reads as never compact',
+       dflt[dflt.indexOf('--compact-threshold') + 1] === '0');
+
+    const asked = await drive({ compactThreshold: 100000 });
+    ck('a caller-supplied threshold arrives verbatim',
+       asked[asked.indexOf('--compact-threshold') + 1] === '100000');
+
+    // MUTATION: forwarding it only when non-zero is the shape this case refuses. The
+    // default run would then carry no flag at all, and an old driver would be found by
+    // the re-record rather than by this arm.
+    bite('mutation: a conditional forward would drop the flag from the default run',
+         dflt.includes('--compact-threshold'));
+
+    // AND THE REST OF THE VECTOR IS UNCHANGED, so this case cannot pass by having
+    // rewritten the invocation. The driver path and `--json` are the two ends of it.
+    ck('the driver is still the one the runtime ships',
+       dflt.includes('replay/tools/replay_settled_transaction.mjs'));
+    ck('…and the vector still ends in --json', dflt.filter((x) => x).at(-1) === '--json');
+  }
+
+  // 98 before case 13. +7: the stub exists, the flag is present by default, its default
+  // value is 0, a supplied value arrives verbatim, the conditional-forward mutation is
+  // refused, and the two controls that the rest of the vector did not move.
+  expectCount(105);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

@@ -22,6 +22,7 @@
 // never given the source".
 
 import { createServer } from "node:http";
+import { storedEncodingHeader } from "../lib/stored-encoding.mjs";
 import { readFile, stat } from "node:fs/promises";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -66,6 +67,7 @@ async function serve(root) {
         // The worker is a module worker on this origin; no COOP/COEP needed
         // for the plain (non-threaded) wasm build.
         "cache-control": "no-store",
+        ...storedEncodingHeader(f),
       });
       res.end(body);
     } catch {

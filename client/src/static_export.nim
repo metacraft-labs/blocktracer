@@ -26,6 +26,14 @@ import blocktracer/contract/hashshard   # §5's shard codec + its published dept
 import blocktracer/contract/identifier_encoding  # each chain's declared encoding — the index keys with it
 import blocktracer/demo/generator
 import blocktracer/chain/ingest
+import blocktracer/contract/container_encoding
+
+const PublishedEncoding* = ceBrotli
+  ## HOW EVERY CONTAINER THIS EXPORTER WRITES IS STORED AT REST. One constant
+  ## because the tree has two producers — the chain ingest and the demo
+  ## generator — and the question "what is the object at rest" must have one
+  ## answer per tree. See the block beside the ingest call for why brotli and
+  ## why now.
 import ssr
 import reader
 import debugger/replay_engine
@@ -687,9 +695,42 @@ proc exportSite() =
     # the answer is reported below rather than assumed. Nothing moves for the
     # three Aztec captures: each has a whole window, each still publishes the
     # curated tree, and `scopeFellBack` says so in the log.
+    # ── THE CONTAINER IS STORED PRE-COMPRESSED WITH BROTLI (CCP-6) ────────
+    #
+    # `ctfs-container.md` §1f has a compact container store its members RAW —
+    # every zstd frame replaced by its content — and §1e says why that is not a
+    # size regression: "a compact archive is a representation intended to be
+    # STORED AND SERVED pre-compressed". Serving it raw is the one way to make
+    # the compact profile cost bytes instead of saving them.
+    #
+    # BROTLI AND NOT ZSTD, and the reason is coverage rather than ratio. A
+    # stored encoding is NOT negotiated: the object carries one
+    # `Content-Encoding` and every client gets it. Measured against caniuse on
+    # 2026-10-14, brotli is 97.24% globally — Chrome 50+, Edge 15+, Firefox 44+,
+    # Safari 11+, iOS Safari 11+ — while zstd is 85.6%, with Safari desktop
+    # unsupported through 18.7 and iOS Safari complete only from 26.3. The
+    # closed `ContainerEncoding` set has exactly `identity` and `br` for this
+    # reason, so there is no third choice to make here.
+    #
+    # WHAT IT IS WORTH, measured over this repository's ten `fixtures/trace`
+    # containers in both profiles: compact is 20% LARGER at rest (929,792 ->
+    # 1,118,778 B) and smaller on the wire in every codec with a window wide
+    # enough to see across members — gzip -7.2%, zstd -13.6%, brotli -15.7%.
+    #
+    # THE RULE THIS SATISFIES, which held it back until now: `chain/ingest.nim`
+    # says "reader support ships everywhere before any writer emits it…
+    # flipping this before that lands would hand compressed bytes to every
+    # existing consumer with nothing telling them so". Two things now tell
+    # them. `publisher.encodingOf` reads `container.encoding` out of each
+    # manifest and sets it as the object's `Content-Encoding`, so a browser
+    # decodes transparently; and for a FILE READ, where there is no header and
+    # brotli has no magic number, the manifest's `encoding`/`storedBytes`/
+    # `storedHash` are what say so — which is exactly why those three fields
+    # exist.
     let ing = ingestSnapshot(IngestConfig(outDir: OutputDir,
                                           snapshotDir: snapshotDir,
-                                          scope: isCuratedIfWhole))
+                                          scope: isCuratedIfWhole,
+                                          containerEncoding: PublishedEncoding))
     # A chain with NO traces is reported as such rather than omitted. It is the
     # expected outcome on a chain whose transactions arrive further apart than
     # the replay window is wide, and a build log that quietly said nothing about
@@ -792,10 +833,14 @@ proc exportSite() =
                        (tourDir / "manifest.json")
       quit 2
     assertSlugAvailable(OutputDir, DemoChainSlug, "synthetic")
+    # The SAME encoding the ingest above uses. Two producers write into one
+    # `/t/**`, and a tree where one pre-compresses and the other does not is a
+    # tree whose objects answer the same question two ways.
     let n = generate(DemoConfig(outDir: OutputDir, seed: DefaultSeed,
                                 chain: DemoChainSlug,
                                 traceFixturePath: fixture,
                                 traceSourcesDir: sources,
+                                containerEncoding: PublishedEncoding,
                                 tourDir: tourDir))
     echo "  + synthetic demo chain: /" & DemoChainSlug & " (" & $n & " transactions) " &
       "— published, badged `synthetic`; build -d:noDemoChain to leave it out"

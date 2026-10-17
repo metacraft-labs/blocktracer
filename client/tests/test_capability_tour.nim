@@ -105,8 +105,34 @@ suite "1 — the corpus is real, and each program is its own":
       check fileExists(p.sourcesDir / "Nargo.toml")
       check fileExists(p.sourcesDir / "src" / "main.nr")
       # A container of a few hundred bytes is a container that failed to
-      # record. The streams cost ~16 KiB before any payload.
-      check getFileSize(p.containerPath) > 16_000
+      # record. THE FLOOR USED TO BE 16 KiB, with the reason "the streams cost
+      # ~16 KiB before any payload" — and that was true of the FULL profile,
+      # where every member carries a mapping block whether or not it outgrows
+      # one. The tour moved to CTFS §1e's COMPACT profile, and §1f removes
+      # exactly those blocks; `ctfs-container.md` measures them at "27.4% of
+      # all container bytes" across 1,042 recordings, with "the median
+      # container half that size without them".
+      #
+      # So the same real recordings are smaller, and `tour_branches` — the
+      # shortest program in the tour — now lands at 9,057 bytes and failed a
+      # floor that described a layout it no longer uses:
+      #
+      #   test_capability_tour.nim(109): Check failed:
+      #     getFileSize(p.containerPath) > 16000
+      #
+      # The floor moves to 4,000, which is still an order of magnitude above
+      # "a few hundred bytes" and less than half the smallest real container
+      # here. It is deliberately NOT set just under 9,057: a floor fitted to
+      # the current minimum fails the next time any program gets shorter, and
+      # this check is about a container that FAILED TO RECORD, not about the
+      # size of the shortest program.
+      check getFileSize(p.containerPath) > 4_000
+      # AND THAT IT IS A CONTAINER AT ALL, which is the property the size was
+      # only ever a proxy for. A stub of the right length would have passed
+      # every version of the line above.
+      let head = readFile(p.containerPath)[0 ..< 8]
+      check head[0] == '\xC0' and head[1] == '\xDE'
+      check head[2] == '\x72' and head[3] == '\xAC' and head[4] == '\xE2'
 
   test "every container is DISTINCT — the defect this whole change removes":
     var seen = initHashSet[string]()

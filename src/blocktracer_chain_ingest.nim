@@ -18,6 +18,7 @@
 ## Usage:
 ##   blocktracer-chain-ingest --snapshot DIR --out DIR [--generation G]
 ##                            [--scope full|curated|curatedIfWhole]
+##                            [--container-encoding br|identity]
 ##
 ## `curatedIfWhole` is what the SITE BUILD runs, and it is accepted here so that
 ## "why did this capture publish every transaction" is answerable by hand with
@@ -25,12 +26,39 @@
 ## plus `scopeFellBack`, so the answer is in the output rather than inferred
 ## from the counts.
 
+## `--container-encoding` DEFAULTS TO `br`, AND THAT IS NOT THIS CLI'S OWN
+## OPINION — it is the shape the site build already publishes.
+##
+## `IngestConfig.containerEncoding`'s zero value is `ceIdentity`, and its
+## comment explains the caution: "reader support ships everywhere before any
+## writer emits it … storing compressed bytes is correct only once the delivery
+## layer SERVES the `Content-Encoding`". That condition is met now —
+## `publisher.encodingOf` sets the object's `Content-Encoding` from the
+## manifest, `tools/lib/stored-encoding.mjs` does the same for every local
+## server the captures and journeys run against, and `_headers` carries it for
+## the static hosts — and `static_export.nim` has been publishing `ceBrotli`
+## since. This CLI was left on the zero value, so the two producers of a
+## published tree disagreed: MEASURED on `aztec-testnet-frames`, the site build
+## writes a container of 54,132 bytes as 3,652 brotli bytes with
+## `container.encoding: "br"` in its manifest, and this CLI wrote the same kind
+## of object raw with no encoding field.
+##
+## Both are readable — a raw object with no declared encoding is served raw and
+## the engine opens it — so nothing was broken. What was wrong is that the
+## operator path and the build path produced DIFFERENT trees for one chain, and
+## the operator's was 15x larger over the wire. `identity` stays reachable by
+## name for the case the zero value existed for: publishing into a store whose
+## delivery layer does not set the header.
+
 import std/[json, os, parseopt]
 import blocktracer/chain/ingest
+import blocktracer/contract/container_encoding
 
 proc usage() =
   stderr.writeLine """usage:
-  blocktracer-chain-ingest --snapshot DIR --out DIR [--generation G] [--scope full|curated|curatedIfWhole]"""
+  blocktracer-chain-ingest --snapshot DIR --out DIR [--generation G]
+                           [--scope full|curated|curatedIfWhole]
+                           [--container-encoding br|identity]"""
 
 proc main() =
   var
@@ -38,6 +66,7 @@ proc main() =
     outDir = ""
     generation = ""
     scope = isFull
+    encoding = ceBrotli
     pending = ""
 
   proc assign(k, v: string) =
@@ -45,6 +74,12 @@ proc main() =
     of "snapshot", "s": snapshotDir = v
     of "out", "o": outDir = v
     of "generation", "g": generation = v
+    of "container-encoding":
+      let parsed = parseContainerEncoding(v)
+      if not parsed.ok:
+        stderr.writeLine "error: " & parsed.why
+        quit 2
+      encoding = parsed.enc
     of "scope":
       case v
       of "full": scope = isFull
@@ -56,7 +91,8 @@ proc main() =
         quit 2
     else: discard
 
-  const valueFlags = ["snapshot", "s", "out", "o", "generation", "g", "scope"]
+  const valueFlags = ["snapshot", "s", "out", "o", "generation", "g", "scope",
+                      "container-encoding"]
   var p = initOptParser()
   for kind, key, val in p.getopt():
     case kind
@@ -84,7 +120,8 @@ proc main() =
   var ing: IngestResult
   try:
     ing = ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: snapshotDir,
-                                      generation: generation, scope: scope))
+                                      generation: generation, scope: scope,
+                                      containerEncoding: encoding))
   except CatchableError as e:
     # THE REFUSAL IS THE PRODUCT, not an error to swallow: `ingest.nim` raises
     # rather than publishing a half-ingested chain, and a range operation has to

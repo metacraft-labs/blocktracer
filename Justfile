@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# FOURTEEN suites — 98 + 19 + 24 + 24 + 57 + 233 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 = 1161 counted assertions —
+# FOURTEEN suites — 105 + 19 + 24 + 24 + 57 + 233 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 = 1169 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -725,6 +725,45 @@ ct-corpus-check *ARGS:
     node tools/chain/ct-corpus-census.mjs \
       --expect tools/chain/measurements/ct-corpus.json {{ARGS}}
 
+# Apply `ctfs-container.md` §1e to the tracked `.ct` corpus: convert a container
+# to the COMPACT profile when its raw members fit under the threshold, and leave
+# it full when they do not.
+#
+# THE THRESHOLD IS AN ARGUMENT AND HAS NO DEFAULT, because it is a publishing
+# policy and not a tool's opinion. 1048576 is what this repository applies, and
+# it is not a number anyone here chose: §1e RECOMMENDS 1 MiB of raw bytes, as a
+# judgement with its reasoning recorded, and every container in this corpus is
+# far under it (the largest raw total is `zk_shields` at 731,774 B).
+#
+# IT IS A RESIDENCY BOUND, NOT A SIZE BOUND. §1e is normative that the threshold
+# is measured in RAW bytes "because the compact profile is for a container that
+# is RESIDENT before its first query, and residency is a property of logical
+# size". It says nothing about bytes at rest or bytes on the wire, and §1e's own
+# closing paragraph warns that "conflating any two of them is how a size
+# argument goes wrong" — which is the mistake a 100000 ceiling here made for a
+# day, picked by comparing at-rest sizes.
+#
+#   just ct-compact-check 1048576    # report, write nothing
+#   just ct-compact 1048576          # apply, then `just ct-corpus-read`
+# `$CT_TRACE_FORMAT_NIM_SRC` and `$CT_NIM_EXTRA_PATHS` come from the dev shell —
+# see `flake.nix`, where the revision is the one the shipped writer is built
+# from, so this tool and that writer cannot drift apart.
+ct-compact threshold: (_compact-build)
+    ./.compact-container --threshold {{threshold}} $(git ls-files '*.ct')
+
+ct-compact-check threshold: (_compact-build)
+    ./.compact-container --threshold {{threshold}} --check $(git ls-files '*.ct')
+
+_compact-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${CT_TRACE_FORMAT_NIM_SRC:?run this inside the dev shell: nix develop .#ci --command just …}"
+    paths=(-p:"$CT_TRACE_FORMAT_NIM_SRC/src")
+    IFS=: read -ra extra <<< "${CT_NIM_EXTRA_PATHS:-}"
+    for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
+    nim c --hints:off -d:release "${paths[@]}" \
+      -o:.compact-container tools/chain/compact_container.nim
+
 # Re-read the census into the committed reading. Run this deliberately, after a
 # corpus change, and say in the commit WHY each delta moved.
 ct-corpus-read:
@@ -1211,6 +1250,20 @@ layout-vendor:
 ct-styles-vendor:
     ci/test/ct-styles-vendor.sh --require
     ci/test/ct-styles-vendor-test.sh
+
+# CAN EVERY SHELL THAT RUNS THE EXPORTER ACTUALLY RUN IT?
+#
+# `nim` implies `brotli`: a shell providing nim can build and run
+# `static_export`, and since CCP-6 that refuses without the `brotli` binary.
+# Checked over each shell's REALISED inputs, because `devShells.default` names
+# neither package and has both through `inputsFrom`.
+#
+# The self-test drives the four verdicts the gate can reach — pass, a named
+# failure, DID NOT RUN over an empty subject, and a visible SKIP — because a
+# gate whose failure path has never run is a gate nobody has reason to believe.
+devshell-exporter-deps:
+    ci/test/devshell-exporter-deps.sh
+    ci/test/devshell-exporter-deps-test.sh
 
 # THE CONVERSE OF `Dropped`: can a rule the port KEPT match anything?
 #

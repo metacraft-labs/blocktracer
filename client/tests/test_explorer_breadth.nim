@@ -623,13 +623,59 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
     # …and the guard did not swallow the real chain.
     check renderRoute(root, "/" & Chain & "/blocks")[0] == 200
 
-  test "the 404 body is §14's row and is the same bytes as 404.html":
+  test "the 404 body is §14's row and is 404.html modulo the stylesheet's delivery":
     let root = newDataRoot(dist)
     let (status, body, _) = renderRoute(root, "/no/such/thing/at/all")
     check status == 404
     check "data-degradation=\"cdObjectNotFound\"" in body
     check Chain in body                      # the chains that were checked
-    check readFile(dist / "404.html") == body
+
+    # ── THE ONE DIFFERENCE THE EXPORTER IS ALLOWED TO MAKE ──────────────────
+    #
+    # This asserted raw byte-identity, and the exporter has since externalised
+    # the stylesheet: it writes `<link rel="stylesheet" href="/_a/<hash>.css">`
+    # where the renderer emits `<style>…</style>` inline. Measured — the two
+    # first differ at offset 322, and the exported page is 4,517 bytes against
+    # the rendered 346,103 — so the assertion was comparing a delivery choice,
+    # not the page.
+    #
+    # It had been red since that change and nobody saw it: `debug-route` failed
+    # at an earlier step, so `just test` never ran. Fourth instance in this
+    # campaign of one defect hiding another in the same job.
+    #
+    # NOT WEAKENED — SPLIT, and the split is stronger than the original in one
+    # place. The page is still held to byte-identity, with the renderer's inline
+    # sheet replaced by the exact link tag the exported page carries; and the
+    # externalised FILE is held to the renderer's own bytes, which raw
+    # byte-identity never checked because the file was not read.
+    let onDisk = readFile(dist / "404.html")
+
+    # STRING OPERATIONS, NOT A REGEX. Both halves of this need a literal `"`
+    # inside the pattern, and a Nim string literal cannot carry `\.` — the first
+    # version of this block died with `invalid character constant`. A raw string
+    # cannot escape the quotes either. `find`/slice needs neither.
+    const LinkOpen = "<link rel=\"stylesheet\" href=\"/_a/"
+    let linkAt = onDisk.find(LinkOpen)
+    check linkAt >= 0
+    let linkEnd = onDisk.find("/>", linkAt)
+    check linkEnd > linkAt
+    let linkTag = onDisk[linkAt .. linkEnd + 1]
+    let hrefStart = linkAt + "<link rel=\"stylesheet\" href=\"".len
+    let hrefEnd = onDisk.find('"', hrefStart)
+    check hrefEnd > hrefStart
+    let href = onDisk[hrefStart ..< hrefEnd]
+
+    let styleAt = body.find("<style>")
+    let styleEnd = body.find("</style>", styleAt)
+    check styleAt >= 0 and styleEnd > styleAt
+    let inlineSheet = body[styleAt + "<style>".len ..< styleEnd]
+
+    # (a) the externalised file IS the bytes the renderer inlines.
+    check readFile(dist / href.strip(chars = {'/'})) == inlineSheet
+
+    # (b) and with the delivery normalised, nothing else differs.
+    let normalised = body.replace("<style>" & inlineSheet & "</style>", linkTag)
+    check normalised == onDisk
 
 
 # ──────────────────────────────────────────────────────────────────────────

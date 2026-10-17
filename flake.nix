@@ -133,8 +133,34 @@
     #
     # `flake = false`: both are consumed as source trees, not as flakes. The
     # runtime's own flake exposes only a wasi-sdk, which nothing here needs.
+    # MOVED 75d1592a -> f972b415 ON 2026-10-14, AND THE MOVE IS THE DELIVERABLE.
+    # At 75d1592a the `ct-writer` crate had no `[features]` block, no `build.rs`
+    # and no `trace_format_nim_writer` anchor: there was ONE writer, the pure
+    # Rust Path A, built against a `codetracer-trace-format` whose
+    # `codetracer_ctfs/src/header.rs` declares `VERSION = 3` and whose
+    # `meta_dat.rs` declares `META_DAT_VERSION = 3`, and which carries no file
+    # matching "compact" at all.
+    #
+    # So `ctWriterWasm` below produced — measured 2026-10-14, by
+    # `WebAssembly.Module.exports` on the module this flake builds — 38 ABI
+    # functions plus `memory`, 0 imports, and NO
+    # `ct_writer_set_compact_threshold`. Every container this repository has
+    # ever published was written by a writer with no compact lever to pull, which
+    # is the whole reason `ctfs-container.md` §1e's compact profile is unused
+    # here rather than any decision about it.
+    #
+    # aeb67e6d is `agents` after CCP-6 (the lever reachable from
+    # `replay/tools/replay_settled_transaction.mjs` as `--compact-threshold`) and
+    # CCP-7 (the two hooks that let a nix sandbox build Path B at all — see
+    # `ctWriterWasm`). The default feature there is `path-b`, the NIM writer,
+    # which is a USER DECISION taken on measurement and recorded in
+    # `ct-writer/Cargo.toml`: Path A linked `ruzstd`, which returns 4,194,304
+    # bytes of wrong data where C libzstd refuses a frame corrupted under a
+    # content checksum, and Path A has no in-memory reader. Building Path A to
+    # avoid Path B's toolchain would reverse that decision silently, so this
+    # builds what the runtime ships.
     aztec-avm-runtime = {
-      url = "github:metacraft-labs/aztec-avm-runtime/75d1592a3d1ab4dc795e04d931c9f268b4973835";
+      url = "github:metacraft-labs/aztec-avm-runtime/aeb67e6d56597f1e47842f06270f29a6e414da64";
       flake = false;
     };
 
@@ -143,13 +169,76 @@
     # from one checkout at that anchor, or two copies of `codetracer_trace_types`
     # become two distinct types that will not unify.
     codetracer-trace-format = {
-      url = "github:metacraft-labs/codetracer-trace-format/592fa42cbfd759cf13398180798daaf856eb7e9d";
+      url = "github:metacraft-labs/codetracer-trace-format/3fada0b03c3d1a0cbc7c35f278aa639028d702c5";
+      flake = false;
+    };
+
+    # ── THE WRITER ITSELF, which was never an input and had to become one ────
+    #
+    # `pins.json`'s `trace_format_nim_writer` anchor in the runtime revision
+    # above. A THIRD anchor appeared there on 2026-10-08 and this flake had no
+    # row for it, which is exactly why the paragraph above about
+    # `codetracer-trace-format` stopped being the answer: under `path-b` the Nim
+    # tree is the writer and the Rust one only supplies the path dependencies
+    # the lockfile names.
+    #
+    # `ct-writer/build.rs` materialises it out of a git OBJECT STORE, which a
+    # sandbox does not have. CCP-7 added `CT_TRACE_FORMAT_NIM_SRC` plus
+    # `CT_TRACE_FORMAT_NIM_SRC_REV` for exactly this: a plain tree, with the
+    # revision DECLARED and checked against `pins.json` rather than trusted,
+    # because a tree cannot prove its own provenance. `traceFormatNimRev` below
+    # is that declaration, and a mismatch is refused by the build script.
+    #
+    # HELD AT 051efd22b0 AND NOT FOLLOWED TO `agents`, deliberately and in the
+    # unusual direction. At 051efd22b0 the writer emits container 5
+    # (`CtfsVersion`), container 6 under the compact profile
+    # (`compact.nim` stamps `image[5] = CtfsVersionV6`) and `meta.dat` 6
+    # (`MetaDatVersion* = 6`), and the engine pinned at
+    # `client/hydrate/engine-pin.txt` accepts container {5,6} and `meta.dat`
+    # [6] — both profiles land inside it. That repository's `agents` HEAD is at
+    # `MetaDatVersion* = 7`, which the deployed engine REFUSES: advancing this
+    # pin would produce containers this site's own reader cannot open.
+    codetracer-trace-format-nim = {
+      url = "github:metacraft-labs/codetracer-trace-format-nim/051efd22b00ec3b88676fb07755a65c5a4ca8fde";
+      flake = false;
+    };
+
+    # ── THE WRITER'S OWN NIM DEPENDENCIES ───────────────────────────────────
+    #
+    # `codetracer_trace_format.nimble` requires `stew` and `results`, and `stew`
+    # transitively requires `unittest2`. `ct-writer/build.rs` passes exactly one
+    # `-p:` — the writer's own `src` — so until CCP-7 those three were resolved
+    # from whatever the building machine happened to have. In a sandbox it has
+    # none, and the build died at `cannot open file: results` with the compiler
+    # unable to say whose dependency it was.
+    #
+    # THE REVISIONS ARE NOT A FREE CHOICE EITHER. They are the ones
+    # `codetracer-trace-format-nim`'s OWN `flake.lock` pins at the revision
+    # above, read out of it rather than picked: that repository's flake declares
+    # the same three inputs and describes the `--path:` list built from them as
+    # what makes the `requires` importable "from a bare `nim c` (the package
+    # build below, and the FFI static lib the Rust sibling's build.rs
+    # compiles)". So this is that list, reconstructed here because the input is
+    # consumed as a source tree and its outputs are not available.
+    #
+    # Moving the writer pin above means re-reading these three out of its lock.
+    nim-stew = {
+      url = "github:status-im/nim-stew/1a5d0b99209f50ff055d9b5216849ba0365f8cf5";
+      flake = false;
+    };
+    nim-results = {
+      url = "github:arnetheduck/nim-results/b319652e98a198fa881ca70a76754c2dd6f09804";
+      flake = false;
+    };
+    nim-unittest2 = {
+      url = "github:status-im/nim-unittest2/92e1c13dcfb6d7e4ea6fb624fe9cc31e3dc76813";
       flake = false;
     };
   };
 
   outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system, codetracer
-            , aztec-avm-runtime, codetracer-trace-format }:
+            , aztec-avm-runtime, codetracer-trace-format, codetracer-trace-format-nim
+            , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -169,6 +258,25 @@
           # every one of which resolves $CODETRACER_SRC before falling back to
           # a ../codetracer sibling.
           CODETRACER_SRC = codetracer;
+
+          # ── THE CTFS WRITER'S NIM SOURCE, FOR TOOLS THAT LINK IT ──────────
+          #
+          # `tools/chain/compact_container.nim` imports `codetracer_ctfs` and
+          # `codetracer_trace_writer` to apply `ctfs-container.md` §1e. Those
+          # are not vendored here and not on any default Nim path, so without
+          # these a recipe that builds it fails with `cannot open file:
+          # codetracer_ctfs/types` — measured, on the first run of
+          # `just ct-compact-check`.
+          #
+          # The REVISION is the one `ctWriterWasm` builds the shipped writer
+          # from, so a tool that converts a container and the writer that
+          # produces one cannot drift apart: both read this input.
+          CT_TRACE_FORMAT_NIM_SRC = codetracer-trace-format-nim;
+          # Its `.nimble` requires, in the order that repository's own flake
+          # lists them. Colon-joined because that is the shape
+          # `ct-writer/build.rs` reads, and the same string serves both.
+          CT_NIM_EXTRA_PATHS =
+            builtins.concatStringsSep ":" [ nim-stew nim-results nim-unittest2 ];
         };
 
         # CI dev shell — the execution environment CI runs project commands in
@@ -312,6 +420,9 @@
           avmRuntimeRev = aztec-avm-runtime.rev;
           traceFormatSrc = codetracer-trace-format;
           traceFormatRev = codetracer-trace-format.rev;
+          traceFormatNimSrc = codetracer-trace-format-nim;
+          traceFormatNimRev = codetracer-trace-format-nim.rev;
+          traceFormatNimDeps = [ nim-stew nim-results nim-unittest2 ];
         };
       in {
         # The larger, interactive default shell includes the ci shell (so a local
@@ -384,8 +495,24 @@
         # No pyyaml here — these five sites use `json` from the standard
         # library and nothing else. It does not touch the capture pin: `envId`
         # is `captureEnv`'s own, and this is the devshell around it.
+        #
+        # `brotli` BECAUSE THIS SHELL RUNS THE EXPORTER. `check-canary.mjs`
+        # builds and runs `client/src/static_export`, which since CCP-6 stores
+        # every container pre-compressed, and `publish/encoding.nim` shells out
+        # to the `brotli` binary to do it. Without it on PATH the exporter does
+        # not degrade — it REFUSES, by design:
+        #
+        #   cannot publish the container for 0x00c67f6f…: cannot store a
+        #   container with Content-Encoding 'br': `brotli` is not on PATH
+        #
+        # and the canary reported `capture failed: static exporter failed`
+        # (run 38643115341). `devShells.ci` has carried brotli since CCP-6 and
+        # this one was missed, which is the whole class of defect a second
+        # shell with its own package list produces: the dependency was declared
+        # where the author was looking.
         devShells.capture = pkgs.mkShell (srcEnv // {
-          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just followerNodejs pkgs.python3 ];
+          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just followerNodejs pkgs.python3
+                          pkgs.brotli ];
           shellHook = ''
             echo "blocktracer VD.0 pinned capture environment"
             echo "  vd0-capture-env --print-pin                       — what is pinned, and its id"
@@ -420,7 +547,13 @@
         packages.default = pkgs.stdenv.mkDerivation {
           name = "blocktracer-site";
           src = ./.;
-          nativeBuildInputs = [ pkgs.nim pkgs.bash ];
+          # `brotli` BECAUSE THE CONTAINERS ARE STORED PRE-COMPRESSED.
+          # `static_export.nim`'s `PublishedEncoding` is `ceBrotli` and
+          # `publish/encoding.nim` shells out to this binary — an absent one is
+          # a NAMED refusal there and never a silent identity pass, so without
+          # it this derivation fails loudly rather than publishing raw bytes
+          # with no `Content-Encoding`.
+          nativeBuildInputs = [ pkgs.nim pkgs.bash pkgs.brotli ];
           CODETRACER_SRC = codetracer;
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
