@@ -116,6 +116,25 @@ on:
           one. See `client/hydrate/engine-pin.txt`'s 2026-10-12 section.
         type: boolean
         default: true
+      refresh:
+        description: >-
+          Supersede objects whose KEY already exists, instead of skipping
+          them. Off by default, because the continuous path's "a re-run
+          uploads zero" rests on that default and is the property that
+          matters there. MEASURED on runs 38957112297 and 38995672069: this
+          was reachable ONLY through `render-over-live`, which conflates two
+          independent decisions — WHAT to render (the repo's own tree, or the
+          live bucket's data) and WHETHER to overwrite keys that already
+          exist. The combination a branch needs to ship re-recorded captures
+          is the repo's tree WITH overwriting, and it had no spelling: with
+          `render-over-live: false` the publisher reported success and skipped
+          every one of the thirteen debug pages, because their keys were
+          already in the bucket, so production kept serving pages that name no
+          container while the containers themselves sat beside them. Turn this
+          on to replace existing objects from an ordinary build.
+        type: boolean
+        default: false
+
       render-over-live:
         description: >-
           Render the client over the LIVE bucket's data instead of over this
@@ -904,8 +923,25 @@ jobs:
           # on top of 75 min staging and 85 min rendering — comfortably inside
           # the 600-minute ceiling, which is why `timeout-minutes` was raised to
           # 600 rather than left at the 240 I first wrote.
+          # EITHER REASON IS ENOUGH, and they are different reasons.
+          #
+          # `render-over-live` implies it by construction — that mode exists to
+          # replace what the bucket serves for keys the bucket already has. But
+          # it was the ONLY way to ask for it, which made "render the repo's
+          # tree" and "overwrite existing keys" one choice instead of two, and
+          # the combination a branch needs to ship re-recorded captures — the
+          # repo's tree, overwriting — could not be expressed at all.
+          #
+          # Run 38995672069 is the worked example: `render-over-live: false`,
+          # every step green including "does the bucket hold the site objects
+          # the tree does?", and all thirteen Aztec debug pages still serving
+          # `data-trace=""` afterwards. The publisher had skipped them on key
+          # existence. The containers those pages point at were already in the
+          # bucket and byte-identical, so the publish was simultaneously
+          # correct and useless.
           REFRESH=""
-          if [ "${{ inputs.render-over-live }}" = "true" ]; then
+          if [ "${{ inputs.render-over-live }}" = "true" ] || \
+             [ "${{ inputs.refresh }}" = "true" ]; then
             REFRESH="--refresh"
             echo "publishing with --refresh: every key-existence object is re-read" \
                  "and superseded where the bytes differ. Without it the entry pages" \
