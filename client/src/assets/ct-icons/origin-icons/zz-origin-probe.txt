@@ -1,0 +1,1 @@
+origin probe: a four-segment key with a non-svg extension
