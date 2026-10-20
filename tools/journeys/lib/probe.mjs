@@ -946,6 +946,52 @@ export async function waitForFacts(page, test, budgetMs = 8000) {
   return { facts, reached: test(facts) };
 }
 
+/**
+ * The sentence the Values pane shows while it is waiting for this position's
+ * reply — `live_locals.ReadingNote`, verbatim but for the ellipsis, which is
+ * matched by `includes` rather than compared so the harness does not depend on
+ * the exact character.
+ */
+export const VALUES_PENDING_NOTE = "Reading the values at this position";
+
+/**
+ * Wait for the Values pane to hold an ANSWER for where the session now stands.
+ *
+ * WHY A SEPARATE WAIT, WHEN THE POSITION HAS ALREADY BEEN WAITED FOR. Because
+ * they are two replies and only the first one is what `POSITION_ANSWERED`
+ * reports. `StateVM`'s auto-load effect issues more than one `ct/load-locals`
+ * per move — `live_locals.nim`'s "THE FLICKER" header says so and says why —
+ * and a reading taken when the position lands catches the pane mid-sentence.
+ *
+ * MEASURED on `aztec-testnet-frames/0x00689495…`, a nine-position walk driven
+ * exactly as journeys 07 and 16 drive one:
+ *
+ *   read at the position answer        1 position of 9 had rows
+ *   …and the log at the other eight    `updateLocals: setting 5 variables`
+ *                                      with the pane reading the pending
+ *                                      sentence and 0 rows
+ *   read after this wait               9 of 9, five rows each, 1.1s later
+ *
+ * So the eight zeroes were not the product losing an answer and not the engine
+ * failing to give one — `a-motion-says-which-values-it-changed`'s header
+ * records both of those being ruled out, and the one reading it was missing is
+ * the line above. THE PRODUCT IS CORRECT AND THE WALK WAS EARLY.
+ *
+ * THIS IS NOT "WAIT LONGER UNTIL IT PASSES", which that header rightly refuses.
+ * The predicate is the pane's own two terminal states — it has rows, or it is
+ * saying something that is not "I am still reading" — so a pane that genuinely
+ * has no values here settles on its sentence and this returns immediately with
+ * `reached` true. A pane that never leaves the sentence times out, and the
+ * caller gets `reached: false` to report as the failure it is.
+ */
+export async function waitForValuesSettled(page, budgetMs = 15000) {
+  return waitForFacts(
+    page,
+    (f) => (f.stateRows?.length ?? 0) > 0 || !(f.stateNote ?? "").includes(VALUES_PENDING_NOTE),
+    budgetMs,
+  );
+}
+
 /** The tick `updateDebuggerPosition` says it moved to, or null. */
 export function tickOf(positionLine) {
   const m = positionLine && positionLine.match(/rrTicks=(\d+)/);

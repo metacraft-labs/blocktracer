@@ -57,6 +57,7 @@ import {
   POSITION_ANSWERED,
   tickOf,
   waitForFacts,
+  waitForValuesSettled,
 } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
@@ -78,9 +79,32 @@ const paneOf = (facts) => ({
   note: facts.stateNote,
 });
 
-/** Wait for the pane to stop changing. A predicate, never a sleep. */
+/**
+ * Wait for the pane to hold an ANSWER, and then to stop changing.
+ *
+ * STABILITY WAS NOT SETTLEDNESS, AND THAT IS WHY THIS WALK READ ZEROES. The
+ * loop below declares the pane settled after three consecutive identical
+ * readings 130ms apart — about 390ms — and "Reading the values at this
+ * position…" is perfectly stable for the whole second it is on screen. So the
+ * pane's PENDING state satisfied the predicate and the reading was taken of
+ * the sentence rather than of the values that arrive after it.
+ *
+ * MEASURED on `aztec-testnet-frames/0x00689495…`, nine positions:
+ * `updateLocals: setting 5 variables` in the log at every one of them, the
+ * pane showing the pending sentence and 0 rows at eight, and five rows at all
+ * nine when the pane is waited for — 1.1s after the position answer, every
+ * time. The header below records the engine and the recording being ruled out
+ * one at a time; this is the third thing in the chain and it was the harness.
+ *
+ * `waitForValuesSettled` FIRST, then stability. The two are different
+ * questions and both are needed: the first says the pane has an answer for
+ * this position, the second says it has stopped moving. A pane that genuinely
+ * has no values settles on its own sentence and passes the first immediately,
+ * so this is not a wait for a particular outcome.
+ */
 async function settled(page, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
+  await waitForValuesSettled(page, timeoutMs);
   let seen = "";
   let stable = 0;
   let facts = await readFacts(page);
