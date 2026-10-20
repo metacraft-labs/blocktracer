@@ -386,7 +386,17 @@ const ASK_ENGINE = async () => {
         minCountLimit: 50,
         depthLimit: 7,
         watchExpressions: [],
-        lang: 0,
+        // THE WIRE SPELLING, AND IT IS A STRING. `lang: 0` was the ordinal of the
+        // backend's `serde_repr` `Lang`; the PINNED engine has retired that for a
+        // `Lang::wire_name` string and refuses the ordinal while reading the
+        // REQUEST — `JSON error: invalid type: integer \`0\`, expected a string` —
+        // before the container is consulted. The product's own seam is
+        // `live_locals.EngineWireLang` (= "noir"), added when three journeys went
+        // green on it; this direct-to-worker probe was not moved with it and went
+        // on asking in the retired dialect, so `body.locals` came back EMPTY every
+        // time and every count taken from it was a zero about the harness wearing
+        // the product's clothes.
+        lang: "noir",
       });
       const got = locals?.body?.locals ?? [];
       if (got.length > rows.length) rows = got;
@@ -508,7 +518,24 @@ export async function run({ browser, site, j }) {
   // forever. The paragraph above is still right that the capability follows the
   // RECORDING and not the chain — it just names the wrong fact about it.
   const withSource = sessions.filter((t) => t.hasSource && t.hasRecordedState);
-  const withoutSource = sessions.filter((t) => !t.hasRecordedState);
+  // THE ARM IS CALLED NO-SOURCE AND IT MUST SELECT ON SOURCE. This read
+  // `!t.hasRecordedState` — "no values to trace" — while every assertion it
+  // feeds names the other property: "a recording with no source to classify",
+  // "none could answer", "and it offers no origin control, because none could
+  // answer". Those are not the same recording. MEASURED over this corpus:
+  // 9 sessions have no recorded state and 11 have no source, and the two sets
+  // are disjoint in the direction that matters — `!hasRecordedState`'s first
+  // element was `/demo/tx/0x4535a246…`, which PUBLISHES SOURCE. The arm was
+  // therefore asking a recording with source to prove that a recording without
+  // source classifies nothing, and the three red verdicts it produced ("4
+  // classified", "4 authored control(s) on a recording with no source") were
+  // correct readings of the wrong subject.
+  //
+  // The sibling filter above keeps `hasRecordedState`, and for its own reason,
+  // recorded in the block beside it: the capability arm needs a value to offer
+  // a control ON. One arm needs values and the other needs no source; they are
+  // two properties and now two filters.
+  const withoutSource = sessions.filter((t) => !t.hasSource);
   j.atLeast(
     withSource.length,
     1,
