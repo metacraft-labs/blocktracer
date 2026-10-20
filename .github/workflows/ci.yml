@@ -2312,11 +2312,49 @@ jobs:
   # THREE, from the pool and not from taste: seven runners, of which four
   # share `gpu-server-002`. Three keeps at most two shards on that host and
   # leaves `journeys`, `contract` and `visual-design-canary` a runner each.
+  #
+  # ── THREE WAS STILL TOO MANY, AND THE SWEEP NOW WAITS FOR `journeys` ─────
+  #
+  # `max-parallel: 3` fixed the shape and not the amount. On run 39352321787,
+  # the first run to carry it: the shards did go in waves, shard 8 finished a
+  # full nine arms, and no shard timed out. Two things still broke, and both
+  # are the pool.
+  #
+  #   * SHARD 7 DIED AT `browser.newPage` — "Target page, context or browser
+  #     has been closed", in Arm I, 2 minutes in, with nothing judged. It
+  #     started at 03:02:05, inside the same minute shard 4 ended and three
+  #     minutes before shard 8 began: three browser-driving jobs changing
+  #     hands at once on a pool where four runners share `gpu-server-002`.
+  #
+  #   * `journeys` ITSELF WENT RED IN THREE PLACES THAT ARE NOT VERDICTS about
+  #     the product. It ran 01:16–01:53, concurrently with shards 1, 2 and 3.
+  #     `a-jump-moves-the-position` read "call trace served 12, hydrated 12 ·
+  #     event log served 8, hydrated 8" — the engine's navigation feed had not
+  #     arrived inside the journey's bounded wait. `the-timeline-can-be-
+  #     dragged` landed every drop exactly (want == got, three of three) and
+  #     then found the slider carrying `seekable=false role=null
+  #     tabindex=null`. `a-session-shows-the-values-it-landed-on` landed with
+  #     `live_locals.TimedOutNote` and 0 rows, then read 5 on the way back.
+  #     All three were GREEN on the run before this one, over the same bytes,
+  #     and all three are green on an idle workstation. The budgets they
+  #     exceeded were measured on a machine that was not also running three
+  #     browser sweeps.
+  #
+  # So the sweep is sequenced AFTER `journeys` and capped at TWO. The ordering
+  # is not only about contention: this sweep's entire claim is "the journeys
+  # BITE", which is not a question worth five hours of runner time while the
+  # journeys themselves are red. A red `journeys` now skips it instead of
+  # paying for it.
+  #
+  # The cost is wall clock and it is stated rather than discovered: four waves
+  # instead of three, after a 40-minute `journeys`. The runner-hours do not
+  # change, and they were already being spent twice over on re-runs.
   journeys-bite:
+    needs: journeys
     runs-on: [self-hosted, linux, x64]
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 2
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
