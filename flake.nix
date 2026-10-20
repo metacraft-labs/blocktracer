@@ -179,6 +179,13 @@
       url = "github:metacraft-labs/codetracer-trace-format/3fada0b03c3d1a0cbc7c35f278aa639028d702c5";
       flake = false;
     };
+    # ── Solana: the SBF recorder (tools/chain/nix/sol.nix says why) ────────────
+    # Its trace-format path dependencies are `flow-trace-format` above, whose
+    # revision is exactly the one this recorder's repro.lock names.
+    codetracer-solana-recorder = {
+      url = "github:metacraft-labs/codetracer-solana-recorder/0a1950220964d8c8793b43fa6c4ec1fb9bed35ef";
+      flake = false;
+    };
     nim-stew = {
       url = "github:status-im/nim-stew/1a5d0b99209f50ff055d9b5216849ba0365f8cf5";
       flake = false;
@@ -197,6 +204,7 @@
             , aztec-avm-runtime, codetracer-trace-format
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
+            , codetracer-solana-recorder
             , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -381,6 +389,16 @@
           writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
           blocktracerRoot = ./.;
         };
+
+        sol = pkgs.callPackage ./tools/chain/nix/sol.nix {
+          nodejs = followerNodejs;
+          recorderSrc = codetracer-solana-recorder;
+          recorderRev = codetracer-solana-recorder.rev;
+          solTraceFormatSrc = flow-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
       in {
         # The larger, interactive default shell includes the ci shell (so a local
         # `nix develop` has the exact CI toolchain plus any interactive extras).
@@ -417,6 +435,13 @@
         packages.cadence-replay-helper = flow.replayHelper;
         packages.flow-capture-tree = flow.flowCaptureTree;
         packages.flow-ct-print = flow.ctPrint;
+
+        # ── Solana, produced the same way, and NOT yet in produced-captures ──
+        # Its prestate token (`forward-capture`) is not in §1.4's set, so the reader
+        # refuses the tree; it joins produced-captures as `solana-mainnet` once the
+        # row lands (Chain-Delivery DEL-3b). See tools/chain/nix/sol.nix.
+        packages.solana-recorder = sol.solanaRecorder;
+        packages.sol-capture-tree = sol.solCaptureTree;
 
         # The site with the STAGING-ONLY chains added: `default` plus the Ethereum
         # and Flow trees, placed where the exporter already looks for a live-chain capture.

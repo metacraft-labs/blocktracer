@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# EIGHTEEN suites — 98 + 19 + 24 + 24 + 57 + 237 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 6 + 34 + 26 = 1239 counted assertions —
+# NINETEEN suites — 98 + 19 + 24 + 24 + 57 + 238 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 6 + 34 + 26 + 6 = 1246 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -462,6 +462,12 @@ chain-selftest:
     # refusals, and every input it cannot publish honestly refused. Traced rows need
     # a container and are exercised by `just starknet-capture`.
     node tools/chain/starknet-producer-selftest.mjs
+    # Offline and toolchain-free: the Solana producer's facts (fee / compute-unit /
+    # cost-unit vector, fee-payer sender, ComputeBudget-skipping target), the committed
+    # window's content-addressed inputs refusing a tampered object, and the prestate
+    # token still outside §1.4's set. Traced rows need the recorder and are exercised
+    # by `nix build .#sol-capture-tree`.
+    node tools/chain/solana-producer-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #

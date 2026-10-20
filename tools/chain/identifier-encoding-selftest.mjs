@@ -710,11 +710,14 @@ test('exactly the expected files know about each half of the seam');
   // SEVEN AND NOT FIVE: `produce-starknet-snapshot.mjs` joined the same day as the second
   // producer that declares it (hex for every kind — Starknet felts), and
   // `starknet-producer-selftest.mjs` with it.
-  ck('seven under client/, and SEVEN under tools/ — this suite, the census check, '
-     + 'the hostile corpus that exempts the member, the Sui and Starknet producers that '
-     + 'declare it and their selftests',
+  //
+  // EIGHT AND NOT SEVEN: `produce-sol-snapshot.mjs` joined the same day as the third producer
+  // that declares it (base58 for every kind — signatures, addresses and blockhashes).
+  ck('seven under client/, and EIGHT under tools/ — this suite, the census check, '
+     + 'the hostile corpus that exempts the member, the Sui, Starknet and Solana producers '
+     + 'that declare it and the Sui and Starknet selftests',
      sizeOf('declaration').client.length === 7
-     && sizeOf('declaration').tools.length === 7);
+     && sizeOf('declaration').tools.length === 8);
   ck('six files under src/ read the case rule', sizeOf('caseRule').src.length === 6);
   ck('three under client/ — the query canonicaliser, the route enumerator and the '
      + 'browser bundle — and one under tools/',

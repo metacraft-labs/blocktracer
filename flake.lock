@@ -88,6 +88,23 @@
         "type": "github"
       }
     },
+    "codetracer-solana-recorder": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792506289,
+        "narHash": "sha256-tmvCLLBFol8uzTtPGlhBu5UcurVd4QtUvjR91ghKlQg=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-solana-recorder",
+        "rev": "0a1950220964d8c8793b43fa6c4ec1fb9bed35ef",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-solana-recorder",
+        "rev": "0a1950220964d8c8793b43fa6c4ec1fb9bed35ef",
+        "type": "github"
+      }
+    },
     "codetracer-trace-format": {
       "flake": false,
       "locked": {
@@ -282,6 +299,7 @@
         "codetracer-design-system": "codetracer-design-system",
         "codetracer-evm-recorder": "codetracer-evm-recorder",
         "codetracer-flow-recorder": "codetracer-flow-recorder",
+        "codetracer-solana-recorder": "codetracer-solana-recorder",
         "codetracer-trace-format": "codetracer-trace-format",
         "codetracer-trace-format-nim": "codetracer-trace-format-nim",
         "evm-trace-format": "evm-trace-format",

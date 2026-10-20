@@ -1487,6 +1487,8 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ['sui-producer-selftest.mjs', /asserted !== (\d+)\) \{/],
     // The Starknet producer's offline suite, which states its figure as a constant.
     ['starknet-producer-selftest.mjs', /^const DECLARED = (\d+);/m],
+    // The Solana producer's offline suite: no host configurations, so `BASE_ARMS` is its total.
+    ['solana-producer-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1498,7 +1500,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# EIGHTEEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  const m = /# NINETEEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
@@ -1507,7 +1509,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's eighteen terms are the suites' own declarations, in recipe order — `
+    ck(`the header's nineteen terms are the suites' own declarations, in recipe order — `
        + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
@@ -1626,7 +1628,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   ck(`every suite has a ci.yml step whose comment states its count exactly once — `
      + `${ciProblems.length} problem(s)`, ciProblems.length === 0);
   if (ciProblems.length) console.error(`    ${ciProblems.join('\n    ')}`);
-  ck(`…and ci.yml's eighteen counts are the suites' own — [${ciTerms.join(', ')}] vs `
+  ck(`…and ci.yml's nineteen counts are the suites' own — [${ciTerms.join(', ')}] vs `
      + `[${terms.join(', ')}]`,
      ciTerms.length === terms.length && ciTerms.every((n, i) => n === terms[i]));
 }
@@ -1782,7 +1784,10 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  an EIGHTEENTH suite joined `chain-selftest` — `starknet-producer-selftest`, the
 //       Starknet producer's facts and refusals (Recorder-Cairo, 2026-10-20) — at the same
 //       single assertion.
-expectCount(237);
+//   +1  a NINETEENTH suite joined `chain-selftest` — `solana-producer-selftest`, the
+//       Solana producer's facts and committed inputs (Recorder-Solana, 2026-10-20) — at the
+//       same single assertion.
+expectCount(238);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

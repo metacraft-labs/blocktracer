@@ -244,6 +244,10 @@
             "why": "the second PRODUCER to declare the member, and the first to declare `hex` explicitly rather than leave it to the absent-means-hex rule: every Starknet identifier is a felt (`0x` + 1-63 hex, Search-And-Routing.md §2's felt row), and stating it makes the tree say so rather than rely on a default. It states the declaration it imports from `lib/starknet-producer-facts.mjs` and derives no path from it. Joined this set on 2026-10-20 (Recorder-Cairo)."
           },
           {
+            "path": "tools/chain/produce-sol-snapshot.mjs",
+            "why": "the third PRODUCER to declare the member. Every Solana identifier — a transaction signature (87-88 characters), an address (43-44) and a blockhash — is base58 and case-significant, so a Solana tree that left `provenance.identifierEncoding` absent would be read as hex and every identifier lowercased into one that does not exist. It states the declaration it imports from `lib/solana-producer-facts.mjs` and derives no path from it. Joined this set on 2026-10-20 (Recorder-Solana)."
+          },
+          {
             "path": "tools/chain/starknet-producer-selftest.mjs",
             "why": "the Starknet producer's selftest asserts that the tree it produces DECLARES the member (hex for every kind). It reads one produced snapshot's member and derives nothing from it."
           },
