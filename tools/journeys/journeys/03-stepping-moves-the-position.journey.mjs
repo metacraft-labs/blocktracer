@@ -44,7 +44,16 @@
 // correctly" is vacuously true of a corpus that contains none — which is
 // exactly how the gap stayed invisible.
 
-import { visit, readFacts, consoleMark, waitForConsoleLine, POSITION_ANSWERED, tickOf, waitForFacts } from "../lib/probe.mjs";
+import {
+  visit,
+  readFacts,
+  consoleMark,
+  waitForConsoleLine,
+  POSITION_ANSWERED,
+  tickOf,
+  waitForFacts,
+  lastPositionTick,
+} from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
 export const id = "stepping-moves-the-position";
@@ -71,12 +80,29 @@ export const needsEngine = true;
  * the assertions, which is where it belongs.
  */
 async function stepOnce(page, before) {
+  // ATTRIBUTE THE ANSWER, DO NOT JUST TAKE THE NEXT ONE. `consoleMark` plus
+  // "the first `POSITION_ANSWERED` after it" is only the GESTURE's answer if
+  // nothing else is still answering, and `phase === "ready"` does not promise
+  // that — `goLive` publishes it with the controls, not with the engine's
+  // reply. The landing's own late line was being read as the click's, its
+  // tick was the tick the session was already on, and the `waitForFacts`
+  // below was satisfied before the click had been answered at all.
+  //
+  // `lastPositionTick` carries the measurements and the quiescence wait that
+  // was tried first and was not enough. A line repeating the tick the page
+  // has already reached is a landing echo and is skipped; the gesture's own
+  // answer names a different one. At the end of a trace no differing tick
+  // arrives, the bounded wait runs out, and the verdict is taken from the
+  // facts exactly as before — which is what keeps "a step that lands where it
+  // started is a RESULT" true.
+  const priorTick = lastPositionTick(page);
   const mark = consoleMark(page);
   await page.click('[data-action="step-forward"]');
-  const answered = await waitForConsoleLine(page, POSITION_ANSWERED, {
-    sinceIndex: mark,
-    budgetMs: 15000,
-  });
+  const answered = await waitForConsoleLine(
+    page,
+    (t) => POSITION_ANSWERED(t) && tickOf(t) !== priorTick,
+    { sinceIndex: mark, budgetMs: 15000 },
+  );
   const tick = tickOf(answered);
   if (tick !== null) {
     // The panes are written from that same answer, so this waits for the DOM to

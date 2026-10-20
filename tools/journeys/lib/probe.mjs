@@ -992,6 +992,58 @@ export async function waitForValuesSettled(page, budgetMs = 15000) {
   );
 }
 
+/**
+ * The tick of the LAST position the page has already answered, or null.
+ *
+ * WHY A GESTURE CANNOT BE MARKED AGAINST A TALKING PAGE. `consoleMark` takes
+ * the buffer's length, the gesture is made, and the next `POSITION_ANSWERED`
+ * line after that mark is read as the gesture's answer. If the LANDING is
+ * still answering — `goLive` publishes `phase === "ready"` with the controls,
+ * not with the engine's reply — then the first line after the mark is the
+ * landing's, `tickOf` gives the tick the session is ALREADY on, and
+ * `waitForFacts(step === tick)` is satisfied before the gesture has been
+ * answered at all. The reading that follows is of the position the page was
+ * at when it was clicked.
+ *
+ * MEASURED on `/demo/tx/0x0baa77f7…/debug` with `JOURNEY_CPU_THROTTLE=4`:
+ * clicking at `ready` reported "did not move" in 1 of 4 runs, and 2 of 5 on a
+ * second pass; unthrottled it is 6 of 6; and clicking then sleeping 3s before
+ * reading is 6 of 6 AT throttle 4, which is what says the click was never the
+ * problem. On CI it took `stepping-moves-the-position` red twice, on a
+ * different arm each time.
+ *
+ * A QUIESCENCE WAIT WAS TRIED FIRST AND IS NOT ENOUGH, which is worth saying
+ * because it is the obvious answer. "No position line for 700ms" is trivially
+ * true at a handover that has not started talking yet, and requiring one line
+ * first still fails: `aztec-testnet-frames/0x00689495…` takes about nine
+ * seconds to answer its landing and emits ~7,600 console lines doing it, with
+ * gaps. Measured after that repair, the REAL arm still failed 1 run in 2.
+ *
+ * So the answer is ATTRIBUTED rather than waited for. The caller records the
+ * tick the page has already reached, and then accepts only a line that names
+ * a DIFFERENT one. A landing echo is skipped because it repeats a tick that
+ * was already current; the gesture's own answer is not.
+ *
+ * AND A STEP THAT DOES NOT MOVE IS STILL REPORTED AS ONE. `stepOnce`'s own
+ * comment refuses "wait for `step` to differ" because a step that lands where
+ * it started is a RESULT. It still is: at the end of a trace no differing
+ * tick arrives, the bounded wait runs out, and the verdict is taken from the
+ * facts exactly as before — unchanged, and red. What changed is only which
+ * line is allowed to end the wait.
+ */
+export function lastPositionTick(page) {
+  const buf = page.__ctConsole;
+  if (!buf) {
+    throw new Error(
+      "lastPositionTick: no console buffer on this page — it did not come from visit()",
+    );
+  }
+  for (let i = buf.length - 1; i >= 0; i -= 1) {
+    if (POSITION_ANSWERED(buf[i].text)) return tickOf(buf[i].text);
+  }
+  return null;
+}
+
 /** The tick `updateDebuggerPosition` says it moved to, or null. */
 export function tickOf(positionLine) {
   const m = positionLine && positionLine.match(/rrTicks=(\d+)/);
