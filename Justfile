@@ -1548,6 +1548,9 @@ ETH_CAPTURE_TX := "0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2
 # recorder BINARY, which is a Rust build in the `codetracer-evm-recorder`
 # sibling and is not in this repository. The chain data is no longer the
 # obstacle; the toolchain is.
+# `nix build .#evm-recorder` builds that binary from this flake's pins (the writer
+# at the last `meta.dat`-6 revision), and `nix build .#eth-capture-tree` runs this
+# whole capture in the sandbox. `packages.site-staging` publishes the result.
 #
 # The container is NOT byte-identical between two runs over the same inputs, and
 # that is a property of the RECORDER rather than of the inputs — measured over
