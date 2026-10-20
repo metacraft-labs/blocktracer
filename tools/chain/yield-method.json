@@ -463,6 +463,169 @@
           "provenance nothing established."
         ]
       }
+    },
+    "starknet-mainnet": {
+      "pinnedOn": "2026-10-20",
+      "_whyThisIsCommittedBeforeAnyReading": [
+        "THE EXPECTATION BELOW IS DECLARED BEFORE ANY PINNED WINDOW OF THIS CHAIN WAS REPLAYED,",
+        "and that is a fact about the commit graph, not about this file: this entry is committed",
+        "on its own, ahead of any reading.",
+        "",
+        "WHAT HAD BEEN MEASURED BEFORE IT, STATED SO THE ORDER IS NOT OVERSTATED. Two blocks",
+        "outside every window below were replayed while the recorder was being built, both",
+        "Starknet 0.14.4: 16,664,437 (8 transactions) and 16,664,301 (1), 9 of 9 reproduced.",
+        "Neither is a pinned window and neither is in an era the prediction below turns on — it",
+        "is about the OLDER eras, which nothing had touched when this was written."
+      ],
+      "historicRange": {
+        "from": 1,
+        "to": 16000000
+      },
+      "historicRangeRecordedBy": "codetracer-cairo-recorder onchain/README.md and the version boundaries bisected over starknet_getBlockWithTxHashes on 2026-10-20 against api.cartridge.gg (spec 0.10.2): every Starknet version's first block from 0.9.1 at 3,799 to 0.14.4 at 15,976,751, with 0.13.0 — the oldest version the recorder's executor carries constants for — first at 501,514. The full table is in Recorder-Cairo.milestones.org's CXP-CAIRO-1 notes.",
+      "windows": [
+        [
+          480000,
+          480001
+        ],
+        [
+          620000,
+          620001
+        ],
+        [
+          800000,
+          800001
+        ],
+        [
+          1400000,
+          1400001
+        ],
+        [
+          3000000,
+          3000001
+        ],
+        [
+          13000000,
+          13000001
+        ]
+      ],
+      "blocksPerWindow": 2,
+      "windowsNote": [
+        "SIX WINDOWS OF TWO BLOCKS, ONE PER ERA THE RECORDER TREATS DIFFERENTLY, PLUS ONE IT",
+        "CANNOT RUN AT ALL — because the expected variable below is `era`, and a window set",
+        "with no window in the era the prediction says fails is a set that cannot refute it.",
+        "",
+        "  480,000-480,001         Starknet 0.12.3 — below 0.13.0, the oldest version the",
+        "                          executor carries versioned constants for. Predicted: every",
+        "                          row refused, by name. This is the window that refutes.",
+        "  620,000-620,001         0.13.1 — fees charged on Cairo steps and builtins.",
+        "  800,000-800,001         0.13.2.1 — the same fee model, a later compiler era.",
+        "  1,400,000-1,400,001     0.13.5 — after 0.13.4's introduction of Sierra gas.",
+        "  3,000,000-3,000,001     0.14.0.",
+        "  13,000,000-13,000,001   0.14.3 — the era the recorder was built against.",
+        "",
+        "TWO BLOCKS, because a window is a cost and not a sample: the producer replays each",
+        "block whole (`replay-preceding`, one pass per block), and a 0.13.x block carries",
+        "100-200 transactions, some of them a million VM steps. Nothing is sampled within a",
+        "window; each is whole."
+      ],
+      "tipAtPinning": 16666993,
+      "finalizedAtPinning": 16663863,
+      "finalizedMeaning": "`starknet_getBlockWithTxHashes(\"l1_accepted\")` — the newest block whose state update L1 has accepted",
+      "expectedDominantVariable": "era",
+      "expectationDeclaredInAdvance": true,
+      "expectedOn": "2026-10-20",
+      "expectationReasoning": [
+        "ERA, AND THE PREMISE IS READ OUT OF THE RECORDER RATHER THAN GUESSED.",
+        "",
+        "The recorder re-executes each block in StarkWare's own executor (blockifier",
+        "0.20.0-rc.1) and compares every receipt fact with the chain's. Two things in it are",
+        "era-dependent and nothing else in it is:",
+        "",
+        "  1. The executor carries versioned constants for Starknet 0.13.0 through 0.14.4 and",
+        "     for nothing older, and refuses a block of any other version by name. So the",
+        "     0.12.3 window is predicted at ZERO traced, every row refused with that reason —",
+        "     the prediction's sharpest edge, and the one place a gradient would be a surprise.",
+        "",
+        "  2. A Sierra class is recompiled to CASM by the recorder's compiler (cairo-lang",
+        "     2.19.5), not by the one the sequencer used when the class was declared. In the",
+        "     eras whose fee is charged on Cairo STEPS and builtins (before Sierra gas, 0.13.4),",
+        "     a different compilation of the same Sierra can execute a different number of",
+        "     steps, and the actual fee — a counted fact — would then disagree. So the 0.13.1",
+        "     and 0.13.2.1 windows are predicted to carry `divergent` rows with a fee or L2-gas",
+        "     mismatch, and the windows from 0.13.5 on to reproduce near-totally.",
+        "",
+        "What would REFUTE it: a gradient across the in-range windows that tracks depth rather",
+        "than era (the endpoint's state reads thinning with age — `depth` or",
+        "`endpoint-retention`), or divergent rows in the 0.14 windows whose cause is not the",
+        "compiler. The charter's earlier drawer value, `coverage-gaps`, was premised on folding",
+        "per-block state diffs forward, a design this recorder does not use; it is superseded",
+        "here rather than carried."
+      ],
+      "exclusions": [],
+      "exclusionsNote": [
+        "ZERO, for the reasons `eth-has-no-structural-exclusion` under `carried` gives for",
+        "Ethereum, which hold here unchanged: `not-first-in-block` is not structural on a chain",
+        "where the producer replays transactions 0..k-1 from the parent block (it is what",
+        "`replay-preceding` IS), and Starknet publishes an execution for every transaction it",
+        "settles, so there is no private, chain-absent population. A row this pipeline",
+        "declines stays in the denominator."
+      ],
+      "declinedColumns": [
+        "refused",
+        "bodyUnavailable",
+        "notAttempted"
+      ],
+      "tracedColumns": [
+        "replayed",
+        "divergent"
+      ],
+      "denominators": [
+        {
+          "id": "all-transactions",
+          "member": "transactions",
+          "yieldMember": "tracedOverAllTransactions",
+          "excludes": []
+        }
+      ],
+      "denominatorsNote": [
+        "ONE, as for Ethereum and for the same reason — see that entry's note and",
+        "`eth-has-no-structural-exclusion`. A reading of this chain will raise",
+        "`Y-DENOMINATORS-NAMED` until the method's floor changes, and that is left visible",
+        "rather than met by naming one population twice."
+      ],
+      "provenanceCoverage": {
+        "windowsWithRecordedReplayLedger": 0,
+        "windowsWithout": [
+          [
+            480000,
+            480001
+          ],
+          [
+            620000,
+            620001
+          ],
+          [
+            800000,
+            800001
+          ],
+          [
+            1400000,
+            1400001
+          ],
+          [
+            3000000,
+            3000001
+          ],
+          [
+            13000000,
+            13000001
+          ]
+        ],
+        "_note": [
+          "NONE, because no window of this chain had been replayed when this entry was pinned.",
+          "Declared as zero rather than left absent."
+        ]
+      }
     }
   },
 
