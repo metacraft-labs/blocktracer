@@ -367,6 +367,36 @@ export async function run({ browser, site, j }) {
     // as not load-bearing for arm O so that nobody later reads its greenness
     // as evidence about this repository's feed.
     const servedRows = await servedNavRows(page, site.origin + subject.debugPath);
+
+    // AND THE DEMO ARM READ THE GAP TOO — the same defect, one arm over.
+    //
+    // The REAL arm below carries a bounded `waitForFunction` for exactly this,
+    // with a comment explaining that `hydrate.writePane` replaces a served
+    // pane only once the reply has frames, so the export's rows are what is on
+    // screen until then. This arm had no such wait and read at `ready`.
+    //
+    // It did not matter on an idle machine, where the demo feed answers inside
+    // the first paint. MEASURED on run 39352321787, with three bite shards
+    // beside it: `call trace served 12, hydrated 12 · event log served 8,
+    // hydrated 8` — the exact signature the control exists to catch, produced
+    // by a feed that was three seconds late rather than dead. Green on the run
+    // before over the same bytes, green on an idle workstation.
+    //
+    // The predicate is the claim and the budget is bounded, so a feed that
+    // never answers still fails here with the same counts and says which half
+    // did not move. Both regions, because this control requires BOTH and a
+    // union predicate can be satisfied by the one the arm is not judging —
+    // the lesson the paragraph above records for arm O's arithmetic.
+    const navAnswered = await page
+      .waitForFunction(
+        (served) =>
+          document.querySelectorAll(".ctrow").length !== served.ct &&
+          document.querySelectorAll(".evrow").length !== served.ev,
+        servedRows,
+        { timeout: 15000 },
+      )
+      .then(() => true)
+      .catch(() => false);
     const hydrated = await page.evaluate(() => ({
       ct: document.querySelectorAll(".ctrow").length,
       ev: document.querySelectorAll(".evrow").length,
@@ -377,7 +407,8 @@ export async function run({ browser, site, j }) {
         hydrated.ev > 0 && hydrated.ev !== servedRows.ev,
       "CONTROL: the navigation rows are the engine's, not the export's",
       `call trace served ${servedRows.ct}, hydrated ${hydrated.ct}` +
-        ` · event log served ${servedRows.ev}, hydrated ${hydrated.ev}`,
+        ` · event log served ${servedRows.ev}, hydrated ${hydrated.ev}` +
+        (navAnswered ? "" : " — the feed did not answer within 15s"),
     );
 
     // ── the call trace ───────────────────────────────────────────────────
