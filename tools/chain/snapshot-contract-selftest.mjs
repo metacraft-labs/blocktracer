@@ -1161,9 +1161,14 @@ test('§14 every tool that writes a transaction row states the lifted facts thro
   // THE SEVENTH IS A THIRD CHAIN'S (Recorder-Flow, 2026-10-20): `produce-flow-snapshot.mjs`
   // states a Cadence recorder, `replay-preceding` prestate and Flow's three roles, through
   // its own `lib/flow-producer-facts.mjs`.
+  //
+  // THE EIGHTH IS A THIRD VM FAMILY'S (Recorder-Cairo, 2026-10-20):
+  // `produce-starknet-snapshot.mjs` states the Cairo recorder that runs StarkWare's own
+  // executor, `replay-preceding` prestate and hex felts, through its own
+  // `lib/starknet-producer-facts.mjs`.
   const ROSTER = ['backfill-blocks.mjs', 'capture-chain.mjs', 'follow-chain.mjs',
                   'ingest-range.mjs', 'produce-eth-snapshot.mjs', 'produce-flow-snapshot.mjs',
-                  'produce-sui-snapshot.mjs'];
+                  'produce-starknet-snapshot.mjs', 'produce-sui-snapshot.mjs'];
   ck(`and they are exactly — ${live.producers.join(', ')}`,
      JSON.stringify(live.producers) === JSON.stringify(ROSTER));
   ck(`the scan worked over ${live.rows} transaction-row literals and `

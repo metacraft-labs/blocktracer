@@ -240,3 +240,5 @@ fixtures/chain-health/readable-container/ct/*.ct
 # unless `--keep` is passed. The logs are left behind on purpose: they are the evidence a
 # failed arm is diagnosed from.
 /.eth-publish-proof/
+# `just starknet-capture`'s work and output (tools/chain/starknet-capture.sh).
+/.starknet-capture/

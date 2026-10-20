@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# SEVENTEEN suites — 98 + 19 + 24 + 24 + 57 + 236 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 6 + 34 = 1212 counted assertions —
+# EIGHTEEN suites — 98 + 19 + 24 + 24 + 57 + 237 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 6 + 34 + 26 = 1239 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -456,6 +456,12 @@ chain-selftest:
     # service and `sui replay` write them. Traced rows need a container and are
     # exercised by `just sui-range`.
     node tools/chain/sui-producer-selftest.mjs
+    # Offline and toolchain-free: the Starknet producer's facts (three-dimension cost
+    # vector and fee, the roles each transaction type has, the multicall payload) and
+    # the producer over container-free captures — a refused era published as
+    # refusals, and every input it cannot publish honestly refused. Traced rows need
+    # a container and are exercised by `just starknet-capture`.
+    node tools/chain/starknet-producer-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1667,6 +1673,24 @@ eth-inputs-verify TX=ETH_CAPTURE_TX:
 eth-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-eth-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
+
+# ── Starknet mainnet: one block, re-run in StarkWare's own executor ───────────
+#
+# Records one block with `codetracer-cairo-onchain trace-block` (codetracer-cairo-
+# recorder's `onchain/`: blockifier over cairo-vm, every step one executed CASM
+# instruction) from a committed RPC TRANSCRIPT — no network — and turns the capture
+# into a §5 tree with tools/chain/produce-starknet-snapshot.mjs. The transcript the
+# recorder repository commits as its own test fixture is the default subject:
+#
+#   just starknet-capture ../codetracer-cairo-recorder/onchain/target/release/codetracer-cairo-onchain \
+#     $(git -C ../codetracer-cairo-recorder rev-parse HEAD)
+#
+# Then `just conformance .starknet-capture/tree`. NOT in any gate, for `eth-range`'s
+# reason: it needs the recorder binary. Its offline half is
+# `starknet-producer-selftest.mjs` in `chain-selftest`.
+starknet-capture RECORDER COMMIT TRANSCRIPT="../codetracer-cairo-recorder/onchain/tests/fixtures/mainnet-16664301" OUT=".starknet-capture/tree" *ARGS:
+    bash tools/chain/starknet-capture.sh --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --transcript {{TRANSCRIPT}} --out {{OUT}} {{ARGS}}
 
 # Trace a window of SUI checkpoints into one snapshot tree (Recorder-Move
 # CXP-MOVE-1/2). The twin of `eth-range`: tools/chain/capture-sui-range.mjs reads

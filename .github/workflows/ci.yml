@@ -532,7 +532,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 236 assertions, and the reason it is offline is the reason it
+        # ING-3, 237 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -939,6 +939,17 @@ jobs:
         # Traced rows need a container and are run by `just sui-range` against
         # the network.
         run: node tools/chain/sui-producer-selftest.mjs
+
+      - name: Does the Starknet producer state its chain's facts and refuse what it cannot publish?
+        # 26 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # The Starknet producer's three-dimension cost vector and fee, the roles each
+        # transaction type has (none for an L1 handler), the multicall payload, and the
+        # producer over container-free captures: a refused era published as refusals,
+        # and refusals for a missing or uncontrolled floor probe, a foreign report
+        # format, a report missing a row and a recorded row with no container. Traced
+        # rows need a container and are run by `just starknet-capture`.
+        run: node tools/chain/starknet-producer-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this
