@@ -532,7 +532,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 235 assertions, and the reason it is offline is the reason it
+        # ING-3, 236 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -918,6 +918,14 @@ jobs:
         # suite shows the canonical form erases that order and still sees a changed
         # value, name, line, step, dropped variable or swapped pair.
         run: node tools/chain/eth-regen-check-selftest.mjs
+
+      - name: Are a Flow transaction's three roles and fee vector published as the chain states them?
+        # 6 assertions, offline and needing only node: the committed block listing and
+        # transcript under fixtures/chain-inputs/flow-mainnet/ are read off disk. Each
+        # arm runs beside its control -- distinct payer, proposer and authorizers against
+        # one account in every role, a FeesDeducted event against none -- so a function
+        # that returned a constant fails one side.
+        run: node tools/chain/flow-producer-facts-selftest.mjs
 
       - name: Does the Sui producer state its chain's facts and refuse a broken window?
         # 34 assertions, host-independent: every arm is offline and needs only node.

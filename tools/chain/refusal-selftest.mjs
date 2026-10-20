@@ -1480,6 +1480,9 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // THE FOURTH SUITE IN PATTERN FIVE, for the third suite's reason: no host
     // configurations, so its `BASE_ARMS` is its total.
     ['eth-regen-check-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // THE FIFTH SUITE IN PATTERN FIVE: the Flow producer's facts, offline, so its
+    // `BASE_ARMS` is its total.
+    ['flow-producer-facts-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
     // The Sui producer's offline suite, in the commonest pattern.
     ['sui-producer-selftest.mjs', /asserted !== (\d+)\) \{/],
   ];
@@ -1493,7 +1496,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# SIXTEEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  const m = /# SEVENTEEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
@@ -1502,7 +1505,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's sixteen terms are the suites' own declarations, in recipe order — `
+    ck(`the header's seventeen terms are the suites' own declarations, in recipe order — `
        + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
@@ -1621,7 +1624,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   ck(`every suite has a ci.yml step whose comment states its count exactly once — `
      + `${ciProblems.length} problem(s)`, ciProblems.length === 0);
   if (ciProblems.length) console.error(`    ${ciProblems.join('\n    ')}`);
-  ck(`…and ci.yml's sixteen counts are the suites' own — [${ciTerms.join(', ')}] vs `
+  ck(`…and ci.yml's seventeen counts are the suites' own — [${ciTerms.join(', ')}] vs `
      + `[${terms.join(', ')}]`,
      ciTerms.length === terms.length && ciTerms.every((n, i) => n === terms[i]));
 }
@@ -1770,7 +1773,10 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a SIXTEENTH suite joined `chain-selftest` — `sui-producer-selftest`, the Sui
 //       producer's facts, effects comparison and refusals (Recorder-Move, 2026-10-20) — at
 //       the same single assertion.
-expectCount(235);
+//   +1  a SEVENTEENTH suite joined `chain-selftest` — `flow-producer-facts-selftest`, the
+//       Flow producer's role and cost facts (Recorder-Flow, 2026-10-20) — at the same
+//       single assertion.
+expectCount(236);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

@@ -71,6 +71,23 @@
         "type": "github"
       }
     },
+    "codetracer-flow-recorder": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792505198,
+        "narHash": "sha256-xCkHLvxcAJkF4WXs3bHQiTd2tSXlvrzo6AmbbbHHZKA=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-flow-recorder",
+        "rev": "da664d95f9c59bea9ad42b6b011c64ccd7b9473b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-flow-recorder",
+        "rev": "da664d95f9c59bea9ad42b6b011c64ccd7b9473b",
+        "type": "github"
+      }
+    },
     "codetracer-trace-format": {
       "flake": false,
       "locked": {
@@ -137,6 +154,23 @@
       "original": {
         "owner": "numtide",
         "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "flow-trace-format": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791471947,
+        "narHash": "sha256-mD/Sf6HGULypGBwIsh46nEkkDXs42N4wOf3V6nEt7dc=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "3fada0b03c3d1a0cbc7c35f278aa639028d702c5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "3fada0b03c3d1a0cbc7c35f278aa639028d702c5",
         "type": "github"
       }
     },
@@ -247,10 +281,12 @@
         "codetracer": "codetracer",
         "codetracer-design-system": "codetracer-design-system",
         "codetracer-evm-recorder": "codetracer-evm-recorder",
+        "codetracer-flow-recorder": "codetracer-flow-recorder",
         "codetracer-trace-format": "codetracer-trace-format",
         "codetracer-trace-format-nim": "codetracer-trace-format-nim",
         "evm-trace-format": "evm-trace-format",
         "flake-utils": "flake-utils",
+        "flow-trace-format": "flow-trace-format",
         "isonim": "isonim",
         "nim-everywhere": "nim-everywhere",
         "nim-results": "nim-results",

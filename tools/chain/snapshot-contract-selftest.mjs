@@ -1157,8 +1157,13 @@ test('§14 every tool that writes a transaction row states the lifted facts thro
   // THE SIXTH IS A SECOND VM FAMILY'S (Recorder-Move, 2026-10-20): `produce-sui-snapshot.mjs`
   // states a Move recorder, `version-addressed` prestate and a base58 identifier encoding,
   // through its own `lib/sui-producer-facts.mjs`.
+  //
+  // THE SEVENTH IS A THIRD CHAIN'S (Recorder-Flow, 2026-10-20): `produce-flow-snapshot.mjs`
+  // states a Cadence recorder, `replay-preceding` prestate and Flow's three roles, through
+  // its own `lib/flow-producer-facts.mjs`.
   const ROSTER = ['backfill-blocks.mjs', 'capture-chain.mjs', 'follow-chain.mjs',
-                  'ingest-range.mjs', 'produce-eth-snapshot.mjs', 'produce-sui-snapshot.mjs'];
+                  'ingest-range.mjs', 'produce-eth-snapshot.mjs', 'produce-flow-snapshot.mjs',
+                  'produce-sui-snapshot.mjs'];
   ck(`and they are exactly — ${live.producers.join(', ')}`,
      JSON.stringify(live.producers) === JSON.stringify(ROSTER));
   ck(`the scan worked over ${live.rows} transaction-row literals and `

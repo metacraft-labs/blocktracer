@@ -168,6 +168,17 @@
       url = "github:metacraft-labs/codetracer-trace-format-nim/7b8b587c72ec31f6825ae124ab89ad7954f6dca7";
       flake = false;
     };
+    # ── Chain three: the Flow recorder and its trace-format siblings ──────────
+    # tools/chain/nix/flow.nix says why each pin is where it is. The writer is
+    # the `codetracer-trace-format-nim` input above, shared with chain two.
+    codetracer-flow-recorder = {
+      url = "github:metacraft-labs/codetracer-flow-recorder/da664d95f9c59bea9ad42b6b011c64ccd7b9473b";
+      flake = false;
+    };
+    flow-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/3fada0b03c3d1a0cbc7c35f278aa639028d702c5";
+      flake = false;
+    };
     nim-stew = {
       url = "github:status-im/nim-stew/1a5d0b99209f50ff055d9b5216849ba0365f8cf5";
       flake = false;
@@ -185,6 +196,7 @@
   outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system, codetracer
             , aztec-avm-runtime, codetracer-trace-format
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
+            , codetracer-flow-recorder, flow-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -359,6 +371,16 @@
           writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
           blocktracerRoot = ./.;
         };
+
+        flow = pkgs.callPackage ./tools/chain/nix/flow.nix {
+          nodejs = followerNodejs;
+          recorderSrc = codetracer-flow-recorder;
+          recorderRev = codetracer-flow-recorder.rev;
+          flowTraceFormatSrc = flow-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
       in {
         # The larger, interactive default shell includes the ci shell (so a local
         # `nix develop` has the exact CI toolchain plus any interactive extras).
@@ -390,8 +412,14 @@
         packages.evm-recorder = eth.evmRecorder;
         packages.eth-capture-tree = eth.ethCaptureTree;
 
+        # ── Chain three, produced the same way (Chain-Delivery DEL-6) ──
+        packages.flow-recorder = flow.flowRecorder;
+        packages.cadence-replay-helper = flow.replayHelper;
+        packages.flow-capture-tree = flow.flowCaptureTree;
+        packages.flow-ct-print = flow.ctPrint;
+
         # The site with the STAGING-ONLY chains added: `default` plus the Ethereum
-        # tree, placed where the exporter already looks for a live-chain capture.
+        # and Flow trees, placed where the exporter already looks for a live-chain capture.
         # deploy.yml builds this for every deploy except `live`, so `live` (the
         # production Pages project) keeps `default` and carries no chain the
         # operator has not cleared for production; Chain-Expansion's environment
@@ -414,6 +442,7 @@
         packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } ''
           mkdir -p $out
           cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
+          cp -r ${flow.flowCaptureTree} $out/flow-mainnet
         '';
 
         packages.chain-tools = chain.chainTools;
