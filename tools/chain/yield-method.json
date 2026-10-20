@@ -703,6 +703,12 @@
           "member": "transactions",
           "yieldMember": "tracedOverAllTransactions",
           "excludes": []
+        },
+        {
+          "id": "observable",
+          "member": "observable",
+          "yieldMember": "tracedOverObservable",
+          "excludes": []
         }
       ],
       "denominatorsNote": [
@@ -710,7 +716,11 @@
         "transaction executes Cadence, so the charter's second population (transactions",
         "containing a contract execution) is the same population here and is not stated twice.",
         "The protocol's system transactions are not rows at all (produce-flow-snapshot.mjs:",
-        "their ids repeat in every block), so they are not in the denominator either."
+        "their ids repeat in every block), so they are not in the denominator either.",
+        "",
+        "THE SECOND DENOMINATOR WAS ADDED WITH THE FIRST READING (2026-10-20), because the method's",
+        "floor is two and this entry declared one. With no exclusions it equals the first, which is",
+        "the fact it exists to state."
       ],
       "exclusions": [],
       "exclusionsNote": [
@@ -727,31 +737,11 @@
         "divergent"
       ],
       "provenanceCoverage": {
-        "windowsWithRecordedReplayLedger": 0,
-        "windowsWithout": [
-          [
-            130300000,
-            130300001
-          ],
-          [
-            135000000,
-            135000001
-          ],
-          [
-            137390145,
-            137390146
-          ],
-          [
-            150000000,
-            150000001
-          ],
-          [
-            168000000,
-            168000001
-          ]
-        ],
+        "windowsWithRecordedReplayLedger": 5,
+        "windowsWithout": [],
         "_note": [
-          "NONE: no reading of this chain exists yet."
+          "ALL FIVE, from the first reading (tools/chain/measurements/flow-replay-yield.json): each",
+          "window carries its replay ledger, naming codetracer-flow-recorder 04a05d3."
         ]
       }
     }

@@ -108,17 +108,17 @@
     "codetracer-flow-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1792505198,
-        "narHash": "sha256-xCkHLvxcAJkF4WXs3bHQiTd2tSXlvrzo6AmbbbHHZKA=",
+        "lastModified": 1792507591,
+        "narHash": "sha256-Dljmkj3gDvRcJfTC3/O+g8QAl9Wlk06zdLtTwb3E+3Y=",
         "owner": "metacraft-labs",
         "repo": "codetracer-flow-recorder",
-        "rev": "da664d95f9c59bea9ad42b6b011c64ccd7b9473b",
+        "rev": "04a05d33653da6809a1e1372e4c564d7fd462e3c",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-flow-recorder",
-        "rev": "da664d95f9c59bea9ad42b6b011c64ccd7b9473b",
+        "rev": "04a05d33653da6809a1e1372e4c564d7fd462e3c",
         "type": "github"
       }
     },
