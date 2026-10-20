@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# SIXTEEN suites — 98 + 19 + 24 + 24 + 57 + 235 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 31 = 1202 counted assertions —
+# SIXTEEN suites — 98 + 19 + 24 + 24 + 57 + 235 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 34 = 1205 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -1683,6 +1683,15 @@ eth-range RECORDER COMMIT *ARGS:
 sui-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-sui-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
+
+# Is the Sui endpoint still serving the object versions it served when the
+# committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed
+# ladder of depths, for the exact versions transactions there consumed, with a
+# control that must answer null; exit 1 names a rung the endpoint stopped
+# serving. `--record` re-takes tools/chain/measurements/sui-endpoint-horizon.json.
+# Needs the network, so it is not in `chain-selftest`; its verdict logic is.
+sui-horizon *ARGS:
+    node tools/chain/sui-horizon-probe.mjs {{ARGS}}
 
 # Publish a generated tree into a local object-store directory (M8 delta publisher).
 # Idempotent + resumable: re-run to upload only new objects and flip current.json.

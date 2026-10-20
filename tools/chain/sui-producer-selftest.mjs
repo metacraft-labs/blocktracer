@@ -17,6 +17,8 @@
 //   §4  the producer end to end over a container-free window: the denominator is every
 //       transaction the enumeration saw, and a broken window or a foreign recording is
 //       refused rather than published around
+//   §5  the endpoint-horizon probe's verdict: a rung that stops being served fails it,
+//       and so does a control the endpoint answered
 //
 // Every arm that asserts a refusal or a distinction has a control beside it that takes
 // the other branch, so the arm measures the rule and not the fixture
@@ -32,6 +34,7 @@ import {
   costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
 } from './lib/sui-producer-facts.mjs';
 import { ACQUISITION_FORMAT, effectsFacts, main as produce } from './produce-sui-snapshot.mjs';
+import { compareReadings } from './sui-horizon-probe.mjs';
 
 let asserted = 0;
 let failed = 0;
@@ -247,10 +250,27 @@ test('§4 the producer, end to end, over a container-free window');
   rmSync(dir, { recursive: true, force: true });
 }
 
+test('§5 the endpoint-horizon verdict');
+{
+  const reading = (served, answeredNull = true) => ({
+    measuredAt: '2026-10-20T00:00:00Z',
+    control: { answeredNull },
+    rungs: [{ name: 'near-tip', checkpoint: 100, served: true },
+            { name: 'june-2023', checkpoint: 5, served }],
+  });
+  ck('an unchanged reading holds', compareReadings(reading(true), reading(true)).length === 0);
+  const moved = compareReadings(reading(true), reading(false));
+  ck('a rung served before and not now fails, naming the rung — the horizon moved',
+     moved.length === 1 && moved[0].includes('june-2023') && moved[0].includes('moved'));
+  ck('CONTROL: a control the endpoint answered with an object fails even with every rung '
+     + 'served, so "served" is never an endpoint that answers everything',
+     compareReadings(reading(true), reading(true, false)).length === 1);
+}
+
 // The count is a LITERAL because `refusal-selftest.mjs` reads it out of this line and
 // cross-checks it against the Justfile header and ci.yml.
-if (asserted !== 31) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 31 — a case was added, removed or skipped.`);
+if (asserted !== 34) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 34 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

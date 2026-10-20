@@ -490,8 +490,15 @@ async function main(argv) {
   for (const [digest, { rec, c, files }] of traced) {
     const row = rows.find((r) => r.txHash === digest);
     copyFileSync(rec.container, join(out, 'ct', `${digest}.ct`));
+    // Only the modules a step lands in are published. `sui replay` writes every module of
+    // every package it fetched, and the recorder interns them all, so a bundle of the whole
+    // path table carried ~90 disassemblies for a transaction that ran in two. The position
+    // stream still lists every interned path, so a path id keeps its meaning; a path no
+    // step uses has no text to point into and needs none.
+    const stepped = new Set(c.steps.map((s) => s.path_id));
     const byPackage = new Map();
-    for (const f of files) {
+    for (const [id, f] of files.entries()) {
+      if (!stepped.has(id)) continue;
       if (!byPackage.has(f.package)) byPackage.set(f.package, {});
       byPackage.get(f.package)[f.path] = f.text;
     }
