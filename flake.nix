@@ -186,6 +186,17 @@
       url = "github:metacraft-labs/codetracer-solana-recorder/0a1950220964d8c8793b43fa6c4ec1fb9bed35ef";
       flake = false;
     };
+    # ── Starknet: the Cairo recorder (and the transcript it commits) ──────────
+    # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
+    # the `codetracer-trace-format-nim` input above, shared with chains two and three.
+    codetracer-cairo-recorder = {
+      url = "github:metacraft-labs/codetracer-cairo-recorder/71501b35b6894aef73985c74b99fc17eb4589410";
+      flake = false;
+    };
+    cairo-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/3fada0b03c3d1a0cbc7c35f278aa639028d702c5";
+      flake = false;
+    };
     nim-stew = {
       url = "github:status-im/nim-stew/1a5d0b99209f50ff055d9b5216849ba0365f8cf5";
       flake = false;
@@ -205,6 +216,7 @@
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
             , codetracer-solana-recorder
+            , codetracer-cairo-recorder, cairo-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -399,6 +411,16 @@
           writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
           blocktracerRoot = ./.;
         };
+
+        starknet = pkgs.callPackage ./tools/chain/nix/starknet.nix {
+          nodejs = followerNodejs;
+          recorderSrc = codetracer-cairo-recorder;
+          recorderRev = codetracer-cairo-recorder.rev;
+          cairoTraceFormatSrc = cairo-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
       in {
         # The larger, interactive default shell includes the ci shell (so a local
         # `nix develop` has the exact CI toolchain plus any interactive extras).
@@ -443,8 +465,13 @@
         packages.solana-recorder = sol.solanaRecorder;
         packages.sol-capture-tree = sol.solCaptureTree;
 
+        # ── Starknet mainnet, produced the same way (Recorder-Cairo CXP-CAIRO-6) ──
+        packages.cairo-onchain-recorder = starknet.onchainRecorder;
+        packages.starknet-capture-tree = starknet.starknetCaptureTree;
+        packages.starknet-ct-print = starknet.ctPrint;
+
         # The site with the STAGING-ONLY chains added: `default` plus the Ethereum
-        # and Flow trees, placed where the exporter already looks for a live-chain capture.
+        # Flow and Starknet trees, placed where the exporter already looks for a live-chain capture.
         # deploy.yml builds this for every deploy except `live`, so `live` (the
         # production Pages project) keeps `default` and carries no chain the
         # operator has not cleared for production; Chain-Expansion's environment
@@ -468,6 +495,7 @@
           mkdir -p $out
           cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
           cp -r ${flow.flowCaptureTree} $out/flow-mainnet
+          cp -r ${starknet.starknetCaptureTree} $out/starknet-mainnet
         '';
 
         packages.chain-tools = chain.chainTools;

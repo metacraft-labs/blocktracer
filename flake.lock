@@ -17,6 +17,23 @@
         "type": "github"
       }
     },
+    "cairo-trace-format": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791471947,
+        "narHash": "sha256-mD/Sf6HGULypGBwIsh46nEkkDXs42N4wOf3V6nEt7dc=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "3fada0b03c3d1a0cbc7c35f278aa639028d702c5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "3fada0b03c3d1a0cbc7c35f278aa639028d702c5",
+        "type": "github"
+      }
+    },
     "codetracer": {
       "flake": false,
       "locked": {
@@ -35,6 +52,23 @@
         "submodules": false,
         "type": "git",
         "url": "https://github.com/metacraft-labs/codetracer"
+      }
+    },
+    "codetracer-cairo-recorder": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792506549,
+        "narHash": "sha256-K/mSb0jymLgjA4Y7skqrb5wcxl+YFvb8HGoI9I1OsxU=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-cairo-recorder",
+        "rev": "71501b35b6894aef73985c74b99fc17eb4589410",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-cairo-recorder",
+        "rev": "71501b35b6894aef73985c74b99fc17eb4589410",
+        "type": "github"
       }
     },
     "codetracer-design-system": {
@@ -295,7 +329,9 @@
     "root": {
       "inputs": {
         "aztec-avm-runtime": "aztec-avm-runtime",
+        "cairo-trace-format": "cairo-trace-format",
         "codetracer": "codetracer",
+        "codetracer-cairo-recorder": "codetracer-cairo-recorder",
         "codetracer-design-system": "codetracer-design-system",
         "codetracer-evm-recorder": "codetracer-evm-recorder",
         "codetracer-flow-recorder": "codetracer-flow-recorder",
