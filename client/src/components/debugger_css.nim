@@ -563,7 +563,55 @@ a.lm_title{display:block;line-height:inherit}
    `flex:1 1 0` items under an auto-height ancestor resolves to zero — which
    renders the pane empty rather than short. The explicit height gives the
    chain a definite one to divide. */
-.srcwrap{display:flex;flex-direction:column;min-height:0;height:100%}
+/* ── THE CODE IS THE PANE'S FLOOR, NOT ITS REMAINDER ──────────────────────
+   `min-height:0` used to sit where the floor below is, and it let the one
+   thing the pane exists to show be the one thing squeezed out of it.
+
+   MEASURED at 1280x720 on `/aztec-testnet-frames/tx/0x0a807e4e…/debug`, a
+   capture that resolves source for 86 of its 459 steps and therefore carries
+   every explanatory band at once: pane 435px, and above `.srcwrap` sit
+   `.srcpos` 29, `.srcrung` 99, `.srccause` 195, `.srcattr` 139 and `.srcnone`
+   121 — 583px of prose in a 435px pane. `.srccause` and `.srcattr` are
+   `flex:0 0 auto` and cannot give, so the whole 583px deficit landed on the
+   one child that could: `.srcwrap` resolved to 0px, `.src` inside it to 8px,
+   and the listing rendered ZERO rows. The reader was shown five notes
+   explaining a listing that was not on the screen.
+
+   WHY A FLOOR AND NOT A SHRINK ORDER. The bands cannot be shrunk into
+   usefulness — they are 583px of sentences — so the question is not how to
+   divide 435px but which way the pane overflows. `.lm_content` is already
+   `overflow-y:auto`, so a floor here makes the pane scroll and the reader
+   reaches the notes by scrolling past them, in the order the page states
+   them.
+
+   THE VALUE IS DERIVED, NOT CHOSEN, like `.srcstrip`'s directly below. It is
+   that same strip row — the tab box plus the list's `3xs` padding and the
+   row's hairline — plus eight rows of code at the code type's own size and
+   line height, and it resolves to 222px. Eight because the pane has to show a
+   position IN CONTEXT: the marked line, and enough either side of it to read
+   what it is doing.
+
+   WHAT THE FLOOR ACTUALLY PUTS ON THE SCREEN IS SIX ROWS, NOT EIGHT, and the
+   difference is not slack in the number. The floor is on `.srcwrap`, and the
+   active `.srcdoc` inside it carries its OWN tab strip — 33 files on this
+   subject — whose height depends on how those tabs wrap. Measured on the same
+   subject, `.srcwrap` at the floor both times: 1280x720 gives `.src` 139px
+   and six rows, 1440x900 gives 158px and six. A floor on `.srcwrap` can
+   promise the listing a definite share of the pane; it cannot promise a row
+   count, because what sits above the listing INSIDE it is width-dependent.
+   Six rows of context is the measurement, and it is the one to re-read if
+   this number is ever raised.
+
+   AT A HEALTHY VIEWPORT THIS CHANGES NOTHING, which is the other half of the
+   claim. Measured at 1920x1080 on the same subject, before and after: pane
+   797px, `.srcwrap` 336px, `.src` 289px, 12 rows, `scrollHeight ==
+   clientHeight` — identical readings. The floor is 222px, under the 336 the
+   layout already gives it, so it does not bind. At 1280x720 and 1440x900 it
+   does, and the pane scrolls (813 over 435, and 757 over 617). */
+.srcwrap{display:flex;flex-direction:column;height:100%;
+  min-height:calc(var(--bt-layout-tabstrip-row-min) +
+    2 * var(--bt-space-3xs) + var(--bt-stroke-hairline) +
+    8 * var(--bt-type-code-size) * var(--bt-type-code-line))}
 /* One panel per document, switched by `:target`. The ACTIVE document is
    emitted last so every alternate can reach forward and hide it — CSS has
    only a forward sibling combinator. Each panel carries its OWN tab strip
