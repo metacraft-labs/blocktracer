@@ -146,7 +146,14 @@ export const spec = "Page-Descriptions.md §7.0; Debugger-Integration.md §7 —
 // trace running out rather than the session dying. See the block at
 // `if (!sessionMoved)` — run 34018128849 stopped this walk after one step on a
 // 790-step capture and nothing here could say which of three events that was.
-export const assertions = 47;
+// 47 -> 49. One per arm, and they are the guard the `CONTROL: the served
+// frame stands off the top` records used to carry by accident: the arm's
+// subject is now LOOKED FOR by that property instead of being `[0]` of a
+// corpus-ordered filter, so "no capture in this corpus can support the claim"
+// is a named, counted subject verdict rather than a control failing with
+// every reading below it reported VACUOUS. See the block above the two
+// `arm(...)` calls for what moved and why.
+export const assertions = 49;
 export const needsEngine = true;
 
 // The walk stops at `MAX_STEPS` or when the trace ends, whichever comes first,
@@ -375,9 +382,71 @@ export async function run({ browser, site, j }) {
   // CONTAINS another's, because a selftest arm aimed at the shorter one would
   // resolve to two records and silently never run. A bare name paired with a
   // `REAL:`-prefixed one is exactly that shape.
+  // ── THE SUBJECT IS CHOSEN BY THE PROPERTY ITS CONTROL NEEDS ───────────
+  //
+  // Both arms used to take `[0]` of a corpus-ordered filter, and the comment
+  // on `CONTROL: the served frame stands off the top` said why that was safe:
+  // "Measured 491px on the source arm and 2637px on the listing arm, and both
+  // subjects are `[0]` of a corpus-ordered filter, so it is stable."
+  //
+  // IT WAS NOT STABLE, AND THE SENTENCE AFTER IT IS WHAT HAPPENED. "A future
+  // subject whose position sits at the top of its file reddens this and says
+  // why." The re-record of the container-3 captures changed which capture is
+  // `realCaptures[0]`, the new one lands at step 0 of its listing, its served
+  // `scrollTop` is 0, and the journey went red on a control — correctly, and
+  // about the corpus rather than the product. Every verdict downstream of it
+  // reported VACUOUS, which is the harness saying the same thing.
+  //
+  // A POSITIONAL PICK IS NOT A SUBJECT FILTER. This journey states what its
+  // subject must support and then looks for one, like the `j.subjects` lines
+  // above it: the served frame must stand off the top, because "the pane held
+  // still" and "the pane moved to the top" are the SAME reading at offset 0
+  // and the walk below cannot tell them apart. The corpus is probed with
+  // scripting off — no engine, no hydration — so the cost is one static page
+  // load per candidate until one qualifies.
+  //
+  // WHAT STILL FAILS, AND IT IS THE READING THAT MATTERS. If NO capture in the
+  // corpus can support the claim, the `j.atLeast` below reddens naming the
+  // count, which is the corpus-shaped statement the control was making by
+  // accident. The control itself stays where it is: it is measured on the
+  // arm's OWN visit, so it also catches a selection that probed something
+  // other than what the arm reads.
+  const offTop = async (candidates, what) => {
+    const readings = [];
+    for (const t of candidates) {
+      const probe = await visitWithoutScript(browser, site.origin, t.debugPath);
+      const top = probe.sourceScroll?.top ?? null;
+      readings.push(`${t.debugPath} scrollTop ${top}`);
+      if (top !== null && top > 0) {
+        j.note(`${what}: chose ${t.debugPath} — served scrollTop ${top}, after ${readings.length - 1} that stood at the top`);
+        return { picked: t, tried: readings };
+      }
+    }
+    return { picked: null, tried: readings };
+  };
+
+  const sourceSubject = await offTop(synthetic, "SOURCE");
+  const listingSubject = await offTop(realCaptures, "LISTING");
+  j.atLeast(
+    sourceSubject.picked ? 1 : 0,
+    1,
+    "SUBJECTS: a synthetic session whose served frame stands off the top, so the source arm can tell holding from moving-to-the-top",
+  );
+  j.atLeast(
+    listingSubject.picked ? 1 : 0,
+    1,
+    "SUBJECTS: a REAL-capture session whose served frame stands off the top, so the listing arm can tell holding from moving-to-the-top",
+  );
+  if (!sourceSubject.picked || !listingSubject.picked) {
+    j.note(
+      `no subject stands off the top — synthetic: ${sourceSubject.tried.join("; ")} | real: ${listingSubject.tried.join("; ")}`,
+    );
+    return;
+  }
+
   const reveals = [
-    ...(await arm(browser, site, j, synthetic[0], "SOURCE")),
-    ...(await arm(browser, site, j, realCaptures[0], "LISTING")),
+    ...(await arm(browser, site, j, sourceSubject.picked, "SOURCE")),
+    ...(await arm(browser, site, j, listingSubject.picked, "LISTING")),
   ];
 
   // ── WHERE A REVEAL LANDS, ASKED OF EVERY REVEAL THIS RUN PRODUCED ──────
