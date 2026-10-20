@@ -296,8 +296,9 @@ jobs:
         run: node tools/deploy/check-assets-selftest.mjs
 
       - name: Does the freshness gate bite? (provenance — the bytes are this commit's)
-        # Nineteen arms. Three of them require the gate to stay GREEN over a
+        # Twenty-one arms. Four of them require the gate to stay GREEN over a
         # legitimately-changed world — a new upstream engine, a new capture, a
+        # capture the build produces and declares with --produced, a
         # few KB of engine drift — because a gate that reddens on a normal
         # deploy is a gate that gets switched off, and then the staleness it
         # was written for ships with it nominally in place.

@@ -127,6 +127,9 @@ function materialise(world) {
   };
 
   for (const [rel, body] of Object.entries(world.fixtures)) put(join("repo", rel), body);
+  // Captures the BUILD produced (a flake derivation's output), declared to
+  // `record` with `--produced` rather than committed.
+  for (const [rel, body] of Object.entries(world.produced ?? {})) put(join("produced", rel), body);
   put(join("repo", "client", "src", "debugger", "replay_engine.nim"),
       `const ReplayEngineWasmBytes* = ${String(world.declared).replace(/\B(?=(\d{3})+(?!\d))/g, "_")}\n`);
 
@@ -189,9 +192,11 @@ function runNode(args) {
 
 function doRecord(root) {
   const p = paths(root);
+  const producedDir = join(root, "produced");
   return runNode([CHECKER, "record",
     "--built", p.built, "--staged", p.staged,
-    "--engine-fetch", p.fetch, "--repo-root", p.repo, "--out", p.manifest]);
+    "--engine-fetch", p.fetch, "--repo-root", p.repo, "--out", p.manifest,
+    ...(existsSync(producedDir) ? ["--produced", producedDir] : [])]);
 }
 
 async function doVerify(root, extra) {
@@ -353,6 +358,39 @@ const arms = [
     name: "9b F4 — a publish with no containers is NOT REQUIRED, never a pass",
     setup: (w) => { delete w.built[CONTAINER]; return w; },
     also: { F4: "NOT REQUIRED" },
+  },
+  {
+    // A container the BUILD produced (Chain-Delivery DEL-5's route 3) is held
+    // to the declared derivation output, not to a committed fixture, and a
+    // byte-reproducible producer passes.
+    name: "9d F4 — a container the build produced, declared with --produced, passes",
+    setup: (w) => {
+      const body = "CTFMT0\0a capture produced inside the build\n";
+      w.produced = { "ethereum-mainnet/ct/0xf699.ct": body };
+      w.built["t/cc/dd/ccddproducedcapture000000000/trace.ct"] = body;
+      return w;
+    },
+    also: { F4: "PASS" },
+  },
+  {
+    // …and the reason that is safe: a published container that is not the
+    // declared produced capture is still refused. This is the shape a
+    // non-reproducible producer takes, rebuilding different bytes under the
+    // same input-derived URL.
+    name: "9e F4 — a published container that differs from its declared produced capture",
+    setup: (w) => {
+      const body = "CTFMT0\0a capture produced inside the build\n";
+      w.produced = { "ethereum-mainnet/ct/0xf699.ct": body };
+      w.built["t/cc/dd/ccddproducedcapture000000000/trace.ct"] = body;
+      return w;
+    },
+    mutateWorld: (w) => {
+      w.built["t/cc/dd/ccddproducedcapture000000000/trace.ct"] =
+        "CTFMT0\0the same transaction, rebuilt to different bytes\n";
+      return w;
+    },
+    expect: "F4",
+    also: { F1: "PASS", F2: "PASS" },
   },
   {
     // And the failure that shape must NOT swallow: containers are published

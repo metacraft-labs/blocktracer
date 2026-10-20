@@ -195,7 +195,7 @@ export function declaredEngineBytes(nimSource) {
 
 // ── record ─────────────────────────────────────────────────────────────────
 
-export function record({ built, staged, engineFetch, nimSourcePath, repoRoot }) {
+export function record({ built, staged, engineFetch, nimSourcePath, repoRoot, produced = [] }) {
   const builtHashes = hashTree(built);
   const stagedHashes = hashTree(staged);
 
@@ -224,6 +224,21 @@ export function record({ built, staged, engineFetch, nimSourcePath, repoRoot }) 
     for (const f of walkFiles(abs)) {
       if (!f.endsWith(".ct")) continue;
       frozenSource.set(sha256(readFileSync(f)), relKey(repoRoot, f));
+    }
+  }
+  // AND THE CAPTURES THE BUILD PRODUCED, declared by the caller with `--produced`.
+  // A chain whose container is recorded inside the flake (route 3 of Chain-Delivery
+  // DEL-5: tools/chain/nix/eth.nix) has no committed `.ct` to be held to, by design.
+  // It is held to the build's own declared output instead. That is legitimate ONLY
+  // because the output is byte-reproducible: the recorder derives its recording id
+  // and orders its variables, so a rebuild of the same inputs writes the same bytes.
+  // A producer that was not reproducible would publish different bytes under the
+  // same input-derived URL, which is what F4 exists to refuse, and declaring such a
+  // tree here would launder exactly that.
+  for (const dir of produced) {
+    for (const f of walkFiles(dir)) {
+      if (!f.endsWith(".ct")) continue;
+      frozenSource.set(sha256(readFileSync(f)), `produced:${relKey(dir, f)}`);
     }
   }
 
@@ -462,11 +477,14 @@ export async function verify({ manifest, target }) {
         changed.length === 0,
         changed.length
           ? `${changed.length} of ${frozen.length} published container(s) match NO committed ` +
-            `capture. A frozen container that changed is a different recording under the same ` +
+            `or declared-produced capture. A frozen container that changed is a different ` +
+            `recording under the same ` +
             `URL, and every visitor replays the new one without being told:\n` +
             fmt(changed, (r) => `/${r}  (${A[r].bytes} bytes, ${A[r].sha256.slice(0, 12)}…)`)
           : `all ${frozen.length} published container(s) are byte-identical to one of the ` +
-            `${known.size} committed capture(s) under ${FIXTURE_ROOTS.join(", ")}`);
+            `${known.size} capture(s) committed under ${FIXTURE_ROOTS.join(", ")} or declared ` +
+            `with --produced (${Object.values(frozenSource).filter((s) => s.startsWith("produced:")).length} ` +
+            `of them produced)`);
     }
 
     // ── F5 — the engine size the page TELLS a visitor is true ──────────────
@@ -584,7 +602,8 @@ export function parseArgs(argv) {
   if (mode !== "record" && mode !== "verify") {
     throw new Error(
       `first argument must be "record" or "verify" (got ${mode ?? "nothing"})\n` +
-      `usage: check-freshness.mjs record --built <dir> --staged <dir> [--engine-fetch <json>] --out <json>\n` +
+      `usage: check-freshness.mjs record --built <dir> --staged <dir> [--engine-fetch <json>] ` +
+      `[--produced <dir>]... --out <json>\n` +
       `       check-freshness.mjs verify --manifest <json> (--dir <dir> | --origin <url>)`);
   }
   const o = { mode, repoRoot: REPO_ROOT };
@@ -601,6 +620,7 @@ export function parseArgs(argv) {
     else if (a === "--nim-source") o.nimSource = take(a);
     else if (a === "--repo-root") o.repoRoot = resolvePath(take(a));
     else if (a === "--out") o.out = take(a);
+    else if (a === "--produced") (o.produced ??= []).push(take(a));
     else if (a === "--manifest") o.manifest = take(a);
     else if (a === "--dir") o.dir = take(a);
     else if (a === "--origin") o.origin = take(a);
@@ -633,6 +653,7 @@ async function main(argv) {
       engineFetch,
       nimSourcePath: o.nimSource,
       repoRoot: o.repoRoot,
+      produced: (o.produced ?? []).map((d) => resolvePath(d)),
     });
     mkdirSync(dirname(resolvePath(o.out)), { recursive: true });
     writeFileSync(o.out, JSON.stringify(m, null, 2) + "\n");
