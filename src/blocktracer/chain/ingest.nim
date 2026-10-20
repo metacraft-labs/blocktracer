@@ -1368,6 +1368,22 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   blockRows.sort(proc (x, y: auto): int = cmp(x.height, y.height))
 
   let observedBlocks = blockRows.len
+  # ── THE TALLEST BLOCK THE CAPTURE REACHED, taken BEFORE the curated window
+  #    narrows the published set ──────────────────────────────────────────────
+  #
+  # This is the quantity `summary.stale` is about, and taking it after the
+  # narrowing asks a different question with a different answer. A curated tree
+  # publishes the window in which every transaction opens a container, which on
+  # two of the three Aztec captures ends below the capture's own top block —
+  # measured: `aztec` enumerated up to 70,183 and publishes up to 68,231. Those
+  # captures DID reach the tip; what is narrower is what we chose to publish, and
+  # calling a deliberate publishing choice "Behind tip" would report a product
+  # decision as a data problem. Staleness is a property of the CAPTURE: did it
+  # reach the chain's tip, or stop below it.
+  #
+  # `-1` when the capture enumerated nothing, so the comparison below is false
+  # rather than reading an empty seq.
+  let capturedHead = (if blockRows.len > 0: blockRows[^1].height else: -1)
   var observedTransactions = 0
   for t in snap["transactions"]: inc observedTransactions
 
@@ -1488,6 +1504,12 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
   # ---- transactions --------------------------------------------------------
   var txCount, withTrace, divergentCount, prunedCount, totalContainerBytes = 0
+  # HOW MANY OF THE TRACED ROWS STEP AT SOURCE LEVEL — §1.2's T2 — counted from
+  # the same `measuredSourceLevel` each row's manifest publishes, so the chain-wide
+  # tally and the per-transaction claim are one measurement read twice. It is what
+  # lets a landing page state a tier as a DISTRIBUTION over what was recorded,
+  # which §1.2 permits, instead of as a chain-wide badge, which it does not.
+  var withSourceLevel = 0
   # REFUSALS ARE COUNTED SEPARATELY FROM PRUNING, because they are opposite facts
   # about the same window and the page must not merge them. A pruned transaction was
   # never replayable when it was reached; a REFUSED one was — its body was still
@@ -1546,7 +1568,53 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # cost is the chain's too. Nothing here is derived from the replay, because
     # these facts are true whether or not anyone ever re-executed the thing.
     let reverted = t["revertCode"].getInt != 0
+
+    # ── WHO ACTED, AND WHAT THEY CALLED ────────────────────────────────────
+    #
+    # `var roles: seq[Role]` SAT HERE AND NOTHING EVER APPENDED TO IT. It was
+    # declared, passed into `TransactionFacts`, and empty on every transaction
+    # of every chain this reader has ever published — and beside it
+    # `payloadRaw`, `payloadSelector` and `payloadTarget` were three empty
+    # string literals. The consequence was visible and was not an error: the
+    # shared transactions table's `From`, `To / target` and `Method` columns
+    # rendered `tables.nim`'s muted em dash on every row. Measured on the
+    # exported Ethereum block before this change: 624 of them, 208 rows × 3
+    # columns, on a page whose own purpose is to say who called what.
+    #
+    # THE DASH WAS NOT A BLANK, IT WAS A CLAIM. `addressCell`'s comment states
+    # it: "§2.3: some chains have no sender at all. An em dash is the honest
+    # rendering of a role this chain family does not have — it is not a missing
+    # value." On Ethereum every transaction is signed by an account the chain
+    # names, so the dash was a missing value wearing the sentence that promises
+    # it is not one.
+    #
+    # BOTH ARE READ WITH A SAFE SUBSCRIPT AND ARE OPTIONAL TO §5. A conforming
+    # producer may publish neither: the Aztec producers publish no roles today
+    # and their rows keep the dash, which on a chain whose fee payer is a
+    # contract the capture does not name is the honest answer rather than a gap.
+    # So absence may not become a refusal here, and an entry that states no
+    # address is DROPPED rather than published — a role with an empty address
+    # renders as a link to nowhere, where no role at all renders the dash.
     var roles: seq[Role]
+    let rolesNode = t{"roles"}
+    if rolesNode != nil and rolesNode.kind == JArray:
+      for r in rolesNode:
+        if r.kind != JObject: continue
+        let address = r{"address"}.getStr
+        let role = r{"role"}.getStr
+        if address.len == 0 or role.len == 0: continue
+        roles.add Role(role: role, address: address)
+
+    # `payload` CARRIES THE THREE MEMBERS `model.nim` ALREADY HAD, and the
+    # reader supplies no default for any of them: an absent payload publishes
+    # three empty strings, which is what `viewutil`'s `hasHexValue` renders as
+    # the honest em dash in the `Selector` and `Raw` metadata rows. A selector
+    # this reader invented — a zero, a truncation, a padding of a short
+    # calldata — would be a method call that never happened.
+    let payloadNode = t{"payload"}
+    let payloadRaw = payloadNode{"raw"}.getStr
+    let payloadSelector = payloadNode{"selector"}.getStr
+    let payloadTarget = payloadNode{"target"}.getStr
 
     # ── COST IS A VECTOR AND IT IS CARRIED VERBATIM ────────────────────────
     #
@@ -1797,6 +1865,22 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         "declaredRung": orNull(t["recording"]{"declaredRung"}),
         "stepsPositioned": orNull(t["recording"]{"stepsPositioned"}),
         "stepsUnpositioned": orNull(t["recording"]{"stepsUnpositioned"}),
+        # HOW MANY VARIABLE NAMES THE RECORDING INTERNS — the figure that stops
+        # the Values pane asserting the answer.
+        #
+        # The pane served "This recording carries no variable names" on a
+        # container that interns two, and could not have known better: it had no
+        # measurement to read, so the sentence was a constant in a branch. The
+        # producer measures it (`ct-print --summary` on the container: `varnames:
+        # 2`) and it travels here, so the pane states a number rather than a
+        # belief.
+        #
+        # ABSENT IS VALID AND IS NOT ZERO. Every capture written before the
+        # producer published this member has no figure at all, and "this tree
+        # does not record how many" must stay distinguishable from "it interns
+        # none" — the same argument `effectMismatches` makes four members up.
+        # `orNull` is what makes the absence a value instead of a nil deref.
+        "varnames": orNull(t["recording"]{"varnames"}),
         # THE SOURCE-LEVEL MEASUREMENT AND WHAT IT RESTS ON, IN THE TREE.
         #
         # `sourceLevel` is the runtime's own AND over every contract the
@@ -1839,7 +1923,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       outcome: Outcome(overall: (if reverted: ooReverted else: ooSucceeded),
                        reason: "", parts: @[]),
       roles: roles, cost: costs,
-      payloadRaw: "", payloadSelector: "", payloadTarget: "",
+      payloadRaw: payloadRaw, payloadSelector: payloadSelector,
+      payloadTarget: payloadTarget,
       logs: @[], codeEdges: codeEdges, executions: executions,
       native: native)
     # WHICH QUANTITY SEQUENCES THIS CHAIN'S TRANSACTIONS, TAKEN FROM THE ROW
@@ -1860,6 +1945,14 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
     # -- the §7.0 overlay ----------------------------------------------------
     var et: ExecTrace
+    # THE ROW'S OWN CLOSED-SET MEMBER, HOISTED TO THE SCOPE THAT PUBLISHES THE
+    # OVERLAY. `rr` is bound inside the not-replayed branch, beside the rules
+    # that validate it, and that is where it belongs; the overlay rows are built
+    # after the branch closes. A replayed row leaves this empty, which is right
+    # — `S5-REFUSALREASON-FORBIDDEN`'s sibling rule forbids the member on a
+    # traced row — so the one assignment below is also the only way it is ever
+    # non-empty.
+    var rowRefusal = ""
     if replayed:
       # `let rec = t["recording"]` used to sit here with a `discard rec` 445 lines
       # below and no other use — a binding whose only effect was to make the member
@@ -1899,6 +1992,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         # derived id is unchanged, so publishing it re-addresses nothing.
         hasRecorder: true, recorder: txRRef)
       inc withTrace
+      if measuredSourceLevel: inc withSourceLevel
       if not reproduced: inc divergentCount
       inc totalContainerBytes, t["containerBytes"].getInt
 
@@ -2536,6 +2630,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # producer wrote the row against, so the two cannot disagree about
       # membership without the build saying so.
       let rr = t{"refusalReason"}.getStr
+      rowRefusal = rr
       # ── `@2` REQUIRES THE MEMBER; `@1` LEFT IT OPTIONAL ──────────────────
       #
       # THIS IS WHAT THE FORMAT BUMP MEANS, and it is checked here because this is
@@ -2676,11 +2771,43 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # published, byte for byte; the list shape appears only where the producer
     # named more than one, which is the difference between carrying a producer's
     # list and always emitting more than one row.
+    # ── AND THE ROW'S OWN MEMBER REACHES ITS ONLY EXECUTION ─────────────────
+    #
+    # SPREADING A ROW FACT ACROSS N EXECUTIONS IS A CLAIM THE PRODUCER DID NOT
+    # MAKE; ATTRIBUTING IT TO THE ROW'S ONLY ONE IS THE SAME SENTENCE. The
+    # paragraph above is right that a reader must not decide the row's refusal
+    # is separately true of each of several executions. Where the producer named
+    # exactly ONE, there is nothing to decide: "this row was refused for reason
+    # R" and "this execution was refused for reason R" are the same statement
+    # about the same thing, and withholding the member does not make the reader
+    # more careful — it makes the one surface that needs it blind.
+    #
+    # MEASURED, BECAUSE THIS IS THE WHOLE OF THE DEFECT. The Ethereum producer
+    # states its sentence ON its single execution, which leaves no entry
+    # reasonless and puts `tracedAt` at -1 — contract-valid, and the branch
+    # above therefore built no `et`. So all 207 untraced rows of the published
+    # block reached the client with `availability: "absent"`, a reason, and NO
+    # `refusalReason`: the member was in the snapshot, validated against the
+    # closed set, counted in `counts.refusals["not-attempted"] = 207`, and then
+    # dropped in transit one hop before the badge that needed it. The page said
+    # `Not observable` 207 times about ordinary public transactions whose bodies
+    # are in the committed input set, because the only evidence that it was
+    # merely not attempted never left this proc.
+    #
+    # THE GUARD IS `execSelectors.len == 1`, not the outcome. A multi-execution
+    # row keeps the old discipline exactly: `own` is empty, nothing is spread,
+    # and `absenceKind` reads empty as "claim nothing about durability". A
+    # chain-absent row also keeps it, for free — `S5-REFUSALREASON-FORBIDDEN`
+    # means `rr` is empty there, so an Aztec private half still publishes no
+    # member and is still worded `Not observable`, which for it is true.
+    let ownRefusal =
+      (if execSelectors.len == 1 and tracedAt < 0: rowRefusal else: "")
     var etRows: seq[ExecTrace]
     for k in 0 ..< execSelectors.len:
       if k == tracedAt: etRows.add et
       else: etRows.add ExecTrace(selector: execSelectors[k], availability: taAbsent,
-        reason: execReasons[k], bytes: 0, reconstructed: false,
+        reason: execReasons[k], refusalReason: ownRefusal, bytes: 0,
+        reconstructed: false,
         hasValidation: false, validation: ValidationSummary())
     let overlay =
       if etRows.len == 1:
@@ -2693,6 +2820,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
                   overlay.toJson)
 
     for r in roles: participate(r.address, height, txHash)
+    # THE TARGET PARTICIPATES TOO. The transactions table links `To / target` to
+    # the target's address page, and with roles alone that page was never
+    # written: the first Ethereum build published 60 links to addresses with no
+    # page, the USDT contract (the transfer's own target) among them, and
+    # `check-assets` A1 refused the tree. A creation states no target, and
+    # `participate` drops the empty string.
+    participate(payloadTarget, height, txHash)
 
   # ---- registry row, now that the published set is known -------------------
   # See the block above where `reg` was read and the incumbent pin checked. The
@@ -2995,7 +3129,41 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   cfg.writeJson(summaryRel, %*{
     "chain": chain, "generation": gen,
     "counters": {"blocks": blockRows.len, "transactions": txCount},
-    "coverageMode": "selective", "stale": false,
+    "coverageMode": "selective",
+    # ── STALENESS IS MEASURED NOW, AND IT USED TO BE THE LITERAL `false` ────
+    #
+    # `pages/chains.nim` renders this as a GREEN `At tip` badge when false and
+    # an amber `Behind tip` when true, so the literal published "At tip" about
+    # every chain this reader has ever produced, for ever, whatever it held.
+    #
+    # It was false on the page the moment a second chain arrived. Measured on
+    # the Ethereum mainnet capture: the published head is block 26,083,328 and
+    # the node's own tip at capture was 26,147,203 — the export is 63,875
+    # blocks behind the tip the capture ITSELF observed, and the chain list
+    # said `At tip` in green two columns from a provenance sentence reading
+    # "a preliminary export covering 29 September 2026". Two adjacent facts on
+    # one page, disagreeing, with the confident one wrong.
+    #
+    # THE EVIDENCE WAS ALREADY IN THIS OBJECT. `tipAtCapture` is published
+    # forty lines down from here, off the same `tipAt` binding this now reads;
+    # the honest answer was derivable from a sibling field of the very literal
+    # that denied it. Nothing needed to be captured, asked for or added.
+    #
+    # THE HEAD IS THE CAPTURE'S, NOT THE PUBLISHED SET'S, and the difference is
+    # not academic — see `capturedHead` for why, and for the measurement that
+    # made it so. Taking it after the curated window narrows the set reported
+    # `Behind tip` for `aztec` and `aztec-testnet`, two captures that reached
+    # the tip and simply publish less than they enumerated.
+    #
+    # MEASURED BLAST RADIUS, both ways, over the four chains this tree
+    # publishes: `aztec` 70183 vs tip 70183, `aztec-testnet` 67058 vs 67058 and
+    # `aztec-testnet-frames` 69361 vs 69361 all stay `At tip`; the synthetic
+    # demo chain is not produced by this reader and does not move either. The
+    # one chain that flips is `ethereum-mainnet` — enumerated head 26,083,328
+    # against a node tip of 26,147,203 — which is the chain the claim was false
+    # about. The first attempt at this line compared the PUBLISHED head and
+    # flipped three of the four; the export is what caught it.
+    "stale": capturedHead >= 0 and capturedHead < tipAt,
     "provenance": {
       "kind": "live-capture",
       "label": provLabel,
@@ -3045,6 +3213,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "finalizedAtCapture": finalizedAt,
       "replayableWindowBlocks": win["blocks"],
       "tracesPublished": withTrace,
+      "tracesAtSourceLevel": withSourceLevel,
       "mostRecentTxBlock": mostRecentTxBlock,
       "longestRunWithoutTx": largestGap,
       # THE SCOPE AND ITS TWO RANGES, AS DATA. `detail` says all of this in

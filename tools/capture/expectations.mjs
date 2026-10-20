@@ -2353,24 +2353,49 @@ export const EXPECTATIONS = [
   // other is the failure this table exists to prevent." Only the mapping from
   // cause to durability moved.
   //
-  // The PAGE defect this grades is open and the item must keep failing until the
-  // page is fixed: `viewutil.availabilityNote(taAbsent)` asserts "a permanent
-  // answer rather than a failed fetch" for every execution that resolves to
-  // `absent`, over a repairable member on 918 of the 922 committed rows that
-  // carry one. reviews/QUEUED-DECISIONS.md Q10 holds that decision.
+  // THE PAGE DEFECT THIS GRADED IS CLOSED, and the item keeps grading it.
+  //
+  // It read, until the page was fixed: "The PAGE defect this grades is open and
+  // the item must keep failing until the page is fixed:
+  // `viewutil.availabilityNote(taAbsent)` asserts 'a permanent answer rather
+  // than a failed fetch' for every execution that resolves to `absent`, over a
+  // repairable member on 918 of the 922 committed rows that carry one.
+  // reviews/QUEUED-DECISIONS.md Q10 holds that decision."
+  //
+  // Q10 is now resolved, by its own option (b) rather than its recommended (a).
+  // `viewutil.AbsenceKind` reads the member's durability out of
+  // `refusal-reasons.json` and the badge, its hover sentence and the note each
+  // have three branches: `Not observable` with the permanence claim for a
+  // permanent member or for a chain-absent execution carrying none,
+  // `Not traced yet` with an explicit denial of permanence for a repairable
+  // one, and a claim-nothing wording for a member this build does not know.
+  //
+  // (a) — stop asserting durability at all — was not taken, and the reason is
+  // the word in the BADGE. `Not observable` asserts the same thing the note was
+  // to stop asserting, once per row, and it was the part a visitor actually
+  // read: measured on the exported Ethereum block, 207 of 208 rows. Deleting
+  // the sentence alone would have left the page saying the untrue thing more
+  // quietly. See `AbsenceKind`'s own docstring.
+  //
+  // THE ITEM IS NOT RELAXED AND THE EXPECTATION BELOW IS UNCHANGED. It still
+  // demands the tense that matches the published member, in both directions,
+  // and it still says to EXPECT to find the failure rather than to check for
+  // it — because the mapping is now per-member and a new member, a new
+  // producer or a new surface that words an absence can each get it wrong
+  // again. What changed is that the repository's own three chains now pass it.
   {
     id: "tx-detail--mainnet-zero-trace",
     summary:
-      "§7.0's `absent` on real chain data: no trace is published for this transaction, and the page's job is to say WHY in the capture's own words. SEVERAL causes reach this state and they are not interchangeable — the closed set in `tools/chain/refusal-reasons.json` has eight members, three permanent and five repairable — so the reason, the tense and the durability claim must each be the one that fits the member THIS transaction carries. Do not infer durability from the outcome word: `outcome: pruned` is the commonest row in the corpus and its member is `not-attempted`, which is REPAIRABLE.",
+      "§7.0's `absent` on real chain data: no trace is published for this transaction, and the page's job is to say WHY in the capture's own words. SEVERAL causes reach this state and they are not interchangeable — the closed set in `tools/chain/refusal-reasons.json` has nine members, three permanent and six repairable — so the reason, the tense and the durability claim must each be the one that fits the member THIS transaction carries. Do not infer durability from the outcome word: `outcome: pruned` is the commonest row in the corpus and its member is `not-attempted`, which is REPAIRABLE.",
     spec: "Page-Descriptions §7.0 (absent), §7.2, §14; components/provenance.nim",
     register: "explorer",
     inherits: ["site-chrome"],
     mustShow: [
       "A `Not observable` badge on the execution, and beside it the PUBLISHED reason in the producer's own words. The reason must locate the limitation WHERE IT ACTUALLY IS, and there are three places it can be. PROTOCOL-side: the transaction is not first in its block, so no node serves the intra-block intermediate state its replay would have to read — the row names the block and ends `Only the first transaction in a block can be re-executed from published data`, and nothing anyone builds changes that. RUN-side: the node has pruned the body and the keyless transaction file store still holds it, so the row states the node's answer is not the only one and that `this run did not try` — the limitation is ours, and it is a budget or a flag rather than a property of the chain. RUNTIME-side: the follower reached the transaction inside the replay window with its body still served and the replay runtime refused it by name. Whichever it was, the sentence must be the one the capture actually recorded for THIS transaction; a page that reports another cause is misattributing a fault, which is the defect this item exists to catch. The RUN-side case is the one a reviewer is most likely to mis-grade, because the outcome word on the row is `pruned` and the pruning is real — but the sentence's own conclusion is that the body remains obtainable and was not asked for.",
-      "The transaction's ordinary metadata, complete and unapologetic — the full hash, an outcome badge, and an Overview carrying block, canonicality, finality and cost. §7.0's second row is 'the metadata, with the reason stated', and the metadata half is not a consolation prize. Note that a real chain publishes FEWER fields than the fixture (no fee payer, no target): their absence is the snapshot's, not the page's, and is not a finding.",
+      "The transaction's ordinary metadata, complete and unapologetic — the full hash, an outcome badge, and an Overview carrying block, canonicality, finality and cost. §7.0's second row is 'the metadata, with the reason stated', and the metadata half is not a consolation prize. Note that THIS chain's capture publishes fewer fields than the fixture (no fee payer, no target): their absence is the snapshot's, not the page's, and is not a finding. The clause said “a real chain” until 2026-10-12 and that generalisation is now false — the Ethereum mainnet producer publishes `roles` and `payload`, so its rows carry a sender and a target and an em dash in those cells THERE would be a finding. The Aztec producers publish neither, which is what this subject is of.",
       "Every content section present and each one saying why it is empty IN A TENSE THAT MATCHES THE PUBLISHED MEMBER'S DURABILITY. The MEMBER decides it — not the outcome word, and not whether a body was pruned. Where the member is a permanent one the sections must say permanently — the page's wording for that is `empty \"permanently, not yet\"` — and on this corpus the permanent member is `not-first-in-block` and only that: 4 rows, all on `aztec-testnet`, whose sentence names the block whose intermediate state no node serves and ends `Only the first transaction in a block can be re-executed from published data`. A section reading as pending there would promise a trace that can never arrive. Where the member is a REPAIRABLE one the permanent tense is the same error in the other direction, and that is now the ordinary case rather than the exception — `not-attempted` (913 rows: 912 carrying `outcome: pruned`, and one whose run simply hit its own `--max`) and `runtime-refused` (5) are both repairable, so a reader told the answer is permanent may never come back to a page that will have a trace on it. §14.1a is the rule and it cuts both ways — \"'Not now' and 'not ever' are different states … presenting either as the other is the failure this table exists to prevent.\"",
       "The affirmative provenance marker, which on THIS page is the `Data` row at the top of the transaction facts grid — a badge reading `Real Aztec mainnet data` with the capture's own sentences beneath it. That this is REAL data is what makes the absence of a trace meaningful; the same page on the synthetic chain would be a fixture choice rather than a fact about a network. Since 2026-08-31 it is a row rather than a band: judge whether, as the first fact in the grid, it still lands before a reader forms a conclusion about the empty sections below.",
-      "A claim about DURABILITY THAT THE PUBLISHED MEMBER SUPPORTS, and a reader able to tell which it is. `tools/chain/refusal-reasons.json` decides durability once per member and the page may not re-decide it from the outcome it printed: three members are permanent (`not-first-in-block`, `body-unavailable`, `prestate-unavailable`) and five are repairable (`not-attempted`, `runtime-refused`, `body-source-unreachable`, `artifact-unresolvable`, `no-container-written`). Only under a permanent member is 'a permanent answer rather than a failed fetch' a supported sentence — there, returning tomorrow genuinely will not help. Under a repairable member the honest claim is that no trace exists NOW and why, not that none can ever exist. The failure mode is asserting permanence with a repairable cause printed directly beneath it, which leaves the strongest sentence on the page unsupported by the only evidence offered for it — and as of 2026-09-13 that describes 918 of the 922 committed rows carrying a member, so EXPECT to find it rather than checking for it.",
+      "A claim about DURABILITY THAT THE PUBLISHED MEMBER SUPPORTS, and a reader able to tell which it is. `tools/chain/refusal-reasons.json` decides durability once per member and the page may not re-decide it from the outcome it printed: three members are permanent (`not-first-in-block`, `body-unavailable`, `prestate-unavailable`) and six are repairable (`not-attempted`, `runtime-refused`, `body-source-unreachable`, `artifact-unresolvable`, `no-container-written`, `instruction-unimplemented`). Only under a permanent member is 'a permanent answer rather than a failed fetch' a supported sentence — there, returning tomorrow genuinely will not help. Under a repairable member the honest claim is that no trace exists NOW and why, not that none can ever exist. The failure mode is asserting permanence with a repairable cause printed directly beneath it, which leaves the strongest sentence on the page unsupported by the only evidence offered for it — and as of 2026-09-13 that describes 918 of the 922 committed rows carrying a member, so EXPECT to find it rather than checking for it.",
     ],
     mustNotShow: [
       "A Debug button, a 'Generate trace' affordance, a retry, a spinner, or a disabled control of any kind. There is nothing to retry and nothing to generate; an affordance here would promise something the chain cannot supply.",

@@ -62,6 +62,11 @@ on:
         required: false
         default: "default"
         type: string
+      produced-target:
+        description: "Flake package holding the chain captures the build PRODUCES rather than commits (one directory per chain). Empty: none. Handed to check-freshness.mjs record --produced, so F4 holds those containers to the build's own output."
+        required: false
+        default: ""
+        type: string
       runner:
         # A JSON ARRAY, not a bare label. The fleet is targeted by CAPABILITY
         # LABELS now (`metacraft-dev-guidelines` §"Capability-label taxonomy"),
@@ -395,11 +400,23 @@ jobs:
         # builds, and `.deploy/engine-fetch.json`, which is what THIS RUN
         # downloaded. `site/` is never its own witness — the whole point is to
         # hold the staged tree to something it did not produce.
+        #
+        # A container the build PRODUCED rather than committed (`produced-target`,
+        # empty by default) is declared with `--produced`, so F4 holds it to that
+        # derivation's output. Building that target here costs nothing extra: it
+        # is the same derivation `flake-target` already copied in.
+        env:
+          PRODUCED_TARGET: ${{ inputs.produced-target }}
         run: |
           set -euo pipefail
+          produced=()
+          if [ -n "$PRODUCED_TARGET" ]; then
+            produced=(--produced "$(nix build --no-link --print-out-paths ".#${PRODUCED_TARGET}")")
+          fi
           nix develop .#ci --command node tools/deploy/check-freshness.mjs record \
             --built result --staged site \
             --engine-fetch .deploy/engine-fetch.json \
+            ${produced[@]+"${produced[@]}"} \
             --out .deploy/freshness.json
 
       - name: Verify the bytes about to be uploaded are the ones this commit builds

@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# FOURTEEN suites — 98 + 19 + 24 + 24 + 57 + 233 + 33 + 162 + 53 + 118 + 219 + 83 + 6 + 30 = 1159 counted assertions —
+# SIXTEEN suites — 98 + 19 + 24 + 24 + 57 + 235 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 34 = 1205 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -179,7 +179,9 @@ test:
 # IS THE INPUT SET IT CLAIMS TO BE — every file hashed against its manifest, the
 # three independent block answers cross-checked against each other, and the
 # replay endpoint held to never reaching a network even when handed one
-# (`eth-rpc-transcript-selftest`).
+# (`eth-rpc-transcript-selftest`), and WHETHER A REGENERATED ETHEREUM CONTAINER IS COMPARED IN A FORM
+# THAT ERASES THE RECORDER'S INTERNING ORDER AND NOTHING ELSE
+# (`eth-regen-check-selftest`).
 #
 # `snapshot-contract-selftest` IS THE ONE THAT READS A NIM FILE FROM JAVASCRIPT,
 # and it is a suite rather than a review because the alternative is a person
@@ -441,6 +443,15 @@ chain-selftest:
     # codetracer-evm-recorder sibling, which is why `just eth-capture` is a
     # separate recipe and not an arm here.
     node tools/chain/eth-rpc-transcript-selftest.mjs
+    # Offline and toolchain-free: the two decoded variants are inlined, so no
+    # container and no `ct-print`. The comparison over real containers is
+    # `just eth-regen-check`, which needs the recorder.
+    node tools/chain/eth-regen-check-selftest.mjs
+    # Offline and toolchain-free: the Sui producer's facts, its effects
+    # comparison and its refusals, driven from literals shaped as Sui's GraphQL
+    # service and `sui replay` write them. Traced rows need a container and are
+    # exercised by `just sui-range`.
+    node tools/chain/sui-producer-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1542,6 +1553,9 @@ ETH_CAPTURE_TX := "0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2
 # recorder BINARY, which is a Rust build in the `codetracer-evm-recorder`
 # sibling and is not in this repository. The chain data is no longer the
 # obstacle; the toolchain is.
+# `nix build .#evm-recorder` builds that binary from this flake's pins (the writer
+# at the last `meta.dat`-6 revision), and `nix build .#eth-capture-tree` runs this
+# whole capture in the sandbox. `packages.site-staging` publishes the result.
 #
 # The container is NOT byte-identical between two runs over the same inputs, and
 # that is a property of the RECORDER rather than of the inputs — measured over
@@ -1566,6 +1580,24 @@ eth-capture RECORDER COMMIT TX=ETH_CAPTURE_TX OUT=".eth-capture/tree" *ARGS:
         --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
         --tx {{TX}} --out {{OUT}} \
         --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}} {{ARGS}}
+
+# ── does a held Ethereum container still record what the inputs produce? ────
+#
+# Regenerates the container from the committed inputs (`just eth-capture`, no
+# network) and compares it with HELD through `tools/chain/eth-regen-check.mjs`:
+# decoded by `ct-print --full`, canonicalised to erase the recorder's per-process
+# interning order and nothing else. rc 0 SAME, 1 DIFFERENT (with the first path
+# that differs), 2 a container the reader refuses, which is not a verdict.
+#
+# This is the check DEL-5 (2026-10-20) names as the condition for exempting a
+# committed Ethereum container from `ban-added-ct-recordings`: the ban's reason is
+# that a recording pins a recorder version nothing tracks, and this tracks it.
+# HELD must live outside `.eth-capture/`, which `eth-capture` deletes first.
+# Needs the recorder binary and `ct-print` (`$CT_PRINT`), so it is in no gate;
+# its canonical form is graded offline by `eth-regen-check-selftest`.
+eth-regen-check RECORDER COMMIT HELD TX=ETH_CAPTURE_TX:
+    just eth-capture {{RECORDER}} {{COMMIT}} {{TX}} .eth-capture/tree
+    node tools/chain/eth-regen-check.mjs {{HELD}} .eth-capture/tree/ct/{{TX}}.ct
 
 # Re-record the committed input set against a live archive endpoint.
 #
@@ -1632,10 +1664,117 @@ eth-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-eth-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
 
+# Trace a window of SUI checkpoints into one snapshot tree (Recorder-Move
+# CXP-MOVE-1/2). The twin of `eth-range`: tools/chain/capture-sui-range.mjs reads
+# the window over Sui's GraphQL service, measures the tracing floor (the first
+# checkpoint at protocol 38, the first execution layer with trace hooks), records
+# up to `--max` transactions through `codetracer-move-recorder replay` — which
+# runs `sui replay --trace`, fetching exactly the object versions each
+# transaction names — and runs tools/chain/produce-sui-snapshot.mjs over the lot.
+#
+#   just sui-range ../codetracer-move-recorder/target/release/codetracer-move-recorder \
+#     $(git -C ../codetracer-move-recorder rev-parse HEAD) --depth 200 --max 6
+#
+# `sui` must be on PATH or given with `--sui`, built with the `tracing` feature
+# (the official release binaries are). Output defaults to .sui-range/ (ignored).
+# NOT in any gate, for `eth-range`'s reason: it needs the network and the
+# recorder. Its offline half is `sui-producer-selftest.mjs` in `chain-selftest`.
+# COMMIT is required and not derived, for `eth-capture`'s reason.
+sui-range RECORDER COMMIT *ARGS:
+    node tools/chain/capture-sui-range.mjs \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
+
+# Is the Sui endpoint still serving the object versions it served when the
+# committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed
+# ladder of depths, for the exact versions transactions there consumed, with a
+# control that must answer null; exit 1 names a rung the endpoint stopped
+# serving. `--record` re-takes tools/chain/measurements/sui-endpoint-horizon.json.
+# Needs the network, so it is not in `chain-selftest`; its verdict logic is.
+sui-horizon *ARGS:
+    node tools/chain/sui-horizon-probe.mjs {{ARGS}}
+
 # Publish a generated tree into a local object-store directory (M8 delta publisher).
 # Idempotent + resumable: re-run to upload only new objects and flip current.json.
 publish tree="demo-site" dest="published":
     nim c -r --hints:off src/blocktracer_publish.nim --tree {{tree}} --backend local --dest {{dest}}
+
+# ── does the Ethereum range capture reach an object store, and do the four ──
+#    properties a deployed follower rests on hold for it?
+#
+# The ingestion pipeline is follower -> recorder -> snapshot producer -> publisher
+# -> bucket. `just eth-range` is the first three; this measures the fourth over
+# its output, and the first question about the fourth was not what needs building
+# but whether it already accepts what the third produces. MEASURED on the
+# 26157390-26157392 capture: it does, unchanged — `blocktracer-chain-ingest` turns
+# the snapshot tree into the published layout and `blocktracer-publish` reconciles
+# that against a store. No publisher, object-store or producer change was needed.
+#
+# WHAT IT PROVES, each over the real Ethereum tree: the tree publishes whole; the
+# same tree again uploads ZERO and moves no byte; one object removed comes back
+# and ONLY it; an object whose bytes changed under an unchanged key is skipped by
+# the default cycle (the documented key-existence behaviour, stated as a control)
+# and moved by `--refresh`, alone; §2.2's write order with the visibility flip
+# LAST, read out of the kernel's rename record and armed by a mutant that moves
+# the flip first; one writer per chain, with a second concurrent publisher refused
+# by name while the lease is held and admitted once it is released.
+#
+# CREDENTIAL-FREE, AND IT MUST STAY THAT WAY. The backend is a local directory,
+# whose `putIfAbsent` is a genuine `O_CREAT|O_EXCL` — so the lease it proves is
+# the real one. Production buckets are operator-held and `publish-r2.yml` is
+# `workflow_dispatch`-only because §6c keeps the pointer flip with a human.
+#
+# NOT IN ANY GATE, for `eth-range`'s own reason: its subject is a live capture
+# that needs the network and the recorder binary, so a gate over it would report
+# SKIP forever. An ABSENT subject is exit 2 here rather than exit 0 — a run with
+# nothing to measure would otherwise report five properties proved over nothing.
+#
+#     just eth-range <recorder> <commit> --from 26157390 --to 26157392
+#     just eth-publish-proof
+#     just eth-publish-proof --snapshot .eth-range/tree --keep
+eth-publish-proof *ARGS:
+    bash tools/chain/eth-publish-proof.sh {{ARGS}}
+
+# ── does publishing RANGE AFTER RANGE into one store keep every height listed? ──
+#
+# `eth-publish-proof` proves one cycle. A deployed follower publishes range after
+# range into one store, and that COMPOSITION lost coverage silently. MEASURED on
+# the two real adjacent ranges 26157390-92 and 26157393-95: ingested separately
+# at generation "1" and published into one store, the second cycle exited 0,
+# flipped the pointer to head 26157395, and SKIPPED exactly four objects — the
+# whole-chain singletons `g/1/height/0.json`, `g/1/blocks/0.json`,
+# `g/1/summary.json` and `g/1/root.json`, which are `ocGenMap`/`ocGenRoot` and so
+# key-existence: present implies skip. The height map still held only the first
+# range. Three heights were unlisted and nothing failed.
+#
+# THERE ARE TWO SHAPES AND THEY DIFFER IN DETECTABILITY, which is the finding
+# worth more than the fix:
+#
+#   * same generation, singletons collide -> `verify-published` fails POINTER,
+#     because the pointer leads its own height map.
+#   * a fresh generation per range, each mapping only its own heights -> POINTER
+#     **PASSES**. The maps are self-consistent and the store has quietly dropped
+#     every earlier range from the index. The only check that sees it is LEDGER,
+#     and LEDGER is UNRUNNABLE without a coverage ledger — so before this work
+#     that shape had no detector at all. A detector that cannot run is
+#     indistinguishable from a detector that passes.
+#
+# So `eth-ingest-range.mjs` files each captured range in a coverage ledger,
+# ingests the UNION over everything filed, and derives the generation id from
+# what the generation contains. The ledger is also what makes LEDGER runnable.
+# `--no-merge` keeps both shapes reproducible, as Aztec's `ingest-range.mjs`
+# does for the same reason.
+#
+# NOT IN ANY GATE, for `eth-publish-proof`'s reason: the subjects are live
+# captures needing the network and the recorder binary. An ABSENT subject is
+# exit 2, never exit 0. Arm 5 (overlap) needs a third capture and SKIPS loudly
+# without one rather than claiming anything about overlap.
+#
+#     just eth-range <recorder> <commit> --from 26157390 --to 26157392
+#     mv .eth-range/tree .eth-range/tree-A
+#     just eth-range <recorder> <commit> --from 26157393 --to 26157395
+#     just eth-coverage-proof --a .eth-range/tree-A --b .eth-range/tree
+eth-coverage-proof *ARGS:
+    bash tools/chain/eth-coverage-proof.sh {{ARGS}}
 
 # ── Visual-design capture harness (VD.0) ────────────────────────────────────
 # Screenshots of every named view at every viewport in both themes. See

@@ -232,6 +232,14 @@
             "why": "the JavaScript half's selftest, and still nothing else: the capture tooling enumerates what was published rather than deriving it"
           },
           {
+            "path": "tools/chain/produce-sui-snapshot.mjs",
+            "why": "the first PRODUCER to declare the member. A Sui digest is base58 (transaction and checkpoint alike) and an address is hex, so a Sui snapshot that left `provenance.identifierEncoding` absent would be read as all-hex and its digests lowercased out of existence. It states the declaration it imports from `lib/sui-producer-facts.mjs` and derives no path from it — the reader does that. Joined this set on 2026-10-20 (Recorder-Move)."
+          },
+          {
+            "path": "tools/chain/sui-producer-selftest.mjs",
+            "why": "the Sui producer's selftest asserts that the tree it produces DECLARES the member (base58 digests, hex addresses) — the defect it guards is a Sui tree that omits the declaration and is read as hex. It reads one produced snapshot's member and derives nothing from it."
+          },
+          {
             "path": "tools/chain/snapshot-contract-selftest.mjs",
             "why": "§5.2b's census check. It joined this set when §5.6's declaration became reachable: the member is now in the census, so this suite names it, and its §15 asserts the STRUCTURE of the reader's one binding — that `ingest.nim` builds one declaration, publishes that value and keys every path from it. That is a claim about the reader's source which no behavioural test can make, and it derives nothing"
           },

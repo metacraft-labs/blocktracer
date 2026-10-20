@@ -146,10 +146,46 @@
       url = "github:metacraft-labs/codetracer-trace-format/592fa42cbfd759cf13398180798daaf856eb7e9d";
       flake = false;
     };
+
+    # ── Chain two: the Ethereum recorder and the writer it links ──────────────
+    # tools/chain/nix/eth.nix says why each pin is where it is. The writer is the
+    # last revision that writes `meta.dat` 6, because the engine this site pins
+    # reads 6 only. Move it with client/hydrate/engine-pin.txt, never ahead of it.
+    codetracer-evm-recorder = {
+      url = "github:metacraft-labs/codetracer-evm-recorder/64c4d94a96cde85b8a8ef8a3b817c5bb3c52832c";
+      flake = false;
+    };
+    evm-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/c8e57b1f21b1c4e82db5e14ab70fd16ecf217ce0";
+      flake = false;
+    };
+    # A SOURCE input, not its flake: that flake's toolchain input brings ~100 lock
+    # nodes (nixos-modules, home-manager, ethereum-nix, …) to build one archive and
+    # one binary. eth.nix runs the same two builds, through the writer's own
+    # `build_ffi.nims`, against its three Nim dependencies at the revisions the
+    # writer's flake.lock records at this pin.
+    codetracer-trace-format-nim = {
+      url = "github:metacraft-labs/codetracer-trace-format-nim/7b8b587c72ec31f6825ae124ab89ad7954f6dca7";
+      flake = false;
+    };
+    nim-stew = {
+      url = "github:status-im/nim-stew/1a5d0b99209f50ff055d9b5216849ba0365f8cf5";
+      flake = false;
+    };
+    nim-results = {
+      url = "github:arnetheduck/nim-results/b319652e98a198fa881ca70a76754c2dd6f09804";
+      flake = false;
+    };
+    nim-unittest2 = {
+      url = "github:status-im/nim-unittest2/92e1c13dcfb6d7e4ea6fb624fe9cc31e3dc76813";
+      flake = false;
+    };
   };
 
   outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system, codetracer
-            , aztec-avm-runtime, codetracer-trace-format }:
+            , aztec-avm-runtime, codetracer-trace-format
+            , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
+            , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -252,6 +288,36 @@
             # `decodeContainer` reports NOT MEASURED with the reason — so a host
             # without it degrades to a named gap and never to a silent pass.
             brotli
+            # `aws`, which the brotli entry above already says is declared here
+            # "the same way `aws` and `curl` above are" — and it WAS NOT. The
+            # sentence described an entry nobody had added, and the gap surfaced
+            # as `aws: command not found` with exit 127 in `publish-r2.yml`'s
+            # "Stage the live bucket's data plane" on run 38269686081, after
+            # four correct R2 credentials had already been handed to the step.
+            # A credential check that passes and then cannot run the tool is the
+            # worst-shaped failure available: it reads as a secrets problem.
+            #
+            # Two consumers, both subprocesses rather than SDK calls:
+            # `publish/objectstore.nim`'s `S3ObjectStore.putMany` (`aws s3 cp
+            # --recursive`, one call per Content-Encoding — see
+            # `contract/container_encoding.nim`) and `publish-r2.yml`'s own
+            # `aws s3 sync` of the live bucket's `d/ idx/ t/ src/` prefixes.
+            awscli2
+            # `ci/test/verify-published-readonly.sh:74` strips double-quoted
+            # strings with `perl -pe` and says why in its own comment: "`perl`
+            # and not `sed`: BSD sed has no non-greedy match and this needs
+            # one." It was invoked bare, which worked on darwin — where
+            # `/usr/bin/perl` leaks through — and failed on the NixOS runners
+            # with `perl: command not found`. Publish run 38366603048 died
+            # there, AFTER a successful publish, so the publish was reported as
+            # a failed run.
+            #
+            # Third tool in this file with the same story: `curl` and `brotli`
+            # are declared a few lines up for it, `awscli2` was declared above
+            # after the same 127, and `cmp` was routed through this shell for
+            # the same reason in the pointer-pin step. The pattern is "a tool a
+            # script reaches for is a tool this file must name".
+            perl
           ] ++ lib.optionals stdenv.hostPlatform.isLinux [
             bubblewrap
           ]) ++ [ followerNodejs ];
@@ -283,6 +349,16 @@
           traceFormatSrc = codetracer-trace-format;
           traceFormatRev = codetracer-trace-format.rev;
         };
+
+        eth = pkgs.callPackage ./tools/chain/nix/eth.nix {
+          nodejs = followerNodejs;
+          recorderSrc = codetracer-evm-recorder;
+          recorderRev = codetracer-evm-recorder.rev;
+          evmTraceFormatSrc = evm-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
       in {
         # The larger, interactive default shell includes the ci shell (so a local
         # `nix develop` has the exact CI toolchain plus any interactive extras).
@@ -310,6 +386,36 @@
         # person who wants to watch a chain without a NixOS host:
         #
         #   nix run .#chain-follower -- --avm /path/to/avm.wasm --url … --dry-run
+        # ── Chain two, produced rather than committed (Chain-Delivery DEL-5, route 3) ──
+        packages.evm-recorder = eth.evmRecorder;
+        packages.eth-capture-tree = eth.ethCaptureTree;
+
+        # The site with the STAGING-ONLY chains added: `default` plus the Ethereum
+        # tree, placed where the exporter already looks for a live-chain capture.
+        # deploy.yml builds this for every deploy except `live`, so `live` (the
+        # production Pages project) keeps `default` and carries no chain the
+        # operator has not cleared for production; Chain-Expansion's environment
+        # target is that only Aztec goes there. `postPatch` and not `preBuild`,
+        # because `default`'s custom buildPhase never runs the preBuild hook.
+        packages.site-staging = self.packages.${system}.default.overrideAttrs (old: {
+          name = "blocktracer-site-staging";
+          postPatch = (old.postPatch or "") + ''
+            cp -r ${self.packages.${system}.produced-captures}/. client/fixtures/chain/
+            chmod -R u+w client/fixtures/chain
+          '';
+        });
+
+        # Every chain capture the build PRODUCES rather than commits, one directory
+        # per chain slug. site-staging copies it into the fixtures; the deploy hands
+        # it to `check-freshness.mjs record --produced`, so F4 holds each published
+        # container to this output. That is sound only because each producer here
+        # is byte-reproducible. A real copy rather than a linkFarm, because the
+        # checker's walk does not follow symlinks.
+        packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } ''
+          mkdir -p $out
+          cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
+        '';
+
         packages.chain-tools = chain.chainTools;
         packages.chain-runtime = chain.avmRuntime;
         packages.aztec-ct-writer-wasm = chain.ctWriterWasm;

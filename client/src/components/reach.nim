@@ -19,24 +19,24 @@
 ## (Configuration.md §2.1, from §1.3's vocabulary). Everything here is a
 ## rendering of those three members and of nothing else.
 ##
-## IT DOES NOT STATE A DEBUG TIER, and that is the one omission worth writing
-## down because §4 item 4 asks for one. Chain-Support-Matrix.md §1.2 is explicit
-## that "tier is per transaction, not per chain: the same chain yields T2 for a
-## verified contract and T1 for an unverified one, frequently within a single
-## transaction" — so a chain-wide tier is not a fact about a chain, and the
-## published tree carries no chain-wide tally of what its recordings reached
-## either. `tools/capture/expectations.mjs` already records the anti-requirement
-## this would walk into: "a debug tier badge or a historical-reach value
-## INVENTED from the recorder pin. This is the one page in the product where a
-## confident wrong answer costs the most, and a plausible T1 badge with no
-## source behind it is exactly that." A reach READ FROM THE REGISTRY is not that
-## badge; a tier derived from the pin would be.
+## IT STATES THE DEBUG TIER AS A COUNT, NEVER AS A BADGE. Chain-Support-Matrix.md
+## §1.2 is explicit that "tier is per transaction, not per chain: the same chain
+## yields T2 for a verified contract and T1 for an unverified one, frequently
+## within a single transaction" — so a chain-wide tier is not a fact about a
+## chain. `tools/capture/expectations.mjs` records the anti-requirement a badge
+## walks into: "a debug tier badge or a historical-reach value INVENTED from the
+## recorder pin. This is the one page in the product where a confident wrong
+## answer costs the most, and a plausible T1 badge with no source behind it is
+## exactly that."
 ##
-## So the tier half of §4 item 4 stays open, and it is open as a PUBLISHING gap
-## rather than as a page gap: it needs the ingest to publish how many of a
-## chain's recordings resolved source and how many stayed at instruction level,
-## which is a measurement it already makes per transaction
-## (`execution.sourceLevel`) and does not aggregate.
+## What IS a fact about a chain is how its PUBLISHED recordings divide between
+## the two tiers, and the ingest publishes exactly that: `tracesPublished` and
+## `tracesAtSourceLevel` on the summary's provenance, the second counted from the
+## same per-transaction `execution.sourceLevel` each manifest carries. So the
+## sentence is a distribution over what was recorded, read from the tree, and it
+## says in words that it is not a promise about the next transaction. A tree
+## ingested before the tally existed publishes neither figure, and the page then
+## says it states no tier rather than reading the absence as zero.
 ##
 ## ## Why the prose is a pure function and the markup is three lines
 ##
@@ -194,16 +194,47 @@ func reachStatement*(p: ChainProfile): ReachStatement =
          "each transaction's page states which of the two it got."
        else: ""))
 
-proc reachSection*(p: ChainProfile): string =
+func transactionsPhrase(n: int): string =
+  if n == 1: "1 transaction" else: $n & " transactions"
+
+func countSteps(n: int): string =
+  ## "none steps", "1 steps", "208 step" — the subject of one clause of the
+  ## tier sentence, agreeing with its own count.
+  if n == 0: "none steps" elif n == 1: "1 steps" else: $n & " step"
+
+func tierStatement*(published, atSourceLevel: int): string =
+  ## §1.2's two recorded tiers as a count over this chain's published
+  ## recordings. Negative figures are the "not published" value from the
+  ## session, and they get their own sentence rather than a zero.
+  if published < 0 or atSourceLevel < 0 or atSourceLevel > published:
+    "This chain's published data carries no count of debug tiers, so this " &
+    "page states none. Each transaction's own page states whether it steps " &
+    "at source level or instruction by instruction."
+  elif published == 0:
+    "No transaction published here has a recording yet, so there is no debug " &
+    "tier to state: a tier belongs to a recording, not to a chain."
+  else:
+    let instr = published - atSourceLevel
+    "Of the " & transactionsPhrase(published) & " recorded here, " &
+    countSteps(atSourceLevel) & " at source level, which needs verified " &
+    "source and debug information for every contract a transaction ran, and " &
+    countSteps(instr) & " one VM instruction at a time. A debug tier belongs to each " &
+    "recording rather than to the chain, so this counts what was recorded " &
+    "and promises nothing about the next transaction."
+
+proc reachSection*(p: ChainProfile, tracesPublished = -1,
+                   tracesAtSourceLevel = -1): string =
   ## The section, for the chain landing page. Rendered unconditionally: there is
   ## no state of the declaration for which the honest answer is silence, and a
   ## section that disappeared when a chain declared nothing would make the
   ## weakest chains the ones that say least about themselves.
   let st = reachStatement(p)
+  let tier = tierStatement(tracesPublished, tracesAtSourceLevel)
   ui:
     tdiv:
       h2(class = "sec-title next"): text ReachHeading
       p(class = "lead measure"): text st.lead
+      p(class = "measure"): text tier
       if st.note.len > 0:
         # THE PRODUCER'S WORDS, MARKED AS A QUOTATION. `historyFloor.reason` is
         # written by whatever produced the capture and is the only statement in

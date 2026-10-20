@@ -148,6 +148,9 @@ type
       ## Where this chain's data came from, as the tree states it. Empty
       ## `provenanceKind` means the generation published none, which for this
       ## repository's demo tree is the synthetic case.
+    tracesPublished*, tracesAtSourceLevel*: int
+      ## Carried from the session; `-1` is "not published", never zero. See
+      ## `ChainSession.tracesAtSourceLevel`.
 
   TourRow* = object
     ## One entry of a chain's capability tour: a small program written to be
@@ -464,6 +467,26 @@ type
       ## VECTOR, never a scalar"). Flattening it to one number here is how a
       ## multi-dimensional chain's fee silently becomes an EVM-shaped one.
     availability*: TraceAvailability   ## the row's headline trace state
+    refusalReason*: string
+      ## The closed-set member behind an `absent` headline, or `""`.
+      ##
+      ## THE ROW USED TO DROP IT, AND THAT IS HOW 207 OF 208 ROWS CAME TO SAY
+      ## `Not observable` ABOUT ORDINARY PUBLIC TRANSACTIONS. `ExecView` has
+      ## carried `refusalReason` since the member was published and the
+      ## transaction PAGE renders it; the table row kept only the collapsed
+      ## `availability`, so the one surface a visitor scans 208 rows on was the
+      ## one surface with no way to tell "we did not look" from "there is
+      ## nothing to see". `refusal-reasons.json` already classifies every member
+      ## `permanent` or `repairable` — the distinction was published, decoded,
+      ## and thrown away one type short of the badge.
+      ##
+      ## EMPTY WHEN THE HEADLINE'S EXECUTIONS DISAGREE, rather than whichever
+      ## sorts first. A transaction whose two absent halves were refused for
+      ## different reasons has no single reason, and the badge then claims
+      ## nothing about durability instead of claiming one half's answer about
+      ## both. Empty is also the right value for a genuinely chain-absent
+      ## execution: `S5-REFUSALREASON-FORBIDDEN` forbids the member there, and
+      ## `Not observable` is the correct badge for it.
     sources*: SourceCoverageView
       ## §6 column 1's qualifier: whether the Debug action beside it opens a
       ## session that can show source, and for how much of the transaction.
@@ -646,7 +669,9 @@ proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
     profileName: s.pin.profile.name, traceSchema: s.pin.traceSchema,
     chainProfile: s.profile,
     provenanceKind: s.provenanceKind, provenanceLabel: s.provenanceLabel,
-    provenanceDetail: s.provenanceDetail)
+    provenanceDetail: s.provenanceDetail,
+    tracesPublished: s.tracesPublished,
+    tracesAtSourceLevel: s.tracesAtSourceLevel)
 
 # ── blocks ───────────────────────────────────────────────────────────────
 
@@ -1006,6 +1031,30 @@ proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
     result.executionSelectors.add e.selector
   result.headline = headlineAvailability(v)
 
+func headlineRefusal*(v: TxView): string =
+  ## The closed-set member behind `v.headline`, or `""` when there is no single
+  ## answer.
+  ##
+  ## ONE PLACE, because two surfaces need it and a second copy of the agreement
+  ## rule is a second rule. The explorer's table row words its badge from this,
+  ## and the debugger session words the sentence it serves instead of a session
+  ## from it; §7.1's rule that the transaction page and the session say one
+  ## thing about one transaction applies to the durability of the absence as
+  ## much as to the reason for it, and it cannot hold if each derives its own.
+  ##
+  ## EMPTY ON DISAGREEMENT. Only the executions that actually produced the
+  ## headline are consulted — a transaction whose public half is `absent` and
+  ## whose private half is also `absent` for a different member has no single
+  ## member, and `absenceKind` reads empty as "claim nothing about durability".
+  ## Returning the first would state one half's answer about both.
+  var seen: seq[string]
+  for e in v.executions:
+    if e.availability == v.headline: seen.add e.refusalReason
+  if seen.len == 0: return ""
+  for s in seen:
+    if s != seen[0]: return ""
+  seen[0]
+
 proc txRow*(r: DataRoot, info: ChainInfo, hash: string): TxRow =
   let v = txView(r, info, hash)
   result = TxRow(
@@ -1013,6 +1062,7 @@ proc txRow*(r: DataRoot, info: ChainInfo, hash: string): TxRow =
     outcome: v.outcome, outcomeReason: v.outcomeReason, cost: v.cost,
     methodSel: v.payloadSelector, toTarget: v.payloadTarget,
     availability: v.headline, sources: v.sources)
+  result.refusalReason = headlineRefusal(v)
   for role in v.roles:
     if role.role in ["feePayer", "signer", "initiator", "sender"]:
       result.fromAddr = role.address

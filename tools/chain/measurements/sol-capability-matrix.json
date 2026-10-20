@@ -1,0 +1,914 @@
+{
+  "format": "blocktracer/sol-capability-matrix@1",
+  "measuredOn": "2026-10-20T12:44:00.122Z",
+  "measuredBy": "tools/chain/sol-capability-probe.mjs",
+  "depthUnit": "slots below the provider's finalized head at probe time",
+  "providers": [
+    {
+      "name": "solana-foundation",
+      "url": "https://api.mainnet-beta.solana.com",
+      "finalizedHead": 459234439,
+      "firstAvailableBlock": 0,
+      "cells": [
+        {
+          "depth": 0,
+          "targetSlot": 459234439,
+          "slot": 459234439,
+          "blockTime": 1792500232,
+          "block": {
+            "status": "served",
+            "transactions": 929
+          },
+          "signature": "6UbTB5aofsSTAumUxHy7ReafcswqGCjBcAm8oo2auvY1FUoep5mSY6qH6T66ZFxPfvsnE7W7f3qnz6jdynPwuDK",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 3,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234444,
+            "slotsLater": 5
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "FTp1BybZ51NiZKbnZH6MsrV3tUZNauhpQMbBcqYUEr5f",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 150,
+          "targetSlot": 459234289,
+          "slot": 459234289,
+          "blockTime": 1792500200,
+          "block": {
+            "status": "served",
+            "transactions": 1269
+          },
+          "signature": "4QEaxKAsUpPXk8i1MkqRjvJP8D4tJZU9Wr2XDSm9ixZNPR73cPb26M91ybtjLqHKdn5vyvd7L9HBFWGxw9eDQcCj",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 9,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234448,
+            "slotsLater": 159
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "G2aq4Yr7qLCEuTgsFiJcX9L4GkY11hHHgqjabkSRjGhL",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 10000,
+          "targetSlot": 459224439,
+          "slot": 459224439,
+          "blockTime": 1792498072,
+          "block": {
+            "status": "served",
+            "transactions": 1009
+          },
+          "signature": "Md8uBL7eQaeHveR9X1i3Aq2dAfvyQGpXqxVRSF8dfL93aeeVLGib7syjzcDCH7jEeL3jUaP6HcjbRwkbaNq5Y8K",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 24,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234452,
+            "slotsLater": 10013
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "EkFzmEJEFB9W4HgTzvtMn9upJxg4fJZ3MaFxPmpQoSGa",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 100000,
+          "targetSlot": 459134439,
+          "slot": 459134439,
+          "blockTime": 1792478497,
+          "block": {
+            "status": "served",
+            "transactions": 915
+          },
+          "signature": "5xR2LsB5wQGU5Mgu12HoMY57cE3Dc1Po1G2wFyah92EAD9mboN4CgbCc6w5xZQo86rGKKh3toBSfMjz5tAGh3SRX",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 9,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234460,
+            "slotsLater": 100021
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "83TSSS7qojPowqrrvH23mCrhEJjnJG2ygaf7FEq9ZgKC",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 432000,
+          "targetSlot": 458802439,
+          "slot": 458802439,
+          "blockTime": 1792406202,
+          "block": {
+            "status": "served",
+            "transactions": 1042
+          },
+          "signature": "36MphHHrLCJjF6fV25n7Htu6W2mQZ4wkwHGqf1wNgwwLBSeKJJwv8WWrV3XrX3DqSDep6wHukKMWsWdGS6hcfpVq",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 3,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234475,
+            "slotsLater": 432036
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "Harmonic8SoAfZixJqUxxdSeyWzr6q7XFjuiXS5Z2zPg",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 2000000,
+          "targetSlot": 457234439,
+          "slot": 457234439,
+          "blockTime": 1792066607,
+          "block": {
+            "status": "served",
+            "transactions": 1015
+          },
+          "signature": "52ky4nBzNC2Y69XZ2WQdnsK56pJEXfdAKRyHEATCMYw8nAUwBfJQfCxtNWsj5Xt8z4zoGW9SJPkjsZDFTYqL6x7v",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 8,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234483,
+            "slotsLater": 2000044
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "BpCBCEp22VnUC4X4VmCXu5DPwg6WbYZ8YeZ6xVJCZCbD",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 10000000,
+          "targetSlot": 449234439,
+          "slot": 449234439,
+          "blockTime": 1790041613,
+          "block": {
+            "status": "served",
+            "transactions": 1139
+          },
+          "signature": "66qRF7pi2ypXb41jXhRUGjTdZpVJRiuWr2jcNEVe6mF59h7uJabi8TUJQRVYaFpGHkq5FbHRCxqh1cwFXbYpno4A",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 9,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234517,
+            "slotsLater": 10000078
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "HCarRs1TRYxDJiWaW2i1du9M5jPRRfDUhtA7MxVXc3fT",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 50000000,
+          "targetSlot": 409234439,
+          "slot": 409234439,
+          "blockTime": 1774625319,
+          "block": {
+            "status": "served",
+            "transactions": 1184
+          },
+          "signature": "2nUcMpDF8BsgePrx9kMyLyJCP1KxHmxfJdBWSiasjZcmDHR3zyR4q3ZybtCntcQTpwo7bbUSm3bdQCziZPSPGRyW",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 9,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234530,
+            "slotsLater": 50000091
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "FVnv5qH7dsrBzEDwJ8dN2m9PFtKTBAQFtqWF3M9LpwMg",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 100000000,
+          "targetSlot": 359234439,
+          "slot": 359234439,
+          "blockTime": 1754874021,
+          "block": {
+            "status": "served",
+            "transactions": 1368
+          },
+          "signature": "5tQje4jDB4foAjhZfRpvnTEEpdB3ATjamH5waaHzVkdE71iFSH67HyVzasbz96TQJQNaPkNy3CuibvbmTemV5XCk",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 20,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234540,
+            "slotsLater": 100000101
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "12PPVhB8jC9pq5bfcbf9VZcptmXuvsAFyeH8VK7L93zq",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 200000000,
+          "targetSlot": 259234439,
+          "slot": 259234439,
+          "blockTime": 1712689337,
+          "block": {
+            "status": "served",
+            "transactions": 1151
+          },
+          "signature": "5h25mbku3dqAxvXNXsYsXJsMEfVm1BRAwVez76BCSzj6KWRjBi9EiDPWvM6QRSF37GWytwiUm6nnwJdKNbNNeLKQ",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 7,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234555,
+            "slotsLater": 200000116
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "6CfEeMwD2D2n6PHFeWjArpbUHv6cRJVZhzvzyxQYfZnQ",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 400000000,
+          "targetSlot": 59234439,
+          "slot": 59234439,
+          "blockTime": 1609843285,
+          "block": {
+            "status": "served",
+            "transactions": 515
+          },
+          "signature": "27UBtWFLnboKcP9rCsjqDeP8gxKuM9sYer4MxX8wFYLCSRZvYW8DaJVkzNgQt2sYxJBnmcq3gfPahWHkH1eAHAjB",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 5,
+            "logTruncated": false,
+            "computeUnitsConsumed": false,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234563,
+            "slotsLater": 400000124
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "4k7tCcpCq67P1p34MVYe5k6vtNAFbQqVo1xYXtTDCQPD",
+            "earlier": 5
+          }
+        }
+      ],
+      "floor": {
+        "status": "measured",
+        "date": "2025-07-01T00:00:00Z",
+        "slot": 350296502,
+        "blockTime": 1751328000,
+        "bisectionSteps": 29
+      }
+    },
+    {
+      "name": "publicnode",
+      "url": "https://solana-rpc.publicnode.com",
+      "finalizedHead": 459234803,
+      "firstAvailableBlock": 458811712,
+      "cells": [
+        {
+          "depth": 0,
+          "targetSlot": 459234803,
+          "slot": 459234803,
+          "blockTime": 1792500312,
+          "block": {
+            "status": "served",
+            "transactions": 1204
+          },
+          "signature": "2LFZQJAuGhDpBQDHTfWvqAcWX1DCU7iAmM3TamVx3c78mcWPcRhHH5cGZngFfoCviKxPjHm61ERbga1bx6bSLFCC",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 66,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234809,
+            "slotsLater": 6
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "C2wezAHikMgfvXJRqPuDvS7KZwLvKRr6xNR3U431GWas",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 150,
+          "targetSlot": 459234653,
+          "slot": 459234653,
+          "blockTime": 1792500279,
+          "block": {
+            "status": "served",
+            "transactions": 1092
+          },
+          "signature": "48EMDqJFBC5ybPU9BkgPCnMnTzdJJex7zVrXCQymUavCMm6bKUgHTANJmfK5S3HL37TpKtb3UZbPeKMusZuM2s1N",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 9,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234813,
+            "slotsLater": 160
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "BwsqJFaqz5zRv5Y8svVpzeZXzB5GEJuyAKdW1yAjUDsK",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 10000,
+          "targetSlot": 459224803,
+          "slot": 459224803,
+          "blockTime": 1792498151,
+          "block": {
+            "status": "served",
+            "transactions": 929
+          },
+          "signature": "4uwAoXnHx3yFrHi76Nw4JJfcnd8e1o7BVxCF1Cvoeefoh72RiwwW7MBF4fm1gt9X6yzHLmTXpGUMG8BUcHuh3b7T",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 9,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234817,
+            "slotsLater": 10014
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "83TSSS7qojPowqrrvH23mCrhEJjnJG2ygaf7FEq9ZgKC",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 100000,
+          "targetSlot": 459134803,
+          "slot": 459134803,
+          "blockTime": 1792478576,
+          "block": {
+            "status": "served",
+            "transactions": 997
+          },
+          "signature": "LRkpC1tQEQfXFqk1sQ4yKdun8v6sGxYwnbqDeQYE5YPyCnywLaBufBEZXMSoj7N8WgKriZA8izfthqBw7BhPzi7",
+          "transactionMetadata": {
+            "status": "served",
+            "members": [
+              "computeUnitsConsumed",
+              "costUnits",
+              "err",
+              "fee",
+              "innerInstructions",
+              "loadedAddresses",
+              "logMessages",
+              "postBalances",
+              "postTokenBalances",
+              "preBalances",
+              "preTokenBalances",
+              "rewards",
+              "status"
+            ],
+            "lamportBalances": true,
+            "tokenBalances": true,
+            "logMessages": 3,
+            "logTruncated": false,
+            "computeUnitsConsumed": true,
+            "innerInstructions": true,
+            "returnData": false,
+            "unrecognisedMembers": []
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "state read at a later slot than the transaction",
+            "readAtSlot": 459234824,
+            "slotsLater": 100021
+          },
+          "addressHistory": {
+            "status": "served",
+            "address": "Harmonic8SoAfZixJqUxxdSeyWzr6q7XFjuiXS5Z2zPg",
+            "earlier": 5
+          }
+        },
+        {
+          "depth": 432000,
+          "targetSlot": 458802803,
+          "block": {
+            "status": "not-served",
+            "error": {
+              "code": -32001,
+              "message": "Block 458802803 cleaned up, does not exist on node. First available block: 458811712"
+            }
+          },
+          "transactionMetadata": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "addressHistory": {
+            "status": "not-probed",
+            "reason": "no transaction at this depth"
+          }
+        },
+        {
+          "depth": 2000000,
+          "targetSlot": 457234803,
+          "block": {
+            "status": "not-served",
+            "error": {
+              "code": -32001,
+              "message": "Block 457234803 cleaned up, does not exist on node. First available block: 458811712"
+            }
+          },
+          "transactionMetadata": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "addressHistory": {
+            "status": "not-probed",
+            "reason": "no transaction at this depth"
+          }
+        },
+        {
+          "depth": 10000000,
+          "targetSlot": 449234803,
+          "block": {
+            "status": "not-served",
+            "error": {
+              "code": -32001,
+              "message": "Block 449234803 cleaned up, does not exist on node. First available block: 458811712"
+            }
+          },
+          "transactionMetadata": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "addressHistory": {
+            "status": "not-probed",
+            "reason": "no transaction at this depth"
+          }
+        },
+        {
+          "depth": 50000000,
+          "targetSlot": 409234803,
+          "block": {
+            "status": "not-served",
+            "error": {
+              "code": -32001,
+              "message": "Block 409234803 cleaned up, does not exist on node. First available block: 458811712"
+            }
+          },
+          "transactionMetadata": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "addressHistory": {
+            "status": "not-probed",
+            "reason": "no transaction at this depth"
+          }
+        },
+        {
+          "depth": 100000000,
+          "targetSlot": 359234803,
+          "block": {
+            "status": "not-served",
+            "error": {
+              "code": -32001,
+              "message": "Block 359234803 cleaned up, does not exist on node. First available block: 458811712"
+            }
+          },
+          "transactionMetadata": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "addressHistory": {
+            "status": "not-probed",
+            "reason": "no transaction at this depth"
+          }
+        },
+        {
+          "depth": 200000000,
+          "targetSlot": 259234803,
+          "block": {
+            "status": "not-served",
+            "error": {
+              "code": -32001,
+              "message": "Block 259234803 cleaned up, does not exist on node. First available block: 458811712"
+            }
+          },
+          "transactionMetadata": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "addressHistory": {
+            "status": "not-probed",
+            "reason": "no transaction at this depth"
+          }
+        },
+        {
+          "depth": 400000000,
+          "targetSlot": 59234803,
+          "block": {
+            "status": "not-served",
+            "error": {
+              "code": -32001,
+              "message": "Block 59234803 cleaned up, does not exist on node. First available block: 458811712"
+            }
+          },
+          "transactionMetadata": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "accountState": {
+            "status": "not-served",
+            "reason": "no block at this depth"
+          },
+          "addressHistory": {
+            "status": "not-probed",
+            "reason": "no transaction at this depth"
+          }
+        }
+      ],
+      "floor": {
+        "status": "provider-pruned",
+        "providerFloorSlot": 458811712,
+        "date": "2025-07-01T00:00:00Z",
+        "reason": "the provider serves no block below providerFloorSlot, so the date cannot be bisected here"
+      }
+    }
+  ]
+}

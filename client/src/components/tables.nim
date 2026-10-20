@@ -89,10 +89,15 @@ proc blocksTable*(chain: string, info: ChainInfo, rows: seq[BlockRow],
                          title = "below this generation's floor"):
                       text truncHash(b.parentHash)
 
-proc availabilityBadge*(a: TraceAvailability): string =
+proc availabilityBadge*(a: TraceAvailability; refusalReason: string): string =
+  ## `refusalReason` is threaded rather than defaulted even though this proc has
+  ## no call site in the repository today: it is exported, it words an absence,
+  ## and a defaulted parameter is exactly how the badge came to say
+  ## `Not observable` about 918 of 922 repairable rows — nothing had to mention
+  ## durability in order to assert it. See `viewutil.AbsenceKind`.
   ui:
     span(class = "badge " & availabilityClass(a)):
-      text availabilityState(a)
+      text availabilityState(a, refusalReason)
 
 proc outcomeBadge*(o: OutcomeOverall): string =
   ui:
@@ -156,11 +161,17 @@ proc debugCell*(chain: string, row: TxRow): string =
   if offersDebugAction(row.availability):
     ui:
       a(class = debugActionClass(row.availability), href = txUrl(chain, row.hash)):
-        text availabilityLabel(row.availability)
+        text availabilityLabel(row.availability, row.refusalReason)
   else:
     ui:
-      span(class = "badge muted", title = availabilityNote(row.availability)):
-        text availabilityState(row.availability)
+      # BOTH THE BADGE AND ITS HOVER SENTENCE COME OFF THE ROW'S OWN MEMBER.
+      # This `else` is the branch every absent row takes, so it is the branch
+      # that rendered 207 of the Ethereum block's 208 rows: one word and one
+      # sentence, both asserting permanence, over a member classified
+      # repairable. The row now carries the member (`reader.TxRow`).
+      span(class = "badge muted",
+           title = availabilityNote(row.availability, row.refusalReason)):
+        text availabilityState(row.availability, row.refusalReason)
 
 proc addressCell(chain, address: string): string =
   if address.len > 0:

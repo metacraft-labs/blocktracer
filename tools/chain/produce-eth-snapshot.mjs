@@ -55,15 +55,26 @@
 // ── THE SEQUENCING FACT THIS TOOL SURFACES RATHER THAN HIDES ──────────────────────────
 //
 // The container this producer consumes is container version 5 with `meta.dat` schema 6.
-// The replay engine BlockTracer ships to visitors is pinned at `db_backend_bg.wasm` sha256
-// `842c7164…`, and `tools/chain/health-checks.json` records that engine as accepting
-// `meta.dat` schema 3 — measured on the pinned blob's own bytes, not transcribed. So a
-// published Ethereum page RENDERS (the pages are static HTML) and its interactive replay
-// REFUSES. That is the same disjointness the Aztec corpus has, arriving from the opposite
-// side: Aztec's containers are too OLD for current readers and these are too NEW for the
-// shipped engine. `client/hydrate/engine-pin.txt` carries the safety rule — do not bump
-// that pin on its own — and this tool therefore prints the skew as a measured property of
-// its own output rather than treating it as a failure or omitting it. `--no-skew-note`
+//
+// RESOLVED FOR THIS PRODUCER ON 2026-10-12, AND THE OLD READING IS KEPT BECAUSE THE SKEW
+// MOVED RATHER THAN VANISHED. The engine pin is now `9f332ae0…`, which accepts container
+// {5, 6} and `meta.dat` 6 only — exactly what this tool emits. So an Ethereum page
+// published from this producer now RENDERS AND REPLAYS, and the skew note below has
+// nothing to report about it.
+//
+// What it said, and what is still true of the OTHER corpus: the engine was pinned at
+// `842c7164…`, which `tools/chain/health-checks.json` recorded as accepting `meta.dat`
+// schema 3 — measured on the pinned blob's own bytes, not transcribed. A published
+// Ethereum page RENDERED and its interactive replay REFUSED, because these containers
+// were too NEW for the shipped engine while Aztec's were too OLD for current readers.
+// The re-pin crossed that gap in one direction: the 10 container-5 recordings (these, and
+// the demo chain's tour corpus) are now readable, and the 42 container-3 Aztec chain
+// recordings are now the refused ones. `client/hydrate/engine-pin.txt`'s 2026-10-12
+// section carries both readings and the reason the safety rule it used to state — do not
+// bump that pin on its own — stopped being available.
+//
+// The print stays, because the skew is a real property of the published tree whenever the
+// two sides disagree, and it will be again on the next format move. `--no-skew-note`
 // silences the print and changes nothing about the tree.
 //
 // ── NO MOCKS ──────────────────────────────────────────────────────────────────────────
@@ -159,7 +170,7 @@ import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import {
   RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
   INSTRUCTION_STREAM_SCHEMA, CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET,
-  costVectorForRow, executionsForRow,
+  costVectorForRow, executionsForRow, rolesForRow, payloadForRow,
 } from './lib/eth-producer-facts.mjs';
 
 const run = promisify(execFile);
@@ -1017,8 +1028,52 @@ async function main() {
           + `the one the recorder measured would attribute every step to the wrong `
           + `instruction.`);
       }
-      r.listings.push({ internedPath, file: listingCandidates[0], address, text, listing,
-                        outcome: entry.outcome });
+      // ── THE PATH THIS LISTING IS PUBLISHED UNDER, WHICH IS NOT THE ONE IT IS INTERNED
+      //    UNDER ───────────────────────────────────────────────────────────────────────
+      //
+      // THE INTERNED PATH NAMES THE MACHINE THAT PRODUCED THE CAPTURE, AND IT WAS REACHING
+      // THE PUBLISHED PAGE. The recorder writes the listing to
+      // `<--out-dir>/sources/<address>/<address>.evmasm` and interns that string verbatim,
+      // so `--out-dir .eth-capture/capture` put `.eth-capture/capture/...` into the
+      // container's path table — and from there into `bundles[].files`' keys,
+      // `instructions.paths`, `positions.paths` and every call frame's `path`. Measured on
+      // the exported site before this change: the transaction page and its `/debug` page
+      // each carried the string five times — four `title=` attributes and once as VISIBLE
+      // TEXT in the Code pane's `Source` row, inside a `span class="identifier copyable"`,
+      // which is to say offered to the visitor for copying. `.eth-capture` is this
+      // repository's gitignored scratch directory. It is a fact about our build host and
+      // about nothing else, and a published explorer page may not state it.
+      //
+      // SO THE PUBLISHED PATH IS CONSTRUCTED FROM WHAT THE PRODUCER HAS ALREADY PROVED,
+      // AND IS NOT A STRIP OF THE INTERNED ONE. The comment above this loop is right that
+      // no fixed number of leading segments can be removed — the prefix is whatever
+      // `--out-dir` was, relative or absolute, and nothing here knows its depth. What this
+      // tool DOES know, because it has just established both against two independent
+      // readings, is the ADDRESS the listing is of and the KIND of artefact it is. Those
+      // are the two facts a reader of this page needs, and `<address>.evmasm` is exactly
+      // them and nothing else. The container is untouched; what changes is what is
+      // published from it.
+      //
+      // THE LIVE SESSION STILL RESOLVES, AND THAT IS WHY THIS IS SAFE RATHER THAN MERELY
+      // TIDIER. A hydrated session gets its position path from the ENGINE, which reads the
+      // container and therefore still says `.eth-capture/capture/sources/0x…/0x….evmasm`.
+      // `source_island.positionDocumentIndex` does not compare those with `==` — it was
+      // changed away from `==` precisely because "the two sides are the same file named by
+      // two different producers" — and matches a document whose path is a trailing
+      // PATH-SEGMENT suffix of the engine's. `0x….evmasm` is a trailing segment suffix of
+      // the interned path (the boundary falls on the `/` before the basename), so the
+      // engine's position resolves to this document exactly as it did before.
+      //
+      // §5.4's "with the interned paths preserved byte-for-byte" is the clause this
+      // changes, and it is prose rather than a rule: no check in this repository compares a
+      // bundle key to a container path (`S5-BUNDLE-KEYED` is about `codeHash`,
+      // `S5-BUNDLE-NONEMPTY` about emptiness). The clause's stated reason — "the bundle's
+      // value is that its keys match what the container asks for" — is served by the suffix
+      // resolver that the only consumer of the join actually uses, and was not served by
+      // byte equality, which published a working directory.
+      const publishedPath = `${address}.evmasm`;
+      r.listings.push({ internedPath, publishedPath, file: listingCandidates[0], address,
+                        text, listing, outcome: entry.outcome });
     }
     // EVERY STEP'S `path_id` INDEXES A LISTING THIS RUN RESOLVED, and every line it names
     // is inside that listing. Checked before anything is published rather than discovered
@@ -1172,6 +1227,18 @@ async function main() {
         blobGasPrice: r.blobGasPrice ?? null,
       }),
       executions: executionsForRow(untracedReason),
+      // WHO ACTED AND WHAT WAS CALLED — the three columns the explorer's transactions
+      // table has always had and this producer published nothing for. Both are read off
+      // `t`, THIS row's own full transaction object, which this loop has held since
+      // `byHash` was built: `eth_getBlockByNumber [hex, true]` fetches all 208 bodies in
+      // one answer that the committed transcript already holds, so this costs no RPC call
+      // and needs no re-record. Until now the only member ever read off `t` was `t?.gas`.
+      //
+      // STATED BY CALL AND NOT BY SPREAD, in the literal that carries `firstInBlock`, for
+      // the same reason `cost` and `executions` are — `producer-scan`'s R2, and the
+      // Aztec range producer losing two members to a spread is why that rule exists.
+      roles: rolesForRow(t),
+      payload: payloadForRow(t),
       firstInBlock: i === 0,
       bodyRetained: true,
       effectVisible: true,
@@ -1259,6 +1326,30 @@ async function main() {
         // and 8 across four transactions, so a constant here would have published `1` about
         // a recording that entered eight contracts.
         contexts: listings.length,
+        // ── HOW MANY VARIABLE NAMES THE RECORDING INTERNS, BECAUSE A PANE WAS GUESSING
+        //    THE ANSWER AND GUESSING IT WRONG ──────────────────────────────────────────
+        //
+        // The debugger's Values pane served one sentence and no rows on this chain's
+        // transaction: "This recording carries no variable names. Naming a local needs the
+        // debug symbols from the contract's compiled artifact, and none resolved for this
+        // contract." Measured with `ct-print --summary` on the container this capture
+        // publishes: `varnames: 2`. The claim was false, and nothing could have caught it
+        // — the client had no measurement to check itself against, so the sentence was a
+        // constant in a branch rather than a reading of the recording.
+        //
+        // The two names are `storage[34185372853903703742712750316438456163286036351968
+        // 742155731944069492352280863]` and `storage[8385376916693811677389112836353222
+        // 5923457326244661570901469258142667624598197]` — the two EVM storage slots this
+        // `transferFrom` read and wrote, attached by the container's value stream to steps
+        // 429 onward. They are NOT source-level locals: this contract's verified source is
+        // solc 0.4.18, the dev shell ships 0.8.33, so no `srcmap-runtime` and no variable
+        // debug information exists for it. Both facts are true at once, which is exactly
+        // why one number is published instead of a sentence asserting one of them.
+        //
+        // This module's own header already knew it — "the EVM container interns two
+        // variable names and they are the two storage slots the transaction touched" — and
+        // the pane had no way to read that comment.
+        varnames: c.counts.varnames,
       },
       sourceBundles: `sources/${h}.json`,
       instructions: `instructions/${h}.json`,
@@ -1447,10 +1538,12 @@ async function main() {
   copyFileSync(containerSrc, join(out, 'ct', `${txHash}.ct`));
 
   // SOURCE BUNDLE — ONE ENTRY PER CONTRACT CLASS THE RECORDING ENTERED, each keyed INSIDE
-  // by the path the container asks for, byte for byte. §5.4: "the bundle's value is that
-  // its keys match what the container asks for", so the key is the interned path verbatim
-  // and not a tidied one. `language` is each bundle's own, which is what makes a bundle and
-  // its language unable to disagree.
+  // by the path this listing is PUBLISHED under: `<address>.evmasm`, the two facts a reader
+  // of the page needs. It used to be the interned path verbatim, and the interned path
+  // carries the recorder's `--out-dir` — see `publishedPath` where it is derived for why
+  // that string may not be published and why the live session still resolves against it.
+  // `language` is each bundle's own, which is what makes a bundle and its language unable
+  // to disagree.
   //
   // `bundles` IS PLURAL IN THE CONTRACT AND WAS SINGULAR HERE: `sidecar:sources.bundles[]`
   // is specified as "one entry per contract class whose source text this capture carries",
@@ -1463,7 +1556,7 @@ async function main() {
     bundles: listings.map((L) => ({
       address: L.address,
       codeHash: L.codeHash,
-      files: { [L.internedPath]: L.text },
+      files: { [L.publishedPath]: L.text },
       origin: `disassembly of the bytecode eth_getCode returned at block ${blockNumber}`,
       shape: 'disassembly',
       corroboration: 'single-distributor',
@@ -1494,7 +1587,7 @@ async function main() {
     schema: INSTRUCTION_STREAM_SCHEMA,
     tx: txHash,
     isa: INSTRUCTION_SET,
-    paths: listings.map((L) => L.internedPath),
+    paths: listings.map((L) => L.publishedPath),
     steps: traced.recording.steps,
     counters: c.steps.filter((s) => at(s)).length,
     pathId: c.steps.map((s) => s.path_id),
@@ -1518,7 +1611,7 @@ async function main() {
     positioned: traced.recording.stepsPositioned,
     measuredPostHoc: false,
     measuredBy: `${HERE} (read from the container)`,
-    paths: listings.map((L) => L.internedPath),
+    paths: listings.map((L) => L.publishedPath),
     pathId: c.steps.map((s) => s.path_id),
     line: c.steps.map((s) => s.line),
     column: c.steps.map((s) => s.column),
@@ -1559,7 +1652,7 @@ async function main() {
       name: ce.function ?? '<toplevel>',
       depth: (ce.depth ?? 0) + 1,
       step: ce.entry_step ?? 0,
-      path: L === null ? null : L.internedPath,
+      path: L === null ? null : L.publishedPath,
       line: s === null ? null : s.line,
       args: [],
       contractAddress: L === null ? null : L.address,
@@ -1685,12 +1778,23 @@ async function main() {
                 + `${String(skew.enginePin).slice(0, 16)}… and ${HEALTH_CHECKS_FILE} `
                 + `records it as accepting meta.dat `
                 + `${JSON.stringify(skew.engineAccepts)}`);
-    console.log('    so a published page RENDERS (the pages are static HTML) and its '
-                + 'INTERACTIVE REPLAY REFUSES.');
-    console.log(`    ${ENGINE_PIN_FILE} carries the rule: do not bump that pin on its `
-                + `own. This is the Aztec corpus's disjointness arriving from the `
-                + `opposite side — those containers are too OLD for current readers and `
-                + `this one is too NEW for the shipped engine.`);
+    // THE VERDICT IS COMPUTED FROM THE TWO HALVES PRINTED ABOVE, never written as a
+    // sentence. Until 2026-10-20 the refusal below was printed unconditionally, and it
+    // went on saying "REFUSES" for eight days after the 2026-10-12 re-pin made it false
+    // — `engine-opens.mjs` OPENED this container under the pinned engine on 2026-10-20.
+    const accepts = Array.isArray(skew.engineAccepts) ? skew.engineAccepts : null;
+    if (accepts && accepts.includes(skew.containerSchema)) {
+      console.log('    the two agree, so a published page RENDERS AND REPLAYS. '
+                  + '`tools/deploy/engine-opens.mjs` asks the engine itself, and is the '
+                  + 'check to run before relying on this line.');
+    } else {
+      console.log('    so a published page RENDERS (the pages are static HTML) and its '
+                  + 'INTERACTIVE REPLAY REFUSES'
+                  + (accepts ? '.' : ' unless the engine says otherwise: '
+                     + `${HEALTH_CHECKS_FILE} states no accepted set to compare with.`));
+      console.log(`    ${ENGINE_PIN_FILE} carries the rule for moving that pin, and `
+                  + `\`tools/deploy/engine-opens.mjs\` asks the engine directly.`);
+    }
   }
 }
 

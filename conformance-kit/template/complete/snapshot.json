@@ -93,6 +93,7 @@
         "stepsPositioned": 4,
         "stepsUnpositioned": 0,
         "declaredRung": 3,
+        "varnames": 7,
         "contractRungs": [
           {
             "codeHash": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
@@ -101,6 +102,21 @@
         ]
       },
       "recordedBy": "3333333333333333333333333333333333333333",
+      "roles": [
+        {
+          "role": "sender",
+          "address": "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+        },
+        {
+          "role": "feePayer",
+          "address": "0xb0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
+        }
+      ],
+      "payload": {
+        "raw": "0x5f3e2a11000000000000000000000000a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+        "selector": "0x5f3e2a11",
+        "target": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
       "cost": [
         {
           "name": "compute",

@@ -101,6 +101,12 @@ type
       ## visitor that synthetic data came off a chain.
     provenanceLabel*: string
     provenanceDetail*: string
+    tracesPublished*: int
+    tracesAtSourceLevel*: int
+      ## The recorded population and how much of it steps at source level, from
+      ## the summary's provenance. `-1` means the generation published no figure,
+      ## and that is not zero: a tree ingested before the tally existed says
+      ## nothing about tiers, and a page must not read that as "none at T2".
 
   OpenOutcome* = enum
     ooOpened = "opened"
@@ -164,7 +170,8 @@ proc openChain*(store: ObjectStore, chain: string): OpenResult =
   # than reading the tree the way the tree was written. `parseChainIdentifierEncoding`
   # of an absent row is the same answer and is the one function that decides it.
   var s = ChainSession(chain: chain,
-                       identifierEncoding: parseChainIdentifierEncoding(nil))
+                       identifierEncoding: parseChainIdentifierEncoding(nil),
+                       tracesPublished: -1, tracesAtSourceLevel: -1)
   let c = cur.node
   if c.kind != JObject or not c.hasKey("generation") or
      not c.hasKey("traceSelectionVersion"):
@@ -217,6 +224,8 @@ proc openChain*(store: ObjectStore, chain: string): OpenResult =
         s.provenanceKind = p{"kind"}.getStr
         s.provenanceLabel = p{"label"}.getStr
         s.provenanceDetail = p{"detail"}.getStr
+        s.tracesPublished = p{"tracesPublished"}.getInt(-1)
+        s.tracesAtSourceLevel = p{"tracesAtSourceLevel"}.getInt(-1)
 
   let reg = store.getJson(registryPath(s.contractVersion))
   if reg.found and reg.error.len == 0:

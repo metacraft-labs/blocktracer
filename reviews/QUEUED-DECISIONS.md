@@ -5,9 +5,16 @@ sharpened it, the options, and a recommendation. The campaign rule is that a
 finding needing a taste call is a queue and not a stop: it is recorded here with
 options and a recommendation, and the loop continues.
 
-Nothing in this file has been implemented. Where a round CHANGED what is being
-queued — as vd9-r1 did to Q2, whose original premise turned out to be wrong —
-the correction is recorded rather than the entry being quietly rewritten.
+Where a round CHANGED what is being queued — as vd9-r1 did to Q2, whose original
+premise turned out to be wrong — the correction is recorded rather than the entry
+being quietly rewritten.
+
+This paragraph read "Nothing in this file has been implemented" until Q10 was,
+and the sentence is kept here in its corrected form rather than deleted because
+it was load-bearing: a reader has to be able to tell a queued call from a taken
+one. **One entry has been implemented — Q10** — and it carries a `RESOLVED`
+block naming the option taken and why it was not the recommended one. Every
+other entry is still a queue.
 
 Current as of round vd9-r1 (ledger 2026-08-31.7), with additions from the five
 completed reviews of the incomplete vd9-r2 (see `rounds/vd9-r2/README.md`).
@@ -351,6 +358,41 @@ Recommendation: (a). The module already decided that a claim specific enough to
 be wrong belongs with the published reason rather than in the enum's sentence; it
 simply did not apply that to the word "permanent". (c) is not available — it is
 the §14.1a breach, on the page whose entire job is to be believed.
+
+**RESOLVED — (b), not the recommended (a).**
+
+`viewutil.AbsenceKind` reads the member's `durability` out of
+`tools/chain/refusal-reasons.json` and the three surfaces that word an absence —
+the badge, its hover sentence and the note — each branch on it. A permanent
+member, and a chain-absent execution carrying no member at all, keep
+`Not observable` and the original permanence sentence verbatim, because for
+those it was always true. A repairable member gets `Not traced yet` and a
+sentence that denies permanence outright. A member this build does not recognise
+gets a wording that claims nothing either way, because the SDK decodes the id as
+a plain string on purpose and a newer producer's tree can carry one.
+
+Why not (a): (a) removes the false SENTENCE and leaves the BADGE, and the badge
+is the part a visitor reads. Measured on the Ethereum mainnet block this tree
+publishes, 207 of its 208 rows carried `Not observable` — every one a settled
+public transaction whose body is in the committed input set and which the run
+simply did not attempt. The word `observable` asserts exactly what the note was
+to stop asserting, in one word, 207 times. (a) would have made the page say the
+same untrue thing more quietly.
+
+What it cost beyond the enum: the member was reaching the client for some rows
+and not others. `ingest.nim` attached `refusalReason` to an execution row only
+where the producer left one entry reasonless, and the Ethereum producer states
+its sentence ON its single execution — contract-valid, `tracedAt` at -1 — so all
+207 rows arrived with a reason and no member. The reader now attributes a row's
+member to the row's ONLY execution, which is the same statement rather than a
+spread; a multi-execution row keeps the old discipline exactly. `reader.TxRow`
+also gained the member, because the table row had dropped it one type short of
+the badge.
+
+The expectation was not relaxed: `tools/capture/expectations.mjs`'s
+`tx-detail--mainnet-zero-trace` still demands the tense that matches the
+published member, in both directions, and still says to EXPECT the failure
+rather than check for it.
 
 ## Q11. The pane bottom fade works and costs contrast, and both are measured
 Three lenses reviewed the fade added this session on `debugger/wide/light`, and

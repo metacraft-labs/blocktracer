@@ -174,3 +174,45 @@ suite "the chain landing page states historical reach":
     let html = reachSection(parseChainProfile(nil))
     check ReachHeading in html
     check "states no historical reach" in html
+
+suite "the chain landing page states the debug tier as a count":
+
+  test "a tree that published no tally states no tier, and that is not zero":
+    # `-1` is the session's "not published". Reading it as zero would tell a
+    # visitor that nothing on the chain reaches source level, which is a claim
+    # about the chain made from the absence of a figure.
+    let absent = tierStatement(-1, -1)
+    check "carries no count of debug tiers" in absent
+    check "none steps" notin absent
+    check tierStatement(-1, -1) != tierStatement(0, 0)
+
+  test "a chain with no recordings is told there is no tier to state":
+    let none = tierStatement(0, 0)
+    check "has a recording yet" in none
+    check "Of the" notin none
+
+  test "the distribution is stated exactly, in both directions":
+    # The Ethereum capture's real figures: one recording, at instruction level.
+    let eth = tierStatement(1, 0)
+    check "Of the 1 transaction recorded here" in eth
+    check "none steps at source level" in eth
+    check "1 steps one VM instruction at a time" in eth
+    let mixed = tierStatement(25, 3)
+    check "Of the 25 transactions recorded here" in mixed
+    check "3 step at source level" in mixed
+    check "22 step one VM instruction at a time" in mixed
+    check "promises nothing about the next transaction" in mixed
+
+  test "a source-level count above the recorded count is not rendered":
+    # MUTATION ARM. Subtracting without the guard renders a negative count of
+    # instruction-level recordings, which no visitor can interpret and which
+    # says the tree is inconsistent in the voice of a fact about the chain.
+    let bad = tierStatement(1, 2)
+    check "-1" notin bad
+    check "carries no count of debug tiers" in bad
+
+  test "the rendered section carries the tier sentence":
+    let html = reachSection(parseChainProfile(rowWith(reach = %"floor")), 208, 0)
+    check "Of the 208 transactions recorded here" in html
+    let unpublished = reachSection(parseChainProfile(rowWith(reach = %"floor")))
+    check "carries no count of debug tiers" in unpublished

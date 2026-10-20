@@ -107,6 +107,12 @@ proc metaGrid(rows: seq[MetaRow]): string =
 
 proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
   let headline = v.headline
+  # The member behind the headline, for the three statements beneath it that
+  # make a durability claim. `headlineRefusal` is the single derivation — the
+  # table row and the debugger session word their absences from the same one,
+  # which is what keeps §7.1's "the page and the session say one thing" true of
+  # the absence as well as of the facts.
+  let absence = headlineRefusal(v)
   # §7.0's first row does not render here, and cannot be made to.
   #
   # A `Debug` button on this page is "a link to the primary action, not the
@@ -135,15 +141,45 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
       "come from the execution trace. They appear here once this transaction " &
       "has a recorded trace."
     of taAbsent:
-      # Says PERMANENT without saying WHY, for the reason `availabilityNote`
-      # does: `absent` covers both an execution that never had a call structure
+      # Said PERMANENT without saying WHY, for the reason `availabilityNote`
+      # did: `absent` covers both an execution that never had a call structure
       # and one whose body the network has since pruned, and this sentence
       # cannot tell them apart. It used to assert the first, which made it
       # false for every settled transaction past the retention horizon. The
       # cause is published per execution and rendered in the hero above.
-      "come from the execution trace. No trace was recorded for this " &
-      "execution and none can be now, so this section is empty permanently, " &
-      "not yet."
+      #
+      # ── AND IT WENT ON ASSERTING PERMANENCE, WHICH IS THE SECOND HALF OF
+      #    Q10 ──────────────────────────────────────────────────────────────
+      #
+      # `QUEUED-DECISIONS.md` Q10 filed TWO claims, not one: "The page asserts
+      # 'No trace can be produced for this execution — a permanent answer
+      # rather than a failed fetch', AND that Internal calls and State changes
+      # are empty 'permanently, not yet'." Fixing only the first left the page
+      # contradicting ITSELF rather than the data: on the Aztec pruned
+      # transaction the hero read `Not traced yet` and "this is not a permanent
+      # answer", and two sections below it this sentence said "none can be now
+      # … empty permanently, not yet" — with the producer's own words between
+      # them ending "nothing here says the transaction cannot be re-executed —
+      # it says this run did not try."
+      #
+      # Three claims on one page, two of them agreeing and the third denying
+      # both, is worse than the uniform wrong answer it replaced. So the
+      # durability branches here too, off the same `absenceKind` and the same
+      # published member. `akUnobservable` keeps the sentence verbatim.
+      case absenceKind(absence)
+      of akUnobservable:
+        "come from the execution trace. No trace was recorded for this " &
+        "execution and none can be now, so this section is empty permanently, " &
+        "not yet."
+      of akNotAttempted:
+        "come from the execution trace. No trace was recorded for this " &
+        "execution yet. What stopped it is on our side rather than the " &
+        "chain's — the reason above says what — so this section is empty for " &
+        "now and not permanently."
+      of akUnstated:
+        "come from the execution trace. No trace was recorded for this " &
+        "execution. The reason above states why; this build does not " &
+        "recognise its id, so it cannot tell you whether one can still be had."
     else:
       "come from the execution trace. No recorder exists for this VM yet, so " &
       "no trace can be produced and this section stays empty until one does."
@@ -228,10 +264,10 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
         tdiv(class = "debugcard group"):
           tdiv(class = "row"):
             if headline == taOnDemand:
-              button(class = "btn primary"): text availabilityLabel(headline)
+              button(class = "btn primary"): text availabilityLabel(headline, absence)
             span(class = "badge coverage " & availabilityClass(headline)):
-              text availabilityState(headline)
-          p(class = "note"): text availabilityNote(headline)
+              text availabilityState(headline, absence)
+          p(class = "note"): text availabilityNote(headline, absence)
           # Page-Descriptions §7.2 puts this line BESIDE the Debug action that
           # requests it. VD.2's round 2 measured it ~1000px below the button, in
           # a different section: proximity was grouping the explanation with the
@@ -314,7 +350,7 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
                 li:
                   span(class = "sel"): text (if e.selector.len > 0: e.selector else: "execution")
                   span(class = "badge " & availabilityClass(e.availability)):
-                    text availabilityLabel(e.availability)
+                    text availabilityLabel(e.availability, e.refusalReason)
                   # The Aztec split is exactly where the two statements sit side
                   # by side on ONE page: a private half the chain never made
                   # public, and a public half this pipeline may have declined.

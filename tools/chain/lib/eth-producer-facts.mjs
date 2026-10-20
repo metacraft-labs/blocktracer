@@ -147,3 +147,105 @@ export const costVectorForRow = ({ gasUsed, gasLimit, effectiveGasPrice,
   }
   return v;
 };
+
+/**
+ * `transactions[].roles` — WHO this chain says acted, as Static-Site-Architecture.md §2.3's
+ * role list.
+ *
+ * ── WHY THIS EXISTS: THE COLUMN WAS A DASH ON EVERY ROW ───────────────────────────────
+ *
+ * The shared transactions table has carried `From`, `To / target` and `Method` columns
+ * since before this chain was ingested, and this producer published no roles and no
+ * payload, so all three rendered the em dash on all 208 rows of the one block this capture
+ * holds — measured on the exported site: 624 muted em-dash cells, 208 × 3. `tables.nim`'s
+ * `addressCell` renders that dash with the comment "§2.3: some chains have no sender at
+ * all. An em dash is the honest rendering of a role this chain family does not have — it
+ * is not a missing value." On Ethereum it was a missing value wearing that sentence, which
+ * is the one thing the sentence promises it is not.
+ *
+ * ONE ROLE, AND THE WORD IS `sender`. An Ethereum transaction is signed by exactly one
+ * externally-owned account, and that account is the signer, the fee payer and the initiator
+ * at once — there is no separate payer to name (no EIP-7702 sponsor, no paymaster, no
+ * fee-delegation on L1 today) and publishing three role entries with one address would
+ * state three independent facts where the chain has one. `reader.nim`'s `txRow` already
+ * accepts this spelling: it looks for a role in `["feePayer", "signer", "initiator",
+ * "sender"]` to fill the `From` column.
+ *
+ * `from` IS ALWAYS PRESENT ON A SETTLED TRANSACTION, and an absent one yields NO role
+ * rather than an empty address: an entry whose `address` is `""` would render as a link to
+ * nowhere, where no entry at all renders the honest dash the cell already has.
+ *
+ * @param {{from?: string}} tx  the full transaction object, as `eth_getBlockByNumber`
+ *                              with `true` returns it
+ * @returns {{role: string, address: string}[]}
+ */
+export const rolesForRow = (tx) => (tx?.from
+  ? [{ role: 'sender', address: tx.from.toLowerCase() }]
+  : []);
+
+/**
+ * `transactions[].payload` — WHAT was called, as the `target` and `selector` the explorer's
+ * `To / target` and `Method` columns are of.
+ *
+ * ── THE SELECTOR IS THE FIRST FOUR BYTES, AND IT IS SHOWN RATHER THAN RESOLVED ────────
+ *
+ * The EVM's calling convention puts a 4-byte function selector at the head of a non-empty
+ * calldata, and nothing in this repository can turn one into a signature: that needs an ABI
+ * registry, and this producer reaches no network beyond the committed transcript. So the
+ * selector is published as the four bytes it is. An unresolved `0x23b872dd` tells a reader
+ * which method was called — two transactions carrying it called the same one — and a dash
+ * tells them nothing at all. Resolving it to `transferFrom(address,address,uint256)` is a
+ * strictly later improvement and needs a signature set whose keccak this tool can check.
+ *
+ * A CALLDATA SHORTER THAN FOUR BYTES HAS NO SELECTOR, AND THAT IS NOT A MISSING ONE. 45 of
+ * this block's 208 transactions carry `input: "0x"` — plain value transfers, which call no
+ * method. They publish an empty selector and the `Method` cell keeps its dash, which is the
+ * honest rendering: there is nothing there to name. Truncating or zero-padding a short
+ * calldata into a selector would invent a method call.
+ *
+ * `target` IS `to`, AND A CONTRACT CREATION HAS NONE. `to` is `null` exactly on a creation,
+ * and the address that comes into existence is in the RECEIPT (`contractAddress`) — an
+ * OUTPUT of the transaction rather than the thing it was aimed at. Publishing it as
+ * `target` would be the one kind of wrong this member can be: confident and plausible. So a
+ * creation publishes an empty target. THIS SHAPE HAS NO INSTANCE IN THE COMMITTED CAPTURE —
+ * all 208 transactions in block 26,083,328 carry a `to` — so the branch is reasoned rather
+ * than measured, and it is written to publish nothing rather than to guess.
+ *
+ * @param {{to?: string|null, input?: string}} tx  the full transaction object
+ * @returns {{raw: string, selector: string, target: string}}
+ */
+export const payloadForRow = (tx) => {
+  const input = typeof tx?.input === 'string' ? tx.input.toLowerCase() : '';
+  // `0x` + 8 hex digits = 4 bytes. Shorter carries no selector; see above.
+  const selector = /^0x[0-9a-f]{8}/.test(input) ? input.slice(0, 10) : '';
+  return {
+    // ── `raw` IS DELIBERATELY EMPTY, AND THE REASON IS MEASURED ────────────────────
+    //
+    // The transaction page renders this member into ONE copyable metadata row with no
+    // fold and no cap: `.identifier` is `word-break:break-all`, so a long value wraps
+    // rather than overflowing, and nothing bounds its height. Measured over the 208
+    // transactions of block 26,083,328 — the whole of the committed capture:
+    //
+    //     median 138 chars · p90 2,826 · max 21,514
+    //     28 of 208 (13%) over 2,000 chars  (~25 rendered lines)
+    //     12 of 208  (6%) over 5,000 chars  (~62 lines)
+    //      2 of 208  (1%) over 10,000 chars (up to ~268 lines)
+    //
+    // So publishing it would fill one row on 100% of transaction pages and put a
+    // 25-line-plus hex block into the facts grid of 13% of them. That is trading one
+    // honest em dash for a page defect on one in eight pages, and the row the dash sits
+    // in already reads correctly: with the selector present and the call data absent the
+    // page says "This selector is not in any ABI BlockTracer holds, and no call data
+    // accompanies it here, so there are no parameters to decode."
+    //
+    // The member stays in the shape because §5.2's `payload` names it, and filling it is
+    // waiting on ONE thing: a `Raw` row that can fold. It has to fold without script —
+    // this route ships no JavaScript, which is the same constraint that rules out the
+    // "supply an ABI" action two sentences above it — so the remedy is a CSS-only
+    // disclosure (`<details>`), not a truncation, because a silently cut calldata is
+    // worse than none.
+    raw: '',
+    selector,
+    target: typeof tx?.to === 'string' ? tx.to.toLowerCase() : '',
+  };
+};

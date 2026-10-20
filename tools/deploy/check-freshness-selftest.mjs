@@ -127,6 +127,9 @@ function materialise(world) {
   };
 
   for (const [rel, body] of Object.entries(world.fixtures)) put(join("repo", rel), body);
+  // Captures the BUILD produced (a flake derivation's output), declared to
+  // `record` with `--produced` rather than committed.
+  for (const [rel, body] of Object.entries(world.produced ?? {})) put(join("produced", rel), body);
   put(join("repo", "client", "src", "debugger", "replay_engine.nim"),
       `const ReplayEngineWasmBytes* = ${String(world.declared).replace(/\B(?=(\d{3})+(?!\d))/g, "_")}\n`);
 
@@ -189,9 +192,11 @@ function runNode(args) {
 
 function doRecord(root) {
   const p = paths(root);
+  const producedDir = join(root, "produced");
   return runNode([CHECKER, "record",
     "--built", p.built, "--staged", p.staged,
-    "--engine-fetch", p.fetch, "--repo-root", p.repo, "--out", p.manifest]);
+    "--engine-fetch", p.fetch, "--repo-root", p.repo, "--out", p.manifest,
+    ...(existsSync(producedDir) ? ["--produced", producedDir] : [])]);
 }
 
 async function doVerify(root, extra) {
@@ -353,6 +358,39 @@ const arms = [
     name: "9b F4 — a publish with no containers is NOT REQUIRED, never a pass",
     setup: (w) => { delete w.built[CONTAINER]; return w; },
     also: { F4: "NOT REQUIRED" },
+  },
+  {
+    // A container the BUILD produced (Chain-Delivery DEL-5's route 3) is held
+    // to the declared derivation output, not to a committed fixture, and a
+    // byte-reproducible producer passes.
+    name: "9d F4 — a container the build produced, declared with --produced, passes",
+    setup: (w) => {
+      const body = "CTFMT0\0a capture produced inside the build\n";
+      w.produced = { "ethereum-mainnet/ct/0xf699.ct": body };
+      w.built["t/cc/dd/ccddproducedcapture000000000/trace.ct"] = body;
+      return w;
+    },
+    also: { F4: "PASS" },
+  },
+  {
+    // …and the reason that is safe: a published container that is not the
+    // declared produced capture is still refused. This is the shape a
+    // non-reproducible producer takes, rebuilding different bytes under the
+    // same input-derived URL.
+    name: "9e F4 — a published container that differs from its declared produced capture",
+    setup: (w) => {
+      const body = "CTFMT0\0a capture produced inside the build\n";
+      w.produced = { "ethereum-mainnet/ct/0xf699.ct": body };
+      w.built["t/cc/dd/ccddproducedcapture000000000/trace.ct"] = body;
+      return w;
+    },
+    mutateWorld: (w) => {
+      w.built["t/cc/dd/ccddproducedcapture000000000/trace.ct"] =
+        "CTFMT0\0the same transaction, rebuilt to different bytes\n";
+      return w;
+    },
+    expect: "F4",
+    also: { F1: "PASS", F2: "PASS" },
   },
   {
     // And the failure that shape must NOT swallow: containers are published
@@ -524,19 +562,26 @@ for (const arm of arms) {
 //
 // `approxMegabytes` is reimplemented in JS because this file cannot run Nim,
 // and a mirror without a test is two implementations waiting to disagree.
-// These six numbers are real: the constant in replay_engine.nim as it now
-// stands (the pinned wasm, re-pinned 2026-09-16), the wasm pinned before that
-// until CodeTracer published `ed9aa650`, what that constant said before
-// `tools/deploy/engine-pin-selftest.mjs` reconciled it to the pin, the engine
-// blocktracer.org served on 2026-09-01, the engine web-codetracer published
-// that morning, and the older build the constant replaced.
+// These seven numbers are real: the constant in replay_engine.nim as it now
+// stands (the pinned wasm, re-pinned 2026-10-12 to the first published engine
+// carrying CCP-5's compact loader), the wasm pinned before that from
+// 2026-09-16, the one pinned until CodeTracer published `ed9aa650`, what that
+// constant said before `tools/deploy/engine-pin-selftest.mjs` reconciled it to
+// the pin, the engine blocktracer.org served on 2026-09-01, the engine
+// web-codetracer published that morning, and the older build it replaced.
+//
+// NOTE THE DIRECTION OF THE 2026-10-12 MOVE: the engine got SMALLER, 18,096,653
+// to 17,821,148. Every number here still renders "18 MB", so F5 is as blind to a
+// shrink as it was to a growth — which is the same point the paragraph below
+// makes, now with a reading on both sides of the constant.
 //
 // They all render "18 MB", which is the point twice over: it is why F5 stays
 // green across every engine this repository has ever shipped, and it is why F5
 // could never have caught the constant being wrong by 163,703 bytes. That is a
 // different claim and it has its own gate now.
 const mirror = [
-  [18_096_653, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm"],
+  [17_821_148, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm"],
+  [18_096_653, "18 MB", "the wasm pinned from 2026-09-16 until the CCP-5 re-pin"],
   [18_117_658, "18 MB", "the wasm pinned until CodeTracer published ed9aa650"],
   [18_281_361, "18 MB", "what that constant said before the pin reconciled it"],
   [18_284_951, "18 MB", "the engine blocktracer.org served on 2026-09-01"],

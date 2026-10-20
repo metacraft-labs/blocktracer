@@ -91,6 +91,31 @@ on:
           by every chain, not guarded per chain.
         type: boolean
         default: false
+      include-demo-chain:
+        description: >-
+          With `render-over-live`, also publish the DEMO chain out of this
+          build's own tree. On by default, which is the behaviour this workflow
+          has always had — but measured 2026-10-10, it is the wrong default for
+          production: the live bucket serves `aztec`, `aztec-testnet` and
+          `aztec-testnet-frames` and NO demo, while this build's demo chain
+          carries 15 container-version-5 traces. OFF sets `-d:noDemoChain`,
+          which skips the INGEST — so the tree carries no demo data and no
+          registry row. That matters: dropping only the `chainOrigins` entry
+          leaves the registry row in place, and with `render-over-live` the
+          demo's data is then looked for on an origin that has none, which
+          RAISES `cannot open chain 'demo'` after every real chain has been
+          enumerated. This description used to say the demo was "therefore not
+          rendered"; that was the intention, not the behaviour.
+          WHY OFF FOR A PARITY PUBLISH, since half of the original reason
+          expired on 2026-10-12: it no longer holds that the engine cannot open
+          those 15. The pin moved to `9f332ae0ddfabe6b…`, container {5,6} with
+          all four CCP-5 loader strings present, and that engine has been
+          watched opening a compact container. What still argues for OFF is a
+          product decision rather than a format one: the live bucket serves no
+          `demo` chain, so turning this on ADDS a chain rather than refreshing
+          one. See `client/hydrate/engine-pin.txt`'s 2026-10-12 section.
+        type: boolean
+        default: true
       render-over-live:
         description: >-
           Render the client over the LIVE bucket's data instead of over this
@@ -106,6 +131,29 @@ on:
           local fixture, which is this workflow's missing capability.
         type: boolean
         default: false
+      break-stale-leases:
+        description: >-
+          Delete every `_leases/<chain>.lock` in the bucket before publishing.
+          OFF by default and deliberately so: that lock IS the single-writer
+          guarantee, and breaking one while a publisher is genuinely running
+          lets two writers interleave on one chain. Pass it only when a previous
+          publish was KILLED — the lease is released by its holder and a
+          SIGKILLed process releases nothing, which `publisher.nim` records as
+          "a stale lease is a manual/operational concern, deliberately not
+          auto-broken here to keep single-writer honest". The step prints each
+          lock's holder before removing it, and the step below it prints the
+          lease state on EVERY run whether or not this is set.
+        type: boolean
+        default: false
+      verify-origin:
+        description: >-
+          The PUBLIC origin the design-parity check reads after a real publish.
+          Not the bucket endpoint: the claim is about what a visitor receives,
+          and an origin's own 404 behaviour is part of that (Cloudflare Pages
+          answers 200 with the entry document for every unknown path, which is
+          the trap `client/hydrate/engine-pin.txt` documents twice).
+        type: string
+        default: 'https://blocktracer.org'
       runner:
         description: >-
           JSON array of capability labels, decoded with fromJSON at `runs-on`.
@@ -128,8 +176,66 @@ permissions:
 jobs:
   publish:
     runs-on: ${{ fromJSON(inputs.runner) }}
+    # NAMED RATHER THAN LEFT AT THE 360-MINUTE DEFAULT, and the number is a
+    # MEASUREMENT rather than a round figure. A job that runs into the implicit
+    # ceiling is reported as `cancelled`, which is the label this fleet also
+    # uses for two unrelated failure modes, so the ceiling belongs here where a
+    # reader of the log can see what was exceeded.
+    #
+    # 240 WAS WRONG AND WOULD HAVE MADE THIS JOB FAIL SOONER THAN NO DECLARATION
+    # AT ALL. It was chosen while the staging step was still running and before
+    # anything had measured the whole job. Run 38270630793, render-over-live
+    # against production with the aws CLI's default concurrency of 10:
+    #
+    #   staging the data plane   240 min   (~882,600 objects, mean under 17 KB)
+    #   building the site tree   106 min AND STILL RUNNING when the implicit
+    #                            360-minute ceiling arrived
+    #
+    # So the honest figure is "more than 346 minutes at 10-way concurrency".
+    # `AWS_MAX_CONCURRENT_REQUESTS=64` should take the staging share down a long
+    # way, but the build's share is untouched by it and has no measured upper
+    # bound yet — which is exactly the condition in which a tight ceiling turns
+    # a slow job into a failed one. 600 is deliberately generous: these are
+    # self-hosted runners, where the 360-minute figure is not a platform limit,
+    # and the per-prefix counts the staging step now prints are what makes a
+    # genuinely hung job distinguishable from a long one without waiting for a
+    # timeout to decide it.
+    timeout-minutes: 600
     steps:
       - uses: actions/checkout@v4
+
+      # NIX IS PROVISIONED, NOT SELECTED — and this workflow was the one job in
+      # the repository that did neither.
+      #
+      # Every step below runs `nix develop .#ci --command`, and there was no
+      # `setup-nix`. It worked for as long as the job happened to land on a
+      # PERSISTENT host, which bakes Nix in; run 38312510438 landed on
+      # `garm-dugkgplfvt4u` — an ephemeral incus guest — and died at the first
+      # step with `nix: command not found`, exit 127, before staging a single
+      # object. The label sets are the tell:
+      #
+      #   high-mem-server-mcl-00*  self-hosted, Linux, X64, nixos, bare-metal, …
+      #   garm-*                   self-hosted, Linux, X64, ephemeral, incus, …
+      #
+      # `[self-hosted, linux, x64]` matches both, so this was a coin flip that
+      # had been coming up heads.
+      #
+      # THE FIX IS NOT TO ADD `nixos` TO THE SELECTOR, and `ci.yml` already
+      # argues why in its own words: "`setup-nix` INSTALLS Nix when the host has
+      # none (`DeterminateSystems/nix-installer-action`, gated on a
+      # `command -v nix` probe). Nix is a property this workflow provisions, not
+      # one it must select a host for. `nixos` is advertised only by the
+      # PERSISTENT hosts, so requiring it would exclude every ephemeral guest."
+      # Narrowing the labels would trade a provisioning step for permanent
+      # contention on the bare-metal pool — and `metacraft-dev-guidelines`'
+      # §"Contention is answered by class selection, not by reaching for hosted"
+      # is about picking a class, not about shrinking the set that can serve.
+      - name: Setup Nix
+        uses: metacraft-labs/devops-modules/.github/setup-nix@dev
+        with:
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Stage the LIVE bucket's data plane, when asked to render over it.
       #
@@ -146,6 +252,15 @@ jobs:
       # this build renders fresh and must NOT pull stale copies of from the
       # live bucket.
       #
+      # ONE WORD OF THAT WAS FALSE UNTIL 2026-10-13: `replay-engine/**` is not
+      # RENDERED by anything. It is FETCHED, from the publisher named by
+      # `engine-pin.txt`, and this workflow had no step that did so — see
+      # "Vendor the replay engine into the publish dir" below, which is the step
+      # `deploy-cloudflare-pages.yml` has had since the same defect bit the
+      # Pages path. The sentence above is kept because its CONCLUSION is right
+      # (these prefixes must not be pulled from the live bucket) and only the
+      # mechanism was wrong.
+      #
       # So this syncs exactly four prefixes, not a full mirror of the
       # ~882,000-object live tree: a full sync would multiply the egress and
       # the runner's disk for objects the renderer never opens, and syncing
@@ -154,14 +269,47 @@ jobs:
       # the index, the traces or the source bundles the moment a page asked
       # for one — the exact "looks identical, isn't" failure mode
       # `resolveDataOrigins`'s own comment warns about.
+      # WHAT HOLDS THE LEASES — READ FIRST, BEFORE ANYTHING EXPENSIVE.
+      #
+      # Run 38417127259 spent 4h47m staging, rendering and checking, and then
+      # failed in the publisher's first second with "chain 'aztec' is locked by
+      # another publisher (lease held)". The lock was readable the whole time.
+      # This step costs one LIST and up to three GETs and it runs before the
+      # 75-minute stage, so a held lease is a three-minute failure instead of a
+      # five-hour one.
+      #
+      # READ-ONLY: it never deletes. Breaking is a separate, default-off step
+      # placed immediately before `Publish`, so the window between breaking a
+      # lock and taking it is seconds rather than the length of a render.
+      - name: Who holds the publish leases?
+        if: ${{ inputs.dry-run == false }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          BUCKET: ${{ inputs.bucket }}
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash -euo pipefail -c '
+            locks=$(aws s3 ls "s3://$BUCKET/_leases/" --endpoint-url "$ENDPOINT" 2>/dev/null || true)
+            if [ -z "$locks" ]; then echo "leases: none held"; exit 0; fi
+            echo "leases currently held:"
+            printf "%s\n" "$locks" | awk "{print \$4}" | while read -r k; do
+              [ -n "$k" ] || continue
+              who=$(aws s3 cp "s3://$BUCKET/_leases/$k" - --endpoint-url "$ENDPOINT" 2>/dev/null | tr -d "\n" || true)
+              echo "  _leases/$k  held by: ${who:-<unreadable>}"
+            done
+          '
+
       - name: Stage the live bucket's data plane
         if: ${{ inputs.render-over-live == true }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
-          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
-          LIVE_BUCKET: ${{ vars.R2_BUCKET || 'blocktracer' }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          LIVE_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
         run: |
           set -euo pipefail
           if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
@@ -170,16 +318,60 @@ jobs:
                  "nothing."
             exit 1
           fi
-          LIVE_ORIGIN="$RUNNER_TEMP/live-origin"
+          # EXPORTED, because the sync below runs in a child shell under `nix
+          # develop` and a non-exported value would arrive empty — which `aws
+          # s3 sync` would read as a relative destination and "succeed".
+          export LIVE_ORIGIN="$RUNNER_TEMP/live-origin"
           mkdir -p "$LIVE_ORIGIN"
-          for prefix in d idx t src; do
-            mkdir -p "$LIVE_ORIGIN/$prefix"
-            aws s3 sync "s3://$LIVE_BUCKET/$prefix" "$LIVE_ORIGIN/$prefix" \
-              --endpoint-url "$R2_ENDPOINT" --only-show-errors
-          done
+          # `aws` comes from `devShells.ci`, like every other tool this workflow
+          # runs. It used to be invoked bare, and on 2026-10-12 run 38269686081
+          # died here with `aws: command not found`, exit 127 — AFTER the
+          # credential check above had passed on four freshly-landed secrets, so
+          # the log reads like a secrets failure and is not one. One `nix
+          # develop` wraps the whole loop rather than each call, because
+          # realising the shell is the expensive part.
+          # CONCURRENCY, BECAUSE THE DEFAULT IS TEN AND THIS IS ~900,000 SMALL
+          # OBJECTS. The local copy of this data plane holds 882,642 files in
+          # 14 GB — a mean under 17 KB — so the sync is latency-bound, not
+          # bandwidth-bound, and `max_concurrent_requests` is the only dial
+          # that matters. At the default 10 the first run of this step was
+          # still going after 80 minutes with no way to see whether it was
+          # progressing; that is what the per-prefix counts below are for.
+          export AWS_MAX_CONCURRENT_REQUESTS=64
+          export AWS_MAX_QUEUE_SIZE=10000
+          # A COUNT PER PREFIX, NOT ONE AT THE END. `--only-show-errors` is
+          # right — 900,000 "download:" lines is not a log — but it left the
+          # step silent for its whole duration, and a silent step is
+          # indistinguishable from a hung one. Each prefix now reports what it
+          # brought and how long it took, so the next reader can tell "slow"
+          # from "stuck" without waiting for the step to end.
+          nix develop .#ci --command bash -euo pipefail -c '
+            for prefix in d idx t src; do
+              mkdir -p "$LIVE_ORIGIN/$prefix"
+              t0=$(date +%s)
+              aws s3 sync "s3://$LIVE_BUCKET/$prefix" "$LIVE_ORIGIN/$prefix" \
+                --endpoint-url "$R2_ENDPOINT" --only-show-errors
+              n=$(find "$LIVE_ORIGIN/$prefix" -type f | wc -l)
+              echo "  $prefix/: $n object(s) in $(( $(date +%s) - t0 ))s"
+            done
+          '
           echo "LIVE_ORIGIN=$LIVE_ORIGIN" >> "$GITHUB_ENV"
-          echo "staged $(find "$LIVE_ORIGIN" -type f | wc -l) object(s) from" \
-               "s3://$LIVE_BUCKET/{d,idx,t,src}"
+          staged=$(find "$LIVE_ORIGIN" -type f | wc -l)
+          echo "staged $staged object(s) from s3://$LIVE_BUCKET/{d,idx,t,src}"
+          # AN EMPTY STAGE IS A REFUSAL. Every later step treats `$LIVE_ORIGIN`
+          # as production's data plane: `-d:dataOrigin` renders through it, the
+          # pointer pin reads `d/<chain>/current.json` out of it, and the
+          # index-shrink guard compares against its `idx/hash/meta.json`. With
+          # nothing staged all three would compare against absence — and the
+          # shrink guard, whose whole job is to refuse a smaller index, would
+          # have nothing to be smaller than.
+          if [ "$staged" -eq 0 ]; then
+            echo "::error::the live data plane staged ZERO objects. Every guard" \
+                 "below reads this directory, so they would all compare against" \
+                 "an empty tree and pass. Refusing. Check the bucket name" \
+                 "($LIVE_BUCKET), the endpoint, and that the token can LIST."
+            exit 1
+          fi
 
       # The full deployable tree is the flake PACKAGE, not `just export` —
       # deploy-cloudflare-pages.yml records why, and the same reasoning holds
@@ -196,8 +388,51 @@ jobs:
       - name: Build the site tree
         env:
           RENDER_OVER_LIVE: ${{ inputs.render-over-live }}
+          INCLUDE_DEMO_CHAIN: ${{ inputs.include-demo-chain }}
         run: |
           set -euo pipefail
+          # TWO FLAGS, BECAUSE ONE WAS NOT ENOUGH AND THE SHORTFALL WAS A CRASH.
+          #
+          # `-d:chainOrigins=demo=dist` points the demo chain at this build's own
+          # tree. Dropping it does NOT hold the demo back: step 1's ingest writes
+          # `dist/d/demo/**` and the REGISTRY row regardless, and `chains(r)` is
+          # read from the application origin — the tree — never from the data
+          # origin (`reader.nim`: "The registry is the environment's own
+          # statement of what it publishes"). So the demo stays enumerated, its
+          # data is looked for on the LIVE origin, production carries no demo,
+          # and `chainInfo` RAISES.
+          #
+          # Reproduced rather than reasoned, in seconds, against a two-tree
+          # fixture — a `-d:noDemoChain` export as the stand-in live origin and
+          # an ordinary export rendered over it:
+          #
+          #     … aztec-testnet-frames routes so far: 234  (0s elapsed)
+          #     reader.nim(654)          chainInfo
+          #     Error: unhandled exception: cannot open chain 'demo':
+          #            no d/demo/current.json in local:…/a/dist
+          #
+          # NOTE WHERE IT RAISES — after every real chain, because `demo` sorts
+          # last. That is why run 38270630793 spent 106 minutes enumerating and
+          # died to its ceiling without ever reporting this: the crash was still
+          # ahead of it. A production-sized run would burn hours and then hit it.
+          #
+          # `-d:noDemoChain` is the switch that actually holds the demo back; it
+          # gates the ingest itself (`static_export.nim`'s
+          # `when not defined(noDemoChain)`), so there is no registry row to
+          # enumerate and nothing to resolve. The old text claimed the demo was
+          # "therefore not rendered", which was the intended behaviour and not
+          # the behaviour.
+          if [ "$INCLUDE_DEMO_CHAIN" = "true" ]; then
+            DEMO_ORIGIN_FLAG='-d:chainOrigins=demo=dist'
+            DEMO_INGEST_FLAG=''
+            echo "demo chain: INCLUDED (-d:chainOrigins=demo=dist)"
+          else
+            DEMO_ORIGIN_FLAG=''
+            DEMO_INGEST_FLAG='-d:noDemoChain'
+            echo "demo chain: HELD BACK (-d:noDemoChain) — the ingest is skipped," \
+                 "so the tree carries no demo data and no registry row, and" \
+                 "nothing enumerates a chain the live origin cannot resolve."
+          fi
           if [ "$RENDER_OVER_LIVE" = "true" ]; then
             LIVE_ORIGIN="${LIVE_ORIGIN:?render-over-live needs the staging step above to have run}"
             ( cd client
@@ -223,7 +458,8 @@ jobs:
                 -d:searchBundle=/assets/search.js \
                 -d:settingsBundle=/assets/settings.js \
                 -d:dataOrigin="$LIVE_ORIGIN" \
-                -d:chainOrigins=demo=dist \
+                $DEMO_ORIGIN_FLAG \
+                $DEMO_INGEST_FLAG \
                 src/static_export.nim
             )
             cp -rL client/dist site && chmod -R u+w site
@@ -254,9 +490,43 @@ jobs:
         run: |
           set -euo pipefail
           LIVE_ORIGIN="${LIVE_ORIGIN:?}"
-          pinned=""
-          mismatched=""
-          if [ -d "$LIVE_ORIGIN/d" ]; then
+          # ── ONE PREDICATE MUST NOT STAND FOR TWO CAUSES, AND HERE IT DID ───
+          #
+          # This loop used to call a bare `cmp -s`, and run 38316440069 — which
+          # got through a 496,899-object stage and a 385,731-page render — died
+          # here with:
+          #
+          #     line 14: cmp: command not found
+          #     ::error::current.json pin FAILED for: aztec aztec-testnet
+          #              aztec-testnet-frames
+          #
+          # `cmp` is not on the NixOS runners' ambient PATH, so the `if` took
+          # its else branch for every chain and the step reported a POINTER
+          # MISMATCH — a claim about production's data — when a tool was
+          # missing. `ci.yml`'s `contract` job records this repository being bitten
+          # by the same thing with `diff`: "the self-hosted NixOS runner has no
+          # `diff` in its ambient PATH — so every run of this job since the
+          # toolchain moved into the flake ended `line 3: diff: command not
+          # found`". `cmp` is in `devShells.ci` (diffutils 3.12, verified with
+          # `nix develop .#ci --command command -v cmp`).
+          #
+          # THE WHOLE LOOP RUNS INSIDE ONE `nix develop`, and the verdict per
+          # chain is written to a file rather than carried in an exit code.
+          # Wrapping each `cmp` individually would leave `nix develop`'s OWN
+          # failure exit (1) indistinguishable from `cmp`'s "the bytes differ"
+          # (1) — the same conflation one layer up. Here `cmp`'s status is read
+          # where it is produced: 0 identical, 1 different, >1 could not
+          # compare, and each is a different line.
+          # NOT `$out`. That name is Nix's: inside `nix develop` it is the
+          # derivation's output path, so exporting an `out` of our own had the
+          # child shell append to `<repo>/outputs/out` and die with "No such
+          # file or directory". Found by running this block locally before
+          # dispatching it, which is the order the rest of today argues for.
+          PIN_REPORT="$RUNNER_TEMP/pointer-pin.txt"
+          : > "$PIN_REPORT"
+          export LIVE_ORIGIN PIN_REPORT
+          nix develop .#ci --command bash -euo pipefail -c '
+            [ -d "$LIVE_ORIGIN/d" ] || exit 0
             for chain_dir in "$LIVE_ORIGIN"/d/*/; do
               [ -d "$chain_dir" ] || continue
               chain=$(basename "$chain_dir")
@@ -265,12 +535,26 @@ jobs:
               site_ptr="site/d/$chain/current.json"
               mkdir -p "$(dirname "$site_ptr")"
               cp "$live_ptr" "$site_ptr"
-              if cmp -s "$live_ptr" "$site_ptr"; then
-                pinned="$pinned $chain"
-              else
-                mismatched="$mismatched $chain"
-              fi
+              set +e
+              cmp -s "$live_ptr" "$site_ptr"
+              rc=$?
+              set -e
+              case "$rc" in
+                0) echo "pinned $chain" >> "$PIN_REPORT" ;;
+                1) echo "mismatched $chain" >> "$PIN_REPORT" ;;
+                *) echo "uncompared $chain exit=$rc" >> "$PIN_REPORT" ;;
+              esac
             done
+          '
+          pinned="$(awk '$1=="pinned"{printf " %s", $2}' "$PIN_REPORT")"
+          mismatched="$(awk '$1=="mismatched"{printf " %s", $2}' "$PIN_REPORT")"
+          uncompared="$(awk '$1=="uncompared"{printf " %s(%s)", $2, $3}' "$PIN_REPORT")"
+          if [ -n "$uncompared" ]; then
+            echo "::error::the pointer comparison DID NOT RUN for:$uncompared." \
+                 "That is not a mismatch and not a pass: cmp exits 0 for identical," \
+                 "1 for different, and above 1 when it could not compare. Refusing," \
+                 "because a step that cannot read the bytes cannot report on them."
+            exit 1
           fi
           if [ -n "$mismatched" ]; then
             echo "::error::current.json pin FAILED for:$mismatched — this build's" \
@@ -286,18 +570,14 @@ jobs:
                  "(first go-live) — nothing to pin."
           fi
 
-      # ASSERT THE GLOBAL INDEX DID NOT SHRINK. `idx/hash/meta.json`
-      # (static_export.nim's `buildGlobalHashIndex`) publishes `shardCount`
-      # and `entryCount` for v1 and, when present, a `versions[]` entry per
-      # published format. §5.0a makes a miss on this index a DEFINITE "no
-      # chain holds this hash", so a smaller index is not a smaller cache —
-      # it is new, confident, false absences. Refuse rather than publish one.
       - name: The global hash index did not shrink
         if: ${{ inputs.render-over-live == true }}
         run: |
           set -euo pipefail
           LIVE_ORIGIN="${LIVE_ORIGIN:?}"
-          python3 -c '
+          # Through the dev shell, like every other tool here: a bare `python3`
+          # is a gate that measures whatever the runner image happens to carry.
+          nix develop .#ci --command python3 -c '
           import json, os, sys
 
           site_path = "site/idx/hash/meta.json"
@@ -348,8 +628,172 @@ jobs:
       # checks that have each caught a real defect — check-assets found the
       # replay engine missing, and the classifier found four site objects that
       # belonged to no chain and were silently skipped.
+      # VENDOR THE ENGINE INTO THE PUBLISH DIR — the one site object this
+      # workflow's own comment claims it "renders fresh" and never produced.
+      #
+      # Every page carries `data-replay-engine="/replay-engine/"` and constructs
+      # `new Worker("/replay-engine/worker.js", {type:"module"})`.
+      # `deploy-cloudflare-pages.yml` has had this step since the defect it
+      # records in its own words: "Until this step existed nothing was ever
+      # published under that prefix, so the worker 404'd on every deployed page
+      # and the debugging controls were inert on a site that otherwise looked
+      # complete. The failure was fast (~1 s) and quiet, and it read as 'the
+      # engine is stale' for hours."
+      #
+      # THIS WORKFLOW HAD THE SAME HOLE, and the comment at "Stage the live
+      # bucket's data plane" asserts the opposite — it lists `replay-engine/**`
+      # among "the SITE's own objects, which this build renders fresh and must
+      # NOT pull stale copies of from the live bucket". The first half was never
+      # true: nothing here rendered or fetched it. Measured by exporting the
+      # same configuration locally and running the next step's checker over the
+      # result:
+      #
+      #     A1  FAIL  …/tx/…/debug/index.html  data-replay-engine="/replay-engine/"
+      #                 → replay-engine  (no directory)
+      #
+      # So the next step would have caught it — which is why it is a guard and
+      # not a surprise — but it would have caught it after the sync and the
+      # render, hours in.
+      #
+      # `fetch-engine.sh` asserts each file against `engine-pin.txt` by sha256,
+      # so a base serving a different engine fails here naming both hashes
+      # rather than publishing it. `vars.REPLAY_ENGINE_BASE` redirects the
+      # ORIGIN and cannot redirect the bytes.
+      - name: Vendor the replay engine into the publish dir
+        env:
+          ENGINE_BASE: ${{ vars.REPLAY_ENGINE_BASE || 'https://web-codetracer.pages.dev' }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash client/hydrate/fetch-engine.sh \
+            site/replay-engine "$ENGINE_BASE"
+
+      # AND ASSERT IT IS THERE, on the bytes about to be uploaded rather than
+      # trusted. Same three files `deploy-cloudflare-pages.yml` names, and the
+      # same reason: "A green build that publishes a site whose worker 404s
+      # must not be able to reach production again."
+      - name: The engine is in the publish dir, and the pages ask for it there
+        run: |
+          set -euo pipefail
+          missing=0
+          for f in replay-engine/worker.js \
+                   replay-engine/pkg/db_backend.js \
+                   replay-engine/pkg/db_backend_bg.wasm; do
+            if [ ! -s "site/$f" ]; then echo "missing/empty: site/$f" >&2; missing=1; fi
+          done
+          [ "$missing" -eq 0 ] || { echo "the engine is not in the publish dir" >&2; exit 1; }
+          # The pages ask for a specific prefix. If somebody changes
+          # `replayEngineBase`, this catches the mismatch here rather than in a
+          # visitor's console.
+          page="$(find site -path '*/tx/*/debug/index.html' -print -quit)"
+          if [ -n "$page" ]; then
+            base="$(grep -oE 'data-replay-engine="[^"]*"' "$page" | head -1 |
+                    sed 's/.*="//; s/"$//')"
+            echo "pages request their engine from: ${base:-<none>}"
+            if [ "$base" != "/replay-engine/" ]; then
+              echo "::error::the pages name '${base:-<none>}' but this step vendored" \
+                   "site/replay-engine/. A cross-origin base is a deliberate build" \
+                   "choice (-d:replayEngineBase) and this publish path does not set" \
+                   "one, so the two disagreeing means the tree and the upload would" \
+                   "not match."
+              exit 1
+            fi
+          else
+            echo "::error::no */tx/*/debug/index.html in the tree, so which prefix the" \
+                 "pages ask for could not be read. That is not a pass: this check" \
+                 "exists because a site can look complete with an inert debugger."
+            exit 1
+          fi
+
       - name: The tree carries what a visitor needs
-        run: nix develop .#ci --command node tools/deploy/check-assets.mjs --dir site --require-traces
+        # `--require-traces` ASKS WHETHER *THIS PUBLISH* CARRIES TRACES, and for a
+        # render-over-live publish the answer is no BY DESIGN: the containers are
+        # already in the bucket and this tree does not re-upload them. Passing it
+        # unconditionally made run 38349961009 fail A3 after 161 minutes —
+        # correctly, by its own terms, about the wrong publish shape.
+        #
+        # THE RUN ALSO FOUND SOMETHING REAL, AND IT IS NOT THIS FLAG. The scan
+        # completed for the first time and reported:
+        #
+        #   scanned: 385,732 pages, 4,333,747 same-origin references, 299,461
+        #            distinct assets — A1, A2, A4, A5, A6 all PASS
+        #   not resolved: … 104,368 EMPTY
+        #   attributes:   data-trace x104368, data-replay-engine x104368
+        #
+        # 104,368 `data-trace` attributes and 104,368 empty references are the
+        # same number: every debug page rendered over live emits
+        # `data-trace=""`. `pages/debug.nim:397` emits it from `canShare`, and
+        # `session_view.nim:1611` is `canShare = hasFrame and
+        # containerPath.len > 0` — so no page is offered a container.
+        #
+        # THE CAUSE IS IN THE LIVE DATA, measured on the 2026-09-29 copy of the
+        # production tree at `~/m/blocktracer-go-live/dist`:
+        #
+        #   18,093 trace.ct        18,093 manifest.json
+        #        6 instructions.json    6 calltrace.json    1 positions.json
+        #
+        # against a current render, where every artifact has all of them. The
+        # live tree's trace artifacts PREDATE the sidecar derivations the debug
+        # route needs for a first frame, so `hasFrame` is false everywhere and
+        # `canShare` with it. Deriving those 18,093 sidecars is its own job
+        # (`just chain-instructions` / `chain-positions` / `chain-calltrace`);
+        # it is NOT a precondition for publishing the design, because production
+        # today serves 7,942-byte pre-hydration stubs with no engine, no bundle
+        # and no replay at all — this tree is strictly better than that with or
+        # without the sidecars.
+        #
+        # So the flag follows the publish shape, and the sidecar gap is named
+        # here rather than hidden behind a passing gate.
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.render-over-live }}" = "true" ]; then
+            echo "A3: NOT REQUIRED — the containers are the live bucket's and this" \
+                 "tree does not carry them. See the comment above for what the live" \
+                 "tree's artifacts are missing and why it does not block the design."
+            nix develop .#ci --command node tools/deploy/check-assets.mjs --dir site
+          else
+            nix develop .#ci --command node tools/deploy/check-assets.mjs --dir site --require-traces
+          fi
+
+      # BREAKING ONE IS AN OPERATOR ACT, AND IT LIVES HERE RATHER THAN IN THE
+      # PUBLISHER ON PURPOSE. `publisher.nim`'s `releaseLease` only deletes a
+      # lock whose holder matches, and its comment says why: "a stale lease is a
+      # manual/operational concern, deliberately not auto-broken here to keep
+      # single-writer honest." Adding `--break-lease` to the binary would undo
+      # that decision for every caller; a default-off input on the one workflow
+      # that publishes leaves the guarantee intact and makes the exception
+      # reviewable.
+      #
+      # WHY IT WAS NEEDED: run 38388168109's `blocktracer-publish` was SIGKILLed
+      # when its ephemeral runner was reaped mid-publish ("Terminate orphan
+      # process: pid (4237)"). A killed holder releases nothing, so
+      # `_leases/aztec.lock` survived it and run 38417127259 failed after four
+      # and three-quarter hours with "chain 'aztec' is locked by another
+      # publisher (lease held)".
+      - name: Break stale publish leases
+        if: ${{ inputs.dry-run == false && inputs.break-stale-leases == true }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          BUCKET: ${{ inputs.bucket }}
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash -euo pipefail -c '
+            locks=$(aws s3 ls "s3://$BUCKET/_leases/" --endpoint-url "$ENDPOINT" 2>/dev/null || true)
+            if [ -z "$locks" ]; then
+              echo "break-stale-leases: nothing is held — no lock to break."
+              echo "That is not an error: it means the state this input exists for"
+              echo "is not the state the bucket is in."
+              exit 0
+            fi
+            printf "%s\n" "$locks" | awk "{print \$4}" | while read -r k; do
+              [ -n "$k" ] || continue
+              who=$(aws s3 cp "s3://$BUCKET/_leases/$k" - --endpoint-url "$ENDPOINT" 2>/dev/null | tr -d "\n" || true)
+              echo "breaking _leases/$k (was held by: ${who:-<unreadable>})"
+              aws s3 rm "s3://$BUCKET/_leases/$k" --endpoint-url "$ENDPOINT"
+            done
+          '
 
       - name: Publish
         env:
@@ -381,8 +825,13 @@ jobs:
             exit 1
           fi
 
-          BUCKET='${{ inputs.bucket }}'
-          ENDPOINT='${{ vars.R2_ENDPOINT }}'
+          # EXPORTED for the same reason LIVE_ORIGIN is: the guard and the
+          # publisher below both run under `nix develop`, because both need
+          # `aws` on PATH — the guard calls it directly and
+          # `publish/objectstore.nim`'s `S3ObjectStore.putMany` shells out to
+          # `aws s3 cp --recursive`, once per Content-Encoding.
+          export BUCKET='${{ inputs.bucket }}'
+          export ENDPOINT='${{ secrets.R2_ENDPOINT }}'
 
           # THE GUARD THAT MAKES THIS SAFE TO POINT AT PRODUCTION.
           #
@@ -397,13 +846,14 @@ jobs:
           # this tree is a SUBSET of what is live, and publishing it overwrites
           # those shared objects with a build that was never rendered against
           # the live history. Refuse, and say which chains.
-          live=$(aws s3 cp "s3://$BUCKET/registry/chains.v1.json" - \
+          live=$(nix develop .#ci --command \
+                   aws s3 cp "s3://$BUCKET/registry/chains.v1.json" - \
                    --endpoint-url "$ENDPOINT" 2>/dev/null || true)
           if [ -n "$live" ]; then
             # `python3 -c`, not a heredoc: a heredoc terminator has to sit at
             # column zero, and everything here is indented inside a YAML block
             # scalar, so the quoted form would never terminate.
-            missing=$(python3 -c 'import json,sys; live=set(json.loads(sys.argv[1]).get("chains",{})); here=set(json.load(open("site/registry/chains.v1.json"))["chains"]); print(",".join(sorted(live-here)))' "$live")
+            missing=$(nix develop .#ci --command python3 -c 'import json,sys; live=set(json.loads(sys.argv[1]).get("chains",{})); here=set(json.load(open("site/registry/chains.v1.json"))["chains"]); print(",".join(sorted(live-here)))' "$live")
             if [ -n "$missing" ] && [ "${{ inputs.allow-foreign-chains }}" != "true" ]; then
               echo "::error::s3://$BUCKET already serves chain(s) this tree does" \
                    "not contain: $missing. This tree is a subset of what is" \
@@ -416,11 +866,57 @@ jobs:
             fi
           fi
 
-          ./blocktracer-publish \
+          # ── `--refresh` ON A RENDER-OVER-LIVE PUBLISH, AND WITHOUT IT THE
+          #    PAGES DO NOT MOVE ────────────────────────────────────────────
+          #
+          # Run 38366603048 published successfully — pointers flipped on all
+          # three chains — and uploaded 40 + 8 + 9 = 57 objects. The new site
+          # shell went up and is live:
+          #
+          #   /_a/0c49ff0f45fccc3a.css          200  341,628 B   (this build's)
+          #   /assets/hydrate.js                200  2,075,139 B
+          #   /replay-engine/worker.js          200
+          #
+          # and every one of the 385,732 rendered pages did NOT. A transaction
+          # page is still the 7,942-byte pre-hydration stub, cache-busted.
+          #
+          # WHY, read out of `publisher.nim` rather than guessed: `classOf` sends
+          # any non-root `.html` to `ocEntryPage`, and `strategyOf`'s `else` arm
+          # is `stKeyExistence` — "present ⇒ skip". The live bucket already holds
+          # `aztec/tx/<hash>/index.html` at every one of those keys, so every
+          # page was skipped. The key did not move; only the bytes behind it did.
+          #
+          # `--refresh` is this publisher's own documented remedy, in its own
+          # words: "re-read every key-existence object and supersede the ones
+          # whose bytes differ from the tree's. OFF by default: the ordinary
+          # cycle must upload zero on a re-run, and this one costs a GET per
+          # object. It is what makes 'a range can be refreshed after a producer
+          # fix' true — without it a corrected object never reaches a store that
+          # already holds the wrong one, because its key did not move."
+          #
+          # A render-over-live publish IS that case by construction: it exists to
+          # replace what the bucket serves for keys the bucket already has. The
+          # continuous path keeps the default, so "a re-run uploads zero" stays
+          # true where it is the property that matters.
+          #
+          # THE COST IS REAL AND BOUNDED: one GET per object over ~386,000 keys.
+          # At the staging step's measured ~100 objects/s that is around an hour,
+          # on top of 75 min staging and 85 min rendering — comfortably inside
+          # the 600-minute ceiling, which is why `timeout-minutes` was raised to
+          # 600 rather than left at the 240 I first wrote.
+          REFRESH=""
+          if [ "${{ inputs.render-over-live }}" = "true" ]; then
+            REFRESH="--refresh"
+            echo "publishing with --refresh: every key-existence object is re-read" \
+                 "and superseded where the bytes differ. Without it the entry pages" \
+                 "are skipped, because their keys already exist in the bucket."
+          fi
+          nix develop .#ci --command ./blocktracer-publish \
             --tree site \
             --backend s3 \
             --bucket "$BUCKET" \
-            --endpoint "$ENDPOINT"
+            --endpoint "$ENDPOINT" \
+            $REFRESH
 
       # A green publish is a claim about a process; the objects being served
       # is a claim about the bucket. This project has been bitten by that
@@ -429,20 +925,263 @@ jobs:
       # finished until something reads the bucket back and checks IDENTITY, not
       # counts and not HTTP status.
       #
-      # THE VERIFIER IS NOT ON THIS BRANCH YET. It is PR #40
+      # THE VERIFIER IS ON THIS BRANCH NOW — the `::error::` arm below is the
+      # one this comment used to describe and is kept as the refusal it always
+      # was, not as a description of the present. PR #40
       # (`ci/test/verify-published-readonly.sh` over
-      # `src/blocktracer/verify/audit.nim`), read-only and safe to re-run. This
-      # step is written to use it the moment it lands and to say so loudly
-      # while it has not, rather than quietly publishing unverified — a step
-      # that skips in silence is how an unchecked publish becomes the norm.
-      - name: Ask the bucket what it actually holds
+      # `src/blocktracer/verify/audit.nim`) MERGED, and the file is present on
+      # `agents`, `dev` and this branch — checked with `git cat-file -e` on each
+      # rather than on one. So the `if` takes its first arm, and the second
+      # exists for the world where somebody deletes the script.
+      #
+      # AND IT ANSWERS A DIFFERENT QUESTION FROM THE STEP AFTER IT. This one
+      # asks whether the DATA is there — identity by sampling and arithmetic.
+      # It says nothing about the design: a tree can hold every object this
+      # build published, with correct hashes, and serve a stylesheet carrying
+      # none of CodeTracer's panel rules. That was production's exact state on
+      # 2026-10-12, and no check in this workflow would have reported it.
+      # DOES THE BUCKET HOLD WHAT THE TREE HOLDS? Site-level prefixes only, by
+      # key set, which is a few LISTs and no GETs.
+      #
+      # THIS IS THE CHECK THAT WAS MISSING AND THE REASON A PUBLISH LOOKED DONE
+      # WHEN IT WAS NOT. Run 38504065692 published successfully, reported
+      # `content uploaded: 0` on every chain, and left production answering 404
+      # — `cf-cache-status: MISS`, so a real origin 404 — for all nine
+      # `/assets/ct-icons/**` icons the served stylesheet names. The 2026-09-29
+      # copy of the live tree holds four files under `assets/`, all fonts, and
+      # no icons: they have never been published by anything.
+      #
+      # Nothing in the pipeline compared the bucket's key set against the
+      # tree's. `check-assets` reads the TREE (and passed, 13 url(s) resolving),
+      # the publisher reports what IT decided to upload, and the step below used
+      # to run a lint of the verifier rather than the verifier. Three green
+      # signals, none of them about the bucket.
+      #
+      # So: for each site-level prefix the tree carries, list the same prefix in
+      # the bucket and diff the key sets. A key in the tree and not the bucket
+      # is a publish that did not finish, whatever the publisher said.
+      # RUNS UNDER `dry-run` TOO, because it reads and never writes. Gating a
+      # read-only bucket comparison on whether THIS run publishes made the one
+      # question worth asking cost a full publish to ask: a `dry-run` build with
+      # `render-over-live: false` reaches this step in minutes and carries the
+      # same 13 `assets/` files, which is all the comparison needs.
+      #
+      # Under `dry-run` it is INFORMATIONAL — it still exits non-zero, because a
+      # bucket missing objects the tree carries is a true finding whether or not
+      # this run was going to fix it, and a dry run that reports it as fine would
+      # be the same silence this step exists to break.
+      - name: Does the bucket hold the site objects the tree does?
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          BUCKET: ${{ inputs.bucket }}
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash -euo pipefail -c '
+            rc=0
+            for prefix in assets _a; do
+              [ -d "site/$prefix" ] || { echo "$prefix/: not in the tree"; continue; }
+              tree_keys=$(cd site && find "$prefix" -type f | sort)
+              bucket_keys=$(aws s3 ls "s3://$BUCKET/$prefix/" --recursive                               --endpoint-url "$ENDPOINT" 2>/dev/null                             | awk "{print \$4}" | sort || true)
+              missing=$(comm -23 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$bucket_keys"))
+              n_tree=$(printf "%s\n" "$tree_keys" | grep -c . || true)
+              n_bucket=$(printf "%s\n" "$bucket_keys" | grep -c . || true)
+              n_missing=$(printf "%s\n" "$missing" | grep -c . || true)
+              echo "$prefix/: tree $n_tree, bucket $n_bucket, missing from bucket $n_missing"
+              # PRINT THE KEYS, NOT ONLY THE TALLY. "tree 16, bucket 16, missing
+              # 0" was read as "the bucket holds what the tree does", while the
+              # origin was 404ing nine assets/ct-icons/** objects at the same
+              # minute. Equal counts and an empty comm -23 say only that the two
+              # LISTS agree; reading that as a statement about nine particular
+              # keys needs those keys to have been in the lists compared, and the
+              # tally cannot say whether they were. So print both sides. Sixteen
+              # lines is not a log problem; a tally that has to be reasoned from
+              # is.
+              #
+              # BUCKET-ONLY KEYS ARE NOT A FAILURE and are printed anyway: a
+              # content-hashed name this tree has moved past is exactly what
+              # should still be in the bucket, and an object nobody can account
+              # for is worth seeing before it is worth refusing.
+              #
+              # AWK RATHER THAN head, BECAUSE head CLOSES THE PIPE. Under
+              # set -o pipefail a truncating head makes the writer die of EPIPE
+              # and the whole pipeline report failure, so a prefix with more keys
+              # than the cap would turn this read-only step into a red one. awk
+              # stops printing and keeps reading.
+              bucket_only=$(comm -13 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$bucket_keys"))
+              n_only=$(printf "%s\n" "$bucket_only" | grep -c . || true)
+              cap=60
+              printf "%s\n" "$tree_keys"   | awk -v c=$cap "NF && ++i<=c {print \"    tree   \" \$0}"
+              printf "%s\n" "$bucket_keys" | awk -v c=$cap "NF && ++i<=c {print \"    bucket \" \$0}"
+              # `[ … ] && echo` WOULD END THE SCRIPT. Under set -e a false test is
+              # a non-zero compound command, so the common one-liner aborts the
+              # step on the ordinary case of a list that fits.
+              if [ "$n_tree"   -gt "$cap" ]; then echo "    (tree list truncated at $cap of $n_tree)"; fi
+              if [ "$n_bucket" -gt "$cap" ]; then echo "    (bucket list truncated at $cap of $n_bucket)"; fi
+              if [ "$n_only" -gt 0 ]; then
+                echo "    $n_only key(s) in the bucket and not in this tree — expected for content-hashed names:"
+                printf "%s\n" "$bucket_only" | awk -v c=$cap "NF && ++i<=c {print \"    EXTRA  \" \$0}"
+              fi
+              if [ "$n_missing" -gt 0 ]; then
+                printf "%s\n" "$missing" | awk -v c=$cap "NF && ++i<=c {print \"    MISSING \" \$0}"
+                rc=1
+              fi
+            done
+            if [ "$rc" -ne 0 ]; then
+              echo "::error::the bucket is missing site objects this tree carries."                    "The publisher reported what it DECIDED to upload; this compares"                    "what the bucket HOLDS. A publish that ends here did not finish."
+            fi
+            exit $rc
+          '
+
+      # ── AND IS THAT BUCKET THE ONE THE SITE SERVES? ─────────────────────
+      #
+      # The step above listed `s3://${{ inputs.bucket }}/assets/` and found all
+      # nine `assets/ct-icons/**` objects present, BY NAME. At the same hour
+      # `https://blocktracer.org/assets/ct-icons/origin-icons/sigma.svg`
+      # answered 404 with Cloudflare R2's own Not Found page — byte-identical to
+      # the page a fabricated path gets — while `/assets/fonts/*` (2026-10-03),
+      # `/assets/hydrate.js` (2026-10-13) and `/_a/0c49ff0f45fccc3a.css` all
+      # answered 200 from the same prefix. R2 says the object is not there and
+      # the S3 API says it is, and both are credible.
+      #
+      # They can only both be true if the API endpoint and the custom domain
+      # address DIFFERENT buckets. This workflow has two sources for "the
+      # bucket" and has never compared them: `inputs.bucket` is the publish
+      # TARGET (required, no default, so a demo can be sent to staging) and
+      # `secrets.R2_BUCKET` is the LIVE bucket the staging step reads. Nothing
+      # asserts they agree when the target IS production.
+      #
+      # So compare them, and compare what each holds. NEITHER NAME IS PRINTED —
+      # the output is a boolean and two key sets, which is everything the
+      # question needs and nothing a log should carry.
+      #
+      # INFORMATIONAL, NEVER RED. A deliberate publish to staging makes these
+      # two differ on purpose, and that is the case the input exists for. This
+      # step reports; it does not judge.
+      - name: Is the bucket this publishes into the bucket the site serves?
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          BUCKET: ${{ inputs.bucket }}
+          LIVE_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command bash -euo pipefail -c '
+            if [ "$BUCKET" = "$LIVE_BUCKET" ]; then
+              echo "target bucket vs live bucket: SAME NAME"
+            else
+              echo "target bucket vs live bucket: DIFFERENT NAMES"
+              echo "  (inputs.bucket is not secrets.R2_BUCKET. If this run meant"
+              echo "   production, every object it wrote went somewhere the site"
+              echo "   does not read.)"
+            fi
+            # The same listing, against the LIVE bucket. A key the tree carries
+            # and the live bucket lacks is the thing a visitor gets a 404 for,
+            # whatever the target bucket holds.
+            for prefix in assets _a; do
+              [ -d "site/$prefix" ] || continue
+              tree_keys=$(cd site && find "$prefix" -type f | sort)
+              live_keys=$(aws s3 ls "s3://$LIVE_BUCKET/$prefix/" --recursive \
+                            --endpoint-url "$ENDPOINT" 2>/dev/null \
+                          | awk "{print \$4}" | sort || true)
+              n_tree=$(printf "%s\n" "$tree_keys" | grep -c . || true)
+              n_live=$(printf "%s\n" "$live_keys" | grep -c . || true)
+              gone=$(comm -23 <(printf "%s\n" "$tree_keys") <(printf "%s\n" "$live_keys"))
+              n_gone=$(printf "%s\n" "$gone" | grep -c . || true)
+              echo "LIVE $prefix/: tree $n_tree, live bucket $n_live, absent from live $n_gone"
+              printf "%s\n" "$gone" | awk "NF && ++i<=60 {print \"    ABSENT-FROM-LIVE \" \$0}"
+            done
+            # AND WHETHER THE SHARED OBJECT IS THE SAME OBJECT. Both buckets can
+            # hold `assets/hydrate.js`; the sizes say whether they are the same
+            # publish. `head-object` rather than a listing, because one key is
+            # the question.
+            # ── AN EXACT-KEY LOOKUP, BECAUSE A LISTING IS PARSED ───────────
+            #
+            # `aws s3 ls --recursive | awk "{print $4}"` takes the fourth
+            # whitespace-separated field, so a key carrying anything after a
+            # space is TRUNCATED to what came before it — and a key truncated to
+            # exactly the tree key compares equal while naming a different
+            # object. The listing above therefore cannot tell "the key is there"
+            # from "a key whose printed prefix matches is there", and nothing in
+            # it would show the difference.
+            #
+            # `head-object` takes the key as an argument and cannot truncate it.
+            # So ask for each key the tree carries, by name. A key the listing
+            # claimed and `head-object` cannot find is the listing being parsed
+            # wrong. A key both agree on, while the public origin answers 404
+            # with R2 own Not Found page, is something else entirely — and
+            # knowing which of those two it is, is the whole question.
+            #
+            # NO HEREDOC. A heredoc terminator has to sit at column zero and all
+            # of this is indented inside a YAML block scalar, so it would never
+            # terminate — the same trap the registry guard above records. Process
+            # substitution keeps the loop in THIS shell, so the counter survives
+            # it, which a pipe into `while` would not.
+            for prefix in assets _a; do
+              [ -d "site/$prefix" ] || continue
+              nf=0
+              nq=0
+              while IFS= read -r k; do
+                [ -n "$k" ] || continue
+                nq=$((nq + 1))
+                meta=$(aws s3api head-object --bucket "$LIVE_BUCKET" --key "$k" \
+                         --endpoint-url "$ENDPOINT" \
+                         --query "[ContentLength,ETag,ContentType,LastModified]" --output text \
+                         2>/dev/null || true)
+                if [ -z "$meta" ]; then
+                  echo "    HEAD-404 $k"
+                  nf=$((nf + 1))
+                else
+                  # SIZE, ETAG, TYPE AND LAST-MODIFIED, because "the key
+                  # exists" is not "the object is the file". An object of the
+                  # wrong length or a different type is a publisher defect an
+                  # existence check cannot see. LAST-MODIFIED is the timeline:
+                  # an object written minutes ago and one written eleven days ago
+                  # are different explanations for the same 404 at the origin,
+                  # and the public response carries only the view the origin has.
+                  # Printed beside the tree size so the comparison needs no
+                  # second step and no second run.
+                  local_sz=$(wc -c < "site/$k" | tr -d " ")
+                  echo "    HEAD-200 $k  tree=$local_sz  bucket=$meta"
+                fi
+              done < <(cd site && find "$prefix" -type f | sort)
+              echo "exact-key lookups in the live bucket for $prefix/: $nq asked, $nf not found"
+            done
+
+            # LABEL BY POSITION, NOT BY COMPARING THE NAME BACK. When the two
+            # names are equal the comparison matches on both passes and prints
+            # TARGET twice, which reads as the live bucket having been skipped.
+            for pair in "TARGET:$BUCKET" "LIVE  :$LIVE_BUCKET"; do
+              label=${pair%%:*}
+              b=${pair#*:}
+              sz=$(aws s3api head-object --bucket "$b" --key assets/hydrate.js \
+                     --endpoint-url "$ENDPOINT" --query ContentLength --output text \
+                     2>/dev/null || echo "unreadable")
+              echo "assets/hydrate.js in the $label bucket: $sz byte(s)"
+            done
+          '
+
+      # NAMED FOR WHAT IT DOES. This step used to be called "Ask the bucket what
+      # it actually holds", and it asks the bucket nothing: the script it runs is
+      # a static guard that `blocktracer-verify-published` contains no write
+      # method ("scanned 5 file(s) for 4 write method(s)"). That guard is worth
+      # keeping and worth running — the credential in this job is read-write and
+      # that lint is the only thing standing between it and a production object —
+      # but its green was being read as "the publish is verified", which it has
+      # never meant. The bucket comparison above is the step that asks.
+      - name: Can the published-tree verifier write? (it must not)
         if: ${{ inputs.dry-run == false }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
-          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
-          R2_BUCKET: ${{ vars.R2_BUCKET || 'blocktracer' }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
         run: |
           set -euo pipefail
           if [ -x ci/test/verify-published-readonly.sh ]; then
@@ -455,3 +1194,31 @@ jobs:
                  "report a publish as complete without it."
             exit 1
           fi
+
+      # AND DOES THE PUBLISHED TREE CARRY CODETRACER'S DESIGN?
+      #
+      # The step above asks whether the data is there. This asks whether what a
+      # VISITOR SEES is the IDE, and the two have been independent in exactly
+      # the direction that matters: measured on live blocktracer.org on
+      # 2026-10-12, every existence and freshness check passed over a
+      # stylesheet with ZERO `.component-container` rules, eight of twelve
+      # `url()`s relative and therefore 404, and transaction pages of 7,942
+      # bytes with no `<script>` at all. The design was a month old and nothing
+      # said so.
+      #
+      # The expected selectors are not listed here or in the checker: it reads
+      # the LIVE rows of `client/src/components/ct_css_reach.txt`, the port's
+      # own reachability register, so a newly ported component is covered by
+      # existing and a row removed from the register stops being demanded.
+      #
+      # IT RUNS AGAINST THE PUBLIC ORIGIN, NOT THE BUCKET ENDPOINT, because the
+      # claim is about what a visitor receives — including whether the origin's
+      # own 404 behaviour turns a missing asset into a 200. A failure here means
+      # the publish HAPPENED and the tree is wrong, which is a true and useful
+      # thing to be red about: the remedy is another publish, not a retry.
+      - name: Does the published tree carry CodeTracer's design?
+        if: ${{ inputs.dry-run == false }}
+        run: |
+          set -euo pipefail
+          nix develop .#ci --command node tools/deploy/check-design-parity.mjs \
+            --origin "${{ inputs.verify-origin }}"

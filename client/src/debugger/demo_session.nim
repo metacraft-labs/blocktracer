@@ -596,10 +596,57 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
         "Frames are recorded and carry the names this recording gives them. " &
         "Nothing resolved a source position, so they carry no file or line. " &
         "They are listed once the session is live."
+      # ── THE PANE THAT ASSERTED A COUNT IT HAD NEVER READ ──────────────────
+      #
+      # This note said "This recording carries no variable names" as a flat
+      # constant. Measured with `ct-print --summary` on the container behind the
+      # one Ethereum transaction this tree publishes: `varnames: 2`. The
+      # sentence was false on the page it was serving, and nothing could have
+      # caught it — there was no figure anywhere on the client for it to
+      # disagree with, so the claim was a belief held in a branch.
+      #
+      # The two names are the EVM storage slots the `transferFrom` read and
+      # wrote, attached by the container's value stream to steps 429 onward.
+      # `lib/eth-producer-facts.mjs`'s header already knew this — "the EVM
+      # container interns two variable names and they are the two storage slots
+      # the transaction touched" — and the pane had no way to read a comment.
+      #
+      # SO THE COUNT IS NOW PUBLISHED AND READ. `recording.varnames` travels
+      # from the producer through `native.replay` (`ingest.nim`), and the three
+      # branches below are the three things that can be true. The SECOND clause
+      # is kept in all of them: no debug symbols resolved, which is separately
+      # true and is why none of these names is a program local.
+      #
+      # ABSENT IS NOT ZERO, and the unmeasured branch keeps the original
+      # sentence VERBATIM rather than being corrected too. That is deliberate
+      # and is not an oversight: every Aztec capture in this tree predates the
+      # member, so every Aztec row takes that branch, and rewording it would
+      # change three chains' pages — and compose with `withAvmMachineColumns`,
+      # which prepends its own sentence to whatever this wrote — on the strength
+      # of a figure nobody has measured for them. The honest fix there is for
+      # the Aztec producer to publish the member; until it does, that branch is
+      # exactly as true and as unsupported as it was before this change, and no
+      # new claim is made on its behalf.
+      let varnamesNode = v.native{"replay"}{"varnames"}
+      let varnames =
+        if varnamesNode == nil or varnamesNode.kind != JInt: -1
+        else: varnamesNode.getInt
       result.state.note =
-        "This recording carries no variable names. Naming a local needs the " &
-        "debug symbols from the contract's compiled artifact, and none " &
-        "resolved for this contract."
+        if varnames > 0:
+          "This recording interns " & $varnames & " variable name(s), and none " &
+          "of them is a program local: no debug symbols resolved for this " &
+          "contract, so what it names is the machine state this execution " &
+          "touched rather than anything from source. Their values travel in " &
+          "the container a live session reads, so this page can count them " &
+          "and not show them."
+        elif varnames == 0:
+          "This recording interns no variable names at all — measured, not " &
+          "assumed. Naming a local needs the debug symbols from the " &
+          "contract's compiled artifact, and none resolved for this contract."
+        else:
+          "This recording carries no variable names. Naming a local needs the " &
+          "debug symbols from the contract's compiled artifact, and none " &
+          "resolved for this contract."
       result.eventLog.note =
         "Calls and storage writes are recorded against program counters " &
         "rather than source lines."
@@ -658,7 +705,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
       result.timeCoordinate = result.controls.step
   of taOnDemand:
     result.phase = spAwaitingGeneration
-    result.unavailableReason = availabilityNote(taOnDemand)
+    result.unavailableReason = availabilityNote(taOnDemand, "")
     result.editor = EditorPane(availability: srcUnverified,
       reason: "Source is resolved from the trace, and no trace has been " &
               "recorded for this transaction yet.")
@@ -670,7 +717,12 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
     result.controls = fixtureControls(positioned = false, live = false, steps = 0)
   of taAbsent, taUnsupported:
     result.phase = spUnavailable
-    result.unavailableReason = availabilityNote(v.headline)
+    # THE HEADLINE'S OWN MEMBER, so the sentence this session serves instead of
+    # a session makes the durability claim that member supports. `headlineRefusal`
+    # is the single derivation (reader.nim) rather than a second copy here, for
+    # §7.1's reason: the transaction page and the session must say one thing.
+    let absence = headlineRefusal(v)
+    result.unavailableReason = availabilityNote(v.headline, absence)
     # The published reason for THIS execution, where there is exactly one and
     # the tree carried words for it. `pages/tx.nim` renders the same value in
     # the same position on the metadata page — §7.1's rule that the transaction
@@ -679,7 +731,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
     if v.executions.len == 1:
       result.unavailableDetail = v.executions[0].reason
     result.editor = EditorPane(availability: srcAbsent,
-      reason: availabilityNote(v.headline))
+      reason: availabilityNote(v.headline, absence))
     result.controls = fixtureControls(positioned = false, live = false, steps = 0)
 
 proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =

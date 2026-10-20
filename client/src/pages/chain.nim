@@ -80,9 +80,10 @@ proc chainPage*(chain: string, info: ChainInfo,
         #
         # It is read from the registry row — `reach`, `historyFloor`,
         # `vm.instructionSet` — and composed in `components/reach`, which also
-        # records why this section states no debug TIER even though §4 item 4
-        # asks for one.
-        raw reachSection(info.chainProfile)
+        # records why the debug tier is stated as a count over the published
+        # recordings rather than as a chain-wide badge.
+        raw reachSection(info.chainProfile, info.tracesPublished,
+                         info.tracesAtSourceLevel)
 
         # ── The capability tour ────────────────────────────────────────
         #
