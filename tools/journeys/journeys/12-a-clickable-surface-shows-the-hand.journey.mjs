@@ -577,6 +577,26 @@ export async function run({ browser, site, j }) {
     // into anchors then they are not clickable, and "a clickable row shows a
     // hand" would be a claim about nothing — passing here while the product
     // had lost its navigation entirely.
+    // AND IT IS WAITED FOR, BECAUSE `ready` DOES NOT PROMISE IT. `goLive`
+    // publishes the phase with the CONTROLS; `hydrate.writePane` replaces the
+    // navigation panes when the engine's reply arrives, which is later — the
+    // same gap journey 09's REAL arm has carried a bounded wait for since it
+    // was written, and journey 09's demo arm has just been given one.
+    //
+    // MEASURED on run 39377965689, where this journey went red having been
+    // green the run before over the same bytes: `call trace: total 0, shown
+    // 0` and `event log rows: total 0`, so the precondition below and all
+    // three SUBJECTS floors failed together. The panes were not lost; they
+    // were not written yet.
+    //
+    // The predicate is the precondition itself and the budget is bounded, so a
+    // build that really does lose its anchors still fails here after 15s with
+    // the same sentence and the same count.
+    await page
+      .waitForFunction(() => document.querySelectorAll("a.ctrow,a.evrow").length > 0, null, {
+        timeout: 15000,
+      })
+      .catch(() => {});
     const rowKinds = await page.evaluate(() => ({
       rows: document.querySelectorAll(".ctrow,.evrow").length,
       anchors: document.querySelectorAll("a.ctrow,a.evrow").length,
