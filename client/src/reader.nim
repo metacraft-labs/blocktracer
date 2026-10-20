@@ -148,6 +148,9 @@ type
       ## Where this chain's data came from, as the tree states it. Empty
       ## `provenanceKind` means the generation published none, which for this
       ## repository's demo tree is the synthetic case.
+    tracesPublished*, tracesAtSourceLevel*: int
+      ## Carried from the session; `-1` is "not published", never zero. See
+      ## `ChainSession.tracesAtSourceLevel`.
 
   TourRow* = object
     ## One entry of a chain's capability tour: a small program written to be
@@ -666,7 +669,9 @@ proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
     profileName: s.pin.profile.name, traceSchema: s.pin.traceSchema,
     chainProfile: s.profile,
     provenanceKind: s.provenanceKind, provenanceLabel: s.provenanceLabel,
-    provenanceDetail: s.provenanceDetail)
+    provenanceDetail: s.provenanceDetail,
+    tracesPublished: s.tracesPublished,
+    tracesAtSourceLevel: s.tracesAtSourceLevel)
 
 # ── blocks ───────────────────────────────────────────────────────────────
 

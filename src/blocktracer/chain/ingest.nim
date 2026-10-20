@@ -1504,6 +1504,12 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
   # ---- transactions --------------------------------------------------------
   var txCount, withTrace, divergentCount, prunedCount, totalContainerBytes = 0
+  # HOW MANY OF THE TRACED ROWS STEP AT SOURCE LEVEL — §1.2's T2 — counted from
+  # the same `measuredSourceLevel` each row's manifest publishes, so the chain-wide
+  # tally and the per-transaction claim are one measurement read twice. It is what
+  # lets a landing page state a tier as a DISTRIBUTION over what was recorded,
+  # which §1.2 permits, instead of as a chain-wide badge, which it does not.
+  var withSourceLevel = 0
   # REFUSALS ARE COUNTED SEPARATELY FROM PRUNING, because they are opposite facts
   # about the same window and the page must not merge them. A pruned transaction was
   # never replayable when it was reached; a REFUSED one was — its body was still
@@ -1986,6 +1992,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         # derived id is unchanged, so publishing it re-addresses nothing.
         hasRecorder: true, recorder: txRRef)
       inc withTrace
+      if measuredSourceLevel: inc withSourceLevel
       if not reproduced: inc divergentCount
       inc totalContainerBytes, t["containerBytes"].getInt
 
@@ -3199,6 +3206,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       "finalizedAtCapture": finalizedAt,
       "replayableWindowBlocks": win["blocks"],
       "tracesPublished": withTrace,
+      "tracesAtSourceLevel": withSourceLevel,
       "mostRecentTxBlock": mostRecentTxBlock,
       "longestRunWithoutTx": largestGap,
       # THE SCOPE AND ITS TWO RANGES, AS DATA. `detail` says all of this in
