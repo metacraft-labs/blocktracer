@@ -212,6 +212,10 @@ fixtures/chain-health/readable-container/ct/*.ct
 # work directory would make the container host-specific.
 /.eth-capture/
 
+# The Flow capture's work directory and tree, derived the same way by
+# `just flow-capture` from fixtures/chain-inputs/flow-mainnet/.
+/.flow-capture/
+
 # The Ethereum RANGE capture's output: `tools/chain/capture-eth-range.mjs` keeps one
 # recording per transaction under `work/rec/<txHash>/` so an interrupted range resumes
 # instead of re-recording, and writes the snapshot tree under `tree/`. Both hold `.ct`
@@ -236,3 +240,5 @@ fixtures/chain-health/readable-container/ct/*.ct
 # unless `--keep` is passed. The logs are left behind on purpose: they are the evidence a
 # failed arm is diagnosed from.
 /.eth-publish-proof/
+# `just starknet-capture`'s work and output (tools/chain/starknet-capture.sh).
+/.starknet-capture/

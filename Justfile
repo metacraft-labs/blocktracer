@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# SIXTEEN suites — 98 + 19 + 24 + 24 + 57 + 235 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 34 = 1205 counted assertions —
+# NINETEEN suites — 98 + 19 + 24 + 24 + 57 + 238 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 6 + 34 + 26 + 6 = 1246 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -447,11 +447,27 @@ chain-selftest:
     # container and no `ct-print`. The comparison over real containers is
     # `just eth-regen-check`, which needs the recorder.
     node tools/chain/eth-regen-check-selftest.mjs
+    # Offline and toolchain-free: the Flow producer's role and cost facts, read
+    # from the committed block listing and transcript under
+    # fixtures/chain-inputs/flow-mainnet/, each arm beside its control.
+    node tools/chain/flow-producer-facts-selftest.mjs
     # Offline and toolchain-free: the Sui producer's facts, its effects
     # comparison and its refusals, driven from literals shaped as Sui's GraphQL
     # service and `sui replay` write them. Traced rows need a container and are
     # exercised by `just sui-range`.
     node tools/chain/sui-producer-selftest.mjs
+    # Offline and toolchain-free: the Starknet producer's facts (three-dimension cost
+    # vector and fee, the roles each transaction type has, the multicall payload) and
+    # the producer over container-free captures — a refused era published as
+    # refusals, and every input it cannot publish honestly refused. Traced rows need
+    # a container and are exercised by `just starknet-capture`.
+    node tools/chain/starknet-producer-selftest.mjs
+    # Offline and toolchain-free: the Solana producer's facts (fee / compute-unit /
+    # cost-unit vector, fee-payer sender, ComputeBudget-skipping target), the committed
+    # window's content-addressed inputs refusing a tampered object, and the prestate
+    # token still outside §1.4's set. Traced rows need the recorder and are exercised
+    # by `nix build .#sol-capture-tree`.
+    node tools/chain/solana-producer-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1664,6 +1680,24 @@ eth-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-eth-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
 
+# ── Starknet mainnet: one block, re-run in StarkWare's own executor ───────────
+#
+# Records one block with `codetracer-cairo-onchain trace-block` (codetracer-cairo-
+# recorder's `onchain/`: blockifier over cairo-vm, every step one executed CASM
+# instruction) from a committed RPC TRANSCRIPT — no network — and turns the capture
+# into a §5 tree with tools/chain/produce-starknet-snapshot.mjs. The transcript the
+# recorder repository commits as its own test fixture is the default subject:
+#
+#   just starknet-capture ../codetracer-cairo-recorder/onchain/target/release/codetracer-cairo-onchain \
+#     $(git -C ../codetracer-cairo-recorder rev-parse HEAD)
+#
+# Then `just conformance .starknet-capture/tree`. NOT in any gate, for `eth-range`'s
+# reason: it needs the recorder binary. Its offline half is
+# `starknet-producer-selftest.mjs` in `chain-selftest`.
+starknet-capture RECORDER COMMIT TRANSCRIPT="../codetracer-cairo-recorder/onchain/tests/fixtures/mainnet-16664301" OUT=".starknet-capture/tree" *ARGS:
+    bash tools/chain/starknet-capture.sh --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --transcript {{TRANSCRIPT}} --out {{OUT}} {{ARGS}}
+
 # Trace a window of SUI checkpoints into one snapshot tree (Recorder-Move
 # CXP-MOVE-1/2). The twin of `eth-range`: tools/chain/capture-sui-range.mjs reads
 # the window over Sui's GraphQL service, measures the tracing floor (the first
@@ -2282,3 +2316,26 @@ byte-identity REF:
 
 byte-identity-mutant REF:
     tools/chain/byte-identity.sh --ref {{REF}} --mutant
+
+# ── Flow mainnet (Chain-Delivery DEL-6) ─────────────────────────────────────────
+#
+# The committed block's transcripts -> a §5 tree, with the recorder, the replay
+# helper and `ct-print` the flake builds (tools/chain/nix/flow.nix), and no
+# network: the helper re-executes each transaction with the network's FVM against
+# the registers its transcript recorded. The commit published into every row is
+# read from flake.lock, which is what pinned the recorder these builds came from.
+# The same capture runs inside the build as `.#flow-capture-tree`, and
+# `nix build --rebuild .#flow-capture-tree` checks that it is byte-reproducible.
+flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    recorder=$(nix build .#flow-recorder --no-link --print-out-paths)
+    helper=$(nix build .#cadence-replay-helper --no-link --print-out-paths)
+    ct_print=$(nix build .#flow-ct-print --no-link --print-out-paths)
+    commit=$(jq -r '.nodes["codetracer-flow-recorder"].locked.rev' flake.lock)
+    CT_PRINT="$ct_print/bin/ct-print" bash tools/chain/flow-capture.sh \
+      --recorder "$recorder/bin/codetracer-flow-recorder" \
+      --helper "$helper/bin/cadence-replay-helper" \
+      --recorder-commit "$commit" \
+      --inputs fixtures/chain-inputs/flow-mainnet/{{BLOCK}} \
+      --out {{OUT}} --work .flow-capture/work

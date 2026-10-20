@@ -1,0 +1,700 @@
+{
+  "format": "blocktracer/sol-capture-warmth@1",
+  "measuredOn": "2026-10-20T14:09:52.613Z",
+  "measuredBy": "tools/chain/sol-capture-warmth.mjs",
+  "rpc": "https://solana-rpc.publicnode.com",
+  "window": {
+    "firstSlot": 459243699,
+    "lastSlot": 459243758,
+    "slots": 60,
+    "produced": 60
+  },
+  "fetchBudgetPerBlock": 10000,
+  "accountsPerCall": 10,
+  "failedFetches": 829,
+  "concurrency": 16,
+  "rpcCalls": 19459,
+  "wallSeconds": 3136,
+  "approximations": [
+    "an upgradeable program's programdata account is taken as held when its program id is held"
+  ],
+  "totals": {
+    "nonVote": 21192,
+    "exact": 19,
+    "evictions": 308
+  },
+  "deciles": [
+    {
+      "decile": 0,
+      "firstSlot": 459243699,
+      "nonVote": 2006,
+      "exact": 7,
+      "fraction": 0.0035
+    },
+    {
+      "decile": 1,
+      "firstSlot": 459243705,
+      "nonVote": 2994,
+      "exact": 6,
+      "fraction": 0.002
+    },
+    {
+      "decile": 2,
+      "firstSlot": 459243711,
+      "nonVote": 2086,
+      "exact": 4,
+      "fraction": 0.0019
+    },
+    {
+      "decile": 3,
+      "firstSlot": 459243717,
+      "nonVote": 1707,
+      "exact": 0,
+      "fraction": 0
+    },
+    {
+      "decile": 4,
+      "firstSlot": 459243723,
+      "nonVote": 2126,
+      "exact": 0,
+      "fraction": 0
+    },
+    {
+      "decile": 5,
+      "firstSlot": 459243729,
+      "nonVote": 1887,
+      "exact": 0,
+      "fraction": 0
+    },
+    {
+      "decile": 6,
+      "firstSlot": 459243735,
+      "nonVote": 1808,
+      "exact": 2,
+      "fraction": 0.0011
+    },
+    {
+      "decile": 7,
+      "firstSlot": 459243741,
+      "nonVote": 2761,
+      "exact": 0,
+      "fraction": 0
+    },
+    {
+      "decile": 8,
+      "firstSlot": 459243747,
+      "nonVote": 1803,
+      "exact": 0,
+      "fraction": 0
+    },
+    {
+      "decile": 9,
+      "firstSlot": 459243753,
+      "nonVote": 2014,
+      "exact": 0,
+      "fraction": 0
+    }
+  ],
+  "perSlot": [
+    {
+      "slot": 459243699,
+      "nonVote": 289,
+      "exact": 0,
+      "failedOnChain": 31,
+      "held": 1569,
+      "evictions": 0,
+      "backlog": 140,
+      "lagSlots": 1
+    },
+    {
+      "slot": 459243700,
+      "nonVote": 274,
+      "exact": 0,
+      "failedOnChain": 23,
+      "held": 2557,
+      "evictions": 0,
+      "backlog": 80,
+      "lagSlots": 363
+    },
+    {
+      "slot": 459243701,
+      "nonVote": 327,
+      "exact": 0,
+      "failedOnChain": 30,
+      "held": 3648,
+      "evictions": 0,
+      "backlog": 120,
+      "lagSlots": 622
+    },
+    {
+      "slot": 459243702,
+      "nonVote": 306,
+      "exact": 0,
+      "failedOnChain": 27,
+      "held": 4471,
+      "evictions": 0,
+      "backlog": 90,
+      "lagSlots": 928
+    },
+    {
+      "slot": 459243703,
+      "nonVote": 274,
+      "exact": 6,
+      "failedOnChain": 22,
+      "held": 5192,
+      "evictions": 61,
+      "backlog": 90,
+      "lagSlots": 1133
+    },
+    {
+      "slot": 459243704,
+      "nonVote": 536,
+      "exact": 1,
+      "failedOnChain": 55,
+      "held": 6299,
+      "evictions": 89,
+      "backlog": 160,
+      "lagSlots": 1297
+    },
+    {
+      "slot": 459243705,
+      "nonVote": 401,
+      "exact": 1,
+      "failedOnChain": 84,
+      "held": 7206,
+      "evictions": 120,
+      "backlog": 80,
+      "lagSlots": 1583
+    },
+    {
+      "slot": 459243706,
+      "nonVote": 536,
+      "exact": 0,
+      "failedOnChain": 107,
+      "held": 8332,
+      "evictions": 132,
+      "backlog": 110,
+      "lagSlots": 1765
+    },
+    {
+      "slot": 459243707,
+      "nonVote": 488,
+      "exact": 0,
+      "failedOnChain": 117,
+      "held": 9349,
+      "evictions": 136,
+      "backlog": 90,
+      "lagSlots": 2052
+    },
+    {
+      "slot": 459243708,
+      "nonVote": 839,
+      "exact": 0,
+      "failedOnChain": 175,
+      "held": 10647,
+      "evictions": 151,
+      "backlog": 140,
+      "lagSlots": 2284
+    },
+    {
+      "slot": 459243709,
+      "nonVote": 407,
+      "exact": 4,
+      "failedOnChain": 54,
+      "held": 11307,
+      "evictions": 155,
+      "backlog": 80,
+      "lagSlots": 2575
+    },
+    {
+      "slot": 459243710,
+      "nonVote": 323,
+      "exact": 1,
+      "failedOnChain": 48,
+      "held": 11869,
+      "evictions": 157,
+      "backlog": 80,
+      "lagSlots": 2723
+    },
+    {
+      "slot": 459243711,
+      "nonVote": 355,
+      "exact": 1,
+      "failedOnChain": 53,
+      "held": 12431,
+      "evictions": 170,
+      "backlog": 80,
+      "lagSlots": 2866
+    },
+    {
+      "slot": 459243712,
+      "nonVote": 335,
+      "exact": 3,
+      "failedOnChain": 40,
+      "held": 13114,
+      "evictions": 175,
+      "backlog": 80,
+      "lagSlots": 3011
+    },
+    {
+      "slot": 459243713,
+      "nonVote": 325,
+      "exact": 0,
+      "failedOnChain": 45,
+      "held": 13722,
+      "evictions": 183,
+      "backlog": 90,
+      "lagSlots": 3149
+    },
+    {
+      "slot": 459243714,
+      "nonVote": 347,
+      "exact": 0,
+      "failedOnChain": 51,
+      "held": 14954,
+      "evictions": 187,
+      "backlog": 140,
+      "lagSlots": 3295
+    },
+    {
+      "slot": 459243715,
+      "nonVote": 305,
+      "exact": 0,
+      "failedOnChain": 56,
+      "held": 15562,
+      "evictions": 188,
+      "backlog": 90,
+      "lagSlots": 3582
+    },
+    {
+      "slot": 459243716,
+      "nonVote": 419,
+      "exact": 0,
+      "failedOnChain": 92,
+      "held": 16210,
+      "evictions": 195,
+      "backlog": 90,
+      "lagSlots": 3727
+    },
+    {
+      "slot": 459243717,
+      "nonVote": 307,
+      "exact": 0,
+      "failedOnChain": 105,
+      "held": 16754,
+      "evictions": 195,
+      "backlog": 10,
+      "lagSlots": 3868
+    },
+    {
+      "slot": 459243718,
+      "nonVote": 314,
+      "exact": 0,
+      "failedOnChain": 109,
+      "held": 17156,
+      "evictions": 200,
+      "backlog": 0,
+      "lagSlots": 4015
+    },
+    {
+      "slot": 459243719,
+      "nonVote": 402,
+      "exact": 0,
+      "failedOnChain": 164,
+      "held": 17611,
+      "evictions": 203,
+      "backlog": 0,
+      "lagSlots": 4080
+    },
+    {
+      "slot": 459243720,
+      "nonVote": 329,
+      "exact": 0,
+      "failedOnChain": 122,
+      "held": 17936,
+      "evictions": 203,
+      "backlog": 0,
+      "lagSlots": 4197
+    },
+    {
+      "slot": 459243721,
+      "nonVote": 170,
+      "exact": 0,
+      "failedOnChain": 36,
+      "held": 18233,
+      "evictions": 203,
+      "backlog": 0,
+      "lagSlots": 4287
+    },
+    {
+      "slot": 459243722,
+      "nonVote": 185,
+      "exact": 0,
+      "failedOnChain": 43,
+      "held": 18475,
+      "evictions": 211,
+      "backlog": 0,
+      "lagSlots": 4348
+    },
+    {
+      "slot": 459243723,
+      "nonVote": 246,
+      "exact": 0,
+      "failedOnChain": 46,
+      "held": 18886,
+      "evictions": 222,
+      "backlog": 0,
+      "lagSlots": 4406
+    },
+    {
+      "slot": 459243724,
+      "nonVote": 323,
+      "exact": 0,
+      "failedOnChain": 40,
+      "held": 19383,
+      "evictions": 222,
+      "backlog": 0,
+      "lagSlots": 4490
+    },
+    {
+      "slot": 459243725,
+      "nonVote": 308,
+      "exact": 0,
+      "failedOnChain": 53,
+      "held": 19850,
+      "evictions": 223,
+      "backlog": 0,
+      "lagSlots": 4605
+    },
+    {
+      "slot": 459243726,
+      "nonVote": 297,
+      "exact": 0,
+      "failedOnChain": 70,
+      "held": 20329,
+      "evictions": 223,
+      "backlog": 0,
+      "lagSlots": 4720
+    },
+    {
+      "slot": 459243727,
+      "nonVote": 336,
+      "exact": 0,
+      "failedOnChain": 40,
+      "held": 20900,
+      "evictions": 224,
+      "backlog": 80,
+      "lagSlots": 4830
+    },
+    {
+      "slot": 459243728,
+      "nonVote": 616,
+      "exact": 0,
+      "failedOnChain": 189,
+      "held": 21480,
+      "evictions": 228,
+      "backlog": 30,
+      "lagSlots": 4973
+    },
+    {
+      "slot": 459243729,
+      "nonVote": 276,
+      "exact": 0,
+      "failedOnChain": 51,
+      "held": 21912,
+      "evictions": 240,
+      "backlog": 0,
+      "lagSlots": 5119
+    },
+    {
+      "slot": 459243730,
+      "nonVote": 233,
+      "exact": 0,
+      "failedOnChain": 37,
+      "held": 22229,
+      "evictions": 240,
+      "backlog": 0,
+      "lagSlots": 5207
+    },
+    {
+      "slot": 459243731,
+      "nonVote": 258,
+      "exact": 0,
+      "failedOnChain": 42,
+      "held": 22617,
+      "evictions": 243,
+      "backlog": 0,
+      "lagSlots": 5268
+    },
+    {
+      "slot": 459243732,
+      "nonVote": 513,
+      "exact": 0,
+      "failedOnChain": 77,
+      "held": 23285,
+      "evictions": 244,
+      "backlog": 90,
+      "lagSlots": 5381
+    },
+    {
+      "slot": 459243733,
+      "nonVote": 344,
+      "exact": 0,
+      "failedOnChain": 60,
+      "held": 24176,
+      "evictions": 244,
+      "backlog": 80,
+      "lagSlots": 5529
+    },
+    {
+      "slot": 459243734,
+      "nonVote": 263,
+      "exact": 0,
+      "failedOnChain": 43,
+      "held": 24642,
+      "evictions": 244,
+      "backlog": 0,
+      "lagSlots": 5733
+    },
+    {
+      "slot": 459243735,
+      "nonVote": 289,
+      "exact": 1,
+      "failedOnChain": 52,
+      "held": 25162,
+      "evictions": 248,
+      "backlog": 0,
+      "lagSlots": 5847
+    },
+    {
+      "slot": 459243736,
+      "nonVote": 308,
+      "exact": 1,
+      "failedOnChain": 66,
+      "held": 25598,
+      "evictions": 250,
+      "backlog": 0,
+      "lagSlots": 5959
+    },
+    {
+      "slot": 459243737,
+      "nonVote": 193,
+      "exact": 0,
+      "failedOnChain": 40,
+      "held": 25837,
+      "evictions": 253,
+      "backlog": 0,
+      "lagSlots": 6076
+    },
+    {
+      "slot": 459243738,
+      "nonVote": 244,
+      "exact": 0,
+      "failedOnChain": 55,
+      "held": 26118,
+      "evictions": 262,
+      "backlog": 0,
+      "lagSlots": 6114
+    },
+    {
+      "slot": 459243739,
+      "nonVote": 218,
+      "exact": 0,
+      "failedOnChain": 46,
+      "held": 26263,
+      "evictions": 265,
+      "backlog": 130,
+      "lagSlots": 6174
+    },
+    {
+      "slot": 459243740,
+      "nonVote": 556,
+      "exact": 0,
+      "failedOnChain": 128,
+      "held": 27123,
+      "evictions": 270,
+      "backlog": 170,
+      "lagSlots": 6362
+    },
+    {
+      "slot": 459243741,
+      "nonVote": 649,
+      "exact": 0,
+      "failedOnChain": 189,
+      "held": 28010,
+      "evictions": 272,
+      "backlog": 80,
+      "lagSlots": 6659
+    },
+    {
+      "slot": 459243742,
+      "nonVote": 368,
+      "exact": 0,
+      "failedOnChain": 73,
+      "held": 28559,
+      "evictions": 274,
+      "backlog": 90,
+      "lagSlots": 6838
+    },
+    {
+      "slot": 459243743,
+      "nonVote": 520,
+      "exact": 0,
+      "failedOnChain": 120,
+      "held": 29145,
+      "evictions": 276,
+      "backlog": 100,
+      "lagSlots": 6974
+    },
+    {
+      "slot": 459243744,
+      "nonVote": 554,
+      "exact": 0,
+      "failedOnChain": 49,
+      "held": 29517,
+      "evictions": 283,
+      "backlog": 1370,
+      "lagSlots": 7218
+    },
+    {
+      "slot": 459243745,
+      "nonVote": 315,
+      "exact": 0,
+      "failedOnChain": 40,
+      "held": 30959,
+      "evictions": 286,
+      "backlog": 730,
+      "lagSlots": 8631
+    },
+    {
+      "slot": 459243746,
+      "nonVote": 355,
+      "exact": 0,
+      "failedOnChain": 29,
+      "held": 32269,
+      "evictions": 286,
+      "backlog": 553,
+      "lagSlots": 9550
+    },
+    {
+      "slot": 459243747,
+      "nonVote": 305,
+      "exact": 0,
+      "failedOnChain": 49,
+      "held": 32935,
+      "evictions": 287,
+      "backlog": 510,
+      "lagSlots": 10369
+    },
+    {
+      "slot": 459243748,
+      "nonVote": 426,
+      "exact": 0,
+      "failedOnChain": 117,
+      "held": 33851,
+      "evictions": 290,
+      "backlog": 400,
+      "lagSlots": 10959
+    },
+    {
+      "slot": 459243749,
+      "nonVote": 258,
+      "exact": 0,
+      "failedOnChain": 37,
+      "held": 34398,
+      "evictions": 293,
+      "backlog": 240,
+      "lagSlots": 11542
+    },
+    {
+      "slot": 459243750,
+      "nonVote": 233,
+      "exact": 0,
+      "failedOnChain": 16,
+      "held": 34971,
+      "evictions": 294,
+      "backlog": 80,
+      "lagSlots": 11897
+    },
+    {
+      "slot": 459243751,
+      "nonVote": 233,
+      "exact": 0,
+      "failedOnChain": 21,
+      "held": 35331,
+      "evictions": 299,
+      "backlog": 250,
+      "lagSlots": 12040
+    },
+    {
+      "slot": 459243752,
+      "nonVote": 348,
+      "exact": 0,
+      "failedOnChain": 52,
+      "held": 35693,
+      "evictions": 299,
+      "backlog": 530,
+      "lagSlots": 12331
+    },
+    {
+      "slot": 459243753,
+      "nonVote": 303,
+      "exact": 0,
+      "failedOnChain": 46,
+      "held": 36644,
+      "evictions": 300,
+      "backlog": 150,
+      "lagSlots": 12937
+    },
+    {
+      "slot": 459243754,
+      "nonVote": 259,
+      "exact": 0,
+      "failedOnChain": 23,
+      "held": 37176,
+      "evictions": 300,
+      "backlog": 70,
+      "lagSlots": 13242
+    },
+    {
+      "slot": 459243755,
+      "nonVote": 258,
+      "exact": 0,
+      "failedOnChain": 30,
+      "held": 37666,
+      "evictions": 300,
+      "backlog": 0,
+      "lagSlots": 13386
+    },
+    {
+      "slot": 459243756,
+      "nonVote": 482,
+      "exact": 0,
+      "failedOnChain": 83,
+      "held": 38168,
+      "evictions": 305,
+      "backlog": 100,
+      "lagSlots": 13469
+    },
+    {
+      "slot": 459243757,
+      "nonVote": 381,
+      "exact": 0,
+      "failedOnChain": 69,
+      "held": 38735,
+      "evictions": 306,
+      "backlog": 170,
+      "lagSlots": 13611
+    },
+    {
+      "slot": 459243758,
+      "nonVote": 331,
+      "exact": 0,
+      "failedOnChain": 42,
+      "held": 39040,
+      "evictions": 308,
+      "backlog": 440,
+      "lagSlots": 13896
+    }
+  ]
+}

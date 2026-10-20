@@ -152,7 +152,7 @@
     # last revision that writes `meta.dat` 6, because the engine this site pins
     # reads 6 only. Move it with client/hydrate/engine-pin.txt, never ahead of it.
     codetracer-evm-recorder = {
-      url = "github:metacraft-labs/codetracer-evm-recorder/64c4d94a96cde85b8a8ef8a3b817c5bb3c52832c";
+      url = "github:metacraft-labs/codetracer-evm-recorder/0301bf3b2309d5e54ae8c5b7495b1b28b38f9443";
       flake = false;
     };
     evm-trace-format = {
@@ -166,6 +166,35 @@
     # writer's flake.lock records at this pin.
     codetracer-trace-format-nim = {
       url = "github:metacraft-labs/codetracer-trace-format-nim/7b8b587c72ec31f6825ae124ab89ad7954f6dca7";
+      flake = false;
+    };
+    # ── Chain three: the Flow recorder and its trace-format siblings ──────────
+    # tools/chain/nix/flow.nix says why each pin is where it is. The writer is
+    # the `codetracer-trace-format-nim` input above, shared with chain two.
+    codetracer-flow-recorder = {
+      url = "github:metacraft-labs/codetracer-flow-recorder/da664d95f9c59bea9ad42b6b011c64ccd7b9473b";
+      flake = false;
+    };
+    flow-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/3fada0b03c3d1a0cbc7c35f278aa639028d702c5";
+      flake = false;
+    };
+    # ── Solana: the SBF recorder (tools/chain/nix/sol.nix says why) ────────────
+    # Its trace-format path dependencies are `flow-trace-format` above, whose
+    # revision is exactly the one this recorder's repro.lock names.
+    codetracer-solana-recorder = {
+      url = "github:metacraft-labs/codetracer-solana-recorder/0a1950220964d8c8793b43fa6c4ec1fb9bed35ef";
+      flake = false;
+    };
+    # ── Starknet: the Cairo recorder (and the transcript it commits) ──────────
+    # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
+    # the `codetracer-trace-format-nim` input above, shared with chains two and three.
+    codetracer-cairo-recorder = {
+      url = "github:metacraft-labs/codetracer-cairo-recorder/71501b35b6894aef73985c74b99fc17eb4589410";
+      flake = false;
+    };
+    cairo-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/3fada0b03c3d1a0cbc7c35f278aa639028d702c5";
       flake = false;
     };
     nim-stew = {
@@ -185,6 +214,9 @@
   outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system, codetracer
             , aztec-avm-runtime, codetracer-trace-format
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
+            , codetracer-flow-recorder, flow-trace-format
+            , codetracer-solana-recorder
+            , codetracer-cairo-recorder, cairo-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -359,6 +391,36 @@
           writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
           blocktracerRoot = ./.;
         };
+
+        flow = pkgs.callPackage ./tools/chain/nix/flow.nix {
+          nodejs = followerNodejs;
+          recorderSrc = codetracer-flow-recorder;
+          recorderRev = codetracer-flow-recorder.rev;
+          flowTraceFormatSrc = flow-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
+
+        sol = pkgs.callPackage ./tools/chain/nix/sol.nix {
+          nodejs = followerNodejs;
+          recorderSrc = codetracer-solana-recorder;
+          recorderRev = codetracer-solana-recorder.rev;
+          solTraceFormatSrc = flow-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
+
+        starknet = pkgs.callPackage ./tools/chain/nix/starknet.nix {
+          nodejs = followerNodejs;
+          recorderSrc = codetracer-cairo-recorder;
+          recorderRev = codetracer-cairo-recorder.rev;
+          cairoTraceFormatSrc = cairo-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
       in {
         # The larger, interactive default shell includes the ci shell (so a local
         # `nix develop` has the exact CI toolchain plus any interactive extras).
@@ -390,8 +452,26 @@
         packages.evm-recorder = eth.evmRecorder;
         packages.eth-capture-tree = eth.ethCaptureTree;
 
+        # ── Chain three, produced the same way (Chain-Delivery DEL-6) ──
+        packages.flow-recorder = flow.flowRecorder;
+        packages.cadence-replay-helper = flow.replayHelper;
+        packages.flow-capture-tree = flow.flowCaptureTree;
+        packages.flow-ct-print = flow.ctPrint;
+
+        # ── Solana, produced the same way, and NOT yet in produced-captures ──
+        # Its prestate token (`forward-capture`) is not in §1.4's set, so the reader
+        # refuses the tree; it joins produced-captures as `solana-mainnet` once the
+        # row lands (Chain-Delivery DEL-3b). See tools/chain/nix/sol.nix.
+        packages.solana-recorder = sol.solanaRecorder;
+        packages.sol-capture-tree = sol.solCaptureTree;
+
+        # ── Starknet mainnet, produced the same way (Recorder-Cairo CXP-CAIRO-6) ──
+        packages.cairo-onchain-recorder = starknet.onchainRecorder;
+        packages.starknet-capture-tree = starknet.starknetCaptureTree;
+        packages.starknet-ct-print = starknet.ctPrint;
+
         # The site with the STAGING-ONLY chains added: `default` plus the Ethereum
-        # tree, placed where the exporter already looks for a live-chain capture.
+        # Flow and Starknet trees, placed where the exporter already looks for a live-chain capture.
         # deploy.yml builds this for every deploy except `live`, so `live` (the
         # production Pages project) keeps `default` and carries no chain the
         # operator has not cleared for production; Chain-Expansion's environment
@@ -414,6 +494,8 @@
         packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } ''
           mkdir -p $out
           cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
+          cp -r ${flow.flowCaptureTree} $out/flow-mainnet
+          cp -r ${starknet.starknetCaptureTree} $out/starknet-mainnet
         '';
 
         packages.chain-tools = chain.chainTools;

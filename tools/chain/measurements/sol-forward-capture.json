@@ -1,0 +1,100 @@
+{
+  "format": "blocktracer/sol-forward-capture@1",
+  "_comment": [
+    "Two live forward-chained captures of Solana mainnet, 2026-10-20, by tools/chain/capture-sol-window.mjs driving codetracer-solana-recorder replay-stream.",
+    "UNSCOPED reads every account any non-vote transaction names. Free RPCs answer ~80 account calls a minute against a demand of ~35,000 new accounts a minute, so almost every transaction is refused prestate-unavailable; the few that run are BPF Upgradeable Loader buffer writes.",
+    "SCOPED reads only the accounts of transactions naming the listed programs (chosen by measured account reuse: bot programs touching a small fixed account set), warm-starts them before the window, and carries plain wallets and failed transactions across refusals using the chain recorded post-facts. Every transaction executed there agreed with every fact the chain recorded.",
+    "recorder is the codetracer-solana-recorder agents revision the scoped run used (the unscoped run predates its carry and unloadable-program changes)."
+  ],
+  "recorder": "f6c5df0",
+  "unscoped": {
+    "capturedAt": "2026-10-20T13:50:54.570Z",
+    "window": {
+      "firstSlot": 459252908,
+      "lastSlot": 459252967,
+      "slots": 60
+    },
+    "providers": {
+      "blocks": "https://solana-rpc.publicnode.com",
+      "features": "https://api.mainnet-beta.solana.com",
+      "accounts": [
+        {
+          "url": "https://api.mainnet-beta.solana.com",
+          "perCall": 100,
+          "calls": 41,
+          "failed": 0
+        },
+        {
+          "url": "https://solana-rpc.publicnode.com",
+          "perCall": 10,
+          "calls": 40,
+          "failed": 14
+        }
+      ]
+    },
+    "scope": null,
+    "counts": {
+      "slots": 60,
+      "skipped": 0,
+      "transactions": 70355,
+      "votes": 39960,
+      "sent": 30395,
+      "notExecuted": 30394,
+      "match": 1,
+      "divergent": 0,
+      "unchecked": 0,
+      "evictions": 590
+    }
+  },
+  "scoped": {
+    "capturedAt": "2026-10-20T14:17:47.577Z",
+    "window": {
+      "firstSlot": 459260285,
+      "lastSlot": 459260344,
+      "slots": 60
+    },
+    "providers": {
+      "blocks": "https://solana-rpc.publicnode.com",
+      "features": "https://api.mainnet-beta.solana.com",
+      "accounts": [
+        {
+          "url": "https://api.mainnet-beta.solana.com",
+          "perCall": 100,
+          "calls": 67,
+          "failed": 0
+        },
+        {
+          "url": "https://solana-rpc.publicnode.com",
+          "perCall": 10,
+          "calls": 0,
+          "failed": 0
+        }
+      ]
+    },
+    "scope": [
+      "Tri3NG4HkZ6DddYPKoX2ehgkqFtDuej9Aspw5BmvSo4",
+      "tickUcsEQegChaAuo9VYQQztB4ZGApY6ZT4FkULWY6N",
+      "dijkbkCAKfFTCxQg3u1pg82gVU1jJGHBBRcteD11mBu"
+    ],
+    "counts": {
+      "slots": 60,
+      "skipped": 0,
+      "transactions": 80535,
+      "votes": 39798,
+      "sent": 3933,
+      "notExecuted": 2682,
+      "match": 1251,
+      "divergent": 0,
+      "unchecked": 0,
+      "evictions": 87
+    },
+    "inScope": {
+      "executed": 1251,
+      "matched": 1251,
+      "divergent": 0,
+      "refusedPrestateUnavailable": 1758,
+      "total": 3009,
+      "yield": 0.416
+    }
+  }
+}

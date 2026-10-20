@@ -161,7 +161,7 @@
 // attribution comes from the disassembly of the bytecode the chain served.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 const HERE = 'tools/chain/capture-eth-range.mjs';
@@ -290,9 +290,9 @@ async function rpc(url, method, params, { retries = 12, backoffMs = 500 } = {}) 
  * `tools/chain/eth-capture.sh` already documents having been bitten by — so the stream is
  * split in process and the code comes off the `close` event.
  */
-function runChild(bin, args, { logPath = null, mirror = true } = {}) {
+function runChild(bin, args, { logPath = null, mirror = true, cwd = undefined } = {}) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], cwd });
     const chunks = [];
     const take = (buf) => {
       chunks.push(buf);
@@ -352,6 +352,10 @@ async function main() {
   const from = intFlag('from', undefined);
   const to = intFlag('to', undefined);
   const planOnly = has('plan');
+  // EVERY TRANSACTION OF EVERY BLOCK, from one replay per block (`trace-block`), which is
+  // what a whole-window yield reading needs: --max does not apply, and the plan's
+  // "preceding replays" figure is what this mode does NOT spend.
+  const wholeBlocks = has('whole-blocks');
   const fresh = has('fresh');
   const sourceFetch = has('source-fetch');
   const ctPrint = flag('ct-print');
@@ -493,6 +497,10 @@ async function main() {
     console.error('  --plan: nothing was recorded.');
     return;
   }
+  if (wholeBlocks) {
+    console.error(`  --whole-blocks: ALL ${candidates.length} transaction(s), one replay per block `
+                  + `(${blocks.length} block replay(s)); --max and the plan above do not apply`);
+  }
 
   // ── the recordings, resumably ────────────────────────────────────────────
   const work = workDir;
@@ -518,10 +526,76 @@ async function main() {
     return found.length === 1 ? found[0] : null;
   };
 
+  // ── --whole-blocks: one `trace-block` per block, laid out as per-transaction captures ──
+  //
+  // The producer takes one capture directory and one recorder report per traced
+  // transaction, and that interface is kept rather than widened: each recorded transaction
+  // gets `rec/<tx>/capture/` holding HARD LINKS to its container and to the block's
+  // `sources/` tree, and `rec/<tx>/run.log` linking the report `trace-block` wrote beside the
+  // container in `trace-onchain`'s exact format. No byte is copied. Recorded from inside the
+  // block directory with `--out-dir .`, as eth-capture.sh does, so no container interns a
+  // path of this host.
+  //
+  // A transaction `trace-block` did not record is either a plain value transfer ("captured 0
+  // EVM steps", the producer's --no-execution) or a failure. A failure STOPS the run, for
+  // per-transaction mode's reason: an untraced row's published sentence says a wider budget
+  // traces it, which is false of a transaction this run tried and could not record.
+  const blockEntries = [];
+  const noExecution = [];
+  const linkTree = (src, dst) => {
+    mkdirSync(dst, { recursive: true });
+    for (const e of readdirSync(src, { withFileTypes: true })) {
+      if (e.isDirectory()) linkTree(join(src, e.name), join(dst, e.name));
+      else linkSync(join(src, e.name), join(dst, e.name));
+    }
+  };
+  for (const b of wholeBlocks ? blocks : []) {
+    const n = b.number ?? b.blockNumber;
+    const bdir = resolve(work, 'blocks', String(n));
+    const ledgerPath = join(bdir, `block-${n}.json`);
+    if (!existsSync(ledgerPath)) {
+      rmSync(bdir, { recursive: true, force: true });
+      mkdirSync(bdir, { recursive: true });
+      const args = ['trace-block', String(n), '--rpc-url', url, '--out-dir', '.',
+                    '--recording-id', 'derive'];
+      if (!sourceFetch) args.push('--skip-source-fetch');
+      console.error(`  BLOCK   ${n}`);
+      // eslint-disable-next-line no-await-in-loop
+      const r = await runChild(resolve(recorder), args, { logPath: join(bdir, 'run.log'), cwd: bdir });
+      if (r.code !== 0 || !existsSync(ledgerPath)) {
+        throw refuse(SourceRefusal,
+          `trace-block exited ${r.code} on block ${n} and wrote ${existsSync(ledgerPath) ? '' : 'no '}`
+          + `ledger; its output is in ${join(bdir, 'run.log')}. Finished blocks are kept, so `
+          + `re-running resumes from this one.`);
+      }
+    } else {
+      console.error(`  RESUME  block ${n} (ledger kept)`);
+    }
+    const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
+    for (const row of ledger.rows) {
+      if (row.outcome === 'recorded') {
+        const dir = join(recRoot, row.txHash);
+        rmSync(dir, { recursive: true, force: true });
+        const capture = join(dir, 'capture');
+        mkdirSync(capture, { recursive: true });
+        linkSync(join(bdir, row.container), join(capture, row.container));
+        if (existsSync(join(bdir, 'sources'))) linkTree(join(bdir, 'sources'), join(capture, 'sources'));
+        linkSync(join(bdir, row.report), join(dir, 'run.log'));
+        blockEntries.push({ txHash: row.txHash, capture, log: join(dir, 'run.log') });
+      } else if (row.outcome === 'not-recorded' && /captured 0 EVM steps/.test(row.reason)) {
+        noExecution.push(row.txHash);
+      } else {
+        throw refuse(SourceRefusal,
+          `block ${n} index ${row.index} (${row.txHash}) was ${row.outcome}: ${row.reason}. `
+          + `No tree was written; finished blocks are kept in ${join(work, 'blocks')}.`);
+      }
+    }
+  }
+
   const started = Date.now();
   let recorded = 0;
   let resumed = 0;
-  for (const q of queue) {
+  for (const q of wholeBlocks ? [] : queue) {
     const dir = join(recRoot, q.txHash);
     const capture = join(dir, 'capture');
     const log = join(dir, 'run.log');
@@ -605,11 +679,13 @@ async function main() {
                         '--recorder-commit', recorderCommit,
                         '--from', String(lo), '--to', String(hi),
                         '--out', outDir];
-  for (const q of queue) {
-    producerArgs.push('--tx', q.txHash,
-                      '--capture', join(recRoot, q.txHash, 'capture'),
-                      '--recorder-log', join(recRoot, q.txHash, 'run.log'));
+  const entries = wholeBlocks ? blockEntries
+    : queue.map((q) => ({ txHash: q.txHash, capture: join(recRoot, q.txHash, 'capture'),
+                          log: join(recRoot, q.txHash, 'run.log') }));
+  for (const e of entries) {
+    producerArgs.push('--tx', e.txHash, '--capture', e.capture, '--recorder-log', e.log);
   }
+  for (const h of noExecution) producerArgs.push('--no-execution', h);
   if (ctPrint) producerArgs.push('--ct-print', ctPrint);
   if (has('no-skew-note')) producerArgs.push('--no-skew-note');
 

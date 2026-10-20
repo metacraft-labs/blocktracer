@@ -532,7 +532,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 235 assertions, and the reason it is offline is the reason it
+        # ING-3, 238 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -919,6 +919,14 @@ jobs:
         # value, name, line, step, dropped variable or swapped pair.
         run: node tools/chain/eth-regen-check-selftest.mjs
 
+      - name: Are a Flow transaction's three roles and fee vector published as the chain states them?
+        # 6 assertions, offline and needing only node: the committed block listing and
+        # transcript under fixtures/chain-inputs/flow-mainnet/ are read off disk. Each
+        # arm runs beside its control -- distinct payer, proposer and authorizers against
+        # one account in every role, a FeesDeducted event against none -- so a function
+        # that returned a constant fails one side.
+        run: node tools/chain/flow-producer-facts-selftest.mjs
+
       - name: Does the Sui producer state its chain's facts and refuse a broken window?
         # 34 assertions, host-independent: every arm is offline and needs only node.
         #
@@ -931,6 +939,28 @@ jobs:
         # Traced rows need a container and are run by `just sui-range` against
         # the network.
         run: node tools/chain/sui-producer-selftest.mjs
+
+      - name: Does the Starknet producer state its chain's facts and refuse what it cannot publish?
+        # 26 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # The Starknet producer's three-dimension cost vector and fee, the roles each
+        # transaction type has (none for an L1 handler), the multicall payload, and the
+        # producer over container-free captures: a refused era published as refusals,
+        # and refusals for a missing or uncontrolled floor probe, a foreign report
+        # format, a report missing a row and a recorded row with no container. Traced
+        # rows need a container and are run by `just starknet-capture`.
+        run: node tools/chain/starknet-producer-selftest.mjs
+
+      - name: Does the Solana producer state its chain's facts, and do its committed inputs hold?
+        # 6 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # The Solana producer's fee / compute-unit / cost-unit vector, the fee payer as
+        # sender, the first non-ComputeBudget program as target, and the committed window's
+        # content-addressed inputs, which unpack to their packed digests and refuse a
+        # tampered object. One arm asserts the prestate token is still outside §1.4's set,
+        # so it goes red the day the row lands. Traced rows need the recorder and are
+        # built by `nix build .#sol-capture-tree`.
+        run: node tools/chain/solana-producer-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this
