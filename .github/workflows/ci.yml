@@ -2481,9 +2481,21 @@ jobs:
   # imports nothing else, so it needs neither the Nix runner nor a browser. A
   # gate that needs the busy Nix pool to state its verdict is a gate that waits
   # behind the thing it is judging.
+  #
+  # AND NOT WHEN THE SWEEP WAS SKIPPED, which `always()` alone could not say.
+  # `journeys-bite` now carries `needs: journeys`, so a red `journeys` leaves
+  # the matrix SKIPPED — and `always()` then ran this against zero journals and
+  # reported `DID NOT RUN — 8 of 8 shard(s) produced no verdict` as a FAILURE
+  # of its own, on top of the red it was downstream of. Measured on run
+  # 39377965689, where it was the third red line against two real ones.
+  #
+  # `!cancelled()` keeps the property the paragraph above is about — a red
+  # shard still reaches a verdict here — while `!= 'skipped'` says the thing
+  # `always()` cannot: a sweep that did not happen has nothing to combine, and
+  # saying so twice does not make the run more informative.
   journeys-combine:
     needs: journeys-bite
-    if: always()
+    if: ${{ !cancelled() && needs.journeys-bite.result != 'skipped' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
