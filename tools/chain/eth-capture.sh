@@ -118,12 +118,21 @@ if [ "$source_fetch" -eq 0 ]; then
   source_args+=(--skip-source-fetch)
 fi
 
+# RUN FROM INSIDE THE CAPTURE DIRECTORY WITH `--out-dir .`, so the path the recorder
+# interns is `./sources/<address>/<address>.evmasm` and names nothing about this host or
+# this repository. With `--out-dir "$capture"` the container carried
+# `.eth-capture/capture/...`, which the published sidecars no longer show (the producer
+# republishes the listing as `<address>.evmasm`) but the ENGINE still read out of the
+# container during interactive replay. The recorder and the log are made absolute first,
+# because the `cd` would otherwise re-root a relative one.
+recorder_abs=$(cd "$(dirname "$recorder")" && pwd)/$(basename "$recorder")
+log_abs=$(cd "$(dirname "$log")" && pwd)/$(basename "$log")
 set +e
-"$recorder" trace-onchain "$tx" \
+(cd "$capture" && "$recorder_abs" trace-onchain "$tx" \
   --rpc-url "$rpc" \
-  --out-dir "$capture" \
-  ${source_args[@]+"${source_args[@]}"} \
-  >"$log" 2>&1
+  --out-dir . \
+  ${source_args[@]+"${source_args[@]}"}) \
+  >"$log_abs" 2>&1
 recorder_rc=$?
 set -e
 

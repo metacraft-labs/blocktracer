@@ -1778,12 +1778,23 @@ async function main() {
                 + `${String(skew.enginePin).slice(0, 16)}… and ${HEALTH_CHECKS_FILE} `
                 + `records it as accepting meta.dat `
                 + `${JSON.stringify(skew.engineAccepts)}`);
-    console.log('    so a published page RENDERS (the pages are static HTML) and its '
-                + 'INTERACTIVE REPLAY REFUSES.');
-    console.log(`    ${ENGINE_PIN_FILE} carries the rule: do not bump that pin on its `
-                + `own. This is the Aztec corpus's disjointness arriving from the `
-                + `opposite side — those containers are too OLD for current readers and `
-                + `this one is too NEW for the shipped engine.`);
+    // THE VERDICT IS COMPUTED FROM THE TWO HALVES PRINTED ABOVE, never written as a
+    // sentence. Until 2026-10-20 the refusal below was printed unconditionally, and it
+    // went on saying "REFUSES" for eight days after the 2026-10-12 re-pin made it false
+    // — `engine-opens.mjs` OPENED this container under the pinned engine on 2026-10-20.
+    const accepts = Array.isArray(skew.engineAccepts) ? skew.engineAccepts : null;
+    if (accepts && accepts.includes(skew.containerSchema)) {
+      console.log('    the two agree, so a published page RENDERS AND REPLAYS. '
+                  + '`tools/deploy/engine-opens.mjs` asks the engine itself, and is the '
+                  + 'check to run before relying on this line.');
+    } else {
+      console.log('    so a published page RENDERS (the pages are static HTML) and its '
+                  + 'INTERACTIVE REPLAY REFUSES'
+                  + (accepts ? '.' : ' unless the engine says otherwise: '
+                     + `${HEALTH_CHECKS_FILE} states no accepted set to compare with.`));
+      console.log(`    ${ENGINE_PIN_FILE} carries the rule for moving that pin, and `
+                  + `\`tools/deploy/engine-opens.mjs\` asks the engine directly.`);
+    }
   }
 }
 
