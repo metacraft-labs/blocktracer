@@ -1911,3 +1911,30 @@ suite "the summary's tier tally is the manifests' own sourceLevel, counted":
     ck prov["tracesAtSourceLevel"].getInt == 1
     ck prov["tracesPublished"].getInt == ing.withTrace
   expectCount(3)
+
+suite "a transaction's target gets an address history, like its roles":
+
+  test "a payload target is published as an address the To column can link to":
+    # The transactions table links `To / target` to `/{chain}/address/{target}`.
+    # Before the target participated, the first Ethereum build linked 60 times to
+    # address pages that did not exist. CONTROL: the same capture without the
+    # payload publishes no object for that address, so the arm sees the addition.
+    asserted = 0
+    let target = "0x" & "5e".repeat(32)
+    proc publishedPathsNaming(addTarget: bool): int =
+      let dir = tempOut("target-" & $addTarget)
+      defer: removeDir dir
+      let outDir = tempOut("target-out-" & $addTarget)
+      defer: removeDir outDir
+      copyCapture(dir)
+      var doc = parseJson(readFile(dir / "snapshot.json"))
+      if addTarget:
+        doc["transactions"][0]["payload"] = %*{"target": target}
+      writeFile(dir / "snapshot.json", pretty(doc, 1))
+      discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                          generation: "1", scope: isFull))
+      for path in walkDirRec(outDir / "d"):
+        if target in path and path.endsWith(".json"): inc result
+    ck publishedPathsNaming(false) == 0      # the control: no such address yet
+    ck publishedPathsNaming(true) > 0        # the target has an address object
+  expectCount(2)

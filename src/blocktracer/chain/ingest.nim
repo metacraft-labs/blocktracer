@@ -2820,6 +2820,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
                   overlay.toJson)
 
     for r in roles: participate(r.address, height, txHash)
+    # THE TARGET PARTICIPATES TOO. The transactions table links `To / target` to
+    # the target's address page, and with roles alone that page was never
+    # written: the first Ethereum build published 60 links to addresses with no
+    # page, the USDT contract (the transfer's own target) among them, and
+    # `check-assets` A1 refused the tree. A creation states no target, and
+    # `participate` drops the empty string.
+    participate(payloadTarget, height, txHash)
 
   # ---- registry row, now that the published set is known -------------------
   # See the block above where `reg` was read and the incumbent pin checked. The
