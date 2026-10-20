@@ -585,6 +585,12 @@
           "member": "transactions",
           "yieldMember": "tracedOverAllTransactions",
           "excludes": []
+        },
+        {
+          "id": "observable",
+          "member": "observable",
+          "yieldMember": "tracedOverObservable",
+          "excludes": []
         }
       ],
       "denominatorsNote": [
@@ -594,36 +600,12 @@
         "rather than met by naming one population twice."
       ],
       "provenanceCoverage": {
-        "windowsWithRecordedReplayLedger": 0,
-        "windowsWithout": [
-          [
-            480000,
-            480001
-          ],
-          [
-            620000,
-            620001
-          ],
-          [
-            800000,
-            800001
-          ],
-          [
-            1400000,
-            1400001
-          ],
-          [
-            3000000,
-            3000001
-          ],
-          [
-            13000000,
-            13000001
-          ]
-        ],
+        "windowsWithRecordedReplayLedger": 6,
+        "windowsWithout": [],
         "_note": [
-          "NONE, because no window of this chain had been replayed when this entry was pinned.",
-          "Declared as zero rather than left absent."
+          "ALL SIX, read 2026-10-20 by codetracer-cairo-onchain 2ba49a6 against api.cartridge.gg,",
+          "each block whole: tools/chain/measurements/starknet-replay-yield.json carries each",
+          "window's ledger. Changed with that reading; the expectation above is untouched."
         ]
       }
     },
