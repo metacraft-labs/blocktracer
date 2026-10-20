@@ -2043,7 +2043,22 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    on the text baseline and would have left the descender's worth of space
    inside a 32px button that has none to give. */
 .dcglyph{display:block}
-.dcglyph .dcmark{display:block;width:var(--bt-space-md);height:var(--bt-space-md)}
+/* ── THE MARK'S SIZE IS UPSTREAM'S, AND IS DELIBERATELY NOT RESTATED ──────
+   `.dcglyph .dcmark{width:…;height:…}` sized the hand-drawn marks this
+   repository used to carry. The marks are CodeTracer's now
+   (`vendor/.../debug_control_marks`), they carry `.ct-control-mark`, and the
+   vendored `button.styl` sizes that class — `height: 1em`, width resolved
+   from the viewBox, with its own comment explaining that the strip's marks
+   are not all square (`0 0 18 17` among them) and that fixing the width
+   would squash two of them.
+
+   So nothing replaces the deleted rule. A `width`/`height` here would be
+   this repository having an opinion about a design value it has just
+   finished handing upstream, and it would silently win — a local rule
+   against a vendored one is the fork the vendoring exists to prevent.
+
+   `display:block` on the WRAPPER stays: it is about the span, not the mark,
+   and the comment above it records the descender it removes. */
 /* A TRACK, not forty tick marks. `gap:0` is the whole difference: at one
    hairline between ticks the control read as ~40 low-contrast dashes with no
    track, no handle and no endpoints — a decorative equaliser rather than the

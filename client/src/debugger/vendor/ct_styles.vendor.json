@@ -114,6 +114,11 @@
       "path": "src/frontend/styles/components/empty_states.styl",
       "local": "frontend/styles/components/empty_states.styl",
       "sha256": "ee502b20867fc9f16fac0bd8d1233c241a0f55bb24ae8f3356e8a3b1d86ae878"
+    },
+    {
+      "path": "src/frontend/viewmodel/views/debug_control_marks.nim",
+      "local": "frontend/viewmodel/views/debug_control_marks.nim",
+      "sha256": "962ab68709638af505909084665f6baec738bad7559d577631f3fe064bd4b5fc"
     }
   ]
 }

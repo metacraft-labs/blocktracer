@@ -988,27 +988,6 @@ proc projectEventLog*(vm: EventLogVM; contentHash = ""): EventLogPane =
     result.rows[i].href = positionQuery(
       contentHash, result.rows[i].step, result.rows[i].anchor)
 
-func toolbarActionId*(a: DebugAction): string =
-  ## BlockTracer's `DebugAction` → the `actionId` `DebugControlsVM
-  ## .invokeToolbarStep` dispatches on.
-  ##
-  ## Two vocabularies, and they agree on six of eight. `daStepForward` is DAP's
-  ## `next` and `daStepBackward` is CodeTracer's `reverse-next`; the six others
-  ## are spelled identically in both. A total `case` rather than a table so
-  ## that a control added to the toolbar is a compile error here — an unmapped
-  ## action would otherwise reach the VM as an unknown string, be ignored, and
-  ## present as a button that is enabled and does nothing, which is the one
-  ## failure mode this whole route is built to avoid.
-  case a
-  of daStepForward: "next"
-  of daStepBackward: "reverse-next"
-  of daStepIn: "step-in"
-  of daStepOut: "step-out"
-  of daContinue: "continue"
-  of daReverseContinue: "reverse-continue"
-  of daReverseStepIn: "reverse-step-in"
-  of daReverseStepOut: "reverse-step-out"
-
 proc canDo*(vm: DebugControlsVM; a: DebugAction): bool =
   ## Whether the VM says this move is available right now.
   ##

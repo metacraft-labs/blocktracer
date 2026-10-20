@@ -152,6 +152,16 @@
 #
 # ══ LIVE ══════════════════════════════════════════════════════════════════
 
+LIVE class ct-control-mark
+    THE TOOLBAR'S MARKS ARE UPSTREAM'S ARTWORK NOW, AND THIS ROW IS HOW THAT
+    IS KEPT TRUE. `button.styl` sizes `.ct-control-mark` and nothing emitted
+    it, so it sat INERT — the stylesheet was vendored and the twelve marks it
+    draws were not. `components/debugger.controlMark` now renders through
+    CodeTracer's own `debug_control_marks.svgMarkup`, which writes this class
+    on every mark, and the eight the toolbar uses appear on every debug page.
+    The hand-drawn `StepOverPath` family in `components/icons` that it
+    replaces is deleted rather than left beside it.
+
 LIVE class component-container
     DEFECT 1, AND THE ROW THAT KEEPS IT FIXED. CodeTracer's panel surface,
     declared in `shared_widgets.styl` and the rule every other component is
@@ -533,7 +543,6 @@ INERT class unselectable
 INERT class panel
 INERT class panel-width
 INERT class absolute-panel
-INERT class ct-control-mark
 INERT class ct-button-no-border
     State and layout classes upstream's renderer toggles from script —
     `.active`, `.open`, `.hidden`, `.highlight`, `.hovered` — plus four

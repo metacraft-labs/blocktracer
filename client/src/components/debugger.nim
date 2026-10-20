@@ -62,6 +62,7 @@ import ./icons
 import ./shortcut_list
 import ../debugger/flow_view
 import ../debugger/vendor/frontend/headless_app/layout_model
+import ../debugger/vendor/frontend/viewmodel/views/debug_control_marks
 import ../debugger/replay_engine
 import ../debugger/session_view
 import ../debugger/keymap
@@ -2022,22 +2023,35 @@ proc renderPhaseRail*(s: DebugSessionView): string =
         span(class = "engineorigin"): text "Engine: " & s.engineBase
 
 func controlMark(a: DebugAction): string =
-  ## The action's mark. A total `case` over the enum and not a table, for the
-  ## reason `toolbarActionId` is one: a control added to the toolbar has to be
-  ## given a mark here or it does not compile, rather than rendering as an
-  ## empty button.
+  ## The action's mark, drawn by CODETRACER and not by this repository.
   ##
-  ## The marks and the survey behind them are in `components/icons`; the
-  ## per-command reasoning is `Debugger-Controls.md` §"Control Actions".
-  case a
-  of daStepBackward: reverseStepOverMark()
-  of daStepForward: stepOverMark()
-  of daReverseStepIn: reverseStepInMark()
-  of daStepIn: stepInMark()
-  of daReverseStepOut: reverseStepOutMark()
-  of daStepOut: stepOutMark()
-  of daReverseContinue: reverseContinueMark()
-  of daContinue: continueMark()
+  ## `vendor/frontend/viewmodel/views/debug_control_marks` is CodeTracer's own
+  ## module, vendored byte-verbatim at the pin in `ci/embed-sdk-pin.env` and
+  ## checked by `ci/test/control-marks-vendor.sh`. Its `markFor` is keyed by
+  ## the SAME eight action strings `toolbarActionId` produces, so the mark and
+  ## the request it accompanies are derived from one expression; and its
+  ## `svgMarkup` emits `class="ct-control-mark"`, which the vendored
+  ## `components/button.styl` already sizes. The whole control — box, surface,
+  ## hairline, hover and now the mark — is upstream's, and an upstream change
+  ## to any of it fails the vendor gate until it is re-vendored.
+  ##
+  ## WHAT THIS REPLACES, AND WHY IT WAS NOT ALREADY THIS. The eight marks were
+  ## hand-drawn SVG paths in `components/icons` — `StepOverPath` and its
+  ## siblings — in a product whose claim is that its debugger looks like
+  ## CodeTracer's. They were close and they were not the same artwork, and
+  ## nothing propagated when upstream changed a glyph.
+  ##
+  ## `markFor` returns a mark with an empty `buttonId` for an action it does
+  ## not know, and that cannot happen here — `toolbarActionId` is a total
+  ## `case` over the same enum, and `ControlMarkCount` is asserted against the
+  ## rendered strip — but it is checked rather than assumed, because a silent
+  ## empty mark is exactly the blank-button failure upstream's own header
+  ## records.
+  let m = markFor(toolbarActionId(a))
+  doAssert m.buttonId.len > 0,
+    "no CodeTracer control mark for action " & toolbarActionId(a) &
+    " — the vendored table and this toolbar have come apart"
+  svgMarkup(m)
 
 const ShortcutsLabel* = "Keyboard shortcuts"
   ## The gear's `title` and `aria-label`, and the dialog's heading — one
