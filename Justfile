@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# FOURTEEN suites — 98 + 19 + 24 + 24 + 57 + 233 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 = 1161 counted assertions —
+# FIFTEEN suites — 98 + 19 + 24 + 24 + 57 + 234 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 = 1170 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -179,7 +179,9 @@ test:
 # IS THE INPUT SET IT CLAIMS TO BE — every file hashed against its manifest, the
 # three independent block answers cross-checked against each other, and the
 # replay endpoint held to never reaching a network even when handed one
-# (`eth-rpc-transcript-selftest`).
+# (`eth-rpc-transcript-selftest`), and WHETHER A REGENERATED ETHEREUM CONTAINER IS COMPARED IN A FORM
+# THAT ERASES THE RECORDER'S INTERNING ORDER AND NOTHING ELSE
+# (`eth-regen-check-selftest`).
 #
 # `snapshot-contract-selftest` IS THE ONE THAT READS A NIM FILE FROM JAVASCRIPT,
 # and it is a suite rather than a review because the alternative is a person
@@ -441,6 +443,10 @@ chain-selftest:
     # codetracer-evm-recorder sibling, which is why `just eth-capture` is a
     # separate recipe and not an arm here.
     node tools/chain/eth-rpc-transcript-selftest.mjs
+    # Offline and toolchain-free: the two decoded variants are inlined, so no
+    # container and no `ct-print`. The comparison over real containers is
+    # `just eth-regen-check`, which needs the recorder.
+    node tools/chain/eth-regen-check-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1566,6 +1572,24 @@ eth-capture RECORDER COMMIT TX=ETH_CAPTURE_TX OUT=".eth-capture/tree" *ARGS:
         --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
         --tx {{TX}} --out {{OUT}} \
         --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}} {{ARGS}}
+
+# ── does a held Ethereum container still record what the inputs produce? ────
+#
+# Regenerates the container from the committed inputs (`just eth-capture`, no
+# network) and compares it with HELD through `tools/chain/eth-regen-check.mjs`:
+# decoded by `ct-print --full`, canonicalised to erase the recorder's per-process
+# interning order and nothing else. rc 0 SAME, 1 DIFFERENT (with the first path
+# that differs), 2 a container the reader refuses, which is not a verdict.
+#
+# This is the check DEL-5 (2026-10-20) names as the condition for exempting a
+# committed Ethereum container from `ban-added-ct-recordings`: the ban's reason is
+# that a recording pins a recorder version nothing tracks, and this tracks it.
+# HELD must live outside `.eth-capture/`, which `eth-capture` deletes first.
+# Needs the recorder binary and `ct-print` (`$CT_PRINT`), so it is in no gate;
+# its canonical form is graded offline by `eth-regen-check-selftest`.
+eth-regen-check RECORDER COMMIT HELD TX=ETH_CAPTURE_TX:
+    just eth-capture {{RECORDER}} {{COMMIT}} {{TX}} .eth-capture/tree
+    node tools/chain/eth-regen-check.mjs {{HELD}} .eth-capture/tree/ct/{{TX}}.ct
 
 # Re-record the committed input set against a live archive endpoint.
 #

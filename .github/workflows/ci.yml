@@ -531,7 +531,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 233 assertions, and the reason it is offline is the reason it
+        # ING-3, 234 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -906,6 +906,17 @@ jobs:
         # `codetracer-evm-recorder` sibling, which is not built on this runner;
         # `just eth-capture` is where the end-to-end run lives.
         run: node tools/chain/eth-rpc-transcript-selftest.mjs
+
+      - name: Is a regenerated Ethereum container compared in the right canonical form?
+        # 8 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # `eth-regen-check.mjs` decides whether a container regenerated from the
+        # committed inputs records the execution a held one records. Bytes cannot be
+        # compared (a UUIDv7 recording id), and decoded output comes in two variants
+        # that differ only in the recorder's per-process interning order. This
+        # suite shows the canonical form erases that order and still sees a changed
+        # value, name, line, step, dropped variable or swapped pair.
+        run: node tools/chain/eth-regen-check-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this
