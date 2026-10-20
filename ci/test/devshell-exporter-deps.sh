@@ -41,12 +41,42 @@ let f = builtins.getFlake (toString ./.);
 in builtins.mapAttrs (_: d: namesOf d) f.devShells.${sys}
 NIX
 
-if ! json="$(nix eval --impure --json --expr "$EXPR" 2>&1)"; then
+# ── THE TWO STREAMS ARE CAPTURED SEPARATELY, AND THE PAYLOAD IS ASSERTED ───
+#
+# This read `json="$(nix eval … 2>&1)"` and tested only the EXIT CODE. nix
+# writes warnings to stderr and exits 0, so `2>&1` folded them into the value
+# and the guard passed them through as JSON.
+#
+# MEASURED on run 39352321787: the runners' nix began emitting `warning:
+# unknown setting 'build-provenance-tags'`, `$json` became that sentence
+# followed by the object, and the gate died with a python traceback —
+# `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` —
+# and exit 1. Exit 1 is "the dev shells are wrong". Nothing had been measured
+# at all, and the job that reads this gate reported a product defect.
+#
+# So: stderr to its own file, and the payload tested for CONTENT and not only
+# for a status. A nix that exits 0 and prints nothing, or prints something that
+# is not an object, is a gate that DID NOT RUN — exit 2, with whatever nix said
+# on stderr quoted underneath, which is the only evidence there is.
+err="$(mktemp)"
+trap 'rm -f "$err"' EXIT
+if ! json="$(nix eval --impure --json --expr "$EXPR" 2>"$err")"; then
   echo "COULD NOT EVALUATE the dev shells — this gate measured nothing."
-  echo "$json" | sed 's/^/    /'
+  sed 's/^/    /' "$err"
   echo "RESULT: DID NOT RUN"
   exit 2
 fi
+case "${json#"${json%%[![:space:]]*}"}" in
+  '{'*) : ;;
+  *)
+    echo "nix exited 0 and did not print a dev-shell object — this gate measured nothing."
+    echo "    stdout (first 200 bytes): ${json:0:200}"
+    echo "    stderr:"
+    sed 's/^/        /' "$err"
+    echo "RESULT: DID NOT RUN"
+    exit 2
+    ;;
+esac
 
 printf '%s' "$json" | WANT="$want_tool" IMPLIED="$implied_by" python3 -c '
 import json, os, sys
