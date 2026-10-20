@@ -87,8 +87,25 @@ import { writeFileSync, readFileSync, writeSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
+
+// ── IS THIS FILE BEING RUN, OR MERELY LOADED? ─────────────────────────────
+//
+// It writes to real product source, so the two must not be the same thing.
+// `process.argv[1]` is the script node was given; under `node -e`, under an
+// editor's module resolver, and under any future caller that imports `ARMS`,
+// it is either undefined or some other file. `pathToFileURL(undefined)`
+// THROWS, so the undefined case is tested first and not merely compared.
+//
+// Used twice, and the second use matters as much as the first: the `exit`
+// hook below prints `RESULT: DID NOT RUN` for any process that reaches the
+// end without a verdict, which is EVERY importer. A verdict nobody asked for,
+// about a run that never started, written over the journal of the last real
+// one — the same defect `queryMode` is there to prevent, arriving by a
+// different door.
+const RUNNING_AS_ENTRY_POINT =
+  typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -2125,6 +2142,7 @@ process.on("exit", () => {
   // the caller is parsing as arm ids, AND overwriting the journal of whatever
   // real run last happened. Caught by the partition proof itself: the union of
   // four shards came to 72 lines against a 64-arm list.
+  if (!RUNNING_AS_ENTRY_POINT) return;
   if (queryMode) return;
   if (verdictPrinted) return;
   // A `throw`, a dependency calling `process.exit`, or any path that reached
@@ -3387,12 +3405,33 @@ async function main() {
   );
 }
 
-main().catch((e) => {
-  // A verdict, not just a stack. This path used to print the stack and nothing
-  // else, so a `playwright is not installed` — which judges nothing — left a log
-  // ending in an exception and no `RESULT:` line at all: the exact shape that
-  // reads to a human like a suite nobody ran.
-  console.error(String(e && e.stack ? e.stack : e));
-  restoreInFlight();
-  finish("did-not-run", `RESULT: DID NOT RUN — the run threw ${progressSoFar()}`, 2);
-});
+// ── THIS FILE WRITES TO REAL PRODUCT SOURCE, SO IT RUNS ONLY WHEN INVOKED ──
+//
+// `main()` used to be called at module scope, with no guard, and that makes
+// IMPORTING this file indistinguishable from RUNNING it. An editor's module
+// resolver, a `node -e 'import(...)'` typed to read the arm list, a future
+// `--combine` caller that wants `ARMS` — any of them starts a full mutation
+// sweep that rewrites files under `client/src/`.
+//
+// MEASURED, which is why this guard is here: `node -e 'import(".../
+// selftest.mjs")'`, typed to count arms per journey, rewrote
+// `client/src/debugger/source_island.nim` (the `R/the-position-document-is-
+// found-by-path` mutation), rebuilt the tree under a journey run that was
+// already in flight, and invalidated it. The SIGTERM handler did its job and
+// restored the file byte-identically, which is the only reason that incident
+// cost a rebuild rather than a diff nobody could explain.
+//
+// `run.mjs` has carried this guard since it was written — `import.meta.url ===
+// pathToFileURL(process.argv[1]).href` — and it is the same guard, for the
+// stronger reason: that file only READS the tree.
+if (RUNNING_AS_ENTRY_POINT) {
+  main().catch((e) => {
+    // A verdict, not just a stack. This path used to print the stack and nothing
+    // else, so a `playwright is not installed` — which judges nothing — left a log
+    // ending in an exception and no `RESULT:` line at all: the exact shape that
+    // reads to a human like a suite nobody ran.
+    console.error(String(e && e.stack ? e.stack : e));
+    restoreInFlight();
+    finish("did-not-run", `RESULT: DID NOT RUN — the run threw ${progressSoFar()}`, 2);
+  });
+}
