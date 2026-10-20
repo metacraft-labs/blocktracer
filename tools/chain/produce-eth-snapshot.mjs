@@ -676,6 +676,15 @@ function engineSkew(repoRoot, containerVer, ctPrintReadsSchema) {
 
 async function main() {
   const txHashes = many('tx');
+  // TRANSACTIONS THE REPLAY EXECUTED NO CODE FOR, as `codetracer-evm-recorder trace-block`
+  // reports them ("captured 0 EVM steps"): a value transfer to an account with no code. They
+  // are not untraced, because there was nothing to trace, and calling them so would count them
+  // against the yield. Data-Contract.md §5.2's chain-absent population is "the chain published
+  // no execution here", and `private-only` is that population's only token today. The spec
+  // records it as a chain-specific name for a chain-independent fact, with the rename to
+  // `no-public-execution` left open under CPC-6. So these rows say `private-only`, and their
+  // sentence says what the fact actually is on this chain.
+  const noExecution = new Set(many('no-execution').map((x) => x.toLowerCase()));
   const url = flag('rpc-url', process.env.CODETRACER_EVM_RECORDER_RPC_URL);
   const captures = many('capture');
   const recorderLogPaths = many('recorder-log');
@@ -1072,8 +1081,17 @@ async function main() {
       // resolver that the only consumer of the join actually uses, and was not served by
       // byte equality, which published a working directory.
       const publishedPath = `${address}.evmasm`;
+      // A CREATION'S INITCODE LISTING. `codetracer-evm-recorder` keys a creation frame by
+      // the last 20 bytes of keccak256(initcode), because no account holds initcode while it
+      // runs, and writes the bytes and their keccak256 beside the listing. Such an address
+      // has no `eth_getProof` code hash to read, so the listing is keyed by the hash of the
+      // code it describes. Checked against the address below, not re-hashed: this
+      // repository carries no keccak implementation by design.
+      const initcodePath = listingCandidates[0].replace(/\.evmasm$/, '.initcode.json');
+      const initcode = existsSync(initcodePath)
+        ? JSON.parse(readFileSync(initcodePath, 'utf8')) : null;
       r.listings.push({ internedPath, publishedPath, file: listingCandidates[0], address,
-                        text, listing, outcome: entry.outcome });
+                        text, listing, outcome: entry.outcome, initcode });
     }
     // EVERY STEP'S `path_id` INDEXES A LISTING THIS RUN RESOLVED, and every line it names
     // is inside that listing. Checked before anything is published rather than discovered
@@ -1131,7 +1149,18 @@ async function main() {
   // account state there proved it everywhere above. `recordings` is sorted by height, so
   // the anchor is its first element, and for a single recording this is the probe this
   // tool has always taken.
-  const anchor = recordings[0];
+  // The first recording whose entry point is an ACCOUNT. A creation's entry point is its
+  // initcode's synthetic address, which no block's state holds, so the probe's positive
+  // control (code present at the parent block) could never pass on it.
+  const isInitcodeEntry = (r) => r.listings.some(
+    (L) => L.address === r.replay.entryPoint.toLowerCase() && L.initcode !== null);
+  const anchor = recordings.find((r) => !isInitcodeEntry(r));
+  if (anchor === undefined) {
+    throw refuse(SourceRefusal,
+      `every recording in this capture is a contract creation, so no entry point is an `
+      + `account the archive floor can be probed at. Capture a window holding at least one `
+      + `call.`);
+  }
   const floor = await probeArchiveFloor(url, anchor.replay.entryPoint.toLowerCase(),
                                         { parentBlock: anchor.blockNumber - 1, finalized });
   // THE CONTRACT CLASS OF EVERY ADDRESS THE RECORDING ENTERED, not just of the entry
@@ -1142,6 +1171,17 @@ async function main() {
   // for a single-contract recording that is the one call this tool always made.
   for (const r of recordings) {
     for (const L of r.listings) {
+      if (L.initcode !== null) {
+        const k = String(L.initcode.keccak256 ?? '').toLowerCase();
+        if (!/^0x[0-9a-f]{64}$/.test(k) || `0x${k.slice(-40)}` !== L.address) {
+          throw refuse(SourceRefusal,
+            `the initcode record beside ${L.file} states keccak256 ${k || '(none)'}, whose `
+            + `last 20 bytes are not the listing's address ${L.address}. The recorder keys an `
+            + `initcode listing by exactly that, so the record and the listing disagree.`);
+        }
+        L.codeHash = k;
+        continue;
+      }
       // eslint-disable-next-line no-await-in-loop
       const proof = await rpc(url, 'eth_getProof',
                               [L.address, [], `0x${(r.blockNumber - 1).toString(16)}`]);
@@ -1208,7 +1248,18 @@ async function main() {
     // R2 requires the call to be visible in the literal that carries `firstInBlock`, and
     // it is right to: a spread is where the Aztec range producer lost both members.
     const rec = recordingByTx.get(h) ?? null;
-    const untracedReason = rec !== null ? null
+    const noExec = noExecution.has(h.toLowerCase());
+    if (noExec && rec !== null) {
+      throw refuse(ConfigRefusal,
+        `${h} is given both as a recording and as --no-execution. A transaction the replay `
+        + `executed no code for has no container to publish.`);
+    }
+    const noExecReason = !noExec ? null
+      : `A value transfer to an account with no code: the replay executed no EVM instruction `
+        + `for it, so there is no execution to trace. This is not a refusal. It is published in `
+        + `the population for "the chain published no execution here", whose token is `
+        + `\`private-only\` until CPC-6 decides its chain-neutral name.`;
+    const untracedReason = rec !== null || noExec ? null
       : `This producer traced ${tracedPhrase} and enumerated ${scopePhrase} so the `
         + `denominator is the ${denominatorPhrase} and not the capture. Nothing about this `
         + `transaction or about Ethereum stopped it: this chain's declared prestate `
@@ -1226,7 +1277,7 @@ async function main() {
         blobGasUsed: r.blobGasUsed ?? null,
         blobGasPrice: r.blobGasPrice ?? null,
       }),
-      executions: executionsForRow(untracedReason),
+      executions: executionsForRow(noExecReason ?? untracedReason),
       // WHO ACTED AND WHAT WAS CALLED — the three columns the explorer's transactions
       // table has always had and this producer published nothing for. Both are read off
       // `t`, THIS row's own full transaction object, which this loop has held since
@@ -1244,6 +1295,14 @@ async function main() {
       effectVisible: true,
     };
 
+    if (noExecReason !== null) {
+      rows.push({
+        ...base,
+        outcome: 'private-only',
+        reason: noExecReason,
+      });
+      continue;
+    }
     if (untracedReason !== null) {
       rows.push({
         ...base,
