@@ -2274,10 +2274,49 @@ jobs:
   # A SHARD IS NOT A VERDICT. Its journal is a claim about the arms it holds;
   # the claim about the suite is made by `journeys-combine` below, and only
   # there.
+  #
+  # ── AND EIGHT AT ONCE WAS THE THING THAT BROKE, NOT EIGHT ─────────────────
+  #
+  # The sizing above divides WORK by shards and says nothing about how many
+  # shards are in flight. Eight were, and the pool cannot carry eight
+  # browser-driving jobs: `gh api orgs/metacraft-labs/actions/runners` lists
+  # seven non-GARM `self-hosted linux x64` runners, and FOUR OF THEM —
+  # `gpu-server-002-mcl-001` through `-004` — are four runners on ONE host.
+  # Eight shards, plus `journeys`, `contract` and `visual-design-canary`, is
+  # more browser-heavy jobs than there are machines.
+  #
+  # WHAT THAT COST, measured on run 39006414958, and it is all four failure
+  # shapes at once:
+  #
+  #   shards 1, 2     timed out at 150 minutes mid-sweep
+  #   shards 3, 4     aborted on an Arm II refusal that was a 30s SILENCE
+  #                   (see `engineArm`'s retry) and not a refusal
+  #   shards 6, 7, 8  lost their runners outright — steps with a `null`
+  #                   conclusion, no logs uploaded, at 05:54:4x and 06:16:0x
+  #   journeys-combine  5 of 8 shards left no journal, so there was nothing
+  #                   to combine and the suite's claim was never made
+  #
+  # And the per-arm cost moved with the contention rather than with the arms:
+  # shard 1 did five arms in its first 19 minutes and then did not finish
+  # four more in the next 131; shard 5 averaged 16.3 min/arm over a full nine
+  # while seven siblings were running. The sizing above was computed at 9.65.
+  #
+  # `max-parallel` AND NOT A SHARD COUNT, because the two bound different
+  # things. `timeout-minutes` bounds ONE JOB; the matrix's total wall clock is
+  # not bounded by anything and does not need to be. Capping concurrency makes
+  # each shard an uncontended job that finishes well inside 150 while the
+  # SWEEP takes three waves — and it leaves four runners for the jobs that
+  # were being starved beside it. Raising the shard count does the opposite of
+  # both: it is the same work in more, smaller, MORE contended pieces.
+  #
+  # THREE, from the pool and not from taste: seven runners, of which four
+  # share `gpu-server-002`. Three keeps at most two shards on that host and
+  # leaves `journeys`, `contract` and `visual-design-canary` a runner each.
   journeys-bite:
     runs-on: [self-hosted, linux, x64]
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
