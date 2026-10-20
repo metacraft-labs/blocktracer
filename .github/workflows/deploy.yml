@@ -163,6 +163,14 @@ jobs:
       flake-target: >-
         ${{ (github.event_name == 'push' && github.ref_name == 'live') && 'default'
          || 'site-staging' }}
+      # The captures site-staging copies in, so the freshness gate's F4 holds
+      # each produced container to the build's own output. Empty on `live`.
+      # The condition is the NEGATION, not `live && '' || 'produced-captures'`:
+      # an empty string is falsy in an expression, so that form yields
+      # 'produced-captures' on `live` too.
+      produced-target: >-
+        ${{ !(github.event_name == 'push' && github.ref_name == 'live') && 'produced-captures'
+         || '' }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

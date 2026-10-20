@@ -152,7 +152,7 @@
     # last revision that writes `meta.dat` 6, because the engine this site pins
     # reads 6 only. Move it with client/hydrate/engine-pin.txt, never ahead of it.
     codetracer-evm-recorder = {
-      url = "github:metacraft-labs/codetracer-evm-recorder/564ae30f1e24c4cce80122f051a0df17a7915a9d";
+      url = "github:metacraft-labs/codetracer-evm-recorder/64c4d94a96cde85b8a8ef8a3b817c5bb3c52832c";
       flake = false;
     };
     evm-trace-format = {
@@ -400,11 +400,21 @@
         packages.site-staging = self.packages.${system}.default.overrideAttrs (old: {
           name = "blocktracer-site-staging";
           postPatch = (old.postPatch or "") + ''
-            mkdir -p client/fixtures/chain/ethereum-mainnet
-            cp -r ${eth.ethCaptureTree}/. client/fixtures/chain/ethereum-mainnet/
-            chmod -R u+w client/fixtures/chain/ethereum-mainnet
+            cp -r ${self.packages.${system}.produced-captures}/. client/fixtures/chain/
+            chmod -R u+w client/fixtures/chain
           '';
         });
+
+        # Every chain capture the build PRODUCES rather than commits, one directory
+        # per chain slug. site-staging copies it into the fixtures; the deploy hands
+        # it to `check-freshness.mjs record --produced`, so F4 holds each published
+        # container to this output. That is sound only because each producer here
+        # is byte-reproducible. A real copy rather than a linkFarm, because the
+        # checker's walk does not follow symlinks.
+        packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } ''
+          mkdir -p $out
+          cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
+        '';
 
         packages.chain-tools = chain.chainTools;
         packages.chain-runtime = chain.avmRuntime;

@@ -131,6 +131,7 @@ set +e
 (cd "$capture" && "$recorder_abs" trace-onchain "$tx" \
   --rpc-url "$rpc" \
   --out-dir . \
+  --recording-id derive \
   ${source_args[@]+"${source_args[@]}"}) \
   >"$log_abs" 2>&1
 recorder_rc=$?
