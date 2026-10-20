@@ -1166,9 +1166,14 @@ test('§14 every tool that writes a transaction row states the lifted facts thro
   // `produce-starknet-snapshot.mjs` states the Cairo recorder that runs StarkWare's own
   // executor, `replay-preceding` prestate and hex felts, through its own
   // `lib/starknet-producer-facts.mjs`.
+  //
+  // THE NINTH IS SOLANA'S (Recorder-Solana CXP-SOL-3, 2026-10-20): `produce-sol-snapshot.mjs`
+  // states an SBF recorder and the `forward-capture` prestate strategy — a token NOT yet in
+  // §1.4's set, requested under Chain-Delivery DEL-3b — through `lib/solana-producer-facts.mjs`.
   const ROSTER = ['backfill-blocks.mjs', 'capture-chain.mjs', 'follow-chain.mjs',
                   'ingest-range.mjs', 'produce-eth-snapshot.mjs', 'produce-flow-snapshot.mjs',
-                  'produce-starknet-snapshot.mjs', 'produce-sui-snapshot.mjs'];
+                  'produce-sol-snapshot.mjs', 'produce-starknet-snapshot.mjs',
+                  'produce-sui-snapshot.mjs'];
   ck(`and they are exactly — ${live.producers.join(', ')}`,
      JSON.stringify(live.producers) === JSON.stringify(ROSTER));
   ck(`the scan worked over ${live.rows} transaction-row literals and `

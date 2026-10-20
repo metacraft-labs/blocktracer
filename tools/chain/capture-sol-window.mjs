@@ -381,7 +381,11 @@ for (let slot = first; slot < first + opt.slots; slot++) {
     counts.transactions++;
     const row = { signature: sig, index: i, vote, err: t.meta?.err ?? null, fee: t.meta?.fee,
       computeUnitsConsumed: t.meta?.computeUnitsConsumed, costUnits: t.meta?.costUnits, version: t.version ?? 'legacy',
-      accounts: keys.length };
+      accounts: keys.length,
+      // Who paid, and which programs the transaction called at top level, in order — the
+      // row's `roles` and `payload.target` in the snapshot, read off the message itself.
+      feePayer: t.transaction.message.accountKeys[0],
+      programs: t.transaction.message.instructions.map((ix) => keys[ix.programIdIndex]) };
     rows.push(row);
     if (vote) { counts.votes++; continue; }
     // A transaction outside the scope that writes nothing the replay holds can change
