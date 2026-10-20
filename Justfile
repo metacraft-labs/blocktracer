@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# FIFTEEN suites — 98 + 19 + 24 + 24 + 57 + 234 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 = 1170 counted assertions —
+# SIXTEEN suites — 98 + 19 + 24 + 24 + 57 + 235 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 31 = 1202 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -447,6 +447,11 @@ chain-selftest:
     # container and no `ct-print`. The comparison over real containers is
     # `just eth-regen-check`, which needs the recorder.
     node tools/chain/eth-regen-check-selftest.mjs
+    # Offline and toolchain-free: the Sui producer's facts, its effects
+    # comparison and its refusals, driven from literals shaped as Sui's GraphQL
+    # service and `sui replay` write them. Traced rows need a container and are
+    # exercised by `just sui-range`.
+    node tools/chain/sui-producer-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1657,6 +1662,26 @@ eth-inputs-verify TX=ETH_CAPTURE_TX:
 # WRONG — not absent — for a binary built in a worktree or before a pull.
 eth-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-eth-range.mjs \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
+
+# Trace a window of SUI checkpoints into one snapshot tree (Recorder-Move
+# CXP-MOVE-1/2). The twin of `eth-range`: tools/chain/capture-sui-range.mjs reads
+# the window over Sui's GraphQL service, measures the tracing floor (the first
+# checkpoint at protocol 38, the first execution layer with trace hooks), records
+# up to `--max` transactions through `codetracer-move-recorder replay` — which
+# runs `sui replay --trace`, fetching exactly the object versions each
+# transaction names — and runs tools/chain/produce-sui-snapshot.mjs over the lot.
+#
+#   just sui-range ../codetracer-move-recorder/target/release/codetracer-move-recorder \
+#     $(git -C ../codetracer-move-recorder rev-parse HEAD) --depth 200 --max 6
+#
+# `sui` must be on PATH or given with `--sui`, built with the `tracing` feature
+# (the official release binaries are). Output defaults to .sui-range/ (ignored).
+# NOT in any gate, for `eth-range`'s reason: it needs the network and the
+# recorder. Its offline half is `sui-producer-selftest.mjs` in `chain-selftest`.
+# COMMIT is required and not derived, for `eth-capture`'s reason.
+sui-range RECORDER COMMIT *ARGS:
+    node tools/chain/capture-sui-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
 
 # Publish a generated tree into a local object-store directory (M8 delta publisher).

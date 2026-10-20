@@ -223,6 +223,12 @@ fixtures/chain-health/readable-container/ct/*.ct
 # container's bytes host-specific and two machines' recordings incomparable.
 /.eth-range/
 
+# `just sui-range`'s default work and tree directories: GraphQL reads, `sui replay`
+# artifacts (each entered package's bytecode and disassembly) and the recorded `.ct`
+# containers the `.ct` ban refuses. Unlike the EVM recorder, the Move recorder interns
+# paths relative to the replay directory, so the location is not load-bearing.
+/.sui-range/
+
 # `just eth-publish-proof`'s work directory: the ingested publish tree, three local object
 # stores, the strace logs the write-order arm reads, and one log per publishing cycle. All
 # of it is derived from `.eth-range/tree` in one command, it holds copies of that tree's
