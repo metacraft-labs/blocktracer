@@ -2232,7 +2232,37 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    `normal` PERMITS wrapping, it does not force it: `Yes` and `Pending` have
    room and still occupy one line. Scoped to `.badge`, so the `.muted` SUFFIX
    span above keeps its nowrap — `mana (FeeJuice)` must not come apart. */
-.mddl dd .badge{white-space:normal}
+/* ── `normal` WAS NOT ENOUGH, AND THE REASON IS THE MIN-CONTENT FLOOR ─────
+   `white-space:normal` lets the pill's text wrap at a SPACE. It does not let
+   the pill be narrower than its widest WORD, and `.badge` is
+   `display:inline-flex`, so that text is an anonymous flex item whose
+   `min-width:auto` resolves to exactly that min-content width. A cell
+   narrower than one word plus the pill's padding is therefore still
+   overflowed, by the difference.
+
+   `.mddl dd` declares `overflow-wrap:break-word`, which does NOT reduce
+   min-content size — that is the whole documented difference between it and
+   `anywhere`, and it is why the explorer's `.dl dd`, which has carried
+   `overflow-wrap:anywhere` since it was written, does not clip while this
+   list does.
+
+   MEASURED on run 39352321787, where `check-badge-legibility` went red having
+   been green on the run before it over the same bytes, on
+   `/aztec-testnet/tx/0x0858d644…` @laptop: `No timestamp published` by 14px,
+   `Instruction level` by 19px, `Finalized` by 6px. It passes on this
+   workstation — the gate's own control strip reads "Finalized 84px outside a
+   scrolling table" here against 106px there, so the runner's glyphs are
+   simply wider, and 6px of margin is not a design.
+
+   REPRODUCED BY WIDENING THE TEXT RATHER THAN BY GUESSING AT THE HOST. With
+   `letter-spacing` forced on the pill at 1440px, 4 badges clip at 1.25em and
+   5 at 2em (`No timestamp published` 296px in a 114px cell); with this one
+   declaration added, ZERO clip at every step. The gate's own instruction is
+   "let the pill wrap where its text is unbounded", and this is what lets it.
+
+   Scoped to the pill and not raised on `.mddl dd` itself: the cell's values
+   are identifiers and numbers, and `break-word` is the right floor for them. */
+.mddl dd .badge{white-space:normal;overflow-wrap:anywhere}
 .mddl dd a{color:var(--bt-text-link);text-decoration:underline;
   text-underline-offset:var(--bt-space-3xs)}
 .mdexec{padding:var(--bt-density-cell-y) var(--bt-density-cell-x)}
