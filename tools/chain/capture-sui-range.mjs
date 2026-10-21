@@ -45,7 +45,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const USAGE = `usage: capture-sui-range.mjs --recorder PATH --recorder-commit SHA
          [--node mainnet|testnet|devnet|URL] [--sui PATH]
          [--from N --to M | --depth D [--checkpoints K]] [--max N]
-         [--work DIR] [--out DIR] [--ct-print PATH] [--fresh] [--plan]`;
+         [--work DIR] [--out DIR] [--ct-print PATH] [--positions-reader PATH]
+         [--fresh] [--plan]`;
 
 function parse(argv) {
   const v = new Map();
@@ -229,6 +230,7 @@ async function main(argv) {
     '--acquisition', acquisitionPath, '--replay-root', join(work, 'replay'),
     '--recorder-commit', recorderCommit, '--out', out,
     ...(a.get('ct-print') ? ['--ct-print', a.get('ct-print')] : []),
+    ...(a.get('positions-reader') ? ['--positions-reader', a.get('positions-reader')] : []),
     ...recDirs.flatMap((d) => ['--rec', d])];
   const code = await runLogged(process.execPath, produce, join(work, 'produce.log'), env);
   process.stdout.write(readFileSync(join(work, 'produce.log'), 'utf8'));

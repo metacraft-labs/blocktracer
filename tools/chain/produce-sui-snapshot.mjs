@@ -82,7 +82,9 @@ const refuse = (Kind, msg) => new Kind(msg);
 
 const USAGE = `usage: produce-sui-snapshot.mjs --acquisition FILE --replay-root DIR
          --recorder-commit SHA --out DIR [--rec DIR]... [--ct-print PATH]
-         [--chain SLUG] [--label TEXT] [--captured-at ISO] [--dry-run]`;
+         [--chain SLUG] [--label TEXT] [--captured-at ISO] [--dry-run]
+         [--positions-reader PATH]   codetracer-move-recorder build whose \`positions\`
+                                     reads steps and calls (default: ct-print --events)`;
 
 function parseArgs(argv) {
   const many = new Map();
@@ -136,7 +138,30 @@ function containerVersion(file) {
 }
 
 /** Counts, flags, path table, steps and call entries of a container, via `ct-print`. */
-async function readContainer(ctPrint, file) {
+/**
+ * Steps and calls through `codetracer-move-recorder positions`, which reads the step and
+ * call streams without decoding a value: identical output to `ct-print --events` on the
+ * members used here, about a thousand times faster on a large Sui container.
+ */
+async function readPositions(reader, file) {
+  const tmp = `${file}.positions.json`;
+  try {
+    await run(reader, ['positions', file, '--out', tmp], { maxBuffer: 1 << 24 });
+    const doc = JSON.parse(readFileSync(tmp, 'utf8'));
+    const steps = doc.pathId.map((pathId, i) => ({ step_index: i, path_id: pathId,
+                                                   line: doc.line[i], column: doc.column[i] }));
+    const callEntries = doc.calls.map((c) => ({ function: c.function, depth: c.depth,
+                                                entry_step: c.entryStep, exit_step: c.exitStep }));
+    return { paths: doc.paths, steps, callEntries };
+  } catch (e) {
+    throw refuse(SourceRefusal, `${reader} positions ${file}: `
+      + `${String(e.stderr ?? e.message).slice(0, 400)}`);
+  } finally {
+    rmSync(tmp, { force: true });
+  }
+}
+
+async function readContainer(ctPrint, file, positionsReader = null) {
   let meta;
   try {
     const { stdout } = await run(ctPrint, ['--meta-json', file], { maxBuffer: 1 << 28 });
@@ -144,6 +169,10 @@ async function readContainer(ctPrint, file) {
   } catch (e) {
     throw refuse(SourceRefusal,
       `${ctPrint} would not open ${file}: ${String(e.stderr ?? e.message).slice(0, 400)}`);
+  }
+  if (positionsReader !== null) {
+    return { counts: meta.counts, flags: meta.metadata.flags,
+             ...(await readPositions(positionsReader, file)), version: containerVersion(file) };
   }
   // STREAMED, line by line: one mainnet transaction's event listing exceeds the longest
   // string a JavaScript engine can hold (~512 MB), so collecting stdout whole fails with
@@ -325,23 +354,36 @@ async function main(argv) {
   const traced = new Map();
   for (const rec of recordings.values()) {
     if (rec.outcome !== 'traced') continue;
-    const c = await readContainer(ctPrint, rec.container);
+    const c = await readContainer(ctPrint, rec.container, args.one('positions-reader') ?? null);
     const replayDir = join(replayRoot, rec.digest);
     // Every path the container interned is relative to the replay directory
     // (`0x<package>/bytecode/<module>.mvb`); its text is the disassembly `sui replay`
     // wrote there. A path whose text is missing is refused: positions into nothing are
     // worse than no positions.
+    // Every interned path is a module disassembly `sui replay` wrote, relative to the
+    // replay directory — except the recorder's FALLBACK primary path, `transaction.mvb`,
+    // which it interns when the transaction's first frame has no loaded module: a
+    // programmable block of non-Move commands only (SplitCoins, TransferObjects, …) runs
+    // no Move code, and its one entry step lands there. That path has no text; every
+    // other missing path is refused.
+    const isFallback = (p) => basename(p) === 'transaction.mvb';
     const files = c.paths.map((p) => {
       const abs = join(replayDir, p);
-      if (p.startsWith('/') || p.includes('..') || !existsSync(abs)) {
-        throw refuse(SourceRefusal, `${rec.digest}: the container interns '${p}', which is `
-          + `not a file under ${replayDir}; the recorder writes paths relative to the `
-          + `replay directory and the producer publishes them as written.`);
+      if (!p.startsWith('/') && !p.includes('..') && existsSync(abs)) {
+        return { path: p, package: p.split('/')[0], text: readFileSync(abs, 'utf8') };
       }
-      return { path: p, package: p.split('/')[0], text: readFileSync(abs, 'utf8') };
+      if (isFallback(p)) return { path: 'transaction.mvb', package: null, text: null };
+      throw refuse(SourceRefusal, `${rec.digest}: the container interns '${p}', which is `
+        + `not a file under ${replayDir}; the recorder writes paths relative to the `
+        + `replay directory and the producer publishes them as written.`);
     });
+    // A row is POSITIONED when every step lands on a line of real disassembly; one that
+    // steps on the textless fallback publishes no positions and no source bundle, which
+    // the contract allows (a traced row may publish no bundle) and which is the truth.
+    let positionable = true;
     for (const s of c.steps) {
       const f = files[s.path_id];
+      if (f !== undefined && f.text === null) { positionable = false; continue; }
       const lines = f === undefined ? 0 : f.text.split('\n').length;
       if (f === undefined || !(s.line >= 1 && s.line <= lines)) {
         throw refuse(SourceRefusal, `${rec.digest}: step ${s.step_index} is at path ${s.path_id} `
@@ -350,7 +392,7 @@ async function main(argv) {
     }
     const replayedEffects = readJson(join(replayDir, 'transaction_effects.json'),
       `the replayed effects of ${rec.digest}`);
-    traced.set(rec.digest, { rec, c, files, replayedEffects,
+    traced.set(rec.digest, { rec, c, files, replayedEffects, positionable,
                              containerBytes: statSync(rec.container).size });
   }
 
@@ -421,10 +463,10 @@ async function main(argv) {
                     refusal: rec.outcome === 'no-trace-events' ? NO_TRACE_EVENTS : rec.refusal });
         return;
       }
-      const { c, files, replayedEffects, containerBytes } = t;
+      const { c, files, replayedEffects, containerBytes, positionable } = t;
       const effects = effectsFacts(tx.effectsJson, replayedEffects);
       const steps = c.counts.steps;
-      const positioned = c.steps.filter((s) => s.path_id !== null && s.line > 0).length;
+      const positioned = c.steps.filter((s) => files[s.path_id]?.text != null && s.line > 0).length;
       rows.push({
         ...base,
         outcome: effects.reproduced ? 'replayed' : 'divergent',
@@ -446,10 +488,10 @@ async function main(argv) {
           contexts: files.length,
           varnames: c.counts.varnames,
         },
-        sourceBundles: `sources/${tx.digest}.json`,
-        positions: `positions/${tx.digest}.json`,
+        ...(positionable ? { sourceBundles: `sources/${tx.digest}.json`,
+                             positions: `positions/${tx.digest}.json` } : {}),
         callTrace: `calltrace/${tx.digest}.json`,
-        artifacts: [...new Set(files.map((f) => f.package))].map((pkg) => ({
+        artifacts: [...new Set(files.map((f) => f.package).filter(Boolean))].map((pkg) => ({
           address: pkg,
           contractClassId: pkg,
           resolved: false,
@@ -544,7 +586,7 @@ async function main(argv) {
     renameSync(`${p}.tmp`, p);
   };
 
-  for (const [digest, { rec, c, files }] of traced) {
+  for (const [digest, { rec, c, files, positionable }] of traced) {
     const row = rows.find((r) => r.txHash === digest);
     copyFileSync(rec.container, join(out, 'ct', `${digest}.ct`));
     // Only the modules a step lands in are published. `sui replay` writes every module of
@@ -552,43 +594,45 @@ async function main(argv) {
     // path table carried ~90 disassemblies for a transaction that ran in two. The position
     // stream still lists every interned path, so a path id keeps its meaning; a path no
     // step uses has no text to point into and needs none.
-    const stepped = new Set(c.steps.map((s) => s.path_id));
-    const byPackage = new Map();
-    for (const [id, f] of files.entries()) {
-      if (!stepped.has(id)) continue;
-      if (!byPackage.has(f.package)) byPackage.set(f.package, {});
-      byPackage.get(f.package)[f.path] = f.text;
+    if (positionable) {
+      const stepped = new Set(c.steps.map((s) => s.path_id));
+      const byPackage = new Map();
+      for (const [id, f] of files.entries()) {
+        if (!stepped.has(id)) continue;
+        if (!byPackage.has(f.package)) byPackage.set(f.package, {});
+        byPackage.get(f.package)[f.path] = f.text;
+      }
+      writeJson(`sources/${digest}.json`, {
+        txHash: digest,
+        sourceLevel: false,
+        // A bundle is keyed by code identity (S5-BUNDLE-KEYED). A Sui package's storage id
+        // names one immutable package version — an upgrade publishes a new id — so it IS
+        // the identity of the code that ran.
+        bundles: [...byPackage].map(([pkg, filesOf]) => ({
+          address: pkg,
+          codeHash: pkg,
+          files: filesOf,
+          origin: `disassembly of package ${pkg} as \`sui replay\` fetched it at the version `
+            + `that executed`,
+          shape: 'disassembly',
+          corroboration: 'single-distributor',
+          agreeingDistributors: ['the chain itself'],
+          language: POSITION_LANGUAGE,
+        })),
+      });
+      writeJson(`positions/${digest}.json`, {
+        schema: POSITION_STREAM_SCHEMA,
+        tx: digest,
+        steps: row.recording.steps,
+        positioned: row.recording.stepsPositioned,
+        measuredPostHoc: false,
+        measuredBy: `${HERE} (read from the container)`,
+        paths: files.map((f) => f.path),
+        pathId: c.steps.map((s) => s.path_id),
+        line: c.steps.map((s) => s.line),
+        column: c.steps.map((s) => s.column ?? null),
+      });
     }
-    writeJson(`sources/${digest}.json`, {
-      txHash: digest,
-      sourceLevel: false,
-      // A bundle is keyed by code identity (S5-BUNDLE-KEYED). A Sui package's storage id
-      // names one immutable package version — an upgrade publishes a new id — so it IS
-      // the identity of the code that ran.
-      bundles: [...byPackage].map(([pkg, filesOf]) => ({
-        address: pkg,
-        codeHash: pkg,
-        files: filesOf,
-        origin: `disassembly of package ${pkg} as \`sui replay\` fetched it at the version `
-          + `that executed`,
-        shape: 'disassembly',
-        corroboration: 'single-distributor',
-        agreeingDistributors: ['the chain itself'],
-        language: POSITION_LANGUAGE,
-      })),
-    });
-    writeJson(`positions/${digest}.json`, {
-      schema: POSITION_STREAM_SCHEMA,
-      tx: digest,
-      steps: row.recording.steps,
-      positioned: row.recording.stepsPositioned,
-      measuredPostHoc: false,
-      measuredBy: `${HERE} (read from the container)`,
-      paths: files.map((f) => f.path),
-      pathId: c.steps.map((s) => s.path_id),
-      line: c.steps.map((s) => s.line),
-      column: c.steps.map((s) => s.column ?? null),
-    });
     const frames = [
       { name: '<transaction>', depth: 0, step: 0, path: null, line: null, args: [],
         contractAddress: null, endStep: null, foldedBy: null, foldWhy: null,
