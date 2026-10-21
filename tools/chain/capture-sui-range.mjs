@@ -184,6 +184,14 @@ async function main(argv) {
     const logPath = join(recDir, 'run.log');
     const capture = join(recDir, 'capture');
     rmSync(capture, { recursive: true, force: true });
+    // A replay directory without its trace is a leftover (the trace is deleted once it is
+    // converted, and a rerun under another recorder build converts again): `sui replay`
+    // refuses to overwrite the artifacts beside it, so the directory is cleared and the
+    // transaction replayed from the network again.
+    const replayed = join(work, 'replay', digest);
+    if (existsSync(replayed) && !existsSync(join(replayed, 'trace.json.zst'))) {
+      rmSync(replayed, { recursive: true, force: true });
+    }
     const code = await runLogged(recorder, ['replay', '--digest', digest, '--node', node,
       '--replay-dir', join(work, 'replay'), '-o', capture], logPath, env);
     const log = readFileSync(logPath, 'utf8');

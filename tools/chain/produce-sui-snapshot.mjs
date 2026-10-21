@@ -38,7 +38,8 @@
 //   1  a SOURCE refusal: an input is inconsistent, and the message names which
 //   2  a CONFIGURATION refusal: a flag is missing or malformed
 
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import {
   copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync,
   statSync, writeFileSync,
@@ -144,15 +145,44 @@ async function readContainer(ctPrint, file) {
     throw refuse(SourceRefusal,
       `${ctPrint} would not open ${file}: ${String(e.stderr ?? e.message).slice(0, 400)}`);
   }
-  const { stdout: ev } = await run(ctPrint, ['--events', file], { maxBuffer: 1 << 30 });
-  const lines = ev.split('\n').filter((l) => l.trim().length > 0).map((l) => JSON.parse(l));
-  const header = lines.find((l) => l.metadata) ?? {};
+  // STREAMED, line by line: one mainnet transaction's event listing exceeds the longest
+  // string a JavaScript engine can hold (~512 MB), so collecting stdout whole fails with
+  // `RangeError: Invalid string length`. Only the members this producer reads are kept.
+  const steps = [];
+  const callEntries = [];
+  let paths = [];
+  let headerSeen = false;
+  const child = spawn(ctPrint, ['--events', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (d) => { if (stderr.length < 4000) stderr += d; });
+  const exited = new Promise((done) => child.on('close', done));
+  for await (const line of createInterface({ input: child.stdout, crlfDelay: Infinity })) {
+    if (line.trim().length === 0) continue;
+    const e = JSON.parse(line);
+    if (e.kind === 'step') {
+      steps.push({ step_index: e.step_index, path_id: e.path_id, line: e.line,
+                   column: e.column ?? null, depth: e.depth ?? 0 });
+    } else if (e.kind === 'call_entry') {
+      callEntries.push({ function: e.function, depth: e.depth, entry_step: e.entry_step,
+                         exit_step: e.exit_step });
+    } else if (e.kind === undefined && e.metadata && headerSeen === false) {
+      // The header is the one line without a `kind`. An `io` event also carries a
+      // `metadata` member (its tag, e.g. `MovePtbCommand`), so matching on `metadata`
+      // alone let every later io event overwrite the path table.
+      paths = e.paths ?? [];
+      headerSeen = true;
+    }
+  }
+  const code = await exited;
+  if (code !== 0) {
+    throw refuse(SourceRefusal, `${ctPrint} --events ${file} exited ${code}: ${stderr.slice(0, 400)}`);
+  }
   return {
     counts: meta.counts,
     flags: meta.metadata.flags,
-    paths: header.paths ?? [],
-    steps: lines.filter((l) => l.kind === 'step'),
-    callEntries: lines.filter((l) => l.kind === 'call_entry'),
+    paths,
+    steps,
+    callEntries,
     version: containerVersion(file),
   };
 }
