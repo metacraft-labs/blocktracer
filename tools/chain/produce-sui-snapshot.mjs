@@ -66,6 +66,15 @@ export const ACQUISITION_FORMAT = 'blocktracer/sui-acquisition@1';
 /** The stable token the recorder starts a no-trace-events refusal with. */
 export const NO_TRACE_EVENTS = 'NO-TRACE-EVENTS';
 
+/**
+ * The class a row carries when `sui replay --trace` itself aborted with a stack overflow
+ * (sui 1.81.1, macOS; the same replay without `--trace` succeeds).
+ */
+export const SUI_REPLAY_STACK_OVERFLOW = 'SUI-REPLAY-STACK-OVERFLOW';
+
+/** The stable token the recorder starts an over-the-size-bound refusal with. */
+export const TRACE_TOO_LARGE = 'TRACE-TOO-LARGE';
+
 class ConfigRefusal extends Error {}
 class SourceRefusal extends Error {}
 const refuse = (Kind, msg) => new Kind(msg);
@@ -197,6 +206,8 @@ function readRecording(dir) {
     return { ...done, container: join(capture, cts[0]) };
   }
   if (done.outcome === 'no-trace-events') return done;
+  if (done.outcome === 'replay-crashed' && done.refusal === SUI_REPLAY_STACK_OVERFLOW) return done;
+  if (done.outcome === 'too-large' && done.refusal === TRACE_TOO_LARGE) return done;
   throw refuse(SourceRefusal, `${dir}/done.json states outcome '${done.outcome}', which is `
     + `neither 'traced' nor 'no-trace-events'; a failed recording stops the capture rather `
     + `than reaching a tree.`);
@@ -336,7 +347,17 @@ async function main(argv) {
             + `${MIN_TRACED_PROTOCOL}). \`sui replay\` re-executed it from the object versions `
             + `it names and wrote a trace holding only its version header, so there is `
             + `nothing to step. Trace hooks in that layer would trace it.`
-          : null;
+          : rec.outcome === 'replay-crashed'
+            ? `\`sui replay --trace\` aborted on this transaction: its tracer overflowed the `
+              + `main thread's stack (${rec.replayRuntime ?? 'sui 1.81.1'}), while the same replay `
+              + `without --trace succeeds. The execution is the chain's and is reachable; the `
+              + `replay runtime's tracer could not record it.`
+            : rec.outcome === 'too-large'
+              ? `\`sui replay --trace\` completed, and its trace decompresses past the `
+                + `recorder's bound (every trace event carries full snapshots of the values it `
+                + `touches), so no container was written. The execution is the chain's and is `
+                + `reachable; the recording is what is too large to make.`
+              : null;
       const base = {
         txHash: tx.digest,
         blockNumber: cp.sequenceNumber,
@@ -359,9 +380,15 @@ async function main(argv) {
                     refusalReason: 'not-attempted' });
         return;
       }
-      if (rec.outcome === 'no-trace-events') {
+      if (rec.outcome === 'too-large') {
         rows.push({ ...base, outcome: 'refused', reason: untracedReason,
-                    refusalReason: 'runtime-refused', refusal: NO_TRACE_EVENTS });
+                    refusalReason: 'no-container-written', refusal: rec.refusal });
+        return;
+      }
+      if (rec.outcome === 'no-trace-events' || rec.outcome === 'replay-crashed') {
+        rows.push({ ...base, outcome: 'refused', reason: untracedReason,
+                    refusalReason: 'runtime-refused',
+                    refusal: rec.outcome === 'no-trace-events' ? NO_TRACE_EVENTS : rec.refusal });
         return;
       }
       const { c, files, replayedEffects, containerBytes } = t;

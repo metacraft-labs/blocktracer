@@ -33,7 +33,12 @@ import {
   checkpointWithTransactions, firstEpochAtProtocol, graphql, graphqlUrlFor, latestCheckpoint,
 } from './lib/sui-graphql.mjs';
 import { MIN_TRACED_PROTOCOL } from './lib/sui-producer-facts.mjs';
-import { ACQUISITION_FORMAT, NO_TRACE_EVENTS } from './produce-sui-snapshot.mjs';
+import {
+  ACQUISITION_FORMAT, NO_TRACE_EVENTS, SUI_REPLAY_STACK_OVERFLOW, TRACE_TOO_LARGE,
+} from './produce-sui-snapshot.mjs';
+
+/** The exact signature of the tracer's stack overflow inside `sui replay --trace`. */
+const TRACER_STACK_OVERFLOW = /sui replay failed[\s\S]*has overflowed its stack/;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -189,11 +194,26 @@ async function main(argv) {
     } else if (code !== 0 && log.includes(NO_TRACE_EVENTS)) {
       done = { digest, outcome: 'no-trace-events', recorderCommit,
                message: log.split('\n').find((l) => l.includes(NO_TRACE_EVENTS)) };
+    } else if (code !== 0 && log.includes(TRACE_TOO_LARGE)) {
+      done = { digest, outcome: 'too-large', recorderCommit, refusal: TRACE_TOO_LARGE,
+               message: log.split('\n').find((l) => l.includes(TRACE_TOO_LARGE)) };
+    } else if (code !== 0 && TRACER_STACK_OVERFLOW.test(log)) {
+      // `sui replay --trace` itself aborts on some transactions: the tracer overflows the
+      // main thread's stack (a 64 MB stack does not help), while the same replay without
+      // `--trace` succeeds. That is a statement about the replay runtime, so it is an
+      // outcome; only this exact signature is, and every other failure still stops the run.
+      done = { digest, outcome: 'replay-crashed', recorderCommit,
+               refusal: SUI_REPLAY_STACK_OVERFLOW,
+               message: log.split('\n').find((l) => l.includes('overflowed its stack')) };
     } else {
       throw new Error(`recording ${digest} failed (exit ${code}, ${cts.length} container(s)); `
         + `the run stops rather than publish around it. Log tail:\n${log.slice(-1500)}`);
     }
     writeFileSync(donePath, `${JSON.stringify(done, null, 1)}\n`);
+    // The raw trace is converted (or refused) and the producer reads only the replay's
+    // effects and disassembly, so the trace — a median of ~4 MB compressed, and 4 GB for
+    // the largest seen — is removed now rather than at the end of the window.
+    rmSync(join(work, 'replay', digest, 'trace.json.zst'), { force: true });
     console.log(`${digest}: ${done.outcome}`);
   }
 

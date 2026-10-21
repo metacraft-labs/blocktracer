@@ -193,26 +193,42 @@ test('§4 the producer, end to end, over a container-free window');
       return null;
     } catch (e) { return e.message; }
   };
-  const good = write('good.json', acquisition([cp(10, 'CP9', ['d1', 'd2']), cp(11, 'CP10', ['d3'])]));
+  const good = write('good.json', acquisition([cp(10, 'CP9', ['d1', 'd2']), cp(11, 'CP10', ['d3', 'd4'])]));
 
   const refusedRec = join(dir, 'rec-d2');
   mkdirSync(refusedRec, { recursive: true });
   writeFileSync(join(refusedRec, 'done.json'), JSON.stringify({ digest: 'd2',
     outcome: 'no-trace-events', recorderCommit: commit }));
 
-  const ok = await run(good, ['--rec', refusedRec]);
+  const crashedRec = join(dir, 'rec-d3');
+  mkdirSync(crashedRec, { recursive: true });
+  writeFileSync(join(crashedRec, 'done.json'), JSON.stringify({ digest: 'd3',
+    outcome: 'replay-crashed', refusal: 'SUI-REPLAY-STACK-OVERFLOW', recorderCommit: commit }));
+
+  const bigRec = join(dir, 'rec-d1');
+  mkdirSync(bigRec, { recursive: true });
+  writeFileSync(join(bigRec, 'done.json'), JSON.stringify({ digest: 'd1',
+    outcome: 'too-large', refusal: 'TRACE-TOO-LARGE', recorderCommit: commit }));
+
+  const ok = await run(good, ['--rec', refusedRec, '--rec', crashedRec, '--rec', bigRec]);
   ck(`a whole window with one refused recording produces a tree — ${ok ?? 'no refusal'}`, ok === null);
   if (ok === null) {
     const snap = JSON.parse(readFileSync(join(dir, 'tree', 'snapshot.json'), 'utf8'));
     const by = Object.fromEntries(snap.transactions.map((t) => [t.txHash, t]));
-    ck('the denominator is the enumeration: three rows for three transactions',
-       snap.transactions.length === 3 && snap.counts.transactions === 3
-       && snap.counts.accountedFor === 3);
+    ck('the denominator is the enumeration: four rows for four transactions',
+       snap.transactions.length === 4 && snap.counts.transactions === 4
+       && snap.counts.accountedFor === 4);
     ck('the refused recording is runtime-refused with the recorder\'s class beside it',
        by.d2.outcome === 'refused' && by.d2.refusalReason === 'runtime-refused'
        && by.d2.refusal === 'NO-TRACE-EVENTS');
-    ck('CONTROL: an unattempted transaction is not-attempted, so the two are told apart',
-       by.d1.outcome === 'not-attempted' && by.d1.refusalReason === 'not-attempted');
+    ck('a replay whose tracer crashed stays in the denominator, refused with the crash named',
+       by.d3.outcome === 'refused' && by.d3.refusalReason === 'runtime-refused'
+       && by.d3.refusal === 'SUI-REPLAY-STACK-OVERFLOW');
+    ck('a trace too large to record is refused as no-container-written, the size named',
+       by.d1.outcome === 'refused' && by.d1.refusalReason === 'no-container-written'
+       && by.d1.refusal === 'TRACE-TOO-LARGE');
+    ck('CONTROL: an unattempted transaction is not-attempted, so the refusals are told apart',
+       by.d4.outcome === 'not-attempted' && by.d4.refusalReason === 'not-attempted');
     ck('checkpoints are blocks, newest first, with digests and predecessor digests',
        JSON.stringify(snap.blocks.map((b) => [b.number, b.hash, b.parentArchiveRoot]))
          === JSON.stringify([[11, 'CP11', 'CP10'], [10, 'CP10', 'CP9']]));
@@ -269,8 +285,8 @@ test('§5 the endpoint-horizon verdict');
 
 // The count is a LITERAL because `refusal-selftest.mjs` reads it out of this line and
 // cross-checks it against the Justfile header and ci.yml.
-if (asserted !== 34) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 34 — a case was added, removed or skipped.`);
+if (asserted !== 36) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 36 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);
