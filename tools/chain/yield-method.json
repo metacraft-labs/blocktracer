@@ -849,7 +849,15 @@
         "(`carried.eth-has-no-structural-exclusion`): with no exclusion the observable",
         "population is every transaction, and the method's floor of two is met without",
         "inventing a population to exclude."
-      ]
+      ],
+      "provenanceCoverage": {
+        "windowsWithRecordedReplayLedger": 5,
+        "windowsWithout": [],
+        "_note": [
+          "ALL FIVE, from the first reading (tools/chain/measurements/sui-replay-yield.json): each",
+          "window carries its replay ledger, naming codetracer-move-recorder a6e676e."
+        ]
+      }
     }
   },
 
