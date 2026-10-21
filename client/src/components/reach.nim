@@ -91,7 +91,8 @@ const
     "published here. A transaction already recorded carries its own execution " &
     "and steps from it for good; the boundary says that a transaction below it " &
     "cannot be recorded NOW, because the state a replay would have to start " &
-    "from no longer exists anywhere to be fetched."
+    "from is not reachable by the pipeline that records this chain. The " &
+    "sentence below is that pipeline's own record of what it measured."
     ## ── THE CLAUSE THAT HAD TO BE CORRECTED BEFORE IT SHIPPED ─────────────
     ##
     ## The first draft read "a transaction below that point is still published
@@ -109,6 +110,35 @@ const
     ## A capture taken while a block was still inside the window keeps working
     ## for as long as it is published, which is the whole reason this product
     ## records rather than replays on demand.
+    ##
+    ## ── THE CAUSE CLAUSE, CORRECTED 2026-10-21 BY MEASUREMENT ─────────────
+    ##
+    ## It read "because the state a replay would have to start from NO LONGER
+    ## EXISTS ANYWHERE TO BE FETCHED". That is a claim about somebody else's
+    ## infrastructure, this page is not in a position to make it, and two
+    ## chains it was being served for refute it:
+    ##
+    ##   * STARKNET. The row declares `floor` at 501,514, and the state below
+    ##     it IS fetchable from the same endpoint the pipeline uses:
+    ##     `starknet_simulateTransactions` with `RETURN_INITIAL_READS`
+    ##     returned a mined transaction's read set at its parent block at 12 of
+    ##     12 rungs from 300,000 to 13,000,000 — 165 written slots judged, not
+    ##     one of them already carrying what its own block wrote, with the same
+    ##     transaction at block N echoing all of them as the positive control
+    ##     (`tools/chain/measurements/starknet-readset-roundtrip.json`,
+    ##     Chain-Delivery DEL-6). 501,514 is where the RECORDER's executor runs
+    ##     out of versioned constants, which is a fact about our pipeline.
+    ##   * FLOW. The row declares `floor` at 137,390,146, the current access
+    ##     node's spork root. The previous spork's node serves 130,290,659
+    ##     upward (Chain-Support-Matrix.md §1.3), so the state between the two
+    ##     exists and is fetchable — from a node this pipeline does not ask.
+    ##
+    ## So the clause now says what the page can stand behind — the state is not
+    ## reachable BY THIS PIPELINE — and hands the reader to the producer's own
+    ## quoted note for what was measured. The registry row never carried a
+    ## cause: `ingest.nim` states in as many words that "why the node draws
+    ## the line there is a fact about the node", and this page had been adding
+    ## one.
 
 func floorPhrase(f: ChainHistoryFloor): string =
   ## "block 67,010 and above", or the honest alternative when the row states no

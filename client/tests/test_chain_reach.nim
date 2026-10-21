@@ -120,6 +120,31 @@ suite "the chain landing page states historical reach":
                      "generation was captured, and not below it"
     check st.note notin st.lead
 
+  test "a floor is not explained by a claim about the whole world":
+    ## THE ARM THE 2026-10-21 MEASUREMENT FORCED, and it is two-sided.
+    ##
+    ## The clause used to end "because the state a replay would have to start
+    ## from no longer exists anywhere to be fetched". Measured against
+    ## api.cartridge.gg, Starknet serves a mined transaction's read set at the
+    ## parent block at 12 of 12 rungs from 300,000 up, every one of them below
+    ## the 501,514 floor its registry row declares; and Flow's previous spork
+    ## node serves 7,099,487 blocks below the floor Flow's row declares. The
+    ## page cannot say the state exists nowhere, so it may not — in ANY state of
+    ## the declaration, which is why this arm sweeps the whole vocabulary rather
+    ## than the one row that exposed it.
+    for token in ["archive", "floor", "windowed", "version-addressed",
+                  "self-contained", "recent-only"]:
+      let st = reachStatement(parseChainProfile(rowWith(
+        reach = %token,
+        floor = (if token in ["floor", "windowed"]: %*{"height": 67010} else: nil))))
+      check "no longer exists anywhere" notin st.lead
+      check "exists anywhere" notin st.lead
+    # …and the replacement is present where a boundary is stated, so the arm
+    # cannot be satisfied by deleting the sentence.
+    let floored = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", floor = %*{"height": 67010})))
+    check "not reachable by the pipeline that records this chain" in floored.lead
+
   test "a self-contained chain is not described with a floor":
     let st = reachStatement(parseChainProfile(rowWith(reach = %"self-contained")))
     check "carries the state it reads with it" in st.lead

@@ -1,0 +1,1277 @@
+{
+ "format": "blocktracer/starknet-readset-roundtrip@1",
+ "chain": "starknet-mainnet",
+ "measuredAt": "2026-10-21T19:39:59.231Z",
+ "endpoint": "https://api.cartridge.gg/x/starknet/mainnet",
+ "specVersion": "0.10.2",
+ "chainTipAtRun": 16726595,
+ "flags": [
+  "SKIP_VALIDATE",
+  "SKIP_FEE_CHARGE",
+  "RETURN_INITIAL_READS"
+ ],
+ "bogusFlag": "THIS_FLAG_DOES_NOT_EXIST",
+ "plantedDefect": null,
+ "deviationsFromALiteralResupply": [
+  "transaction_hash dropped: not a member of BROADCASTED_INVOKE_TXN",
+  "SKIP_FEE_CHARGE added: the unmodified re-supply is refused code 41 \"Resources bounds (…) exceed balance (…)\" — see each rung's `literal` arm",
+  "nonce advanced on the ECHO arm only, to the account's own nonce at the transaction's block, because blockifier's nonce precheck runs under SKIP_VALIDATE"
+ ],
+ "rpcCalls": 158,
+ "transportRetries": 0,
+ "loadAverage": "125.87 107.97 109.58 104/5270 3523222",
+ "rungs": [
+  {
+   "rung": 300000,
+   "why": "the depth the hand-built probe answered at — less than half the ~632,813 floor Chain-Support-Matrix.md §1.3 records",
+   "blockUsed": 300000,
+   "scannedForward": 0,
+   "starknetVersion": "0.12.2",
+   "transactionsInBlock": 116,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x7738641d52dd80ae541639c514aa273c77a1010af052feb36b692554932644",
+    "type": "INVOKE",
+    "version": "0x1",
+    "sender": "0x78600ed29b313155110f50fd297f5464a8459859c37733c7b2071b7c2de484a",
+    "nonce": "0x3d"
+   },
+   "literal": {
+    "answered": true,
+    "storage": 160,
+    "nonces": 1,
+    "classHashes": 20,
+    "declaredContracts": 12,
+    "executionStatus": "executed"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 299999,
+    "storage": 146,
+    "nonces": 1,
+    "classHashes": 20,
+    "declaredContracts": 12,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x3e",
+    "inTransaction": "0x3d"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 300000,
+    "nonceAdvanced": true,
+    "storage": 40,
+    "nonces": 1,
+    "classHashes": 7,
+    "declaredContracts": 7,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 415,
+   "overlap": 12,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 12,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 9,
+    "differs": 0,
+    "notRead": 3
+   },
+   "examples": [
+    {
+     "slot": "70f8a4fcd75190661ca09a7300b7c93fab93971b67ea712c664d7948a8a54c6/34b15dd2a70f325dde3614b4d1f95ec5f38a6e06140fc69f5faa3fec6a2f416",
+     "readAtParent": "e3426ae1a9b7a",
+     "readAtTxBlock": "38c3f5",
+     "blockWrote": "38c3f5"
+    },
+    {
+     "slot": "70f8a4fcd75190661ca09a7300b7c93fab93971b67ea712c664d7948a8a54c6/110e2f729c9c2b988559994a3daccd838cf52faf88e18101373e67dd061455a",
+     "readAtParent": "1d699be55b2c2ba26",
+     "readAtTxBlock": "1d68b8a2f04e0e2a1",
+     "blockWrote": "1d68b8a2f04e0e2a1"
+    },
+    {
+     "slot": "2f8deaebb9da2cb53771b9e2c6d67265d11a4e745ebd74a726b8859c9337b9/339671696b926323c1526bc3f09d1076b9100b05eeb9f4b5f0c40b65ac59790",
+     "readAtParent": "36ef995bc9381",
+     "readAtTxBlock": null,
+     "blockWrote": "36f00e852beb6"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "70f8a4fcd75190661ca09a7300b7c93fab93971b67ea712c664d7948a8a54c6/34b15dd2a70f325dde3614b4d1f95ec5f38a6e06140fc69f5faa3fec6a2f416",
+     "getStorageAtParent": "e3426ae1a9b7a",
+     "getStorageAtTxBlock": "38c3f5",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "70f8a4fcd75190661ca09a7300b7c93fab93971b67ea712c664d7948a8a54c6/110e2f729c9c2b988559994a3daccd838cf52faf88e18101373e67dd061455a",
+     "getStorageAtParent": "1d699be55b2c2ba26",
+     "getStorageAtTxBlock": "1d68b8a2f04e0e2a1",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "2f8deaebb9da2cb53771b9e2c6d67265d11a4e745ebd74a726b8859c9337b9/339671696b926323c1526bc3f09d1076b9100b05eeb9f4b5f0c40b65ac59790",
+     "getStorageAtParent": "36ef995bc9381",
+     "getStorageAtTxBlock": "36f00e852beb6",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    }
+   ]
+  },
+  {
+   "rung": 480000,
+   "why": "Starknet 0.12.3, BELOW the recorder executor floor 501,514: the node may serve what our executor cannot run",
+   "blockUsed": 480000,
+   "scannedForward": 0,
+   "starknetVersion": "0.12.3",
+   "transactionsInBlock": 119,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x1e912713f5dd9d0d750048de51e84ea8b07d387617be222399982841a409a8c",
+    "type": "INVOKE",
+    "version": "0x1",
+    "sender": "0x51179303c2b1b3e5ee4ebc673be6a8a251c56b00f41edc388d9685db3266176",
+    "nonce": "0x14"
+   },
+   "literal": {
+    "answered": true,
+    "storage": 58,
+    "nonces": 1,
+    "classHashes": 6,
+    "declaredContracts": 9,
+    "executionStatus": "executed"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 479999,
+    "storage": 44,
+    "nonces": 1,
+    "classHashes": 6,
+    "declaredContracts": 9,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x15",
+    "inTransaction": "0x14"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 480000,
+    "nonceAdvanced": true,
+    "storage": 8,
+    "nonces": 1,
+    "classHashes": 4,
+    "declaredContracts": 6,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 505,
+   "overlap": 2,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 2,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 1,
+    "differs": 0,
+    "notRead": 1
+   },
+   "examples": [
+    {
+     "slot": "49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7/ebaea66482acc163a8e1df0fb677df850992f50edffea2cc58152a3668469f",
+     "readAtParent": "161f202ba74819",
+     "readAtTxBlock": "1523d0f996aa34",
+     "blockWrote": "1523d0f996aa34"
+    },
+    {
+     "slot": "49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7/14b36f2f827c4728ecac41e90cf996e64c4b20c345087b6be56bbe680051a1f",
+     "readAtParent": "c99157c548d525266",
+     "readAtTxBlock": null,
+     "blockWrote": "c993224b2863d8291"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7/ebaea66482acc163a8e1df0fb677df850992f50edffea2cc58152a3668469f",
+     "getStorageAtParent": "161f202ba74819",
+     "getStorageAtTxBlock": "1523d0f996aa34",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7/14b36f2f827c4728ecac41e90cf996e64c4b20c345087b6be56bbe680051a1f",
+     "getStorageAtParent": "c99157c548d525266",
+     "getStorageAtTxBlock": "c993224b2863d8291",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    }
+   ]
+  },
+  {
+   "rung": 501514,
+   "why": "the pipeline's floor exactly — 0.13.0's first block, the oldest versioned constants the executor carries",
+   "blockUsed": 501514,
+   "scannedForward": 0,
+   "starknetVersion": "0.13.0",
+   "transactionsInBlock": 131,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x42456b62585555ebac930b7ba9de5081bef3492b577f99c882a9d5d80912f12",
+    "type": "INVOKE",
+    "version": "0x1",
+    "sender": "0x60af20508fe2f336906d6eebb231fd7ea046b5687d3e01786708fde3640b6fa",
+    "nonce": "0x26"
+   },
+   "literal": {
+    "answered": true,
+    "storage": 33,
+    "nonces": 1,
+    "classHashes": 6,
+    "declaredContracts": 6,
+    "executionStatus": "executed"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 501513,
+    "storage": 29,
+    "nonces": 1,
+    "classHashes": 6,
+    "declaredContracts": 6,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x27",
+    "inTransaction": "0x26"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 501514,
+    "nonceAdvanced": true,
+    "storage": 3,
+    "nonces": 1,
+    "classHashes": 2,
+    "declaredContracts": 3,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 552,
+   "overlap": 9,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 9,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 1,
+    "differs": 0,
+    "notRead": 8
+   },
+   "examples": [
+    {
+     "slot": "5dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b/4ed55f236b424b2eeb2bc294c9359c3d917b6b20213a60c392be5a80c881e6c",
+     "readAtParent": "58ab3725416058327ba6830acbc",
+     "readAtTxBlock": null,
+     "blockWrote": "58ab38345fd3f5d553a992f38a8"
+    },
+    {
+     "slot": "5dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b/1c872221e7c3919f427e7039c18d634fa2ff516f539c5a72776d82418ffa07",
+     "readAtParent": "379e7ecb26d",
+     "readAtTxBlock": null,
+     "blockWrote": "37b3193c922"
+    },
+    {
+     "slot": "5dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b/4ed55f236b424b2eeb2bc294c9359c3d917b6b20213a60c392be5a80c881e6b",
+     "readAtParent": "b1825a0bbc1795abc0ce78307f2c5a33af",
+     "readAtTxBlock": null,
+     "blockWrote": "b18285adef72210bdd2a9becac422609c7"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "5dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b/4ed55f236b424b2eeb2bc294c9359c3d917b6b20213a60c392be5a80c881e6c",
+     "getStorageAtParent": "58ab3725416058327ba6830acbc",
+     "getStorageAtTxBlock": "58ab38345fd3f5d553a992f38a8",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    },
+    {
+     "slot": "5dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b/1c872221e7c3919f427e7039c18d634fa2ff516f539c5a72776d82418ffa07",
+     "getStorageAtParent": "379e7ecb26d",
+     "getStorageAtTxBlock": "37b3193c922",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    },
+    {
+     "slot": "5dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b/4ed55f236b424b2eeb2bc294c9359c3d917b6b20213a60c392be5a80c881e6b",
+     "getStorageAtParent": "b1825a0bbc1795abc0ce78307f2c5a33af",
+     "getStorageAtTxBlock": "b18285adef72210bdd2a9becac422609c7",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    }
+   ]
+  },
+  {
+   "rung": 620000,
+   "why": "0.13.1, still below the ~632,813 diff-series floor",
+   "blockUsed": 620000,
+   "scannedForward": 0,
+   "starknetVersion": "0.13.1",
+   "transactionsInBlock": 147,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x7153b8c8899360127bb7ffa4e0eddbadac155fd7d840ca90e5db8f5ee27b5dc",
+    "type": "INVOKE",
+    "version": "0x1",
+    "sender": "0x4cd7cb6e8e0f1b98541d095d1167e5f24f28d8e1b0699f4326319cc429b8619",
+    "nonce": "0x65"
+   },
+   "literal": {
+    "answered": true,
+    "storage": 666,
+    "nonces": 1,
+    "classHashes": 21,
+    "declaredContracts": 10,
+    "executionStatus": "executed"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 619999,
+    "storage": 660,
+    "nonces": 1,
+    "classHashes": 20,
+    "declaredContracts": 9,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x66",
+    "inTransaction": "0x65"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 620000,
+    "nonceAdvanced": true,
+    "storage": 660,
+    "nonces": 1,
+    "classHashes": 20,
+    "declaredContracts": 9,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 1038,
+   "overlap": 46,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 46,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 46,
+    "differs": 0,
+    "notRead": 0
+   },
+   "examples": [
+    {
+     "slot": "2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b/22e21dbc1c3a6968d0bac8ea39fdf87f2ab6f8dc0d095e5c9b2a6a7cf4d9a84",
+     "readAtParent": "61e35b77100000000000000000000000000065f60411",
+     "readAtTxBlock": "6227d3ffc00000000000000000000000000065f6046c",
+     "blockWrote": "6227d3ffc00000000000000000000000000065f6046c"
+    },
+    {
+     "slot": "2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b/7fb1abb517ddb78b1ed112b07654e63d8a39333fdadf7930030ae938781ae47",
+     "readAtParent": "f482200000000000013afcaa05b9ac65f60413",
+     "readAtTxBlock": "f482200000000000013b50fcbe996565f6046d",
+     "blockWrote": "f482200000000000013b50fcbe996565f6046d"
+    },
+    {
+     "slot": "2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b/3006bc4c9e35cde6cb6979e3f9b6a7cb6efc3fe31f757055e2e9e340f706c85",
+     "readAtParent": "c46b340000000000000000000000000065f60412",
+     "readAtTxBlock": "c58dbb0000000000000000000000000065f6046a",
+     "blockWrote": "c58dbb0000000000000000000000000065f6046a"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b/22e21dbc1c3a6968d0bac8ea39fdf87f2ab6f8dc0d095e5c9b2a6a7cf4d9a84",
+     "getStorageAtParent": "61e35b77100000000000000000000000000065f60411",
+     "getStorageAtTxBlock": "6227d3ffc00000000000000000000000000065f6046c",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b/7fb1abb517ddb78b1ed112b07654e63d8a39333fdadf7930030ae938781ae47",
+     "getStorageAtParent": "f482200000000000013afcaa05b9ac65f60413",
+     "getStorageAtTxBlock": "f482200000000000013b50fcbe996565f6046d",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b/3006bc4c9e35cde6cb6979e3f9b6a7cb6efc3fe31f757055e2e9e340f706c85",
+     "getStorageAtParent": "c46b340000000000000000000000000065f60412",
+     "getStorageAtTxBlock": "c58dbb0000000000000000000000000065f6046a",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    }
+   ]
+  },
+  {
+   "rung": 632813,
+   "why": "§1.3's recorded floor itself",
+   "blockUsed": 632813,
+   "scannedForward": 0,
+   "starknetVersion": "0.13.1",
+   "transactionsInBlock": 174,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x691b605839a79585985c9c3e29f67916cb7a5de1aba7548a0be1e332b3e3a9c",
+    "type": "INVOKE",
+    "version": "0x1",
+    "sender": "0x62cadedac13819f807a6087f417b493ebc5204eebcc63885d0839a7b7b9b611",
+    "nonce": "0x12a"
+   },
+   "literal": {
+    "answered": true,
+    "storage": 46,
+    "nonces": 1,
+    "classHashes": 6,
+    "declaredContracts": 6,
+    "executionStatus": "executed"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 632812,
+    "storage": 42,
+    "nonces": 1,
+    "classHashes": 6,
+    "declaredContracts": 6,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x12b",
+    "inTransaction": "0x12a"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 632813,
+    "nonceAdvanced": true,
+    "storage": 2,
+    "nonces": 1,
+    "classHashes": 2,
+    "declaredContracts": 2,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 972,
+   "overlap": 18,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 18,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 1,
+    "differs": 0,
+    "notRead": 17
+   },
+   "examples": [
+    {
+     "slot": "4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d/43e1ef374bc5f9e49c6c9764a9aac6e36bc8e3df0ca3bffb3cde5a0990ca369",
+     "readAtParent": "b283175c73fa94187d288",
+     "readAtTxBlock": null,
+     "blockWrote": "b2498d2e57885bc158602"
+    },
+    {
+     "slot": "4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d/1c38b01e15352f89868e8bc8507bb87b5c1e03b3b345a9f72c041e9d4076031",
+     "readAtParent": "20428d290551dc9bc0",
+     "readAtTxBlock": "0",
+     "blockWrote": "0"
+    },
+    {
+     "slot": "7b696af58c967c1b14c9dde0ace001720635a660a8e90c565ea459345318b30/2a9f6940e96680af2fe721eb59341cde71d9b7ae61dc834d205d6c59360268e",
+     "readAtParent": "8a6ed",
+     "readAtTxBlock": null,
+     "blockWrote": "8a6ef"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d/43e1ef374bc5f9e49c6c9764a9aac6e36bc8e3df0ca3bffb3cde5a0990ca369",
+     "getStorageAtParent": "b283175c73fa94187d288",
+     "getStorageAtTxBlock": "b2498d2e57885bc158602",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    },
+    {
+     "slot": "4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d/1c38b01e15352f89868e8bc8507bb87b5c1e03b3b345a9f72c041e9d4076031",
+     "getStorageAtParent": "20428d290551dc9bc0",
+     "getStorageAtTxBlock": "0",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "7b696af58c967c1b14c9dde0ace001720635a660a8e90c565ea459345318b30/2a9f6940e96680af2fe721eb59341cde71d9b7ae61dc834d205d6c59360268e",
+     "getStorageAtParent": "8a6ed",
+     "getStorageAtTxBlock": "8a6ef",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    }
+   ]
+  },
+  {
+   "rung": 800000,
+   "why": "0.13.2.1",
+   "blockUsed": 800000,
+   "scannedForward": 0,
+   "starknetVersion": "0.13.2.1",
+   "transactionsInBlock": 14,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x44400b45a0d6aa7b74c466a6f39bdb5f6b542e1adf608bb8ea6700d1ffae9f3",
+    "type": "INVOKE",
+    "version": "0x3",
+    "sender": "0xbd15f2ccc720ec710b6065a8c48bab4ccdcff1887d819ee587d998e40cafcd",
+    "nonce": "0xeb"
+   },
+   "literal": {
+    "answered": false,
+    "refusal": "{\"code\":41,\"data\":{\"execution_error\":\"Resource bounds were not satisfied: Max L1DataGas amount (0) is lower than the minimal gas amount: 128.\\nMax L1DataGas price (0) is lower than the actual gas price: 5720.\\nMax L2Gas amount (0) is lower than the minimal gas amount: 480000.\\nMax L2Gas price (0) is"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 799999,
+    "storage": 27,
+    "nonces": 1,
+    "classHashes": 4,
+    "declaredContracts": 4,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0xec",
+    "inTransaction": "0xeb"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 800000,
+    "nonceAdvanced": true,
+    "storage": 26,
+    "nonces": 1,
+    "classHashes": 4,
+    "declaredContracts": 4,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 158,
+   "overlap": 6,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 6,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 6,
+    "differs": 0,
+    "notRead": 0
+   },
+   "examples": [
+    {
+     "slot": "4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d/43e1ef374bc5f9e49c6c9764a9aac6e36bc8e3df0ca3bffb3cde5a0990ca369",
+     "readAtParent": "61794f9c2e3a80914aa71",
+     "readAtTxBlock": "61794f93553725ec00dde",
+     "blockWrote": "61794f93553725ec00dde"
+    },
+    {
+     "slot": "4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d/49154bbde4244cfdcccabc19c0dbee71d675be89743ce3591aba489e29b4d8a",
+     "readAtParent": "10423b38191aed099",
+     "readAtTxBlock": "1047f8df3c8c7e2d3",
+     "blockWrote": "1047f8df3c8c7e2d3"
+    },
+    {
+     "slot": "5dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b/28f25fc4169e4957bc81e60f346ca1b483ea6508a38fa5d6ccbb80fa6e41be0",
+     "readAtParent": "78d2732437b3f1a12b81d2293a7d8a",
+     "readAtTxBlock": "78e40b8c9b5af482daf6aaa9518051",
+     "blockWrote": "78e40b8c9b5af482daf6aaa9518051"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d/43e1ef374bc5f9e49c6c9764a9aac6e36bc8e3df0ca3bffb3cde5a0990ca369",
+     "getStorageAtParent": "61794f9c2e3a80914aa71",
+     "getStorageAtTxBlock": "61794f93553725ec00dde",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d/49154bbde4244cfdcccabc19c0dbee71d675be89743ce3591aba489e29b4d8a",
+     "getStorageAtParent": "10423b38191aed099",
+     "getStorageAtTxBlock": "1047f8df3c8c7e2d3",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "5dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b/28f25fc4169e4957bc81e60f346ca1b483ea6508a38fa5d6ccbb80fa6e41be0",
+     "getStorageAtParent": "78d2732437b3f1a12b81d2293a7d8a",
+     "getStorageAtTxBlock": "78e40b8c9b5af482daf6aaa9518051",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    }
+   ]
+  },
+  {
+   "rung": 1400000,
+   "why": "0.13.5, after 0.13.4's Sierra gas",
+   "blockUsed": 1400000,
+   "scannedForward": 0,
+   "starknetVersion": "0.13.5",
+   "transactionsInBlock": 72,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x38e2238af2881e48e41ead1407a48c5ff9df594f822f8e874b9f7b190b0ea16",
+    "type": "INVOKE",
+    "version": "0x3",
+    "sender": "0x6fc6e24e736b94086e2d33a8dc6656407188b618d69b4356e5e2c8f182bc89b",
+    "nonce": "0x51283"
+   },
+   "literal": {
+    "answered": false,
+    "refusal": "{\"code\":41,\"data\":{\"execution_error\":\"Resource bounds were not satisfied: Max L1DataGas amount (0) is lower than the minimal gas amount: 128.\\nMax L1DataGas price (0) is lower than the actual gas price: 1868.\\nMax L2Gas amount (0) is lower than the minimal gas amount: 560000.\\nMax L2Gas price (0) is"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 1399999,
+    "storage": 17,
+    "nonces": 1,
+    "classHashes": 3,
+    "declaredContracts": 3,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x51284",
+    "inTransaction": "0x51283"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 1400000,
+    "nonceAdvanced": true,
+    "storage": 2,
+    "nonces": 1,
+    "classHashes": 2,
+    "declaredContracts": 2,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 465,
+   "overlap": 2,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 2,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 1,
+    "differs": 0,
+    "notRead": 1
+   },
+   "examples": [
+    {
+     "slot": "419d649f349f191ded9ae98f63627082d2d3bb6888af8fb7cd387ff54a054fc/5e5b61bc2d9e49d9a3b12cc941f7f3ac2917e63d7168e700a6f3d56d79a0195",
+     "readAtParent": "7fff",
+     "readAtTxBlock": "1fffff",
+     "blockWrote": "1fffff"
+    },
+    {
+     "slot": "2458a105b42db469fb1f8b35ab3ce126dab5a0881ad3c2bbf36bec0a34168c5/1746a70b2d02ca130c58e158a5a04c980bcd30fdfc0d2daa906b0d0313c8c38",
+     "readAtParent": "682445c1",
+     "readAtTxBlock": null,
+     "blockWrote": "682445e3"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "419d649f349f191ded9ae98f63627082d2d3bb6888af8fb7cd387ff54a054fc/5e5b61bc2d9e49d9a3b12cc941f7f3ac2917e63d7168e700a6f3d56d79a0195",
+     "getStorageAtParent": "7fff",
+     "getStorageAtTxBlock": "1fffff",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "2458a105b42db469fb1f8b35ab3ce126dab5a0881ad3c2bbf36bec0a34168c5/1746a70b2d02ca130c58e158a5a04c980bcd30fdfc0d2daa906b0d0313c8c38",
+     "getStorageAtParent": "682445c1",
+     "getStorageAtTxBlock": "682445e3",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    }
+   ]
+  },
+  {
+   "rung": 1943704,
+   "why": "the documented ~9,000-block hole's LOWER edge (Chain-Data-Ingestion.md §4)",
+   "blockUsed": 1943704,
+   "scannedForward": 0,
+   "starknetVersion": "0.13.6",
+   "transactionsInBlock": 14,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x726007901baf0a0586fe75b7ade9597e0d35e454acf2f73f1346aea3f682c7",
+    "type": "INVOKE",
+    "version": "0x3",
+    "sender": "0x48ddc53f41523d2a6b40c3dff7f69f4bbac799cd8b2e3fc50d3de1d4119441f",
+    "nonce": "0x58ca0"
+   },
+   "literal": {
+    "answered": true,
+    "storage": 1878,
+    "nonces": 1,
+    "classHashes": 3,
+    "declaredContracts": 3,
+    "executionStatus": "executed"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 1943703,
+    "storage": 1873,
+    "nonces": 1,
+    "classHashes": 2,
+    "declaredContracts": 2,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x58ca1",
+    "inTransaction": "0x58ca0"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 1943704,
+    "nonceAdvanced": true,
+    "storage": 3,
+    "nonces": 1,
+    "classHashes": 2,
+    "declaredContracts": 2,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 117,
+   "overlap": 33,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 33,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 1,
+    "differs": 0,
+    "notRead": 32
+   },
+   "examples": [
+    {
+     "slot": "62da0780fae50d68cecaa5a051606dc21217ba290969b302db4dd99d2e9b470/12385abed71b1ddce3b5e627a021e227be082781a75fb358779050a7eccaed5",
+     "readAtParent": "7530",
+     "readAtTxBlock": null,
+     "blockWrote": "7242"
+    },
+    {
+     "slot": "62da0780fae50d68cecaa5a051606dc21217ba290969b302db4dd99d2e9b470/4b8c78b42f90adacb0b115007e7e9b5430b0c881b349f46f75e470623d6c8a3",
+     "readAtParent": "1fa68932e9",
+     "readAtTxBlock": null,
+     "blockWrote": "1f87dddf0d"
+    },
+    {
+     "slot": "62da0780fae50d68cecaa5a051606dc21217ba290969b302db4dd99d2e9b470/1df0e9c93ae9486ef8c19a1e17584bb7986dddbc0aa6195c8f28319516e74fc",
+     "readAtParent": "eba",
+     "readAtTxBlock": null,
+     "blockWrote": "128e"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "62da0780fae50d68cecaa5a051606dc21217ba290969b302db4dd99d2e9b470/12385abed71b1ddce3b5e627a021e227be082781a75fb358779050a7eccaed5",
+     "getStorageAtParent": "7530",
+     "getStorageAtTxBlock": "7242",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    },
+    {
+     "slot": "62da0780fae50d68cecaa5a051606dc21217ba290969b302db4dd99d2e9b470/4b8c78b42f90adacb0b115007e7e9b5430b0c881b349f46f75e470623d6c8a3",
+     "getStorageAtParent": "1fa68932e9",
+     "getStorageAtTxBlock": "1f87dddf0d",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    },
+    {
+     "slot": "62da0780fae50d68cecaa5a051606dc21217ba290969b302db4dd99d2e9b470/1df0e9c93ae9486ef8c19a1e17584bb7986dddbc0aa6195c8f28319516e74fc",
+     "getStorageAtParent": "eba",
+     "getStorageAtTxBlock": "128e",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    }
+   ]
+  },
+  {
+   "rung": 1948000,
+   "why": "inside the documented hole",
+   "blockUsed": 1948000,
+   "scannedForward": 0,
+   "starknetVersion": "0.14.0",
+   "transactionsInBlock": 20,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x472a06aed14cc635cc3e14ea6c8096cbd27122b44b661403d59c40113dc647a",
+    "type": "INVOKE",
+    "version": "0x3",
+    "sender": "0x5422dc1b6c314e0ea033005c2fec33c73fd9d6c8ed766e0deed1067491d2a67",
+    "nonce": "0x5e393"
+   },
+   "literal": {
+    "answered": true,
+    "storage": 84,
+    "nonces": 1,
+    "classHashes": 5,
+    "declaredContracts": 5,
+    "executionStatus": "executed"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 1947999,
+    "storage": 79,
+    "nonces": 1,
+    "classHashes": 4,
+    "declaredContracts": 4,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x5e394",
+    "inTransaction": "0x5e393"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 1948000,
+    "nonceAdvanced": true,
+    "storage": 2,
+    "nonces": 1,
+    "classHashes": 2,
+    "declaredContracts": 2,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 169,
+   "overlap": 8,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 8,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 1,
+    "differs": 0,
+    "notRead": 7
+   },
+   "examples": [
+    {
+     "slot": "683801422cf639e59159711d41724464b6e63099554d64cac432a81c0dbc3c2/74e0427484497fcbec519c658640e415c430c1a9cf6c571edae5d288da8b6d5",
+     "readAtParent": "1fffffe4ffffe",
+     "readAtTxBlock": "3fffffe4ffffe",
+     "blockWrote": "3fffffe4ffffe"
+    },
+    {
+     "slot": "2d26295d6c541d64740e1ae56abc079b82b22c35ab83985ef8bd15dc0f9edfb/d038b4e7aeebc36aefc20a4f20e3a7b0377363984739c1e1a4b8e9bb1372cb",
+     "readAtParent": "0",
+     "readAtTxBlock": null,
+     "blockWrote": "1"
+    },
+    {
+     "slot": "2d26295d6c541d64740e1ae56abc079b82b22c35ab83985ef8bd15dc0f9edfb/640b87abd965b755c2ea411407ba4ad3db7d0b7e62799ed65761e85cd4186ef",
+     "readAtParent": "1",
+     "readAtTxBlock": null,
+     "blockWrote": "2"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "683801422cf639e59159711d41724464b6e63099554d64cac432a81c0dbc3c2/74e0427484497fcbec519c658640e415c430c1a9cf6c571edae5d288da8b6d5",
+     "getStorageAtParent": "1fffffe4ffffe",
+     "getStorageAtTxBlock": "3fffffe4ffffe",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "2d26295d6c541d64740e1ae56abc079b82b22c35ab83985ef8bd15dc0f9edfb/d038b4e7aeebc36aefc20a4f20e3a7b0377363984739c1e1a4b8e9bb1372cb",
+     "getStorageAtParent": "0",
+     "getStorageAtTxBlock": "1",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    },
+    {
+     "slot": "2d26295d6c541d64740e1ae56abc079b82b22c35ab83985ef8bd15dc0f9edfb/640b87abd965b755c2ea411407ba4ad3db7d0b7e62799ed65761e85cd4186ef",
+     "getStorageAtParent": "1",
+     "getStorageAtTxBlock": "2",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    }
+   ]
+  },
+  {
+   "rung": 1952704,
+   "why": "the documented hole's UPPER edge",
+   "blockUsed": 1952704,
+   "scannedForward": 0,
+   "starknetVersion": "0.14.0",
+   "transactionsInBlock": 32,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x10deb40a23dc646ea63f922797fc262874f86312e1e0b75a3877f7540695139",
+    "type": "INVOKE",
+    "version": "0x3",
+    "sender": "0x395a96a5b6343fc0f543692fd36e7034b54c2a276cd1a021e8c0b02aee1f43",
+    "nonce": "0xec6"
+   },
+   "literal": {
+    "answered": false,
+    "refusal": "{\"code\":41,\"data\":{\"execution_error\":\"Resources bounds ({ l1_gas: { max_amount: 70000, max_price_per_unit: 2488849860263936 }, l2_gas: { max_amount: 3035406920, max_price_per_unit: 50000000000 }, l1_data_gas: { max_amount: 10000, max_price_per_unit: 2488849860263936 } }) exceed balance (350878334840"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 1952703,
+    "storage": 0,
+    "nonces": 1,
+    "classHashes": 3,
+    "declaredContracts": 2,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0xec7",
+    "inTransaction": "0xec6"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 1952704,
+    "nonceAdvanced": true,
+    "storage": 0,
+    "nonces": 1,
+    "classHashes": 3,
+    "declaredContracts": 2,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 211,
+   "overlap": 0,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 0,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 0,
+    "differs": 0,
+    "notRead": 0
+   },
+   "examples": [],
+   "crossCheck": []
+  },
+  {
+   "rung": 3000000,
+   "why": "0.14.0",
+   "blockUsed": 3000000,
+   "scannedForward": 0,
+   "starknetVersion": "0.14.0",
+   "transactionsInBlock": 24,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x4145af12d8927d35a86d8b61deebbdefcd064c920426e4da470a6e29c39a6f9",
+    "type": "INVOKE",
+    "version": "0x3",
+    "sender": "0x6bec890ba9f92e3941d0f3d1290e6a06df147131f33b1b12b5d968ea36598b2",
+    "nonce": "0x1dee9"
+   },
+   "literal": {
+    "answered": true,
+    "storage": 161,
+    "nonces": 1,
+    "classHashes": 15,
+    "declaredContracts": 12,
+    "executionStatus": "executed"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 2999999,
+    "storage": 156,
+    "nonces": 1,
+    "classHashes": 14,
+    "declaredContracts": 11,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x1deea",
+    "inTransaction": "0x1dee9"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 3000000,
+    "nonceAdvanced": true,
+    "storage": 5,
+    "nonces": 1,
+    "classHashes": 3,
+    "declaredContracts": 3,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 145,
+   "overlap": 2,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 2,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 1,
+    "differs": 0,
+    "notRead": 1
+   },
+   "examples": [
+    {
+     "slot": "2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a/1444acc0e3a17f7a884587703e79061186d56d56c451896bd7f60d1882b365d",
+     "readAtParent": "ac0000000000010f15250524f10e6924cd2424a119121000000026895",
+     "readAtTxBlock": null,
+     "blockWrote": "b00000000000010f15250524f10e6924cd2424a11912100000e026c95"
+    },
+    {
+     "slot": "7a47acbd6c8a1bbc818da8a4794d77e206cc5711c81003f8530a38211751458/679e0dac07f6044cb6e3638f09a1172550d2de9f98fd46fa3383897098ea9d0",
+     "readAtParent": "fffffffffffff",
+     "readAtTxBlock": "1fffffffffffff",
+     "blockWrote": "1fffffffffffff"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a/1444acc0e3a17f7a884587703e79061186d56d56c451896bd7f60d1882b365d",
+     "getStorageAtParent": "ac0000000000010f15250524f10e6924cd2424a119121000000026895",
+     "getStorageAtTxBlock": "b00000000000010f15250524f10e6924cd2424a11912100000e026c95",
+     "parentAgrees": true,
+     "txBlockAgrees": null
+    },
+    {
+     "slot": "7a47acbd6c8a1bbc818da8a4794d77e206cc5711c81003f8530a38211751458/679e0dac07f6044cb6e3638f09a1172550d2de9f98fd46fa3383897098ea9d0",
+     "getStorageAtParent": "fffffffffffff",
+     "getStorageAtTxBlock": "1fffffffffffff",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    }
+   ]
+  },
+  {
+   "rung": 13000000,
+   "why": "0.14.3, the era the recorder was built against — and a pinned yield window",
+   "blockUsed": 13000000,
+   "scannedForward": 0,
+   "starknetVersion": "0.14.3",
+   "transactionsInBlock": 1,
+   "transactionIndexInBlock": 0,
+   "tx": {
+    "hash": "0x76b2fbf6f0e17869d468087da9c2f2bb7b4e2c0ff381a3b880b97383446669e",
+    "type": "INVOKE",
+    "version": "0x3",
+    "sender": "0x4678eb497e96599c92b45f342c2bd284321fe219c60a9b6293d80f0fbfa61b5",
+    "nonce": "0x876e32"
+   },
+   "literal": {
+    "answered": false,
+    "refusal": "{\"code\":41,\"data\":{\"execution_error\":\"Resources bounds ({ l1_gas: { max_amount: 0, max_price_per_unit: 1000000000000000 }, l2_gas: { max_amount: 1307379512228, max_price_per_unit: 100000000000 }, l1_data_gas: { max_amount: 5000, max_price_per_unit: 10000000000000 } }) exceed balance (130738001222834"
+   },
+   "flagControl": {
+    "refused": true,
+    "error": {
+     "code": -32602,
+     "data": {
+      "reason": "Invalid simulation flag"
+     },
+     "message": "Invalid params"
+    }
+   },
+   "roundTrip": {
+    "answered": true,
+    "atBlock": 12999999,
+    "storage": 58,
+    "nonces": 1,
+    "classHashes": 4,
+    "declaredContracts": 3,
+    "executionStatus": "executed"
+   },
+   "accountNonce": {
+    "atTxBlock": "0x876e33",
+    "inTransaction": "0x876e32"
+   },
+   "echo": {
+    "answered": true,
+    "atBlock": 13000000,
+    "nonceAdvanced": true,
+    "storage": 58,
+    "nonces": 1,
+    "classHashes": 4,
+    "declaredContracts": 3,
+    "executionStatus": "executed"
+   },
+   "blockWroteSlots": 30,
+   "overlap": 27,
+   "prestate": {
+    "differsFromWhatTheBlockWrote": 27,
+    "equalsWhatTheBlockWrote": 0
+   },
+   "echoReading": {
+    "equalsWhatTheBlockWrote": 27,
+    "differs": 0,
+    "notRead": 0
+   },
+   "examples": [
+    {
+     "slot": "20d2431ba27021073cae53dab6d818b9e15f79e13639fd4f040f5b41a617fb6/560052996555ebc6e38b8ed3e5cd8f5841aba3de0a1658e9404c60a2203cc0d",
+     "readAtParent": "5980a204784adf000000000000000000596d70ecd5c31c",
+     "readAtTxBlock": "598057705c8364000000000000000000596cf1df8300ff",
+     "blockWrote": "598057705c8364000000000000000000596cf1df8300ff"
+    },
+    {
+     "slot": "20d2431ba27021073cae53dab6d818b9e15f79e13639fd4f040f5b41a617fb6/4567b7c40d4d575a96167bef7695944cf0bd592fdae71dca32a0acadc8dac2c",
+     "readAtParent": "599e4c88455653000000000000000000598f522727cd48",
+     "readAtTxBlock": "599bffcfce5b69000000000000000000598f0789aa383c",
+     "blockWrote": "599bffcfce5b69000000000000000000598f0789aa383c"
+    },
+    {
+     "slot": "20d2431ba27021073cae53dab6d818b9e15f79e13639fd4f040f5b41a617fb6/22a007903f84e82be4302755a0c99542dfacaf119362af9177634d800ee7054",
+     "readAtParent": "5000000006a77df850000000000000000005989dc2dcad659",
+     "readAtTxBlock": "5000000006a77df8800000000000000000059899194d9f3cf",
+     "blockWrote": "5000000006a77df8800000000000000000059899194d9f3cf"
+    }
+   ],
+   "crossCheck": [
+    {
+     "slot": "20d2431ba27021073cae53dab6d818b9e15f79e13639fd4f040f5b41a617fb6/560052996555ebc6e38b8ed3e5cd8f5841aba3de0a1658e9404c60a2203cc0d",
+     "getStorageAtParent": "5980a204784adf000000000000000000596d70ecd5c31c",
+     "getStorageAtTxBlock": "598057705c8364000000000000000000596cf1df8300ff",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "20d2431ba27021073cae53dab6d818b9e15f79e13639fd4f040f5b41a617fb6/4567b7c40d4d575a96167bef7695944cf0bd592fdae71dca32a0acadc8dac2c",
+     "getStorageAtParent": "599e4c88455653000000000000000000598f522727cd48",
+     "getStorageAtTxBlock": "599bffcfce5b69000000000000000000598f0789aa383c",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    },
+    {
+     "slot": "20d2431ba27021073cae53dab6d818b9e15f79e13639fd4f040f5b41a617fb6/22a007903f84e82be4302755a0c99542dfacaf119362af9177634d800ee7054",
+     "getStorageAtParent": "5000000006a77df850000000000000000005989dc2dcad659",
+     "getStorageAtTxBlock": "5000000006a77df8800000000000000000059899194d9f3cf",
+     "parentAgrees": true,
+     "txBlockAgrees": true
+    }
+   ]
+  }
+ ],
+ "verdicts": {
+  "rungsOnLadder": 12,
+  "rungsAnswering": 12,
+  "rungsTestableForPrestate": 11,
+  "slotsJudged": 165,
+  "notTestable": [
+   {
+    "rung": 1952704,
+    "overlap": 0,
+    "storageRead": 0,
+    "executionStatus": "executed"
+   }
+  ],
+  "failures": [],
+  "held": true
+ }
+}
