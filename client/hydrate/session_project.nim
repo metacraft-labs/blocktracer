@@ -900,6 +900,11 @@ proc projectEventLog*(vm: EventLogVM; contentHash = ""): EventLogPane =
   ## the viewport this page measured (`ReplayDataStore.eventLog.rows`, one
   ## window and not the whole log), so no slicing happens here.
   for row in vm.eventRows.val:
+    # An event the producer gave no position (a rung row) is not a place to
+    # go, and this pane's rows are navigation rows: it is left out, as it
+    # always was here. The SDK keeps the fact (`EventLogRow.noPosition`).
+    if row.noPosition:
+      continue
     result.rows.add EventRow(
       kind: kindOf(row),
       step: int(row.rrTicks),

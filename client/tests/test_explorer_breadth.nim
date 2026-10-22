@@ -40,6 +40,7 @@ import ../src/ssr
 import ../src/reader
 import ../src/viewutil
 import ../src/components/degraded
+import ../src/components/layout
 import ../src/components/tables as viewTables
 # The shard rule, from the one module that holds it — a test that recomputed the
 # published layout by hand would be the second derivation this suite is about.
@@ -625,11 +626,22 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
 
   test "the 404 body is §14's row and is the same bytes as 404.html":
     let root = newDataRoot(dist)
+    # The exporter writes the stylesheet once, as `/_a/<hash>.css`, and every
+    # page it writes LINKS it (`static_export.nim`, `useExternalCss`); a
+    # dispatcher left in its default mode inlines the same rules as a
+    # `<style>`. So the comparison renders in the exporter's mode, naming the
+    # asset the file names, and restores the default afterwards.
+    let exported = readFile(dist / "404.html")
+    let hrefAt = exported.find("href=\"/_a/")
+    check hrefAt >= 0
+    let hrefStart = hrefAt + "href=\"".len
+    useExternalCss(exported[hrefStart ..< exported.find('"', hrefStart)])
     let (status, body, _) = renderRoute(root, "/no/such/thing/at/all")
+    useExternalCss("")
     check status == 404
     check "data-degradation=\"cdObjectNotFound\"" in body
     check Chain in body                      # the chains that were checked
-    check readFile(dist / "404.html") == body
+    check exported == body
 
 
 # ──────────────────────────────────────────────────────────────────────────

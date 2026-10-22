@@ -1294,25 +1294,17 @@ const RungContent = "rung 3: instruction level"
 
 suite "M8c — the event log, decoded by the SDK":
 
-  test "THE OTHER ROUTE: EventLogVM's own ct/event-load reply reaches the same pane":
-    ## THE INTERACTION THE PIN BUMP OPENS, pinned down rather than assumed.
+  test "an event with no position never becomes a row, on the SDK's own route":
+    ## The rung row — an event the producer recorded with no position
+    ## (`directLocationRRTicks: -1`) — used to be dropped by this
+    ## repository's own event decoder before it reached the pane. The decoder
+    ## is the SDK's now (`EventLogVM`'s own `ct/event-load`), which keeps the
+    ## fact as `EventLogRow.noPosition`; `projectEventLog` leaves such rows
+    ## out, because every row of this pane is a navigation row and a tick-0
+    ## stand-in would send the visitor to the start of the trace.
     ##
-    ## Since HSF-B1 this is the ONLY producer: `EventLogVM`'s own auto-load
-    ## effect sends `ct/event-load` and routes the REPLY through
-    ## `ReplayDataStore.applyEventLogResponse`, which decodes and writes the
-    ## same `store.eventLog.rows` — and `positionedEvents` does not sit in
-    ## front of it. If the engine answers that request with rows, a payload
-    ## this repository never inspected reaches the pane.
-    ##
-    ## Two things are asserted and they are different claims:
-    ##   * the reply route is LIVE (the request is sent and its rows land), so
-    ##     the arm below is not vacuous; and
-    ##   * the rung row arrives UNFILTERED on it, which is the finding.
-    ##
-    ## Left as a RECORD rather than fixed here: the fix is not local. The bulk
-    ## applier is the store's and the effect is the VM's, so a consumer cannot
-    ## interpose without either a row predicate on the store or a way to own
-    ## the request. Both are shared-surface decisions.
+    ## Two claims, both asserted: the route is LIVE (the positioned row is on
+    ## screen, so the second claim is not vacuous), and the rung row is NOT.
     createRoot proc(dispose: proc()) =
       let mock = newMockBackendService(autoRespond = true)
       # The engine's answer to the request the VM issues for itself. Enqueued
@@ -1344,10 +1336,12 @@ suite "M8c — the event log, decoded by the SDK":
         if r.detail == "constraint not satisfied": inc positioned
       check positioned == 1
 
-      # AND THE FINDING. Stated as the value it is, so that a later change
-      # which closes the hole turns this into a red line naming the fact that
-      # changed rather than into silence.
-      check rung == 1
+      # The rung row is decoded (the SDK keeps it, marked) and not shown.
+      check rung == 0
+      var marked = 0
+      for row in s.store.eventLog.rows.val:
+        if row.noPosition: inc marked
+      check marked == 1
 
       s.close()
       dispose()

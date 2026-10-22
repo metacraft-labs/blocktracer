@@ -23,6 +23,7 @@
 import std/[unittest, os, json, strutils, tables, sets, sequtils]
 
 import ../src/ssr
+import ./hydration_keys
 import ../src/reader
 import ../src/viewutil
 import ../src/debugger/vendor/frontend/headless_app/layout_model
@@ -209,12 +210,12 @@ requireDegraded()
 proc debugHtmlIn(r: DataRoot, hash: string): string =
   let (status, body, _) = renderRoute(r, "/" & Chain & "/tx/" & hash & "/debug")
   doAssert status == 200, "debug route did not serve " & hash & ": " & $status
-  body
+  withoutHydrationKeys(body)
 
 proc txHtmlIn(r: DataRoot, hash: string): string =
   let (status, body, _) = renderRoute(r, "/" & Chain & "/tx/" & hash)
   doAssert status == 200, "tx route did not serve " & hash & ": " & $status
-  body
+  withoutHydrationKeys(body)
 
 proc debugHtml(hash: string): string = debugHtmlIn(root, hash)
 proc txHtml(hash: string): string = txHtmlIn(root, hash)
@@ -2213,7 +2214,10 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     check rail.iterations.len == 8
     for i in 0 ..< rail.iterations.len:
       check ("id=\"fit-" & $i & "\"") in served
-    let body = "id=\"pane-editor\">"
+    # The pane body is the `.component-container` the pane opens with (the
+    # panel surface CodeTracer's stylesheet draws); the anchors are its
+    # children, beside the listing.
+    let body = "id=\"pane-editor\"><div class=\"component-container\">"
     let paneAt = served.find("class=\"lm_content btdefault p-source\"")
     check paneAt >= 0
     let bodyAt = served.find(body, paneAt)
@@ -3158,7 +3162,7 @@ suite "M8b — availability decides the landing, not a preference":
     let (status, asked, _) = renderRoute(root,
       "/" & Chain & "/tx/" & onDemandTx & "/debug")
     check status == 200
-    check asked == plain
+    check withoutHydrationKeys(asked) == plain
     check "Generate trace" in plain
     check "class=\"dc\"" notin plain          # no stepping toolbar
 

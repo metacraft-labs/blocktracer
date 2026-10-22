@@ -154,7 +154,15 @@ suite "Block-list view renders real data":
 suite "Block-detail view renders real data":
   let html = readFile(dist / Chain / "block" / headHash / "index.html")
   test "it is the CLIENT render, not the generator's minimal entry page":
-    check "var(--bt-action-bg)" in html       # inlined design-system token layer
+    # The design-system token layer, wherever the page delivers it: inlined,
+    # or (since the stylesheet was externalised) the `/_a/<hash>.css` the
+    # page links. See "The foundations reached the SHIPPED page" below.
+    var linked: array[1, string]
+    let sheet =
+      if html.find(re("<link[^>]+href=\"(/_a/[^\"]+\\.css)\""), linked) >= 0:
+        readFile(dist / linked[0].strip(chars = {'/'}))
+      else: html
+    check "var(--bt-action-bg)" in sheet
     check "class=\"crumbs\"" in html           # explorer chrome
   test "the real parent hash and every real tx hash appear":
     check headHash in html
@@ -391,7 +399,10 @@ suite "The home page claims only what the product can do":
     if subject.find(re(pattern, {reIgnoreCase, reDotAll}), m) >= 0: m[0] else: ""
 
   let heroLead = extract(r"<p class=""lead sub"">(.*?)</p>", homeHtml)
-  let metaDesc = extract(r"<meta name=""description"" content=""(.*?)""", homeHtml)
+  # Any other attributes the renderer writes (IsoNim's hydration keys) are
+  # allowed around the two that identify the element.
+  let metaDesc = extract(r"<meta\b[^>]*\bname=""description""[^>]*\bcontent=""(.*?)""",
+                         homeHtml)
   let flatOf = proc(s: string): string = s.replace(re"\s+", " ").toLowerAscii
 
   test "CONTROL: the hero and the meta description were both found, and both say what the product does":

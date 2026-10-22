@@ -13,11 +13,20 @@
     # static sites (reprobuild-web-site / codetracer-web-site), recorded in the
     # isonim-sites registry.
     isonim = {
-      url = "github:metacraft-labs/isonim/2a24d9549543c2a894525f65c4e608f9881b7373";
+      url = "github:metacraft-labs/isonim/d2193dc4935039f5faa0836e0a26eed9e15f1a72";
       flake = false;
     };
     nim-everywhere = {
-      url = "github:metacraft-labs/nim-everywhere/b2ce1c6b31743c4351aff4ad835f385f79b70edd";
+      url = "github:metacraft-labs/nim-everywhere/95977e85e3aa9f3d8f54ecb42fdc9505ac3d3107";
+      flake = false;
+    };
+    # The Embed SDK's editor core reads IsoNim-TUI's width tables
+    # (`editor/selection.nim`), so the hydration bundle needs it. Pinned with
+    # isonim and nim-everywhere to the revisions codetracer's own `repro.lock`
+    # names at `ci/embed-sdk-pin.env`'s CODETRACER_REF — the same three values
+    # that file records, so the bundle nix builds is the one the pin names.
+    isonim-tui = {
+      url = "github:metacraft-labs/isonim-tui/594398d5962a911f89f18d77cc1794404858283d";
       flake = false;
     };
 
@@ -116,7 +125,7 @@
     codetracer = {
       # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
       # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/agents&rev=10cec229d780d9ca258ae6d404a4c80cfe13a5e5&submodules=0";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/agents&rev=0d1325584b9e7c77d13bbb766077e3418395fe94&submodules=0";
       flake = false;
     };
 
@@ -211,7 +220,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system, codetracer
+  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, isonim-tui, codetracer-design-system, codetracer
             , aztec-avm-runtime, codetracer-trace-format
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
@@ -231,6 +240,7 @@
         srcEnv = {
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
+          ISONIM_TUI_SRC = isonim-tui;
           DESIGN_SYSTEM_SRC = codetracer-design-system;
           # The Embed SDK, for `just hydrate` and for the cross-repo suites
           # (`just debug-panes`, `just sdk-test-embed`, `just viewmodel-seam`),
@@ -582,6 +592,7 @@
           CODETRACER_SRC = codetracer;
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
+          ISONIM_TUI_SRC = isonim-tui;
           DESIGN_SYSTEM_SRC = codetracer-design-system;
           buildPhase = ''
             export HOME=$TMPDIR

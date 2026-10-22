@@ -93,8 +93,11 @@ m = json.load(open(p))
 m["files"] = m["files"][:-1]
 json.dump(m, open(p, "w"), indent=2)
 PY
+# One fewer than the real manifest holds, counted rather than written down: a
+# number typed here went stale the first time the vendored set grew.
+short_count=$(($(grep -c '"sha256"' "${real_vendor}/ct_styles.vendor.json") - 1))
 run_case "a manifest that lost an entry fails" 1 \
-	"the manifest records 5 sha256 entries" "${d}"
+	"the manifest records ${short_count} sha256 entries" "${d}"
 
 # 5. A manifest whose entries are in a different order. The digests would
 #    otherwise be matched against the wrong files.
