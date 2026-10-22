@@ -6,7 +6,7 @@
   "(capture-eth-range.mjs --whole-blocks). Each block was replayed once, in order, from",
   "its parent block (replay-preceding)."
  ],
- "measuredAt": "2026-10-22T15:08:30.554Z",
+ "measuredAt": "2026-10-22T15:13:32.421Z",
  "chain": "eth",
  "endpoint": "https://eth.drpc.org",
  "chainTipAtRun": 26248949,
@@ -34,6 +34,18 @@
    "withExecution": 108,
    "tracedAtSourceLevel": 0,
    "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
    "ledger": {
     "replay": {
      "attempted": 108,
@@ -64,6 +76,18 @@
    "withExecution": 219,
    "tracedAtSourceLevel": 0,
    "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
    "ledger": {
     "replay": {
      "attempted": 219,
@@ -94,6 +118,18 @@
    "withExecution": 238,
    "tracedAtSourceLevel": 0,
    "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
    "ledger": {
     "replay": {
      "attempted": 238,
@@ -124,6 +160,18 @@
    "withExecution": 181,
    "tracedAtSourceLevel": 0,
    "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
    "ledger": {
     "replay": {
      "attempted": 181,
@@ -154,6 +202,18 @@
    "withExecution": 400,
    "tracedAtSourceLevel": 0,
    "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
    "ledger": {
     "replay": {
      "attempted": 400,
@@ -184,6 +244,18 @@
    "withExecution": 278,
    "tracedAtSourceLevel": 0,
    "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
    "ledger": {
     "replay": {
      "attempted": 278,
@@ -209,7 +281,19 @@
   "bodyUnavailable": 0,
   "notAttempted": 0,
   "withExecution": 1424,
-  "tracedAtSourceLevel": 0
+  "tracedAtSourceLevel": 0,
+  "refusalsByReason": {
+   "not-first-in-block": 0,
+   "body-unavailable": 0,
+   "body-source-unreachable": 0,
+   "artifact-unresolvable": 0,
+   "prestate-unavailable": 0,
+   "runtime-refused": 0,
+   "no-container-written": 0,
+   "not-attempted": 0,
+   "instruction-unimplemented": 0
+  },
+  "refusalsUnclassified": 0
  },
  "yield": {
   "tracedOverAllTransactions": 66.6,

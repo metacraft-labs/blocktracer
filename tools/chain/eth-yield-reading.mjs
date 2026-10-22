@@ -24,6 +24,10 @@
 // was declared on 2026-10-22, when this reading showed the pin's premise wrong. The
 // expectation was not touched, and the correction is recorded in the method itself.
 //
+// REFUSALS ARE COUNTED PER REASON, OVER THE WHOLE CLOSED SET. `refusalCounts` enumerates
+// every member of `refusal-reasons.json`, so a reason seen zero times is published as 0
+// rather than left out. A list of what happened would not show that the set was checked.
+//
 // T2 IS NOT TRACED. `tracedAtSourceLevel` counts traced rows whose recording measured
 // `sourceLevel`. The windows are recorded with `--skip-source-fetch`, so it is expected to be
 // 0 here, and `sourceFetch: false` says why.
@@ -36,6 +40,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readingFromSnapshot, checkReading, READING_FORMAT } from './lib/yield.mjs';
+import { refusalCounts, REFUSAL_REASON_IDS } from './lib/refusal.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -94,6 +99,7 @@ function main() {
       if (c) runtimeCommits.add(c);
     }
     const commit = [...runtimeCommits][0] ?? null;
+    const rc = refusalCounts(rows);
     windows.push({
       from, to,
       blocksBelowTip: tip - to,
@@ -110,6 +116,8 @@ function main() {
       withExecution: r.transactions - r.chainAbsent,
       tracedAtSourceLevel: tracedRows.filter((t) => t.recording?.sourceLevel === true).length,
       unclassified: r.unclassified,
+      refusalsByReason: rc.byReason,
+      refusalsUnclassified: rc.unclassified,
       ledger: {
         replay: {
           attempted: r.transactions - r.chainAbsent,
@@ -127,6 +135,10 @@ function main() {
   for (const k of ['transactions', 'firstInBlock', 'notFirstInBlock', 'replayed', 'divergent',
                    'traced', 'privateOnly', 'refused', 'bodyUnavailable', 'notAttempted',
                    'withExecution', 'tracedAtSourceLevel']) totals[k] = sum(k);
+  const refusalsByReason = Object.fromEntries(REFUSAL_REASON_IDS.map(
+    (id) => [id, windows.reduce((n, w) => n + w.refusalsByReason[id], 0)]));
+  totals.refusalsByReason = refusalsByReason;
+  totals.refusalsUnclassified = sum('refusalsUnclassified');
   const pct = (a, b) => (b === 0 ? null : Math.round(1000 * a / b) / 10);
 
   const doc = {
@@ -165,7 +177,8 @@ function main() {
   console.log(`wrote ${out}: ${windows.length} window(s), ${totals.transactions} transactions, `
               + `${totals.traced} traced (${doc.yield.tracedOverAllTransactions}% of all, `
               + `${doc.yield.tracedOverWithExecution}% of those with an execution), `
-              + `${totals.divergent} divergent, ${totals.refused} refused`);
+              + `${totals.divergent} divergent, ${totals.refused} refused `
+              + `(${REFUSAL_REASON_IDS.length} reasons enumerated, ${totals.refusalsUnclassified} unclassified)`);
   for (const w of windows) {
     console.log(`  ${w.from}-${w.to}  ${w.blocksBelowTip} below tip  ${w.transactions} tx  `
                 + `${w.traced} traced  ${w.privateOnly} no-execution  ${w.divergent} divergent`);
