@@ -122,6 +122,23 @@
         "type": "github"
       }
     },
+    "codetracer-move-recorder": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792665171,
+        "narHash": "sha256-2xopMTrvINJVHA6bIHKwMtu3Svo+VLzDJ+vLbrZcIMw=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-move-recorder",
+        "rev": "6f27c33004012eb9d57bfa9f649a0486697ccf83",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-move-recorder",
+        "rev": "6f27c33004012eb9d57bfa9f649a0486697ccf83",
+        "type": "github"
+      }
+    },
     "codetracer-solana-recorder": {
       "flake": false,
       "locked": {
@@ -352,6 +369,7 @@
         "codetracer-design-system": "codetracer-design-system",
         "codetracer-evm-recorder": "codetracer-evm-recorder",
         "codetracer-flow-recorder": "codetracer-flow-recorder",
+        "codetracer-move-recorder": "codetracer-move-recorder",
         "codetracer-solana-recorder": "codetracer-solana-recorder",
         "codetracer-trace-format": "codetracer-trace-format",
         "codetracer-trace-format-nim": "codetracer-trace-format-nim",

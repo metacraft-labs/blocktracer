@@ -195,6 +195,13 @@
       url = "github:metacraft-labs/codetracer-solana-recorder/0a1950220964d8c8793b43fa6c4ec1fb9bed35ef";
       flake = false;
     };
+    # ── Sui: the Move recorder (tools/chain/nix/sui.nix says why) ─────────────
+    # Its trace-format path dependencies are `flow-trace-format` above, whose
+    # revision is exactly the one this recorder's repro.lock names.
+    codetracer-move-recorder = {
+      url = "github:metacraft-labs/codetracer-move-recorder/6f27c33004012eb9d57bfa9f649a0486697ccf83";
+      flake = false;
+    };
     # ── Starknet: the Cairo recorder (and the transcript it commits) ──────────
     # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chains two and three.
@@ -225,6 +232,7 @@
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
             , codetracer-solana-recorder
+            , codetracer-move-recorder
             , codetracer-cairo-recorder, cairo-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
@@ -422,6 +430,16 @@
           blocktracerRoot = ./.;
         };
 
+        sui = pkgs.callPackage ./tools/chain/nix/sui.nix {
+          nodejs = followerNodejs;
+          recorderSrc = codetracer-move-recorder;
+          recorderRev = codetracer-move-recorder.rev;
+          suiTraceFormatSrc = flow-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
+
         starknet = pkgs.callPackage ./tools/chain/nix/starknet.nix {
           nodejs = followerNodejs;
           recorderSrc = codetracer-cairo-recorder;
@@ -474,13 +492,21 @@
         packages.solana-recorder = sol.solanaRecorder;
         packages.sol-capture-tree = sol.solCaptureTree;
 
+        # ── Sui mainnet, produced the same way (Recorder-Move CXP-MOVE-6) ──────────
+        # In produced-captures as `sui-mainnet`: byte-reproducible (`nix build --rebuild`
+        # rc 0) from the committed GraphQL transcript. See tools/chain/nix/sui.nix.
+        packages.move-recorder = sui.moveRecorder;
+        packages.sui = sui.sui;
+        packages.sui-capture-tree = sui.suiCaptureTree;
+        packages.sui-ct-print = sui.ctPrint;
+
         # ── Starknet mainnet, produced the same way (Recorder-Cairo CXP-CAIRO-6) ──
         packages.cairo-onchain-recorder = starknet.onchainRecorder;
         packages.starknet-capture-tree = starknet.starknetCaptureTree;
         packages.starknet-ct-print = starknet.ctPrint;
 
-        # The site with the STAGING-ONLY chains added: `default` plus the Ethereum
-        # Flow and Starknet trees, placed where the exporter already looks for a live-chain capture.
+        # The site with the STAGING-ONLY chains added: `default` plus the Ethereum,
+        # Flow, Solana, Starknet and Sui trees, placed where the exporter already looks for a live-chain capture.
         # deploy.yml builds this for every deploy except `live`, so `live` (the
         # production Pages project) keeps `default` and carries no chain the
         # operator has not cleared for production; Chain-Expansion's environment
@@ -506,6 +532,7 @@
           cp -r ${flow.flowCaptureTree} $out/flow-mainnet
           cp -r ${sol.solCaptureTree} $out/solana-mainnet
           cp -r ${starknet.starknetCaptureTree} $out/starknet-mainnet
+          cp -r ${sui.suiCaptureTree} $out/sui-mainnet
         '';
 
         packages.chain-tools = chain.chainTools;
