@@ -32,7 +32,7 @@ import { join } from 'node:path';
 
 import {
   CHAIN_SLUG, IDENTIFIER_ENCODING, PRESTATE_STRATEGY, RECORDER,
-  costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
+  costVectorForRow, executionsForRow, l1MessageForRow, payloadForRow, rolesForRow,
 } from './lib/starknet-producer-facts.mjs';
 import { BLOCK_REPORT_FORMAT, artifactRow, main as produce } from './produce-starknet-snapshot.mjs';
 
@@ -43,7 +43,7 @@ const ck = (label, cond) => {
   if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`);
 };
 const test = (name) => console.error(`\n${name}`);
-const DECLARED = 31;
+const DECLARED = 33;
 
 const SENDER = '0x48ddc53f41523d2a6b40c3dff7f69f4bbac799cd8b2e3fc50d3de1d4119441f';
 const TARGET = '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
@@ -116,6 +116,18 @@ test('§1 the facts module');
                             receipt: receiptOf({ hash: '0x2' }) });
   ck('an L1_HANDLER has NO ordinary sender, so it states no role rather than inventing one',
      l1h.length === 0);
+  // Shaped as mainnet block 16,752,201's L1_HANDLER 0x677215…600b: an ETH deposit through
+  // StarkGate, sent by its L1 bridge 0xae0ee0a6…d419.
+  const msg = l1MessageForRow({
+    body: { type: 'L1_HANDLER', contract_address: TARGET, entry_point_selector: SEL,
+            nonce: '0x1a5de1', calldata: ['0xae0ee0a63a2ce6baeeffe56e7714fb4efe48d419', '0x455448'] },
+    receipt: { ...receiptOf({ hash: '0x2' }),
+               message_hash: '0xa21cd98b8048cf6b4aa7c61a65eb54db1aa1cda5a2a6327edf6f23d654be7193' } });
+  ck('what an L1_HANDLER has instead of a sender — its L1 message: sender, nonce, message hash',
+     msg?.fromAddress === '0xae0ee0a63a2ce6baeeffe56e7714fb4efe48d419' && msg.nonce === '0x1a5de1'
+     && msg.messageHash === '0xa21cd98b8048cf6b4aa7c61a65eb54db1aa1cda5a2a6327edf6f23d654be7193');
+  ck('CONTROL: an INVOKE has no L1 message (null, not an empty shell)',
+     l1MessageForRow({ body: invokeV3(), receipt: receiptOf({ hash: '0x1' }) }) === null);
   const dep = rolesForRow({ body: { type: 'DEPLOY_ACCOUNT' },
                             receipt: receiptOf({ hash: '0x3', contract: TARGET }) });
   ck('CONTROL: a DEPLOY_ACCOUNT\'s sender is the account it deploys, from the receipt',

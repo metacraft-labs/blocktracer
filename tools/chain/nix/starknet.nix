@@ -130,6 +130,8 @@ let
 
   # The committed input set, read from the recorder input — see the header.
   transcript = recorderSrc + "/onchain/tests/fixtures/mainnet-16664301";
+  # A second block: an L1_HANDLER (a StarkGate deposit, no Starknet sender) beside an INVOKE.
+  transcriptL1 = recorderSrc + "/onchain/tests/fixtures/mainnet-16752201";
   # The class-source bindings that recorder revision proved (`bind-class`), from the same
   # pin for the same reason: a binding is checked against the class the transcript serves.
   classSources = recorderSrc + "/onchain/tests/fixtures/class-sources";
@@ -159,6 +161,7 @@ let
         --recorder ${onchainRecorder}/bin/codetracer-cairo-onchain \
         --recorder-commit ${recorderRev} \
         --transcript ${transcript} \
+        --transcript ${transcriptL1} \
         --class-sources ${classSources} \
         --ct-print ${ctPrint}/bin/ct-print \
         --out $TMPDIR/tree --work $TMPDIR/work

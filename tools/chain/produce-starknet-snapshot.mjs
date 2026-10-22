@@ -60,7 +60,7 @@ import {
 import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, INSTRUCTION_SET,
   INSTRUCTION_STREAM_SCHEMA, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY,
-  RECORDER, costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
+  RECORDER, costVectorForRow, executionsForRow, l1MessageForRow, payloadForRow, rolesForRow,
 } from './lib/starknet-producer-facts.mjs';
 
 // WHAT THE RECORDER PROVED ABOUT A CLASS'S SOURCE, republished. A class the recorder ran
@@ -439,6 +439,7 @@ export async function main(argv) {
         bodyRetained: true,
         effectVisible: true,
         starknetType: body.type,
+        ...(body.type === 'L1_HANDLER' ? { l1Message: l1MessageForRow({ body, receipt }) } : {}),
       };
       if (rec === null) {
         const refused = r.outcome === 'refused';

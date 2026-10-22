@@ -24,12 +24,14 @@
 
 set -euo pipefail
 
-recorder=""; commit=""; transcript=""; out=""; work=".starknet-capture/capture"; ctprint=""; sources=""
+transcripts=(); recorder=""; commit=""; transcript=""; out=""; work=".starknet-capture/capture"; ctprint=""; sources=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --recorder) recorder="$2"; shift 2 ;;
     --recorder-commit) commit="$2"; shift 2 ;;
-    --transcript) transcript="$2"; shift 2 ;;
+    # Repeatable: one committed transcript per block. The FIRST is the one the floor
+    # probe runs on (one capture of a run must carry it).
+    --transcript) transcripts+=("$2"); transcript="${transcripts[0]}"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
     --work) work="$2"; shift 2 ;;
     --ct-print) ctprint="$2"; shift 2 ;;
@@ -41,24 +43,34 @@ for v in recorder commit transcript out; do
   if [ -z "${!v}" ]; then echo "starknet-capture.sh: --${v/commit/recorder-commit} is required" >&2; exit 2; fi
 done
 
-# The block, the recording time and the endpoint, read out of the transcript itself.
-read -r block recorded_at endpoint < <(node -e '
-  const t = JSON.parse(require("fs").readFileSync(process.argv[1] + "/index.json", "utf8"));
-  const k = Object.keys(t.answers).find((x) => x.startsWith("starknet_getBlockWithReceipts "));
-  if (!k) { console.error("the transcript holds no starknet_getBlockWithReceipts answer"); process.exit(1); }
-  const block = JSON.parse(k.slice(k.indexOf(" ") + 1))[0].block_number;
-  if (!t.recordedAtUnix) { console.error("the transcript states no recordedAtUnix"); process.exit(1); }
-  console.log(block, new Date(t.recordedAtUnix * 1000).toISOString(), t.endpoint);
-' "$transcript")
-
+# Per transcript: the block, the recording time and the endpoint, read out of the
+# transcript itself. The tree is stamped with the NEWEST recording time, and every
+# transcript must name the same endpoint — one tree is one source's reading.
 rm -rf "$work" "$out"
-mkdir -p "$(dirname "$work")"
-# `--class-sources`: `bind-class` bindings of class builds proved against the chain. The
-# recorder re-checks each against the class that ran before it uses one, and the report
-# says which were applied and which refused.
-"$recorder" trace-block "$block" --transcript-in "$transcript" -o "$work" --probe-floor \
-  ${sources:+--class-sources "$sources"}
-node tools/chain/produce-starknet-snapshot.mjs --capture "$work" \
+mkdir -p "$work"
+captures=(); recorded_at=""; endpoint=""; i=0
+for tr in "${transcripts[@]}"; do
+  read -r block at ep < <(node -e '
+    const t = JSON.parse(require("fs").readFileSync(process.argv[1] + "/index.json", "utf8"));
+    const k = Object.keys(t.answers).find((x) => x.startsWith("starknet_getBlockWithReceipts "));
+    if (!k) { console.error("the transcript holds no starknet_getBlockWithReceipts answer"); process.exit(1); }
+    const block = JSON.parse(k.slice(k.indexOf(" ") + 1))[0].block_number;
+    if (!t.recordedAtUnix) { console.error("the transcript states no recordedAtUnix"); process.exit(1); }
+    console.log(block, new Date(t.recordedAtUnix * 1000).toISOString(), t.endpoint);
+  ' "$tr")
+  if [ -n "$endpoint" ] && [ "$ep" != "$endpoint" ]; then
+    echo "starknet-capture.sh: $tr was recorded from $ep, the others from $endpoint" >&2; exit 2
+  fi
+  endpoint="$ep"
+  if [[ -z "$recorded_at" || "$at" > "$recorded_at" ]]; then recorded_at="$at"; fi
+  # `--class-sources`: `bind-class` bindings of class builds proved against the chain. The
+  # recorder re-checks each against the class that ran before it uses one, and the
+  # report says which were applied and which refused.
+  "$recorder" trace-block "$block" --transcript-in "$tr" -o "$work/b$block" \
+    $([ "$i" -eq 0 ] && echo --probe-floor) ${sources:+--class-sources "$sources"}
+  captures+=(--capture "$work/b$block"); i=$((i + 1))
+done
+node tools/chain/produce-starknet-snapshot.mjs "${captures[@]}" \
   --recorder-commit "$commit" --out "$out" \
   --captured-at "$recorded_at" --endpoint-label "$endpoint" \
   ${ctprint:+--ct-print "$ctprint"}
