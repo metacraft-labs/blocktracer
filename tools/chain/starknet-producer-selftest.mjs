@@ -259,10 +259,10 @@ test('§2 the producer end to end, over captures with no container in them');
     bound: true, functionsNamed: 198, codeLocations: false,
     provenance: { build: { repository: 'https://github.com/argentlabs/argent-contracts-starknet',
                            tag: 'account-0.4.0', contract: 'ArgentAccount',
-                           toolchain: 'scarb 2.6.3' } } } }, r);
+                           toolchain: 'scarb 2.6.3', license: 'GPL-3.0' } } } }, r);
   ck('a class with a binding the recorder applied is RESOLVED, its build named in `origin`',
      bound.resolved === true && bound.address === SENDER
-     && /argent-contracts-starknet account-0\.4\.0 ArgentAccount with scarb 2\.6\.3/.test(bound.origin)
+     && /argent-contracts-starknet account-0\.4\.0 ArgentAccount with scarb 2\.6\.3 — licence GPL-3\.0$/.test(bound.origin)
      && /198 Cairo functions/.test(bound.reason) && /no file and line/.test(bound.reason));
   const refused = artifactRow({ classHash: C, source: { bound: false,
     refused: 'the binding is for Sierra program 0x1, the chain served 0x2' } }, r);

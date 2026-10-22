@@ -57,17 +57,17 @@
     "codetracer-cairo-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1792676907,
-        "narHash": "sha256-yAZc1FFxavnA0Gp2feHUcQvdJTVHC0tqKrDY7v83oqY=",
+        "lastModified": 1792681318,
+        "narHash": "sha256-NGTm+KERTx0R1bmzHWk38NU93EsFHovltlgBa1anrQQ=",
         "owner": "metacraft-labs",
         "repo": "codetracer-cairo-recorder",
-        "rev": "67ee2770506398c28e9cf1ea9874471a8b0349ae",
+        "rev": "7ad8c23414bb505675854999611565be7cfc6dc0",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-cairo-recorder",
-        "rev": "67ee2770506398c28e9cf1ea9874471a8b0349ae",
+        "rev": "7ad8c23414bb505675854999611565be7cfc6dc0",
         "type": "github"
       }
     },

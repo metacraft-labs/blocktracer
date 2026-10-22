@@ -71,6 +71,12 @@ import {
 // what the artifact gives this recording is NAMES — every Cairo function, type and
 // libfunc in the listing — and not lines, unless the build recorded statement locations,
 // which `codeLocations` states. `recording.sourceLevel` is not raised by a binding.
+/** The SPDX licence the recorder's binding states for class `classHash`'s build. */
+function licenceOf(rec, classHash) {
+  const row = (rec.report.classes ?? []).find((k) => k.classHash === classHash);
+  return row?.source?.provenance?.build?.license ?? null;
+}
+
 /** The Cairo files of `rec` that class `classHash`'s own steps were shown in. */
 function cairoFilesOf(rec, classHash) {
   const row = (rec.report.classes ?? []).find((k) => k.classHash === classHash);
@@ -88,8 +94,11 @@ export function artifactRow(k, r) {
       address,
       contractClassId: k.classHash,
       resolved: true,
+      // THE SPDX IDENTIFIER IS SHOWN WHEREVER THE SOURCE IS (Source-Resolution.md §8):
+      // the build's own `license` (its Scarb.toml), named in the origin a page prints.
       origin: `a build of ${what || 'the class\'s published source'}`
-        + (b.toolchain ? ` with ${b.toolchain}` : ''),
+        + (b.toolchain ? ` with ${b.toolchain}` : '')
+        + (b.license ? ` — licence ${b.license}` : ''),
       corroboration: 'the chain itself',
       reason: 'A build of this class\'s published source was proved against the class the '
         + 'chain serves — the same Sierra program felt for felt, the same entry points, '
@@ -588,6 +597,8 @@ export async function main(argv) {
           + (cairo.length
             ? `; and ${cairo.length} Cairo source file(s) of that build, read by it, which `
               + 'the steps of this class are shown in where the build located them'
+              + (licenceOf(rec, L.classHash) ? ` (licence ${licenceOf(rec, L.classHash)}; `
+                + 'files under package@version/ are that dependency\'s own)' : '')
             : ''),
         shape: cairo.length ? 'source' : 'disassembly',
         corroboration: 'single-distributor',
