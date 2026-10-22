@@ -272,7 +272,7 @@
     # last revision that writes `meta.dat` 6, because the engine this site pins
     # reads 6 only. Move it with client/hydrate/engine-pin.txt, never ahead of it.
     codetracer-evm-recorder = {
-      url = "github:metacraft-labs/codetracer-evm-recorder/0a8606ec98a3c6a1d468ab9fd3f689c7913ed7d6";
+      url = "github:metacraft-labs/codetracer-evm-recorder/dc257fe77de55e5952806cc46c991820c13816fd";
       flake = false;
     };
     evm-trace-format = {
