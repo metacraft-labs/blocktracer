@@ -728,19 +728,28 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
     # inline and there is something to compare the file against.
     check exported == body
 
-    # (a) THE EXTERNALISED FILE IS THE BYTES THE RENDERER INLINES. A link to a
-    #     stylesheet that does not carry the rules is the same silence as no
-    #     stylesheet, one indirection further away.
+    # (a) THE EXTERNALISED FILE IS THE BYTES THE RENDERER WOULD INLINE. A link
+    #     to a stylesheet that does not carry the rules is the same silence as
+    #     no stylesheet, one indirection further away.
+    #
+    # ASKED OF `siteCss()` DIRECTLY, not of a second render, and the first
+    # draft of this did render again: it called `renderRoute` once more after
+    # `useExternalCss("")` and pulled the rules out of the `<style>` block.
+    # That CRASHED on CI with `value out of range: -1` — a `find` that missed,
+    # used as a slice index — while passing here. Two things were wrong with
+    # it and only one of them was the crash. `check` RECORDS a failure and
+    # keeps going, so a guard written as `check styleAt >= 0` does not stop the
+    # slice on the next line from running with -1; and asking a renderer to
+    # render again, in a mode set by GLOBAL state a previous line mutated, is a
+    # question with more moving parts than the claim needs.
+    #
+    # `siteCss()` IS the thing the renderer inlines. Comparing the published
+    # file to it is the same claim with no render, no mode, and no `find`.
+    require hrefAt >= 0
     let hrefEnd = exported.find('"', hrefStart)
-    check hrefEnd > hrefStart
+    require hrefEnd > hrefStart
     let sheetHref = exported[hrefStart ..< hrefEnd]
-
-    let (_, inlineBody, _) = renderRoute(root, "/no/such/thing/at/all")
-    let styleAt = inlineBody.find("<style>")
-    let styleEnd = inlineBody.find("</style>", styleAt)
-    check styleAt >= 0 and styleEnd > styleAt
-    let inlineSheet = inlineBody[styleAt + "<style>".len ..< styleEnd]
-    check readFile(dist / sheetHref.strip(chars = {'/'})) == inlineSheet
+    check readFile(dist / sheetHref.strip(chars = {'/'})) == siteCss()
 
 
 # ──────────────────────────────────────────────────────────────────────────
