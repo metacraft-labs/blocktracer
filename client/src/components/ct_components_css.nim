@@ -348,6 +348,31 @@ const Bridge*: seq[(string, string)] = @[
   ("colors-ui-surface-alert-information", "var(--bt-status-info-bg)"),
 
   # text ────────────────────────────────────────────────────────────────────
+  #
+  # TWO OF THESE ARE ONE RUNG OFF AND STAY THAT WAY; the rest land exactly, and
+  # the `->` in the trailing comments is where to see which is which. They are
+  # `label` (neutral-150 -> neutral-100) and `body-subtle` (neutral-200 ->
+  # neutral-250), and both are off because BlockTracer's ramp has no rung there,
+  # not because a value was chosen loosely.
+  #
+  # IT IS VISIBLE, AND IT WAS MEASURED RATHER THAN WAVED THROUGH. The label tier
+  # is what a PANE TAB takes — eleven vendored rules read it, across
+  # golden_layout, input and shared_widgets — so on 2026-10-22 it was compared
+  # against the running product: CodeTracer's active tab title computes
+  # `rgb(200, 200, 200)` (#c8c8c8, neutral-150) and BlockTracer's `rgb(221, 221,
+  # 221)` (#dddddd, neutral-100). The INACTIVE title matches exactly on both
+  # sides, `#727272`, through `text-primary-disabled` below.
+  #
+  # WHY IT IS NOT CLOSED BY ADDING A ROLE. A `--bt-text-label` at neutral-150
+  # would close the dark theme and would have to INVENT the light one:
+  # CodeTracer ships a single dark theme, so there is no upstream value to copy
+  # for the half of this product the explorer runs in, and a token whose light
+  # value is a guess is worse than a documented one-rung difference. The
+  # difference also runs the safe way — #dddddd on #282828 measures 10.4:1
+  # against #c8c8c8's 8.81:1 (upstream's own `golden_layout.styl` comment
+  # records that 8.81). So: a real divergence, one rung, decided and dated here
+  # rather than left looking like a slip. `docs/WEB-IDE-RESEMBLANCE.md` §2a
+  # carries it as the one open item of its 2026-10-22 reading.
   ("colors-ui-text-primary-body", "var(--bt-text-strong)"),               # neutral-50 = neutral-50
   ("colors-ui-text-primary-label", "var(--bt-text-default)"),             # neutral-150 -> neutral-100
   ("colors-ui-text-primary-body-subtle", "var(--bt-text-muted)"),         # neutral-200 -> neutral-250
