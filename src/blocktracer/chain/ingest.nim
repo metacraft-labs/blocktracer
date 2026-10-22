@@ -846,6 +846,70 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         (if t{"txHash"} != nil: " (" & shortHash(t{"txHash"}.getStr) & ")" else: "") &
         ". " & ruleStatement("S5-ROW-MEMBERS-REQUIRED"))
 
+  # ── A BLOCK'S SYSTEM TRANSACTIONS: A HOME, AND NEVER A ROW ─────────────────
+  #
+  # Data-Contract.md §5.2, "One kind of transaction is not a row" (2026-10-22).
+  # Flow ends every block with transactions the protocol itself runs, under
+  # identifiers that are THE SAME IN EVERY BLOCK. A row, its `/tx/` object and
+  # every transaction URL are keyed by identifier, so such a transaction cannot
+  # be a row: the second block that settled it would overwrite the first one's
+  # page. The Flow producer listed them in `blocks[].systemTransactions` before
+  # the contract named the member, and this reader dropped them — tolerated, not
+  # specified, and absent from the published tree.
+  #
+  # So the member is now read, checked here and republished on the block object
+  # below. What is checked is what makes it a home rather than a second
+  # transaction list: an array of non-empty identifier strings, no identifier
+  # twice in one block, and NOTHING SHARED WITH THE ROWS — no identifier that is
+  # also in any block's `transactions` or is any row's `txHash`, because a
+  # system identifier that is also a row is precisely the overwrite the member
+  # exists to prevent. The same identifier in two DIFFERENT blocks is not
+  # refused: that repetition is the whole reason the member exists.
+  #
+  # IT RUNS AFTER THE ROW-MEMBER PASS, because the disjointness half reads every
+  # row's `txHash`, and a row without one has already been refused by name
+  # above rather than being read here as an empty identifier.
+  #
+  # NOTHING COUNTS THEM. §5.2 puts them in no denominator — not `counts`, not
+  # the summary's counter, not any traced or source-level fraction — and nothing
+  # below reads this member except the block object it is published on.
+  block systemTransactions:
+    var rowIds = initTable[string, string]()   # identifier -> where it is a row
+    for b in snap["blocks"]:
+      for x in b["transactions"]:
+        rowIds[x.getStr] = "a transaction of block " & b["hash"].getStr
+    for t in snap["transactions"]:
+      if t["txHash"].getStr notin rowIds:
+        rowIds[t["txHash"].getStr] = "a transaction row's `txHash`"
+    for b in snap["blocks"]:
+      let sys = b{"systemTransactions"}
+      if sys == nil: continue
+      let where = "block " & b["hash"].getStr & " (number " & $b["number"].getInt &
+        ") in " & snapPath
+      if sys.kind != JArray:
+        raise newException(ValueError,
+          RuleSystemTransactions & where & " states `systemTransactions` as " &
+          $sys & ", which is not an array of identifiers. " &
+          ruleStatement("S5-SYSTEM-TRANSACTIONS"))
+      var seen = initTable[string, bool]()
+      for x in sys:
+        if x.kind != JString or x.getStr.len == 0:
+          raise newException(ValueError,
+            RuleSystemTransactions & where & " lists " & $x &
+            " in `systemTransactions`, which is not a non-empty identifier. " &
+            ruleStatement("S5-SYSTEM-TRANSACTIONS"))
+        let id = x.getStr
+        if id in seen:
+          raise newException(ValueError,
+            RuleSystemTransactions & where & " lists system transaction " & id &
+            " twice. " & ruleStatement("S5-SYSTEM-TRANSACTIONS"))
+        if id in rowIds:
+          raise newException(ValueError,
+            RuleSystemTransactions & where & " lists system transaction " & id &
+            ", which is also " & rowIds[id] & ", so it would be published as a " &
+            "row and as a system transaction at once. " &
+            ruleStatement("S5-SYSTEM-TRANSACTIONS"))
+        seen[id] = true
 
   let gen = if cfg.generation.len > 0: cfg.generation else: "1"
   let prov = snap["provenance"]
@@ -1427,15 +1491,23 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # height→time table read afterwards would be a second answer to "which blocks
   # is this about", which is the disagreement the curated/uncurated arms used to
   # institutionalise.
+  #
+  # `sys` IS THE BLOCK'S SYSTEM TRANSACTIONS, checked above and carried here
+  # verbatim and in order so the block object below can publish them. A block
+  # whose member is absent carries an empty seq, which the block object omits.
   var blockRows: seq[tuple[hash: string, height: int, parent: string,
-                           txs: seq[string], time: int64]]
+                           txs: seq[string], time: int64, sys: seq[string]]]
   var byHeight = initTable[int, string]()
   for b in snap["blocks"]:
     let h = b["number"].getInt
     var txs: seq[string]
     for t in b["transactions"]: txs.add t.getStr
+    var sys: seq[string]
+    let sysNode = b{"systemTransactions"}
+    if sysNode != nil:
+      for x in sysNode: sys.add x.getStr
     blockRows.add (b["hash"].getStr, h, b["parentArchiveRoot"].getStr, txs,
-                   b{"timestamp"}.getBiggestInt)
+                   b{"timestamp"}.getBiggestInt, sys)
     byHeight[h] = b["hash"].getStr
   # Ascending by height: the published maps and the block list are ordered by
   # the chain's own ordering, not by the order the capture happened to walk.
@@ -1573,7 +1645,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
   for b in blockRows:
     let bd = BlockDetail(chain: chain, hash: b.hash, height: b.height,
-                         parentHash: b.parent, transactions: b.txs)
+                         parentHash: b.parent, transactions: b.txs,
+                         systemTransactions: b.sys)
     cfg.writeJson(blockPath(chain, b.hash, identifierEncoding), bd.toJson)
 
   # ---- transactions --------------------------------------------------------

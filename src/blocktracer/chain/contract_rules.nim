@@ -248,6 +248,7 @@ const
   RulePositionsSchema* = cite("S5-POSITIONS-SCHEMA")
   RuleIdentifierEncodingClosed* = cite("S5-IDENTIFIER-ENCODING-CLOSED")
   RuleIdentifierEncodingShardable* = cite("S5-IDENTIFIER-ENCODING-SHARDABLE")
+  RuleSystemTransactions* = cite("S5-SYSTEM-TRANSACTIONS")
 
 # ── THE MEMBERS A READER TAKES BY BRACKET, FROM THE CENSUS ────────────────────
 #

@@ -5099,3 +5099,91 @@ suite "a transaction's ordering row is the chain's own coordinate":
     #   4 — the checkpoint row: one row, its value, no link, no Block row
     #   4 — the control: one Block row, its value, its link, no Checkpoint row
     expectCount(4 + 4)
+
+suite "19 — a block's system transactions are listed beside its transactions, unlinked":
+  asserted = 0
+  ## Data-Contract.md §5.2, "One kind of transaction is not a row" (2026-10-22).
+  ## Flow ends every block with protocol transactions whose identifiers are the
+  ## same in every block, so they have no row, no `/tx/` page and no recording.
+  ## The reader republishes them on the block object as `systemTransactions`,
+  ## and the block page lists them beside the block's transactions WITHOUT a
+  ## link, because there is no transaction page to link to — and without
+  ## counting them, because the page's transaction count is a count of rows.
+  ##
+  ## BOTH DIRECTIONS: a block that carries them, and the same block without the
+  ## member. The second is the control that keeps the first honest — a page that
+  ## always printed the section would satisfy every positive arm.
+
+  const
+    SysA = "0x" & repeat('a', 64)
+    SysB = "0x" & repeat('b', 64)
+    UserTx = "0x" & repeat('c', 40)
+    BlockHash = "0x" & repeat('9', 40)
+
+  proc systemSnapshot(dir: string; withSystem: bool): string =
+    let dest = dir / (if withSystem: "stated" else: "silent")
+    createDir(dest)
+    var blk = %*{"number": 900, "hash": BlockHash,
+                 "timestamp": FixtureBlockTime,
+                 "parentArchiveRoot": "0x" & repeat('3', 40),
+                 "transactions": %[UserTx]}
+    if withSystem: blk["systemTransactions"] = %[SysB, SysA]
+    writeFile(dest / "snapshot.json", snapshotJson(%*{
+      "format": "blocktracer/chain-snapshot@2",
+      "provenance": {
+        "kind": "live-capture", "chain": "system", "label": "Real system data",
+        "endpoint": "https://node.example",
+        "capturedAt": "2026-08-31T16:51:38.480Z", "nodeVersion": "5.2.0",
+        "runtimeCommit": "abc123def456"},
+      "window": {"tip": 900, "finalized": 900,
+                 "replayableFrom": 0, "replayableTo": 900, "blocks": 900},
+      "blocks": %[blk],
+      "transactions": %[%*{"txHash": UserTx, "blockNumber": 900,
+                           "txIndexInBlock": 0, "revertCode": 0,
+                           "transactionFee": "0x1", "bodyRetained": false,
+                           "effectVisible": true, "firstInBlock": true,
+                           "outcome": "pruned",
+                           "reason": "The node no longer serves this body.",
+                           "refusalReason": "not-attempted"}]}))
+    dest
+
+  proc blockBody(snapDir: string): string =
+    let tree = snapDir / "tree"
+    createDir(tree)
+    discard ingestSnapshot(IngestConfig(outDir: tree, snapshotDir: snapDir))
+    markup(renderRoute(newDataRoot(tree), blockUrl("system", BlockHash)).body)
+
+  let sdir = getTempDir() / ("bt-system-" & $getCurrentProcessId())
+  removeDir(sdir); createDir(sdir)
+  let stated = blockBody(systemSnapshot(sdir, withSystem = true))
+  let silent = blockBody(systemSnapshot(sdir, withSystem = false))
+
+  test "the page lists each one, in the chain's order":
+    ck SysA in stated
+    ck SysB in stated
+    ck stated.find(SysB) < stated.find(SysA)
+    ck "System transactions" in stated
+
+  test "…and links none of them, because no page exists for one":
+    ck ("/tx/" & SysA) notin stated
+    ck ("/tx/" & SysB) notin stated
+    # The user transaction IS a row and keeps its link, so the arm above is not
+    # passing because this page links nothing at all.
+    ck ("/tx/" & UserTx) in stated
+
+  test "the block's transaction count is its rows, not its rows and its system transactions":
+    ck "<dd class=\"tnum\">1</dd>" in stated
+    ck "<dd class=\"tnum\">3</dd>" notin stated
+
+  test "CONTROL: a block with no member renders no section and names no id":
+    ck "System transactions" notin silent
+    ck SysA notin silent
+    ck ("/tx/" & UserTx) in silent
+
+  test "assertion count":
+    #   4 — both listed, in order, under a heading
+    #   3 — neither linked; the row still is
+    #   2 — the count is the row count
+    #   3 — the control
+    expectCount(4 + 3 + 2 + 3)
+  removeDir(sdir)
