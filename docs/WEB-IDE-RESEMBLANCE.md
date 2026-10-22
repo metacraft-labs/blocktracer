@@ -2,7 +2,9 @@
 
 > **Status:** live.
 > **Captured by:** `node tools/capture/compare-with-codetracer.mjs --out <dir>`
-> **Last looked at:** 2026-10-14, against `https://blocktracer.org` and
+> **Last looked at:** 2026-10-22, against a local `just export-hydrated` tree
+> and `https://noirstudio.dev` **in replay mode, with a trace loaded**.
+> Previously 2026-10-14, against `https://blocktracer.org` and
 > `https://ide.codetracer.com` (CodeTracer `cloud` 571c64cc — the same revision
 > `client/hydrate/engine-pin.txt` pins the replay engine from).
 
@@ -40,6 +42,24 @@ page without the layout markers now.
 copy names the way through: *"New file works here and opens an editor straight
 away."* The tool clicks it and waits.
 
+**AND THAT IS THE WRONG SUBJECT, found 2026-10-22.** "New file" opens an empty
+editor, so the tool photographs an IDE with **no trace loaded**: `FILES | VCS |
+TESTS` over an empty tree, an `#untitled0` tab holding one blank line,
+`CONSTRAINTS — unavailable`, and about 85% of the frame flat empty grey. The
+subject predicate asks whether the page got *past the welcome card*, which is
+not the same question as whether it *has a trace open*, so the tool reported
+success on it. Every row of §2 below that is about a POPULATED pane was
+therefore being compared against emptiness.
+
+The replacement needs no credentials and no desktop install:
+**`https://noirstudio.dev`, then click `#run-image`** — the toolbar's run
+control — and wait for `[id^=calltraceComponent]`. That is the same product in
+**replay mode** with a real recording: `STATE` holding locals, `CALLTRACE`
+holding frames, `EVENT LOG` with its own columns. Everything measured on
+2026-10-22 below came from there. `compare-with-codetracer.mjs`'s CodeTracer
+predicate should be strengthened from "past the welcome card" to "has a loaded
+trace" before it is next believed.
+
 ## 2. The verdict, 2026-10-14
 
 **Structurally close in the workspace. Visibly different in the chrome.**
@@ -68,6 +88,26 @@ being discovered as a bug report.
   BlockTracer: `Code`, `Call Trace`, `Event Log`, `Values`, `Transaction` —
   title case, no pin, no close. This is the most visible chrome difference at a
   glance, and the cheapest to close.
+  **CASE: CLOSED 2026-10-22.** The panes are now `CODE`, `CALL TRACE`,
+  `EVENT LOG`, `VALUES`, `TRANSACTION`. The thing to check first was WHERE the
+  capitals come from, and they are not a rule: measured on noirstudio.dev,
+  `.lm_tab` and `.lm_title` both compute `text-transform: none` and the titles
+  are literally `"FILES"`, `"STATE"`, `"SCRATCHPAD"`. A `text-transform` here
+  would have been BlockTracer inventing chrome the product does not have in
+  order to imitate a product that reaches the look another way, so the strings
+  changed instead (`debugger/session_layout.nim`). File tabs stay as written in
+  both: CodeTracer's document tab reads `src/main.nr`, and `.srctab` carries
+  paths.
+  **PIN AND CLOSE: DELIBERATELY NOT, and this is the file that should say so.**
+  The vendored `golden_layout.styl` brings `.lm_close_tab` and `.lm_pin_tab`
+  rules with it and they are INERT here by choice. This route ships no
+  JavaScript, so a pin or a close would be an affordance with nothing behind
+  it — and that exact control was REMOVED from the metadata pane for that
+  reason (`pages/debug.nim`, "the `×` was the single affordance here not held
+  to the standard the stepping toolbar holds itself to two panes away, where
+  every button that cannot act renders visibly inert"). Closing D-W1's second
+  half would mean re-adding the dead control that decision took out. It stays
+  open as a DIVERGENCE WITH A REASON, not as work.
 - **D-W2 — no bottom status bar.** CodeTracer carries one:
   `unknown | UTF-8 | stable:` at the left, `BUILD PROBLEMS FIND IN FILES
   REQUESTS` centred, `cloud 571c64cc` at the right. BlockTracer has nothing
@@ -79,6 +119,65 @@ being discovered as a bug report.
   **Partly deliberate:** this is an explorer showing one recorded execution, not
   an editor that opens files, so a file palette would name nothing. Recorded
   because it is the largest visual difference, not because it is plainly wrong.
+
+## 2a. The verdict, 2026-10-22 — what a loaded CodeTracer showed
+
+Re-measuring against a CodeTracer with a trace open (§1) overturned most of a
+review round's tab findings and turned up one real defect underneath them.
+
+**The tab idiom was already right, and reproduced faithfully.** A reviewer
+reported BlockTracer's pane tabs as having an inverted selection cue: the
+inactive tab is rounded on all four corners and floats detached, which reads as
+selected. Measured, that IS CodeTracer's own vocabulary for *inactive* —
+
+| | active | inactive |
+|---|---|---|
+| `border-radius` | `5.76px 5.76px 0 0` (top only) | `5.76px` (all four) |
+| `box-shadow` | `0 7.68px 0 0 <panel>` — a same-colour bridge into the body | none |
+| `::before` / `::after` | concave connector curves flaring into the panel | none |
+| background | `#282828` — **same as the panel body and as the inactive tab** | `#282828` |
+
+— and BlockTracer draws all of it, through the vendored rules, reached by
+`ct_components_css.activeTabCss()`. "Zero fill contrast", "tabs stretched to
+half the panel" (`flex: 1 1 0%` upstream too) and "labels left-aligned with
+dead slab after them" (`.lm_title` is `text-align: start; width: 100%`) are
+likewise all upstream's design, faithfully copied.
+
+**THE REAL DEFECT WAS SCALE: the window was drawn at 87.5%.**
+`register.debugger.density.body-size` was 14px, and because
+`data-register="debugger"` sits on `<html>` that is the ROOT font size — while
+every dimension of the vendored chrome is an `em` or `rem` off it.
+
+| | CodeTracer | BlockTracer, before | after |
+|---|---|---|---|
+| tab height | 24px | 21px | 24px |
+| tab label | 14px | **12.25px** | 14px |
+| corner radius | 5.76px | 5.04px | 5.76px |
+| active shadow bridge | 7.68px | 6.72px | 7.68px |
+| connector curve width | 26px | 22.75px | 26px |
+| strip gap / height | 4 / 28px | 3.5 / 24.5px | 4 / 28px |
+| header height | 32px | 28.5px | 32px |
+| panel inset | 8px | 7px | 8px |
+
+One token moved to `{type.fontSize.md}`. The register stays denser than the
+explorer where density belongs — `cell-y`, `cell-x`, `control-*`, `card-pad`
+and `line` are untouched; shrinking the ROOT instead silently rescaled rules
+this repository does not own.
+
+**Also closed in the same pass:** every `mask-image` fade removed (upstream
+spends zero gradients, across all eight vendored stylesheets); drop shadows
+removed from every resting surface (upstream's only soft shadow is on a
+tooltip, an overlay); the notice band taught to flow its prose into columns, so
+it falls 183px -> 96px at 1440 and 74px at 1920 instead of holding one height
+at every width; the metadata grid's label column capped so values get 157px
+instead of 114px; the scrubber playhead floored at 4px instead of 2px on a
+260px track.
+
+**Still open, and now measured rather than impressions:** the tab label resolves
+to `#dddddd` where upstream's label tier is `#c8c8c8` — one rung on the neutral
+ramp, and no `--bt-*` TEXT role carries `#c8c8c8`, so closing it means adding a
+role rather than repointing the bridge. The inactive label already matches
+exactly (`#727272` both sides). D-W2 and D-W3 are unchanged.
 
 ## 3. What the tool asserts, and what it leaves to a reader
 
