@@ -36,6 +36,17 @@ proc blocksFromUrl*(chain: string, height: int): string =
   ## does not shift when the chain grows.
   "/" & chain & "/blocks/from/" & $height
 proc blockUrl*(chain, hash: string): string = "/" & chain & "/block/" & hash
+
+proc orderRowLabel*(kind: TxOrderKind): string =
+  ## The name of a transaction's ordering coordinate on its page, per
+  ## Static-Site-Architecture.md §2.3's ordering union.
+  case kind
+  of tokBlockIndex: "Block"
+  of tokCheckpoint: "Checkpoint"
+  of tokConsensusTime: "Consensus time"
+  of tokGlobalVersion: "Version"
+  of tokLogicalTime: "Logical time"
+
 proc txsUrl*(chain: string): string = "/" & chain & "/txs"
 proc txsFromUrl*(chain: string, height: int): string =
   "/" & chain & "/txs/from/" & $height
@@ -1068,8 +1079,17 @@ proc txMetadataRows*(chain: string, v: TxView, info: ChainInfo;
   ## emitted verbatim, so an EVM-shaped template cannot creep in: a Solana or
   ## Move transaction contributes whatever roles and cost dimensions it has.
   result.add provenanceRow(info)
-  result.add MetaRow(label: "Block", value: $v.height & ":" & $v.index,
-                     identifier: true, href: blockUrl(chain, v.blockHash))
+  # The ordering row is the chain's own coordinate. A chain ordered by height
+  # gets the block and index, linked; one ordered otherwise (a Sui checkpoint)
+  # gets its own label and value and NO link, because a transaction object
+  # names no block hash to link to, and `0:0` pointing at `/block/` would be a
+  # fabricated position.
+  if v.positionKnown:
+    result.add MetaRow(label: "Block", value: $v.height & ":" & $v.index,
+                       identifier: true, href: blockUrl(chain, v.blockHash))
+  else:
+    result.add MetaRow(label: orderRowLabel(v.orderKind), value: v.orderLabel,
+                       identifier: true)
   result.add txTypeRow(v)
   result.add txAgeRow()
   result.add MetaRow(label: "Canonical", value: yesNo(v.canonical),

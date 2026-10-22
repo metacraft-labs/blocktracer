@@ -4929,3 +4929,42 @@ suite "18 — who called what, from the snapshot to the row":
     #   1 — the empty-address role is dropped
     #   3 — and all three are empty when the snapshot states neither
     expectCount(3 + 1 + 3)
+
+suite "a transaction's ordering row is the chain's own coordinate":
+  asserted = 0
+  ## Static-Site-Architecture.md §2.3 makes ordering a union. A checkpoint-ordered
+  ## chain (Sui) has no block position, so its transaction page must name the
+  ## checkpoint and not print a fabricated `0:0` linked to `/block/` with no hash.
+
+  test "a checkpoint row names the checkpoint and links nowhere":
+    var v: TxView
+    v.hash = "StiTgKUtyMD1bMYjH2qJPWTVsGrrrkNFKrM52iYu8xi"
+    v.positionKnown = false
+    v.orderKind = tokCheckpoint
+    v.orderLabel = "336806210"
+    let rows = txMetadataRows(RealChain, v, chainInfo(root, RealChain))
+    let cp = rows.filterIt(it.label == "Checkpoint")
+    ck cp.len == 1
+    ck cp.len == 1 and cp[0].value == "336806210"
+    ck cp.len == 1 and cp[0].href == ""
+    ck rows.filterIt(it.label == "Block").len == 0
+
+  test "CONTROL: a height-ordered row is the linked block and index, as before":
+    var v: TxView
+    v.hash = "0xreal"
+    v.positionKnown = true
+    v.orderKind = tokBlockIndex
+    v.height = 19_000_000
+    v.index = 12
+    v.blockHash = "0xabc"
+    let rows = txMetadataRows(RealChain, v, chainInfo(root, RealChain))
+    let blk = rows.filterIt(it.label == "Block")
+    ck blk.len == 1
+    ck blk.len == 1 and blk[0].value == "19000000:12"
+    ck blk.len == 1 and blk[0].href == blockUrl(RealChain, "0xabc")
+    ck rows.filterIt(it.label == "Checkpoint").len == 0
+
+  test "assertion count":
+    #   4 — the checkpoint row: one row, its value, no link, no Block row
+    #   4 — the control: one Block row, its value, its link, no Checkpoint row
+    expectCount(4 + 4)
