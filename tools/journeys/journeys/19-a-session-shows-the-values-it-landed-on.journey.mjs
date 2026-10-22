@@ -243,7 +243,27 @@ async function gesture(page, action) {
     if (now.step !== before.step) break;
     await page.waitForTimeout(200);
   }
-  return { moved: true, reading: await settled(page) };
+  // SETTLED THE SAME WAY THE LANDING WAS, and this asymmetry is what made the
+  // comparison wrong rather than the product.
+  //
+  // The landing read goes through `settledOrDeadlinePassed`; this one used
+  // bare `settled`, which returns after three unchanged samples. "Reading the
+  // values at this position…" is perfectly stable while it is legitimately
+  // pending — the exact trap the comment above `settledOrDeadlinePassed`
+  // describes — so the return read caught a pane mid-load and the journey
+  // compared a LOADED state against a LOADING one:
+  //
+  //     landing  5 rows [contextId=1 | contractAddress=0x28406d… | daGas=128
+  //                      | l2Gas=610827 | opcode=39]  note=""
+  //     returned 0 rows []  note="Reading the values at this position…"
+  //
+  // which is not a disagreement about what the pane says at that coordinate.
+  // It is one reading taken before the pane had finished saying anything.
+  //
+  // The guard existed and was applied to one side of an equality. Both sides
+  // now wait the same way, which is the only way "says what it says on
+  // returning to it" is a claim about the product at all.
+  return { moved: true, reading: await settledOrDeadlinePassed(page, READING_NOTE) };
 }
 
 export async function run({ browser, site, j }) {
