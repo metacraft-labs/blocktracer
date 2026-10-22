@@ -7,15 +7,13 @@
 //
 // ── WHAT DIFFERS FROM THE ETHEREUM MODULE, MEMBER BY MEMBER ───────────────────────────
 //
-//   * `PRESTATE_STRATEGY` is `forward-capture`, and it is NOT YET in
-//     Chain-Support-Matrix.md §1.4's closed set: the reader refuses it by name
-//     (`S5-PRESTATE-CLOSED`), so a tree from this producer publishes nothing until the row
-//     exists. That is deliberate. Solana qualifies for none of §1.4's six rows
-//     (Recorder-Solana CXP-SOL-1, measured: no RPC reads an account at a past slot), and
-//     the honest response to a gap in the table is a row there, never a borrowed token
-//     here. The row is requested (codetracer-pm Recorder-Solana "Spine Needs" (a), recorded
-//     under Chain-Delivery DEL-3b) with the measurement behind it: 1,251 of 1,251 executed
-//     transactions matched every fact the chain recorded.
+//   * `PRESTATE_STRATEGY` is `forward-capture`, Chain-Support-Matrix.md §1.4's SEVENTH row,
+//     added 2026-10-22 on an operator decision. Solana qualified for none of the six before
+//     it (Recorder-Solana CXP-SOL-1, measured: no RPC reads an account at a past slot), and
+//     the honest response to that gap was a row there, never a borrowed token here — which
+//     is why, until the row existed, the reader refused this producer's trees by name
+//     (`S5-PRESTATE-CLOSED`) and they published nothing. The measurement behind the row:
+//     1,251 of 1,251 executed transactions matched every fact the chain recorded.
 //   * THE COST VECTOR HAS TWO DIMENSIONS, and they are not Ethereum's two. A Solana
 //     transaction pays a FEE in lamports (base plus priority, one figure the metadata
 //     states) and consumes COMPUTE UNITS, which are metered against a limit but are not
@@ -31,7 +29,7 @@
 /** `provenance.recorder` — who recorded this capture's executions, and in what schema. */
 export const RECORDER = Object.freeze({ id: 'solana-sbf', traceSchema: 'ctfs/v5' });
 
-/** `provenance.prestateStrategy` — see the header: requested, not yet in §1.4. */
+/** `provenance.prestateStrategy` — §1.4's seventh row; see the header. */
 export const PRESTATE_STRATEGY = 'forward-capture';
 
 /** `provenance.identifierEncoding` — every identifier kind this chain publishes. */

@@ -15,11 +15,10 @@
 # and records relative paths, so two builds are byte-identical (and identical to what the
 # live capture wrote — measured over the committed window, 60 of 60).
 #
-# NOT YET IN `produced-captures` / `site-staging`. The tree's prestate strategy is
-# `forward-capture`, which is not in Chain-Support-Matrix.md §1.4's set, so the reader
-# refuses it (`S5-PRESTATE-CLOSED`) and adding it to the staging site would fail the site
-# build. The row is requested (Chain-Delivery DEL-3b); once it lands, this tree joins
-# `produced-captures` as `solana-mainnet` and nothing here changes.
+# IN `produced-captures` AS `solana-mainnet` since 2026-10-22. Until then its prestate
+# token, `forward-capture`, was outside Chain-Support-Matrix.md §1.4's set and the reader
+# refused the tree (`S5-PRESTATE-CLOSED`); the operator added the row that day, and nothing
+# here had to change.
 #
 # THE PINS (flake.nix states the revisions):
 #

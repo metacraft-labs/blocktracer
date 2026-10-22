@@ -40,11 +40,11 @@
 // `lib/refusal.mjs`. Everything Solana states is in `lib/solana-producer-facts.mjs`.
 // DEL-7 notes are marked as such.
 //
-// ── THE PRESTATE TOKEN, WHICH THE READER WILL REFUSE TODAY ─────────────────────────────
+// ── THE PRESTATE TOKEN ─────────────────────────────────────────────────────────────────
 //
-// `forward-capture` is not yet in §1.4's closed set, so ingest refuses this tree by name
-// (`S5-PRESTATE-CLOSED`). That is the honest state and it is the one place this tree is
-// expected to fail conformance; see the facts module's header.
+// `forward-capture`, §1.4's seventh row since 2026-10-22. Before the row existed, ingest
+// refused this tree by name (`S5-PRESTATE-CLOSED`) and that refusal was the one place it
+// failed conformance; see the facts module's header.
 
 import { execFile } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync,

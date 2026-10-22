@@ -458,10 +458,9 @@
         packages.flow-capture-tree = flow.flowCaptureTree;
         packages.flow-ct-print = flow.ctPrint;
 
-        # ── Solana, produced the same way, and NOT yet in produced-captures ──
-        # Its prestate token (`forward-capture`) is not in §1.4's set, so the reader
-        # refuses the tree; it joins produced-captures as `solana-mainnet` once the
-        # row lands (Chain-Delivery DEL-3b). See tools/chain/nix/sol.nix.
+        # ── Solana, produced the same way (Recorder-Solana CXP-SOL-6) ──
+        # In produced-captures as `solana-mainnet` since 2026-10-22, when §1.4 gained the
+        # `forward-capture` row. See tools/chain/nix/sol.nix.
         packages.solana-recorder = sol.solanaRecorder;
         packages.sol-capture-tree = sol.solCaptureTree;
 
@@ -495,6 +494,7 @@
           mkdir -p $out
           cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
           cp -r ${flow.flowCaptureTree} $out/flow-mainnet
+          cp -r ${sol.solCaptureTree} $out/solana-mainnet
           cp -r ${starknet.starknetCaptureTree} $out/starknet-mainnet
         '';
 

@@ -728,9 +728,10 @@ test('§10 the lift is faithful: the producer states exactly what the reader use
   // …AND THE PRESTATE STRATEGY IS IN THE CLOSED SET IT IS NOW DRAWN FROM. The lift is only
   // faithful if the value it moved is one the new refusal admits; a producer stating a
   // value its own reader refuses is a lift that published nothing.
-  ck(`…and it is one of §1.4's six — ${contract.prestateStrategies.tokens.length} token(s)`,
+  // SEVEN since 2026-10-22, when §1.4 gained `forward-capture` (Recorder-Solana).
+  ck(`…and it is one of §1.4's seven — ${contract.prestateStrategies.tokens.length} token(s)`,
      contract.prestateStrategies.tokens.includes(PRESTATE_STRATEGY)
-     && contract.prestateStrategies.tokens.length === 6);
+     && contract.prestateStrategies.tokens.length === 7);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
