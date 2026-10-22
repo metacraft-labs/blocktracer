@@ -159,9 +159,51 @@ export async function applyCpuThrottle(page) {
 
 export async function openBrowser() {
   const chromium = requirePlaywright();
+  let browser = null;
   try {
-    return await chromium.launch({ chromiumSandbox: false });
+    browser = await chromium.launch({ chromiumSandbox: false });
+    // LAUNCHING IS NOT THE SAME AS LIVING, and the difference cost a CI
+    // afternoon. `launch()` resolves as soon as the browser answers once; if
+    // the process then DIES — the host killed it, it ran out of memory, its
+    // shared-memory mount was too small — the handle is still returned and
+    // every later call fails with playwright's own
+    //
+    //     browser.newPage: Target page, context or browser has been closed
+    //
+    // which names nothing about why. Measured on run 39400689697: on four of
+    // `journeys-bite`'s eight shards that sentence arrived at the FIRST
+    // `newPage` of Arm I, and `selftest.mjs` then reported nine arms NEVER RAN
+    // — the verdict that means "this arm describes something that is not
+    // there", about nine arms that were all perfectly well described. Shards 2
+    // and 5 passed the same commit on the same runner, so it is a condition of
+    // the host at that moment, not of the tree.
+    //
+    // So the liveness is PROVED here, where it can still be classified, by
+    // doing the smallest thing that needs a live browser. A dead one is a
+    // REFUSAL — exit 2, DID NOT RUN — and not a verdict, which is the whole
+    // distinction this suite is built on: the host failed to supply an
+    // instrument, and nothing was measured. One page per run is the cost.
+    const probe = await browser.newPage();
+    await probe.close();
+    return browser;
   } catch (err) {
+    if (browser) {
+      // It launched and then did not survive. Say THAT, rather than the
+      // "did not launch" sentence below, which would send a reader to
+      // `pinned-env.mjs` and a version skew that is not the problem.
+      try { await browser.close(); } catch {}
+      const e = new Error(
+        "the browser launched and then died before it could be used, so nothing\n" +
+          "  can be judged. This is NOT a missing or mismatched browser — `launch()`\n" +
+          "  succeeded and the process answered; it was gone by the first page.\n" +
+          "  On a shared runner the usual cause is the host reclaiming it under memory\n" +
+          "  pressure from a neighbouring job, so the same commit passes on a quieter\n" +
+          "  one. Check what else was running, and `journeys-bite`'s `max-parallel`.\n" +
+          `  (playwright said: ${err && err.message ? err.message : err})`,
+      );
+      e.exitCode = 2;
+      throw e;
+    }
     const e = new Error(
       "the pinned browser did not launch, so nothing can be judged.\n" +
         "  The playwright PACKAGE resolved; its BROWSER did not. These are two artefacts\n" +
@@ -219,6 +261,19 @@ export const readFacts = (page) =>
       // ---- the session's own account of where it is -------------------------
       phase: root?.getAttribute("data-session-phase") ?? null,
       step: root?.getAttribute("data-step") ?? null,
+      // WHETHER THAT STEP MEANS ANYTHING — asked of the page, not inferred
+      // from the number.
+      //
+      // `Number(step) > 0` is the sentinel the PRODUCT retired, and
+      // `debug.nim` says why in as many words: "step 0 is a real position, so
+      // `0` cannot also spell `no position`. The page knows which it is and
+      // now says so." It says so in `data-positioned`, and reading the number
+      // instead is how this directory kept re-deriving a fact the markup
+      // already carries. Measured on the committed corpus: ELEVEN pages are
+      // `data-positioned="1"` at `data-step="0"` — every instruction-level
+      // chain capture, whose listing starts at step 0 — and the sentinel
+      // called all eleven unpositioned.
+      positioned: root?.getAttribute("data-positioned") === "1",
       totalSteps: root?.getAttribute("data-total-steps") ?? null,
       trace: root?.getAttribute("data-trace") ?? null,
       // IS THE SCRUBBER STILL WORKING? Written by `publishSeekOutstanding`,
@@ -874,8 +929,37 @@ export async function waitForConsoleLine(page, test, { sinceIndex = 0, budgetMs 
     );
   }
   const deadline = Date.now() + budgetMs;
+  // THE CURSOR ADVANCES. It used to restart at `sinceIndex` on every poll, so
+  // each 100 ms tick re-tested every line already rejected — quadratic in the
+  // number of lines the page produces while the wait is open.
+  //
+  // That was affordable when this buffer's own comment was written and it is
+  // not now, and the difference is this campaign's doing. The figure recorded
+  // there is "1099 console messages" for one debug route, load only. MEASURED
+  // today on a chain capture the engine can now OPEN: 10,025 lines at landing
+  // and ~7,600 per step, nearly all of them the replay engine's own INFO and
+  // WARN lines (`expr_loader.rs`, `db.rs`, `trace_reader.rs`,
+  // `flow_preloader.rs`) — the engine doing the work that re-recording the
+  // corpus made possible. Rescanning that from the start, ten times a second,
+  // is tens of millions of `includes` in the driver, on the same machine the
+  // browser is trying to paint on.
+  //
+  // IT IS AN EFFICIENCY FIX AND NOTHING MORE, and that is worth saying because
+  // the first draft of this comment claimed otherwise. A nine-position walk of
+  // `aztec-testnet-frames/0x00689495…` reads five Values rows at 7 positions
+  // when it is driven with no console listener of its own and at 1 position
+  // when a second listener is attached beside this buffer's — so driver-side
+  // console work really can starve the page at this volume. But making this
+  // scan linear did NOT move that walk: 1 of 9 before, 1 of 9 after. Whatever
+  // is costing `a-motion-says-which-values-it-changed`'s chain arm its Values
+  // rows, it is not this loop, and the measurement that would have shown it is
+  // a walk driven exactly as that journey drives it rather than one with an
+  // extra listener in it.
+  //
+  // Every line is still tested, exactly once, and the answer is unchanged.
+  let i = sinceIndex;
   for (;;) {
-    for (let i = sinceIndex; i < buf.length; i += 1) {
+    for (; i < buf.length; i += 1) {
       if (test(buf[i].text)) return buf[i].text;
     }
     if (Date.now() >= deadline) return null;
@@ -902,6 +986,104 @@ export async function waitForFacts(page, test, budgetMs = 8000) {
     facts = await readFacts(page);
   }
   return { facts, reached: test(facts) };
+}
+
+/**
+ * The sentence the Values pane shows while it is waiting for this position's
+ * reply — `live_locals.ReadingNote`, verbatim but for the ellipsis, which is
+ * matched by `includes` rather than compared so the harness does not depend on
+ * the exact character.
+ */
+export const VALUES_PENDING_NOTE = "Reading the values at this position";
+
+/**
+ * Wait for the Values pane to hold an ANSWER for where the session now stands.
+ *
+ * WHY A SEPARATE WAIT, WHEN THE POSITION HAS ALREADY BEEN WAITED FOR. Because
+ * they are two replies and only the first one is what `POSITION_ANSWERED`
+ * reports. `StateVM`'s auto-load effect issues more than one `ct/load-locals`
+ * per move — `live_locals.nim`'s "THE FLICKER" header says so and says why —
+ * and a reading taken when the position lands catches the pane mid-sentence.
+ *
+ * MEASURED on `aztec-testnet-frames/0x00689495…`, a nine-position walk driven
+ * exactly as journeys 07 and 16 drive one:
+ *
+ *   read at the position answer        1 position of 9 had rows
+ *   …and the log at the other eight    `updateLocals: setting 5 variables`
+ *                                      with the pane reading the pending
+ *                                      sentence and 0 rows
+ *   read after this wait               9 of 9, five rows each, 1.1s later
+ *
+ * So the eight zeroes were not the product losing an answer and not the engine
+ * failing to give one — `a-motion-says-which-values-it-changed`'s header
+ * records both of those being ruled out, and the one reading it was missing is
+ * the line above. THE PRODUCT IS CORRECT AND THE WALK WAS EARLY.
+ *
+ * THIS IS NOT "WAIT LONGER UNTIL IT PASSES", which that header rightly refuses.
+ * The predicate is the pane's own two terminal states — it has rows, or it is
+ * saying something that is not "I am still reading" — so a pane that genuinely
+ * has no values here settles on its sentence and this returns immediately with
+ * `reached` true. A pane that never leaves the sentence times out, and the
+ * caller gets `reached: false` to report as the failure it is.
+ */
+export async function waitForValuesSettled(page, budgetMs = 15000) {
+  return waitForFacts(
+    page,
+    (f) => (f.stateRows?.length ?? 0) > 0 || !(f.stateNote ?? "").includes(VALUES_PENDING_NOTE),
+    budgetMs,
+  );
+}
+
+/**
+ * The tick of the LAST position the page has already answered, or null.
+ *
+ * WHY A GESTURE CANNOT BE MARKED AGAINST A TALKING PAGE. `consoleMark` takes
+ * the buffer's length, the gesture is made, and the next `POSITION_ANSWERED`
+ * line after that mark is read as the gesture's answer. If the LANDING is
+ * still answering — `goLive` publishes `phase === "ready"` with the controls,
+ * not with the engine's reply — then the first line after the mark is the
+ * landing's, `tickOf` gives the tick the session is ALREADY on, and
+ * `waitForFacts(step === tick)` is satisfied before the gesture has been
+ * answered at all. The reading that follows is of the position the page was
+ * at when it was clicked.
+ *
+ * MEASURED on `/demo/tx/0x0baa77f7…/debug` with `JOURNEY_CPU_THROTTLE=4`:
+ * clicking at `ready` reported "did not move" in 1 of 4 runs, and 2 of 5 on a
+ * second pass; unthrottled it is 6 of 6; and clicking then sleeping 3s before
+ * reading is 6 of 6 AT throttle 4, which is what says the click was never the
+ * problem. On CI it took `stepping-moves-the-position` red twice, on a
+ * different arm each time.
+ *
+ * A QUIESCENCE WAIT WAS TRIED FIRST AND IS NOT ENOUGH, which is worth saying
+ * because it is the obvious answer. "No position line for 700ms" is trivially
+ * true at a handover that has not started talking yet, and requiring one line
+ * first still fails: `aztec-testnet-frames/0x00689495…` takes about nine
+ * seconds to answer its landing and emits ~7,600 console lines doing it, with
+ * gaps. Measured after that repair, the REAL arm still failed 1 run in 2.
+ *
+ * So the answer is ATTRIBUTED rather than waited for. The caller records the
+ * tick the page has already reached, and then accepts only a line that names
+ * a DIFFERENT one. A landing echo is skipped because it repeats a tick that
+ * was already current; the gesture's own answer is not.
+ *
+ * AND A STEP THAT DOES NOT MOVE IS STILL REPORTED AS ONE. `stepOnce`'s own
+ * comment refuses "wait for `step` to differ" because a step that lands where
+ * it started is a RESULT. It still is: at the end of a trace no differing
+ * tick arrives, the bounded wait runs out, and the verdict is taken from the
+ * facts exactly as before — unchanged, and red. What changed is only which
+ * line is allowed to end the wait.
+ */
+export function lastPositionTick(page) {
+  const buf = page.__ctConsole;
+  if (!buf) {
+    throw new Error(
+      "lastPositionTick: no console buffer on this page — it did not come from visit()",
+    );
+  }
+  for (let i = buf.length - 1; i >= 0; i -= 1) {
+    if (POSITION_ANSWERED(buf[i].text)) return tickOf(buf[i].text);
+  }
+  return null;
 }
 
 /** The tick `updateDebuggerPosition` says it moved to, or null. */

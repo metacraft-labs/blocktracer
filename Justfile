@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# NINETEEN suites — 98 + 19 + 24 + 24 + 57 + 238 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 6 + 34 + 26 + 6 = 1246 counted assertions —
+# TWENTY-ONE suites — 105 + 19 + 24 + 24 + 57 + 241 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 9 + 41 + 31 + 6 + 33 + 24 = 1329 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -468,6 +468,16 @@ chain-selftest:
     # token still outside §1.4's set. Traced rows need the recorder and are exercised
     # by `nix build .#sol-capture-tree`.
     node tools/chain/solana-producer-selftest.mjs
+    # Chain-Delivery DEL-7's two verification entries. Offline; both read the tree and
+    # `tools/chain/ingestion-classification.json` and change nothing.
+    #   test_every_abstraction_has_two_consumers — counts each export of
+    #   lib/producer-runtime.mjs by the producers' own import statements, and drives a
+    #   control that removes one consumer and watches the count fall below the floor. It
+    #   also runs all five producers with no arguments and reads their real exit codes.
+    node tools/chain/abstraction-consumers-selftest.mjs
+    #   test_the_classification_can_be_wrong — judges the classification against the code
+    #   in four directions, with a mis-classified component driven through each one.
+    node tools/chain/classification-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -751,6 +761,45 @@ chain-health-check *ARGS:
 ct-corpus-check *ARGS:
     node tools/chain/ct-corpus-census.mjs \
       --expect tools/chain/measurements/ct-corpus.json {{ARGS}}
+
+# Apply `ctfs-container.md` §1e to the tracked `.ct` corpus: convert a container
+# to the COMPACT profile when its raw members fit under the threshold, and leave
+# it full when they do not.
+#
+# THE THRESHOLD IS AN ARGUMENT AND HAS NO DEFAULT, because it is a publishing
+# policy and not a tool's opinion. 1048576 is what this repository applies, and
+# it is not a number anyone here chose: §1e RECOMMENDS 1 MiB of raw bytes, as a
+# judgement with its reasoning recorded, and every container in this corpus is
+# far under it (the largest raw total is `zk_shields` at 731,774 B).
+#
+# IT IS A RESIDENCY BOUND, NOT A SIZE BOUND. §1e is normative that the threshold
+# is measured in RAW bytes "because the compact profile is for a container that
+# is RESIDENT before its first query, and residency is a property of logical
+# size". It says nothing about bytes at rest or bytes on the wire, and §1e's own
+# closing paragraph warns that "conflating any two of them is how a size
+# argument goes wrong" — which is the mistake a 100000 ceiling here made for a
+# day, picked by comparing at-rest sizes.
+#
+#   just ct-compact-check 1048576    # report, write nothing
+#   just ct-compact 1048576          # apply, then `just ct-corpus-read`
+# `$CT_TRACE_FORMAT_NIM_SRC` and `$CT_NIM_EXTRA_PATHS` come from the dev shell —
+# see `flake.nix`, where the revision is the one the shipped writer is built
+# from, so this tool and that writer cannot drift apart.
+ct-compact threshold: (_compact-build)
+    ./.compact-container --threshold {{threshold}} $(git ls-files '*.ct')
+
+ct-compact-check threshold: (_compact-build)
+    ./.compact-container --threshold {{threshold}} --check $(git ls-files '*.ct')
+
+_compact-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${CT_TRACE_FORMAT_NIM_SRC:?run this inside the dev shell: nix develop .#ci --command just …}"
+    paths=(-p:"$CT_TRACE_FORMAT_NIM_SRC/src")
+    IFS=: read -ra extra <<< "${CT_NIM_EXTRA_PATHS:-}"
+    for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
+    nim c --hints:off -d:release "${paths[@]}" \
+      -o:.compact-container tools/chain/compact_container.nim
 
 # Re-read the census into the committed reading. Run this deliberately, after a
 # corpus change, and say in the commit WHY each delta moved.
@@ -1239,6 +1288,20 @@ ct-styles-vendor:
     ci/test/ct-styles-vendor.sh --require
     ci/test/ct-styles-vendor-test.sh
 
+# CAN EVERY SHELL THAT RUNS THE EXPORTER ACTUALLY RUN IT?
+#
+# `nim` implies `brotli`: a shell providing nim can build and run
+# `static_export`, and since CCP-6 that refuses without the `brotli` binary.
+# Checked over each shell's REALISED inputs, because `devShells.default` names
+# neither package and has both through `inputsFrom`.
+#
+# The self-test drives the four verdicts the gate can reach — pass, a named
+# failure, DID NOT RUN over an empty subject, and a visible SKIP — because a
+# gate whose failure path has never run is a gate nobody has reason to believe.
+devshell-exporter-deps:
+    ci/test/devshell-exporter-deps.sh
+    ci/test/devshell-exporter-deps-test.sh
+
 # THE CONVERSE OF `Dropped`: can a rule the port KEPT match anything?
 #
 # `ct-styles-vendor` above proves the INPUT is still upstream's bytes.
@@ -1717,6 +1780,19 @@ starknet-capture RECORDER COMMIT TRANSCRIPT="../codetracer-cairo-recorder/onchai
 sui-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-sui-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
+
+# The same capture with NO network: checkpoint 336,000,001 from its committed GraphQL
+# transcript (fixtures/chain-inputs/sui-mainnet/336000001), served on loopback. The
+# recording ids are derived and the clock readings pinned, so the tree is byte-identical
+# run to run. Needs the recorder and a `sui` with the `tracing` feature.
+sui-capture RECORDER COMMIT OUT=".sui-capture/tree" *ARGS:
+    node tools/chain/capture-sui-range.mjs \
+      --transcript fixtures/chain-inputs/sui-mainnet/336000001 \
+      --from 336000001 --to 336000001 --max 1000 \
+      --fixed-time 2026-10-22T00:00:00.000Z \
+      --work .sui-capture/work --out {{OUT}} \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --positions-reader {{RECORDER}} {{ARGS}}
 
 # Is the Sui endpoint still serving the object versions it served when the
 # committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed
@@ -2339,3 +2415,73 @@ flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
       --recorder-commit "$commit" \
       --inputs fixtures/chain-inputs/flow-mainnet/{{BLOCK}} \
       --out {{OUT}} --work .flow-capture/work
+
+# ── the RESIDENT follower: ING-1's deployed daemon, runnable locally over a range ──
+#
+# `just eth-range` captures a range somebody asked for. This is the loop that asks:
+# it observes the chain, derives what it still owes from the PUBLISHED output, captures
+# up to its tick capacity, files and publishes each span through `eth-ingest-range`, and
+# writes an observation — including a measured zero — on every tick.
+#
+# RUNNABLE LOCALLY TODAY AND RESIDENT UNCHANGED. The same binary and the same flags; a
+# deployment differs only in `--backend s3 --bucket`, `--ticks 0` (the default) and a
+# supervisor. During development, bound it: `--floor/--ceiling` name the window,
+# `--ticks` the budget, `--heads` replays a recorded head transcript instead of the node.
+#
+# IT HOLDS NO CREDENTIAL. Every store read and the SLI write go through
+# `blocktracer-follower-state`, and the publish through `blocktracer-publish` — both take
+# `--backend`, so the follower never speaks S3 itself.
+#
+# NOT in any gate, for `eth-range`'s reason: it needs the network and the recorder binary,
+# so a gate over it would report SKIP forever. The gated, offline half is
+# `just eth-follower-proof`'s transcript-driven arms.
+#
+#     just eth-follow <recorder> <commit> --dest .eth-store --ticks 5 --tick-capacity 2
+eth-follow RECORDER COMMIT *ARGS:
+    nim c --hints:off -d:release --path:src -o:.eth-follower/bin/blocktracer-follower-state \
+      src/blocktracer_follower_state.nim
+    nim c --hints:off -d:release --path:src -o:.eth-follower/bin/blocktracer-chain-ingest \
+      src/blocktracer_chain_ingest.nim
+    nim c --hints:off -d:release --path:src -o:.eth-follower/bin/blocktracer-publish \
+      src/blocktracer_publish.nim
+    node tools/chain/follow-eth-chain.mjs \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --state-bin .eth-follower/bin/blocktracer-follower-state \
+      --ingest-bin .eth-follower/bin/blocktracer-chain-ingest \
+      --publish-bin .eth-follower/bin/blocktracer-publish {{ARGS}}
+
+# ── does the resident follower do the six things ING-1 asks of it? ──
+#
+# `eth-publish-proof` proves ONE publish cycle; `eth-coverage-proof` proves range after
+# range into one store. Both describe a run somebody started. A DAEMON has properties a run
+# does not: it must survive a kill, it must not drop a burst, it must say something during
+# a drought, and its lag must be readable by somebody who is not watching its terminal.
+#
+# THE BURST IS THE CHAIN'S, NOT THE HARNESS'S, and that is the finding that sizes the
+# design. Recorded on 2026-10-14 against `https://eth.drpc.org` by the follower's own
+# `--record-heads`, 44 ticks at 30 seconds, committed as
+# `tools/chain/measurements/eth-head-transcript-2026-10-14.json`: ETHEREUM'S FINALIZED HEAD
+# ADVANCES ONE EPOCH AT A TIME. It stood still for twelve ticks and then moved +32 in one,
+# then +32 again at tick 25 and +32 again at tick 38, while the tip crept 26,189,168 ->
+# 26,189,276. So a follower whose tick capacity is under thirty-two meets an undrainable
+# burst every six and a half minutes on the ordinary chain, and 40 of the 44 ticks observed
+# a window and found NOTHING. Average-rate reasoning predicts neither.
+#
+# Only the burst arm's CONTROL is constructed — "the same total spread evenly across ticks",
+# which a chain does not offer on request — and it carries `synthetic: true`, which the
+# follower prints on every run so a measurement cannot quietly be over a made-up chain.
+#
+# Arms 2, 6 and the roster arms need only the transcript. Arms 1, 3, 4, 5, 7, 8, 9 and 11
+# capture REAL blocks and need the network and the recorder; an ABSENT subject is exit 2,
+# never exit 0.
+#
+# 83 checks, 0 failures, measured 2026-10-14 over the window 26,189,100-26,189,105 and
+# 11,446 published objects. The default endpoint is free and rate-limits: a 429 leaves the
+# span OWED and a later tick retries it, which is the designed behaviour and is REPORTED in
+# the result block whether or not any arm went red. Pass --url <paid endpoint> to take the
+# endpoint out as a variable.
+#
+#     just eth-follower-proof
+#     just eth-follower-proof --span 4 --capacity 2 --keep
+eth-follower-proof *ARGS:
+    bash tools/chain/eth-follower-proof.sh {{ARGS}}

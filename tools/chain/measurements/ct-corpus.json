@@ -13,11 +13,10 @@
     "trackedPaths": 55,
     "containers": 52,
     "notContainers": 3,
-    "readable": 10
+    "readable": 0
   },
   "containerVersions": {
-    "v3": 42,
-    "v5": 10
+    "v6": 52
   },
   "populations": [
     {
@@ -26,11 +25,11 @@
       "paths": 25,
       "containers": 25,
       "versions": {
-        "v3": 25
+        "v6": 25
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 25
+        "other": 25
       }
     },
     {
@@ -39,11 +38,11 @@
       "paths": 6,
       "containers": 6,
       "versions": {
-        "v3": 6
+        "v6": 6
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 6
+        "other": 6
       }
     },
     {
@@ -52,11 +51,11 @@
       "paths": 2,
       "containers": 2,
       "versions": {
-        "v3": 2
+        "v6": 2
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 2
+        "other": 2
       }
     },
     {
@@ -65,11 +64,11 @@
       "paths": 1,
       "containers": 1,
       "versions": {
-        "v3": 1
+        "v6": 1
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 1
+        "other": 1
       }
     },
     {
@@ -78,11 +77,11 @@
       "paths": 8,
       "containers": 8,
       "versions": {
-        "v3": 8
+        "v6": 8
       },
       "readable": 0,
       "refusals": {
-        "meta.dat-schema-3": 8
+        "other": 8
       }
     },
     {
@@ -91,10 +90,12 @@
       "paths": 9,
       "containers": 9,
       "versions": {
-        "v5": 9
+        "v6": 9
       },
-      "readable": 9,
-      "refusals": {}
+      "readable": 0,
+      "refusals": {
+        "other": 9
+      }
     },
     {
       "id": "noir/space-ship",
@@ -102,10 +103,12 @@
       "paths": 1,
       "containers": 1,
       "versions": {
-        "v5": 1
+        "v6": 1
       },
-      "readable": 1,
-      "refusals": {}
+      "readable": 0,
+      "refusals": {
+        "other": 1
+      }
     },
     {
       "id": "conformance-kit/placeholders",

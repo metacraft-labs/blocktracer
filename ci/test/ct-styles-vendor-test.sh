@@ -63,14 +63,28 @@ fresh() {
 	mkdir -p "${dir}/frontend/styles/components"
 	cp "${real_vendor}"/frontend/styles/components/*.styl \
 		"${dir}/frontend/styles/components/"
+	# THE SET IS NOT ONLY STYLESHEETS ANY MORE, and a fixture that omitted the
+	# ninth file made every case below fail for the WRONG reason: the gate
+	# reported `debug_control_marks.nim` missing and exited before reaching the
+	# edited copy, the moved pin or the lost manifest entry each case plants.
+	# Three cases went red together and none of them was about its own subject.
+	mkdir -p "${dir}/frontend/viewmodel/views"
+	cp "${real_vendor}"/frontend/viewmodel/views/*.nim \
+		"${dir}/frontend/viewmodel/views/"
 	echo "${dir}"
 }
 
 echo "=== ct-styles-vendor.sh, driven through its failure paths ==="
 
 # 1. THE CONTROL. An untouched copy passes part A and skips part B.
+#
+# The expected text is `file(s)` and not `stylesheet(s)`: the set gained
+# `debug_control_marks.nim`, the gate's own lines were reworded to match, and
+# THIS CASE IS WHAT NOTICED — it asserts the sentence the gate prints, so a
+# gate whose wording drifts from its subject fails here rather than going on
+# describing a set it no longer has.
 run_case "an untouched copy passes part A" 3 \
-	"stylesheet(s) match their manifest digests" "$(fresh control)"
+	"file(s) match their manifest digests" "$(fresh control)"
 
 # 2. An edit to a copy — the defect the whole gate exists for.
 d="$(fresh edited)"
@@ -85,6 +99,17 @@ run_case "a missing copy fails" 1 "the vendored stylesheet is missing" "${d}"
 
 # 4. A manifest that lost an entry. This is the case a naive gate passes by
 #    having nothing to compare, which is why the count is checked.
+#
+# THE EXPECTED NUMBER IS DERIVED, NOT WRITTEN. It used to read "5 sha256
+# entries", which was the answer when six stylesheets were vendored. Eight are
+# vendored now, so the perturbation produces seven and this arm failed with
+# "exit code was right but the message was not" -- the gate biting correctly
+# and the test disagreeing about the wording. It had been red since the seventh
+# stylesheet landed and nobody saw it: `debug-route` failed at an earlier step,
+# so this suite never ran.
+#
+# A hard-coded count here is a second place the manifest's size is recorded,
+# and the manifest is the first. Counting it is what keeps there being one.
 d="$(fresh short-manifest)"
 python3 - "${d}/ct_styles.vendor.json" <<'PY'
 import json, sys
@@ -93,8 +118,14 @@ m = json.load(open(p))
 m["files"] = m["files"][:-1]
 json.dump(m, open(p, "w"), indent=2)
 PY
+# Counted rather than written down: a number typed here went stale the first
+# time the vendored set grew. Counted off `${d}` — the copy the block above
+# just truncated — rather than off the real manifest minus one, so the
+# expectation is read from the artefact the case actually produced and the
+# `- 1` cannot drift away from the `[:-1]`.
+short_count="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["files"]))' "${d}/ct_styles.vendor.json")"
 run_case "a manifest that lost an entry fails" 1 \
-	"the manifest records 5 sha256 entries" "${d}"
+	"the manifest records ${short_count} sha256 entries" "${d}"
 
 # 5. A manifest whose entries are in a different order. The digests would
 #    otherwise be matched against the wrong files.

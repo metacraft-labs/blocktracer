@@ -45,6 +45,11 @@ import std/[json, os, strutils, sha1, algorithm, tables]
 import ../contract/[model, version, ids, searchidx, identifier_encoding,
                     chain_profile]
 import ./entrypages
+# `encodeContainer` and the closed `ContainerEncoding` set: the generator is the
+# second producer writing into `/t/**` and must store containers the same way
+# the ingest does.
+import ../publish/encoding
+import ../contract/container_encoding
 
 type
   DemoConfig* = object
@@ -61,6 +66,23 @@ type
                               ## now belongs to the real mainnet capture, and a
                               ## fixture must be able to be told where to stand.
     generation*: string       ## generation label; "" => "1" (the M5c default).
+    containerEncoding*: ContainerEncoding
+      ## ── HOW THIS GENERATOR'S `/t/**/trace.ct` IS STORED (CCP-6) ──────────
+      ##
+      ## The same field `chain/ingest.nim`'s `IngestConfig` carries, and for the
+      ## same reason: a published tree has TWO producers writing containers into
+      ## one `/t/**`, and a tree where one of them pre-compresses and the other
+      ## does not is a tree whose objects answer the same question two ways.
+      ##
+      ## Measured 2026-10-14 before this field existed: `nix build .#default`
+      ## produced 25 containers of which the ingest's 10 were brotli with
+      ## `container.encoding: "br"` in their manifests and the generator's 15
+      ## were raw with no encoding field — including six copies of
+      ## `zk_shields.ct`, which the compact conversion had just made 732,258
+      ## bytes each. 4.4 MB of inflated members served uncompressed.
+      ##
+      ## `ceIdentity` is the zero value, so a caller that does not set it writes
+      ## exactly the bytes this generator has always written.
     tourDir*: string          ## `fixtures/trace/tour` — the capability tour's corpus.
                               ## "" => no tour block, which is what every consumer
                               ## that only wants the M5c tree should get. When set,
@@ -463,8 +485,19 @@ proc writeArtifact(cfg: DemoConfig, rec: Recording, txHash, execInputId: string,
   # THIS transaction's container, copied verbatim. Copying rather than
   # regenerating is what keeps the tree byte-identical (see the module header).
   let bytes = readFile(rec.containerPath)
+  # AND ENCODED FOR REST, if this publication asks for it. `bytes` stays the RAW
+  # container throughout — every figure the manifest publishes about the
+  # container (`bytes`, `hash`) describes what the loader sees, and only
+  # `storedBytes`/`storedHash` describe the object. Conflating the two is what
+  # `contract/model.nim`'s ContainerRef comment calls "how a 10x and a 21% came
+  # to be conflated".
+  let encoded = encodeContainer(bytes, cfg.containerEncoding)
+  if not encoded.ok:
+    raise newException(ValueError,
+      "cannot publish the demo container for " & txHash & ": " & encoded.why)
+  let storedCt = encoded.data
   createDir(cfg.outDir / dir)
-  writeFile(cfg.outDir / dir / "trace.ct", bytes)
+  writeFile(cfg.outDir / dir / "trace.ct", storedCt)
   var bundles = newJObject()
   if sourceBundleId.len > 0:
     bundles[codeHash] = %sourceBundleId
@@ -478,7 +511,16 @@ proc writeArtifact(cfg: DemoConfig, rec: Recording, txHash, execInputId: string,
     profile: p,
     sourceBundles: bundles,
     container: ContainerRef(file: "trace.ct", bytes: bytes.len, blockSize: 4096,
-                            hash: contentHashSha1(bytes)),
+                            hash: contentHashSha1(bytes),
+                            # Omitted entirely under identity, so a tree
+                            # published without pre-compression is
+                            # byte-identical to one published before CCP-6.
+                            encoding: (if cfg.containerEncoding == ceIdentity: ""
+                                       else: $cfg.containerEncoding),
+                            storedBytes: (if cfg.containerEncoding == ceIdentity: 0
+                                          else: storedCt.len),
+                            storedHash: (if cfg.containerEncoding == ceIdentity: ""
+                                         else: contentHashSha1(storedCt))),
     execution: ExecutionSummary(steps: rec.steps, frames: rec.frames,
                                 truncated: truncated, sourceLevel: true,
                                 languages: @[traceLanguage],

@@ -480,3 +480,116 @@ RequestId: 9F41236A412C0E11
     # anchored rather than a word search.
     check not isPreconditionFailure(
       "the PreconditionFailed response is documented at https://example.invalid\n")
+
+# ── DEL-1b: A STATIC TREE ADVERTISES ITS ENCODING, OR IT IS UNPARSEABLE ───────
+#
+# `LocalObjectStore` used to REFUSE any item carrying a `Content-Encoding`,
+# because a directory has no per-object metadata and compressed bytes served as
+# identity are bytes no consumer can parse and none can diagnose. The refusal
+# named its own remedy — the Cloudflare Pages `_headers` file — and then
+# `publish-r2.yml`'s DRY RUN, the only way to exercise the publisher without
+# writing to production, hit it the moment the exporter started pre-compressing:
+#
+#   objectstore.nim(200) putMany
+#   Error: LocalObjectStore cannot store a Content-Encoding …
+#
+# So the remedy is implemented here, and these arms hold it to the two properties
+# the refusal was protecting: every compressed object gets a rule, and no rule is
+# ever lost. The second is the one with teeth — `putMany` is called ONCE PER
+# CONTENT-ENCODING GROUP AND ONCE PER CHAIN, so a `_headers` written rather than
+# appended keeps only the final group's rules and silently drops the rest, which
+# is the original defect wearing a fix's clothes.
+#
+# MEASURED, not asserted — each perturbation was applied to `putMany` and the
+# suite re-run:
+#
+#   dropping `prior &`      (rewrite)         → arm 3 FAILS
+#   `if headers.len > 0` → `if true`          → arm 4 FAILS
+#   both together                             → arms 3, 4 AND 5 FAIL
+#
+# Arm 5 is deliberately the joint one: an identity group can only erase a brotli
+# group's rules if the write is BOTH unguarded and truncating, and that pair is
+# the shape a well-meaning "just rewrite it each time" refactor produces.
+suite "DEL-1b — a local tree advertises Content-Encoding via `_headers`":
+  proc seeded(dir: string, keys: openArray[string]): seq[BulkItem] =
+    ## Items whose bytes exist on disk, as the publisher's always do.
+    for k in keys:
+      let src = dir / k.replace("/", "_")
+      writeFile(src, "body-of-" & k)
+      result.add BulkItem(key: k, srcPath: src, contentEncoding: "br")
+
+  test "a compressed object gets a Pages rule, and the bytes still land":
+    let d = getTempDir() / "bt-headers-1-" & $getCurrentProcessId()
+    removeDir(d); createDir(d)
+    defer: removeDir(d)
+    let store = newLocalObjectStore(d / "out")
+    store.putMany(seeded(d, ["t/36/5b/365bij6u5xylb6xcqk64zys766/trace.ct"]))
+
+    let text = readFile(d / "out" / "_headers")
+    # The format is Cloudflare Pages' and is not a choice: a path at column zero,
+    # then INDENTED `Header: value` lines. Netlify reads the same shape.
+    check "\n/t/36/5b/365bij6u5xylb6xcqk64zys766/trace.ct\n" in "\n" & text
+    check "  Content-Encoding: br" in text
+    # A rule for an object that is not there would be a rule no host applies.
+    check fileExists(d / "out" / "t/36/5b/365bij6u5xylb6xcqk64zys766/trace.ct")
+
+  test "every rule names a path that exists, with exactly one leading slash":
+    let d = getTempDir() / "bt-headers-2-" & $getCurrentProcessId()
+    removeDir(d); createDir(d)
+    defer: removeDir(d)
+    let store = newLocalObjectStore(d / "out")
+    store.putMany(seeded(d, ["t/aa/bb/one/trace.ct", "t/cc/dd/two/trace.ct"]))
+
+    var rules = 0
+    for line in readFile(d / "out" / "_headers").splitLines:
+      if line.len == 0 or line.startsWith("  "): continue
+      inc rules
+      check line.startsWith("/") and not line.startsWith("//")
+      check fileExists(d / "out" / line.strip(chars = {'/'}))
+    check rules == 2
+
+  test "a second call APPENDS — one group per chain, and none may be lost":
+    let d = getTempDir() / "bt-headers-3-" & $getCurrentProcessId()
+    removeDir(d); createDir(d)
+    defer: removeDir(d)
+    let store = newLocalObjectStore(d / "out")
+    # Exactly the real shape: chain A's brotli group, then chain B's.
+    store.putMany(seeded(d, ["t/aa/bb/chain-a/trace.ct"]))
+    store.putMany(seeded(d, ["t/cc/dd/chain-b/trace.ct"]))
+
+    let text = readFile(d / "out" / "_headers")
+    check "/t/aa/bb/chain-a/trace.ct" in text
+    check "/t/cc/dd/chain-b/trace.ct" in text
+
+    # MUTATION BITE: the rewrite this append replaces, spelled out over the same
+    # two groups. It keeps the last and drops the first — a tree whose earlier
+    # chains are compressed at rest and advertised nowhere.
+    let hp = d / "out" / "_headers-rewritten"
+    for grp in ["/t/aa/bb/chain-a/trace.ct", "/t/cc/dd/chain-b/trace.ct"]:
+      writeFile(hp, grp & "\n  Content-Encoding: br\n")   # no `prior &`
+    check "/t/cc/dd/chain-b/trace.ct" in readFile(hp)
+    check "/t/aa/bb/chain-a/trace.ct" notin readFile(hp)
+
+  test "an identity publish writes no `_headers` at all":
+    let d = getTempDir() / "bt-headers-4-" & $getCurrentProcessId()
+    removeDir(d); createDir(d)
+    defer: removeDir(d)
+    let store = newLocalObjectStore(d / "out")
+    writeFile(d / "plain", "raw bytes")
+    store.putMany(@[BulkItem(key: "d/x/index.json", srcPath: d / "plain",
+                             contentEncoding: "")])
+    # Not an empty file, not a file of blank lines: absent. A `_headers` with no
+    # rules is indistinguishable from one whose rules were dropped.
+    check not fileExists(d / "out" / "_headers")
+    check readFile(d / "out" / "d/x/index.json") == "raw bytes"
+
+  test "…and an identity group cannot erase the rules a brotli group wrote":
+    let d = getTempDir() / "bt-headers-5-" & $getCurrentProcessId()
+    removeDir(d); createDir(d)
+    defer: removeDir(d)
+    let store = newLocalObjectStore(d / "out")
+    store.putMany(seeded(d, ["t/aa/bb/compressed/trace.ct"]))
+    writeFile(d / "plain", "raw bytes")
+    store.putMany(@[BulkItem(key: "d/x/index.json", srcPath: d / "plain",
+                             contentEncoding: "")])
+    check "/t/aa/bb/compressed/trace.ct" in readFile(d / "out" / "_headers")

@@ -91,15 +91,16 @@ arm('the committed inputs unpack to bundles matching the digest packed beside ea
   }
 });
 
-arm('the prestate token is the requested `forward-capture`, and the contract does not hold it yet', () => {
-  // This arm fails on purpose the day §1.4 gains the row: then the token moves into the
-  // contract's closed set, and this file (and sol.nix's exclusion from produced-captures)
-  // must be revisited rather than silently left describing a refusal that no longer happens.
+arm('the prestate token is `forward-capture`, and the contract\'s closed set holds it', () => {
+  // Until 2026-10-22 this arm asserted the OPPOSITE — that the token was outside the set —
+  // so that it would go red the day §1.4 gained the row and force this file and sol.nix's
+  // place in produced-captures to be revisited. It went red that day and was turned round.
   const contract = JSON.parse(readFileSync(new URL('./snapshot-contract.json', import.meta.url), 'utf8'));
   assert.equal(PRESTATE_STRATEGY, 'forward-capture');
-  assert.equal(contract.prestateStrategies.tokens.includes(PRESTATE_STRATEGY), false);
-  // Control: the contract's set is read, not empty — another chain's token is in it.
-  assert.equal(contract.prestateStrategies.tokens.includes('replay-preceding'), true);
+  assert.equal(contract.prestateStrategies.tokens.includes(PRESTATE_STRATEGY), true);
+  // Control: the set is a closed set and not a free-text field — a token no §1.4 row
+  // states is not in it.
+  assert.equal(contract.prestateStrategies.tokens.includes('balances-only'), false);
 });
 
 if (passed !== BASE_ARMS) {

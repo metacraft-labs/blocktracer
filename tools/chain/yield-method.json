@@ -585,6 +585,12 @@
           "member": "transactions",
           "yieldMember": "tracedOverAllTransactions",
           "excludes": []
+        },
+        {
+          "id": "observable",
+          "member": "observable",
+          "yieldMember": "tracedOverObservable",
+          "excludes": []
         }
       ],
       "denominatorsNote": [
@@ -594,36 +600,12 @@
         "rather than met by naming one population twice."
       ],
       "provenanceCoverage": {
-        "windowsWithRecordedReplayLedger": 0,
-        "windowsWithout": [
-          [
-            480000,
-            480001
-          ],
-          [
-            620000,
-            620001
-          ],
-          [
-            800000,
-            800001
-          ],
-          [
-            1400000,
-            1400001
-          ],
-          [
-            3000000,
-            3000001
-          ],
-          [
-            13000000,
-            13000001
-          ]
-        ],
+        "windowsWithRecordedReplayLedger": 6,
+        "windowsWithout": [],
         "_note": [
-          "NONE, because no window of this chain had been replayed when this entry was pinned.",
-          "Declared as zero rather than left absent."
+          "ALL SIX, read 2026-10-20 by codetracer-cairo-onchain 2ba49a6 against api.cartridge.gg,",
+          "each block whole: tools/chain/measurements/starknet-replay-yield.json carries each",
+          "window's ledger. Changed with that reading; the expectation above is untouched."
         ]
       }
     },
@@ -703,6 +685,12 @@
           "member": "transactions",
           "yieldMember": "tracedOverAllTransactions",
           "excludes": []
+        },
+        {
+          "id": "observable",
+          "member": "observable",
+          "yieldMember": "tracedOverObservable",
+          "excludes": []
         }
       ],
       "denominatorsNote": [
@@ -710,7 +698,11 @@
         "transaction executes Cadence, so the charter's second population (transactions",
         "containing a contract execution) is the same population here and is not stated twice.",
         "The protocol's system transactions are not rows at all (produce-flow-snapshot.mjs:",
-        "their ids repeat in every block), so they are not in the denominator either."
+        "their ids repeat in every block), so they are not in the denominator either.",
+        "",
+        "THE SECOND DENOMINATOR WAS ADDED WITH THE FIRST READING (2026-10-20), because the method's",
+        "floor is two and this entry declared one. With no exclusions it equals the first, which is",
+        "the fact it exists to state."
       ],
       "exclusions": [],
       "exclusionsNote": [
@@ -727,31 +719,143 @@
         "divergent"
       ],
       "provenanceCoverage": {
-        "windowsWithRecordedReplayLedger": 0,
-        "windowsWithout": [
-          [
-            130300000,
-            130300001
-          ],
-          [
-            135000000,
-            135000001
-          ],
-          [
-            137390145,
-            137390146
-          ],
-          [
-            150000000,
-            150000001
-          ],
-          [
-            168000000,
-            168000001
-          ]
-        ],
+        "windowsWithRecordedReplayLedger": 5,
+        "windowsWithout": [],
         "_note": [
-          "NONE: no reading of this chain exists yet."
+          "ALL FIVE, from the first reading (tools/chain/measurements/flow-replay-yield.json): each",
+          "window carries its replay ledger, naming codetracer-flow-recorder 04a05d3."
+        ]
+      }
+    },
+    "sui": {
+      "pinnedOn": "2026-10-21",
+      "_whyThisIsCommittedBeforeAnyReading": [
+        "THE EXPECTATION BELOW WAS DECLARED BEFORE ANY OF THESE WINDOWS WAS REPLAYED, AND IT IS",
+        "THE CHARTER'S OWN: Recorder-Move.milestones.org CXP-MOVE-5's drawer has carried",
+        "`:expected_dominant_variable: endpoint-retention` since the charter was written. It is",
+        "repeated here unchanged, not re-chosen.",
+        "",
+        "WHAT HAD BEEN MEASURED BEFORE IT, AND IT POINTS AGAINST THE DECLARATION, which is why",
+        "it is stated rather than used to pick a new one. Outside every window below, on",
+        "2026-10-20 with sui 1.81.1: checkpoint 28,845,200 (protocol 36) replayed Success with a",
+        "header-only trace and 28,845,500 (protocol 38) with 492,189 trace lines; 5,000,000 and",
+        "23,899,000 replayed with empty traces; and the endpoint served the consumed object",
+        "versions at every rung down to checkpoint 1,000,000",
+        "(tools/chain/measurements/sui-endpoint-horizon.json). Re-declaring `era` after reading",
+        "that would be fitting the prediction to the measurement, which this file exists to",
+        "forbid. So the declared variable stands and the windows are placed where it can fail."
+      ],
+      "historicRange": {
+        "from": 0,
+        "to": 336352237
+      },
+      "historicRangeRecordedBy": "the GraphQL service's own `availableRange` (checkpoint 0 for objects and transactions) and tools/chain/measurements/sui-endpoint-horizon.json, which fetched consumed object versions with their contents down to checkpoint 1,000,000; the tip is `checkpoint { sequenceNumber }` at pinning.",
+      "windows": [
+        [
+          5000000,
+          5000001
+        ],
+        [
+          28845373,
+          28845374
+        ],
+        [
+          150000000,
+          150000001
+        ],
+        [
+          263201232,
+          263201233
+        ],
+        [
+          336000000,
+          336000001
+        ]
+      ],
+      "blocksPerWindow": 2,
+      "blocksAre": "checkpoints, by sequence number",
+      "windowsNote": [
+        "FIVE WINDOWS OF TWO CHECKPOINTS, one per execution-layer era Sui has had, because the",
+        "measured facts above say the era is where an edge could be, and a window set that",
+        "missed it could not refute the declaration either way:",
+        "",
+        "  5,000,000-5,000,001         June 2023, protocol < 38: execution layers v0-v2, which",
+        "                              have no trace hooks. Under `endpoint-retention` with the",
+        "                              endpoint serving every version, this window traces; if",
+        "                              it traces nothing, the declaration is refuted.",
+        "  28,845,373-28,845,374       the first two checkpoints of epoch 338, protocol 38: the",
+        "                              first on execution layer v3.",
+        "  150,000,000-150,000,001     the middle of the v3 era.",
+        "  263,201,232-263,201,233     the first two checkpoints of epoch 1093, where mainnet",
+        "                              went from protocol 118 to 120: the first on layer v4",
+        "                              (`latest`, selected from protocol 119).",
+        "  336,000,000-336,000,001     recent, 352,237 checkpoints below the tip at pinning.",
+        "",
+        "TWO CHECKPOINTS, because a window is a cost: every transaction in it is replayed whole",
+        "by `sui replay --trace` and recorded, and a checkpoint carries 20-40 transactions.",
+        "Nothing is sampled within a window. Each boundary was measured by binary search over",
+        "epochs for the first protocol version at or above the layer's threshold",
+        "(tools/chain/lib/sui-graphql.mjs firstEpochAtProtocol)."
+      ],
+      "tipAtPinning": 336352237,
+      "finalizedAtPinning": 336352237,
+      "finalizedMeaning": "a Sui checkpoint is final when it is certified, so the newest checkpoint the service serves is finalized",
+      "expectedDominantVariable": "endpoint-retention",
+      "expectationDeclaredInAdvance": true,
+      "expectedOn": "the charter's drafting, repeated 2026-10-21",
+      "expectationReasoning": [
+        "THE CHARTER'S REASONING, quoted rather than restated: version-addressed prestate does",
+        "not degrade with age — an object version either is served or is not — so yield is",
+        "near-total above the endpoint's horizon and near-zero below it, with a sharp edge.",
+        "",
+        "What would REFUTE it: an edge that does not sit at an endpoint horizon. The measured",
+        "endpoint serves every rung to checkpoint 1,000,000, so under this declaration all five",
+        "windows trace near-totally; a window that traces nothing while its object versions are",
+        "served is an edge at something else, and its rows' refusal reason will name what."
+      ],
+      "exclusions": [],
+      "exclusionsNote": [
+        "ZERO. `not-first-in-block` is not structural for a version-addressed chain (every",
+        "transaction names its own input versions; none needs its predecessors replayed), and",
+        "every Sui transaction — system transactions included — executes in the Move VM, so",
+        "there is no chain-absent population. A row this pipeline declines stays in the",
+        "denominator."
+      ],
+      "declinedColumns": [
+        "refused",
+        "bodyUnavailable",
+        "notAttempted"
+      ],
+      "tracedColumns": [
+        "replayed",
+        "divergent"
+      ],
+      "denominators": [
+        {
+          "id": "all-transactions",
+          "member": "transactions",
+          "yieldMember": "tracedOverAllTransactions",
+          "excludes": []
+        },
+        {
+          "id": "observable",
+          "member": "observable",
+          "yieldMember": "tracedOverObservable",
+          "excludes": []
+        }
+      ],
+      "denominatorsNote": [
+        "TWO, EQUAL, as for Ethereum, Starknet and Flow and for their reason",
+        "(`carried.eth-has-no-structural-exclusion`): with no exclusion the observable",
+        "population is every transaction, and the method's floor of two is met without",
+        "inventing a population to exclude."
+      ],
+      "provenanceCoverage": {
+        "windowsWithRecordedReplayLedger": 5,
+        "windowsWithout": [],
+        "_note": [
+          "ALL FIVE, from the first reading (tools/chain/measurements/sui-replay-yield.json): each",
+          "window carries its replay ledger, naming codetracer-move-recorder a6e676e."
         ]
       }
     }

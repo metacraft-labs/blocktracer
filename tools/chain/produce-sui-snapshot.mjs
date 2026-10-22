@@ -38,7 +38,8 @@
 //   1  a SOURCE refusal: an input is inconsistent, and the message names which
 //   2  a CONFIGURATION refusal: a flag is missing or malformed
 
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import {
   copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync,
   statSync, writeFileSync,
@@ -50,6 +51,10 @@ import { promisify } from 'node:util';
 import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
+import {
+  CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
+  parseProducerArgs, readJsonOrRefuse as readJson, refuseOperation as refuse,
+} from './lib/producer-runtime.mjs';
 import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL,
   POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY, RECORDER,
@@ -66,85 +71,117 @@ export const ACQUISITION_FORMAT = 'blocktracer/sui-acquisition@1';
 /** The stable token the recorder starts a no-trace-events refusal with. */
 export const NO_TRACE_EVENTS = 'NO-TRACE-EVENTS';
 
-class ConfigRefusal extends Error {}
-class SourceRefusal extends Error {}
-const refuse = (Kind, msg) => new Kind(msg);
+/**
+ * The class a row carries when `sui replay --trace` itself aborted with a stack overflow
+ * (sui 1.81.1, macOS; the same replay without `--trace` succeeds).
+ */
+export const SUI_REPLAY_STACK_OVERFLOW = 'SUI-REPLAY-STACK-OVERFLOW';
+
+/** The stable token the recorder starts an over-the-size-bound refusal with. */
+export const TRACE_TOO_LARGE = 'TRACE-TOO-LARGE';
+
+// DEL-7: the operational refusal, its exit code, the argv grammar, the JSON reader, the
+// container reader's path and the CTFS container header all come from
+// `lib/producer-runtime.mjs`, shared with the other four producers. This file used to
+// declare two `extends Error` classes for the config/source distinction; the field
+// mechanism three of the five already used is the one kept, so adopting the shared module
+// REMOVED two classes from this file rather than adding an abstraction over it.
 
 const USAGE = `usage: produce-sui-snapshot.mjs --acquisition FILE --replay-root DIR
          --recorder-commit SHA --out DIR [--rec DIR]... [--ct-print PATH]
-         [--chain SLUG] [--label TEXT] [--captured-at ISO] [--dry-run]`;
+         [--chain SLUG] [--label TEXT] [--captured-at ISO] [--dry-run]
+         [--positions-reader PATH]   codetracer-move-recorder build whose \`positions\`
+                                     reads steps and calls (default: ct-print --events)`;
 
-function parseArgs(argv) {
-  const many = new Map();
-  const flags = new Set();
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith('--')) throw refuse(ConfigRefusal, `unexpected argument '${a}'\n${USAGE}`);
-    const name = a.slice(2);
-    if (name === 'dry-run' || name === 'help') { flags.add(name); continue; }
-    const v = argv[++i];
-    if (v === undefined) throw refuse(ConfigRefusal, `--${name} needs a value\n${USAGE}`);
-    if (!many.has(name)) many.set(name, []);
-    many.get(name).push(v);
-  }
-  const one = (n, dflt) => {
-    const vs = many.get(n) ?? [];
-    if (vs.length > 1) throw refuse(ConfigRefusal, `--${n} given ${vs.length} times`);
-    return vs[0] ?? dflt;
-  };
-  return { one, all: (n) => many.get(n) ?? [], has: (n) => flags.has(n) };
-}
+const parseArgs = (argv) => parseProducerArgs(argv, { usage: USAGE });
 
-function readJson(path, what) {
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch (e) {
-    throw refuse(SourceRefusal, `${what} at ${path} is not readable JSON: ${e.message}`);
-  }
-}
+/** The reader this producer's containers are opened with: the sibling
+ *  `codetracer-trace-format-nim` checkout's `ct-print`, unless one is named. */
+const ctPrintPath = (explicit) => containerReaderPath({
+  explicit,
+  fallbacks: [resolve('..', 'codetracer-trace-format-nim', 'ct-print')],
+  hint: "The reader is codetracer-trace-format-nim's `ct-print`.",
+});
 
-function ctPrintPath(explicit) {
-  const cands = [explicit, process.env.CT_PRINT,
-                 resolve('..', 'codetracer-trace-format-nim', 'ct-print')].filter(Boolean);
-  for (const c of cands) if (existsSync(c)) return c;
-  throw refuse(ConfigRefusal,
-    `no container reader found. Pass --ct-print <path> or set $CT_PRINT. Tried: `
-    + `${cands.join(', ')}. The reader is codetracer-trace-format-nim's \`ct-print\`.`);
-}
-
-/** The container version byte, read from the CTFS header rather than assumed. */
-function containerVersion(file) {
-  const b = readFileSync(file).subarray(0, 8);
-  const magic = [0xc0, 0xde, 0x72, 0xac];
-  for (let i = 0; i < 4; i++) {
-    if (b[i] !== magic[i]) {
-      throw refuse(SourceRefusal, `${file} does not begin with the CTFS magic; a snapshot `
-        + `container holds what a recorder wrote.`);
-    }
-  }
-  return b[5];
-}
+const CTFS_NOTE = 'A snapshot container holds what a recorder wrote.';
 
 /** Counts, flags, path table, steps and call entries of a container, via `ct-print`. */
-async function readContainer(ctPrint, file) {
+/**
+ * Steps and calls through `codetracer-move-recorder positions`, which reads the step and
+ * call streams without decoding a value: identical output to `ct-print --events` on the
+ * members used here, about a thousand times faster on a large Sui container.
+ */
+async function readPositions(reader, file) {
+  const tmp = `${file}.positions.json`;
+  try {
+    await run(reader, ['positions', file, '--out', tmp], { maxBuffer: 1 << 24 });
+    const doc = JSON.parse(readFileSync(tmp, 'utf8'));
+    const steps = doc.pathId.map((pathId, i) => ({ step_index: i, path_id: pathId,
+                                                   line: doc.line[i], column: doc.column[i] }));
+    const callEntries = doc.calls.map((c) => ({ function: c.function, depth: c.depth,
+                                                entry_step: c.entryStep, exit_step: c.exitStep }));
+    return { paths: doc.paths, steps, callEntries };
+  } catch (e) {
+    throw refuse(SOURCE_REFUSAL, `${reader} positions ${file}: `
+      + `${String(e.stderr ?? e.message).slice(0, 400)}`);
+  } finally {
+    rmSync(tmp, { force: true });
+  }
+}
+
+async function readContainer(ctPrint, file, positionsReader = null) {
   let meta;
   try {
     const { stdout } = await run(ctPrint, ['--meta-json', file], { maxBuffer: 1 << 28 });
     meta = JSON.parse(stdout);
   } catch (e) {
-    throw refuse(SourceRefusal,
+    throw refuse(SOURCE_REFUSAL,
       `${ctPrint} would not open ${file}: ${String(e.stderr ?? e.message).slice(0, 400)}`);
   }
-  const { stdout: ev } = await run(ctPrint, ['--events', file], { maxBuffer: 1 << 30 });
-  const lines = ev.split('\n').filter((l) => l.trim().length > 0).map((l) => JSON.parse(l));
-  const header = lines.find((l) => l.metadata) ?? {};
+  if (positionsReader !== null) {
+    return { counts: meta.counts, flags: meta.metadata.flags,
+             ...(await readPositions(positionsReader, file)),
+             version: containerVersion(file, { note: CTFS_NOTE }) };
+  }
+  // STREAMED, line by line: one mainnet transaction's event listing exceeds the longest
+  // string a JavaScript engine can hold (~512 MB), so collecting stdout whole fails with
+  // `RangeError: Invalid string length`. Only the members this producer reads are kept.
+  const steps = [];
+  const callEntries = [];
+  let paths = [];
+  let headerSeen = false;
+  const child = spawn(ctPrint, ['--events', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (d) => { if (stderr.length < 4000) stderr += d; });
+  const exited = new Promise((done) => child.on('close', done));
+  for await (const line of createInterface({ input: child.stdout, crlfDelay: Infinity })) {
+    if (line.trim().length === 0) continue;
+    const e = JSON.parse(line);
+    if (e.kind === 'step') {
+      steps.push({ step_index: e.step_index, path_id: e.path_id, line: e.line,
+                   column: e.column ?? null, depth: e.depth ?? 0 });
+    } else if (e.kind === 'call_entry') {
+      callEntries.push({ function: e.function, depth: e.depth, entry_step: e.entry_step,
+                         exit_step: e.exit_step });
+    } else if (e.kind === undefined && e.metadata && headerSeen === false) {
+      // The header is the one line without a `kind`. An `io` event also carries a
+      // `metadata` member (its tag, e.g. `MovePtbCommand`), so matching on `metadata`
+      // alone let every later io event overwrite the path table.
+      paths = e.paths ?? [];
+      headerSeen = true;
+    }
+  }
+  const code = await exited;
+  if (code !== 0) {
+    throw refuse(SOURCE_REFUSAL, `${ctPrint} --events ${file} exited ${code}: ${stderr.slice(0, 400)}`);
+  }
   return {
     counts: meta.counts,
     flags: meta.metadata.flags,
-    paths: header.paths ?? [],
-    steps: lines.filter((l) => l.kind === 'step'),
-    callEntries: lines.filter((l) => l.kind === 'call_entry'),
-    version: containerVersion(file),
+    paths,
+    steps,
+    callEntries,
+    version: containerVersion(file, { note: CTFS_NOTE }),
   };
 }
 
@@ -184,20 +221,22 @@ export function effectsFacts(published, replayedEnum) {
 function readRecording(dir) {
   const done = readJson(join(dir, 'done.json'), 'a recording outcome');
   if (typeof done.digest !== 'string' || done.digest.length === 0) {
-    throw refuse(SourceRefusal, `${dir}/done.json names no digest`);
+    throw refuse(SOURCE_REFUSAL, `${dir}/done.json names no digest`);
   }
   if (done.outcome === 'traced') {
     const capture = join(dir, 'capture');
     const cts = existsSync(capture)
       ? readdirSync(capture).filter((f) => f.endsWith('.ct')) : [];
     if (cts.length !== 1) {
-      throw refuse(SourceRefusal, `${capture} holds ${cts.length} container(s) for a `
+      throw refuse(SOURCE_REFUSAL, `${capture} holds ${cts.length} container(s) for a `
         + `transaction recorded as traced; exactly one is required.`);
     }
     return { ...done, container: join(capture, cts[0]) };
   }
   if (done.outcome === 'no-trace-events') return done;
-  throw refuse(SourceRefusal, `${dir}/done.json states outcome '${done.outcome}', which is `
+  if (done.outcome === 'replay-crashed' && done.refusal === SUI_REPLAY_STACK_OVERFLOW) return done;
+  if (done.outcome === 'too-large' && done.refusal === TRACE_TOO_LARGE) return done;
+  throw refuse(SOURCE_REFUSAL, `${dir}/done.json states outcome '${done.outcome}', which is `
     + `neither 'traced' nor 'no-trace-events'; a failed recording stops the capture rather `
     + `than reaching a tree.`);
 }
@@ -207,14 +246,14 @@ async function main(argv) {
   if (args.has('help')) { console.log(USAGE); return; }
   const need = (n) => {
     const v = args.one(n);
-    if (v === undefined) throw refuse(ConfigRefusal, `--${n} is required\n${USAGE}`);
+    if (v === undefined) throw refuse(CONFIG_REFUSAL, `--${n} is required\n${USAGE}`);
     return v;
   };
   const acquisitionPath = need('acquisition');
   const replayRoot = resolve(need('replay-root'));
   const recorderCommit = need('recorder-commit');
   if (!/^[0-9a-f]{40}$/.test(recorderCommit)) {
-    throw refuse(ConfigRefusal, `--recorder-commit must be a full 40-hex commit id; got `
+    throw refuse(CONFIG_REFUSAL, `--recorder-commit must be a full 40-hex commit id; got `
       + `'${recorderCommit}'. It is the pin every traced row is attributed to.`);
   }
   const outDir = need('out');
@@ -225,20 +264,20 @@ async function main(argv) {
 
   const acq = readJson(acquisitionPath, 'the acquisition');
   if (acq.format !== ACQUISITION_FORMAT) {
-    throw refuse(SourceRefusal, `${acquisitionPath} is format '${acq.format}'; this producer `
+    throw refuse(SOURCE_REFUSAL, `${acquisitionPath} is format '${acq.format}'; this producer `
       + `reads ${ACQUISITION_FORMAT}.`);
   }
   const checkpoints = [...acq.checkpoints].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
-  if (checkpoints.length === 0) throw refuse(SourceRefusal, 'the acquisition holds no checkpoints');
+  if (checkpoints.length === 0) throw refuse(SOURCE_REFUSAL, 'the acquisition holds no checkpoints');
   for (let i = 1; i < checkpoints.length; i++) {
     const prev = checkpoints[i - 1];
     const cur = checkpoints[i];
     if (cur.sequenceNumber !== prev.sequenceNumber + 1) {
-      throw refuse(SourceRefusal, `the acquisition skips from checkpoint ${prev.sequenceNumber} `
+      throw refuse(SOURCE_REFUSAL, `the acquisition skips from checkpoint ${prev.sequenceNumber} `
         + `to ${cur.sequenceNumber}; a window is whole or it is not a window.`);
     }
     if (cur.previousCheckpointDigest !== prev.digest) {
-      throw refuse(SourceRefusal, `checkpoint ${cur.sequenceNumber} names `
+      throw refuse(SOURCE_REFUSAL, `checkpoint ${cur.sequenceNumber} names `
         + `${cur.previousCheckpointDigest} as its predecessor, not ${prev.digest}.`);
     }
   }
@@ -246,11 +285,11 @@ async function main(argv) {
   const hi = checkpoints[checkpoints.length - 1].sequenceNumber;
   const floor = acq.tracedFloor;
   if (!floor || !Number.isInteger(floor.checkpoint)) {
-    throw refuse(SourceRefusal, 'the acquisition carries no measured `tracedFloor.checkpoint`');
+    throw refuse(SOURCE_REFUSAL, 'the acquisition carries no measured `tracedFloor.checkpoint`');
   }
   const tip = acq.tip?.sequenceNumber;
   if (!Number.isInteger(tip) || tip < hi) {
-    throw refuse(SourceRefusal, `the acquisition's tip (${tip}) is below its window's top `
+    throw refuse(SOURCE_REFUSAL, `the acquisition's tip (${tip}) is below its window's top `
       + `(${hi})`);
   }
 
@@ -263,16 +302,16 @@ async function main(argv) {
   for (const dir of args.all('rec')) {
     const rec = readRecording(resolve(dir));
     if (rec.recorderCommit !== recorderCommit) {
-      throw refuse(SourceRefusal, `${dir} was recorded by ${rec.recorderCommit ?? 'an unstated '
+      throw refuse(SOURCE_REFUSAL, `${dir} was recorded by ${rec.recorderCommit ?? 'an unstated '
         + 'build'}, not ${recorderCommit}; every traced row names the build that recorded it, `
         + `so a tree is produced from one build's recordings.`);
     }
     if (!where.has(rec.digest)) {
-      throw refuse(SourceRefusal, `${dir} recorded ${rec.digest}, which is in no checkpoint of `
+      throw refuse(SOURCE_REFUSAL, `${dir} recorded ${rec.digest}, which is in no checkpoint of `
         + `the window ${lo}..${hi}; the tree would carry a container nothing points at.`);
     }
     if (recordings.has(rec.digest)) {
-      throw refuse(SourceRefusal, `${rec.digest} was recorded twice (${dir})`);
+      throw refuse(SOURCE_REFUSAL, `${rec.digest} was recorded twice (${dir})`);
     }
     recordings.set(rec.digest, rec);
   }
@@ -284,38 +323,51 @@ async function main(argv) {
   const traced = new Map();
   for (const rec of recordings.values()) {
     if (rec.outcome !== 'traced') continue;
-    const c = await readContainer(ctPrint, rec.container);
+    const c = await readContainer(ctPrint, rec.container, args.one('positions-reader') ?? null);
     const replayDir = join(replayRoot, rec.digest);
     // Every path the container interned is relative to the replay directory
     // (`0x<package>/bytecode/<module>.mvb`); its text is the disassembly `sui replay`
     // wrote there. A path whose text is missing is refused: positions into nothing are
     // worse than no positions.
+    // Every interned path is a module disassembly `sui replay` wrote, relative to the
+    // replay directory — except the recorder's FALLBACK primary path, `transaction.mvb`,
+    // which it interns when the transaction's first frame has no loaded module: a
+    // programmable block of non-Move commands only (SplitCoins, TransferObjects, …) runs
+    // no Move code, and its one entry step lands there. That path has no text; every
+    // other missing path is refused.
+    const isFallback = (p) => basename(p) === 'transaction.mvb';
     const files = c.paths.map((p) => {
       const abs = join(replayDir, p);
-      if (p.startsWith('/') || p.includes('..') || !existsSync(abs)) {
-        throw refuse(SourceRefusal, `${rec.digest}: the container interns '${p}', which is `
-          + `not a file under ${replayDir}; the recorder writes paths relative to the `
-          + `replay directory and the producer publishes them as written.`);
+      if (!p.startsWith('/') && !p.includes('..') && existsSync(abs)) {
+        return { path: p, package: p.split('/')[0], text: readFileSync(abs, 'utf8') };
       }
-      return { path: p, package: p.split('/')[0], text: readFileSync(abs, 'utf8') };
+      if (isFallback(p)) return { path: 'transaction.mvb', package: null, text: null };
+      throw refuse(SOURCE_REFUSAL, `${rec.digest}: the container interns '${p}', which is `
+        + `not a file under ${replayDir}; the recorder writes paths relative to the `
+        + `replay directory and the producer publishes them as written.`);
     });
+    // A row is POSITIONED when every step lands on a line of real disassembly; one that
+    // steps on the textless fallback publishes no positions and no source bundle, which
+    // the contract allows (a traced row may publish no bundle) and which is the truth.
+    let positionable = true;
     for (const s of c.steps) {
       const f = files[s.path_id];
+      if (f !== undefined && f.text === null) { positionable = false; continue; }
       const lines = f === undefined ? 0 : f.text.split('\n').length;
       if (f === undefined || !(s.line >= 1 && s.line <= lines)) {
-        throw refuse(SourceRefusal, `${rec.digest}: step ${s.step_index} is at path ${s.path_id} `
+        throw refuse(SOURCE_REFUSAL, `${rec.digest}: step ${s.step_index} is at path ${s.path_id} `
           + `line ${s.line}, outside the disassembly it names.`);
       }
     }
     const replayedEffects = readJson(join(replayDir, 'transaction_effects.json'),
       `the replayed effects of ${rec.digest}`);
-    traced.set(rec.digest, { rec, c, files, replayedEffects,
+    traced.set(rec.digest, { rec, c, files, replayedEffects, positionable,
                              containerBytes: statSync(rec.container).size });
   }
 
   const versions = new Set([...traced.values()].map((t) => t.c.version));
   if (versions.size > 1) {
-    throw refuse(SourceRefusal, `the containers carry versions ${[...versions].join(', ')}; `
+    throw refuse(SOURCE_REFUSAL, `the containers carry versions ${[...versions].join(', ')}; `
       + `one tree is read by one engine, so it holds one container version.`);
   }
 
@@ -336,7 +388,17 @@ async function main(argv) {
             + `${MIN_TRACED_PROTOCOL}). \`sui replay\` re-executed it from the object versions `
             + `it names and wrote a trace holding only its version header, so there is `
             + `nothing to step. Trace hooks in that layer would trace it.`
-          : null;
+          : rec.outcome === 'replay-crashed'
+            ? `\`sui replay --trace\` aborted on this transaction: its tracer overflowed the `
+              + `main thread's stack (${rec.replayRuntime ?? 'sui 1.81.1'}), while the same replay `
+              + `without --trace succeeds. The execution is the chain's and is reachable; the `
+              + `replay runtime's tracer could not record it.`
+            : rec.outcome === 'too-large'
+              ? `\`sui replay --trace\` completed, and its trace decompresses past the `
+                + `recorder's bound (every trace event carries full snapshots of the values it `
+                + `touches), so no container was written. The execution is the chain's and is `
+                + `reachable; the recording is what is too large to make.`
+              : null;
       const base = {
         txHash: tx.digest,
         blockNumber: cp.sequenceNumber,
@@ -359,15 +421,21 @@ async function main(argv) {
                     refusalReason: 'not-attempted' });
         return;
       }
-      if (rec.outcome === 'no-trace-events') {
+      if (rec.outcome === 'too-large') {
         rows.push({ ...base, outcome: 'refused', reason: untracedReason,
-                    refusalReason: 'runtime-refused', refusal: NO_TRACE_EVENTS });
+                    refusalReason: 'no-container-written', refusal: rec.refusal });
         return;
       }
-      const { c, files, replayedEffects, containerBytes } = t;
+      if (rec.outcome === 'no-trace-events' || rec.outcome === 'replay-crashed') {
+        rows.push({ ...base, outcome: 'refused', reason: untracedReason,
+                    refusalReason: 'runtime-refused',
+                    refusal: rec.outcome === 'no-trace-events' ? NO_TRACE_EVENTS : rec.refusal });
+        return;
+      }
+      const { c, files, replayedEffects, containerBytes, positionable } = t;
       const effects = effectsFacts(tx.effectsJson, replayedEffects);
       const steps = c.counts.steps;
-      const positioned = c.steps.filter((s) => s.path_id !== null && s.line > 0).length;
+      const positioned = c.steps.filter((s) => files[s.path_id]?.text != null && s.line > 0).length;
       rows.push({
         ...base,
         outcome: effects.reproduced ? 'replayed' : 'divergent',
@@ -389,10 +457,10 @@ async function main(argv) {
           contexts: files.length,
           varnames: c.counts.varnames,
         },
-        sourceBundles: `sources/${tx.digest}.json`,
-        positions: `positions/${tx.digest}.json`,
+        ...(positionable ? { sourceBundles: `sources/${tx.digest}.json`,
+                             positions: `positions/${tx.digest}.json` } : {}),
         callTrace: `calltrace/${tx.digest}.json`,
-        artifacts: [...new Set(files.map((f) => f.package))].map((pkg) => ({
+        artifacts: [...new Set(files.map((f) => f.package).filter(Boolean))].map((pkg) => ({
           address: pkg,
           contractClassId: pkg,
           resolved: false,
@@ -408,7 +476,7 @@ async function main(argv) {
 
   for (const digest of recordings.keys()) {
     if (!rows.some((r) => r.txHash === digest)) {
-      throw refuse(SourceRefusal, `${digest} was recorded and got no row`);
+      throw refuse(SOURCE_REFUSAL, `${digest} was recorded and got no row`);
     }
   }
 
@@ -474,7 +542,7 @@ async function main(argv) {
   const out = resolve(outDir);
   if (existsSync(out) && readdirSync(out).length > 0
       && !existsSync(join(out, 'snapshot.json'))) {
-    throw refuse(ConfigRefusal, `--out ${out} is not empty and holds no snapshot.json; this `
+    throw refuse(CONFIG_REFUSAL, `--out ${out} is not empty and holds no snapshot.json; this `
       + `tool replaces a tree it wrote and nothing else.`);
   }
   rmSync(out, { recursive: true, force: true });
@@ -487,7 +555,7 @@ async function main(argv) {
     renameSync(`${p}.tmp`, p);
   };
 
-  for (const [digest, { rec, c, files }] of traced) {
+  for (const [digest, { rec, c, files, positionable }] of traced) {
     const row = rows.find((r) => r.txHash === digest);
     copyFileSync(rec.container, join(out, 'ct', `${digest}.ct`));
     // Only the modules a step lands in are published. `sui replay` writes every module of
@@ -495,43 +563,45 @@ async function main(argv) {
     // path table carried ~90 disassemblies for a transaction that ran in two. The position
     // stream still lists every interned path, so a path id keeps its meaning; a path no
     // step uses has no text to point into and needs none.
-    const stepped = new Set(c.steps.map((s) => s.path_id));
-    const byPackage = new Map();
-    for (const [id, f] of files.entries()) {
-      if (!stepped.has(id)) continue;
-      if (!byPackage.has(f.package)) byPackage.set(f.package, {});
-      byPackage.get(f.package)[f.path] = f.text;
+    if (positionable) {
+      const stepped = new Set(c.steps.map((s) => s.path_id));
+      const byPackage = new Map();
+      for (const [id, f] of files.entries()) {
+        if (!stepped.has(id)) continue;
+        if (!byPackage.has(f.package)) byPackage.set(f.package, {});
+        byPackage.get(f.package)[f.path] = f.text;
+      }
+      writeJson(`sources/${digest}.json`, {
+        txHash: digest,
+        sourceLevel: false,
+        // A bundle is keyed by code identity (S5-BUNDLE-KEYED). A Sui package's storage id
+        // names one immutable package version — an upgrade publishes a new id — so it IS
+        // the identity of the code that ran.
+        bundles: [...byPackage].map(([pkg, filesOf]) => ({
+          address: pkg,
+          codeHash: pkg,
+          files: filesOf,
+          origin: `disassembly of package ${pkg} as \`sui replay\` fetched it at the version `
+            + `that executed`,
+          shape: 'disassembly',
+          corroboration: 'single-distributor',
+          agreeingDistributors: ['the chain itself'],
+          language: POSITION_LANGUAGE,
+        })),
+      });
+      writeJson(`positions/${digest}.json`, {
+        schema: POSITION_STREAM_SCHEMA,
+        tx: digest,
+        steps: row.recording.steps,
+        positioned: row.recording.stepsPositioned,
+        measuredPostHoc: false,
+        measuredBy: `${HERE} (read from the container)`,
+        paths: files.map((f) => f.path),
+        pathId: c.steps.map((s) => s.path_id),
+        line: c.steps.map((s) => s.line),
+        column: c.steps.map((s) => s.column ?? null),
+      });
     }
-    writeJson(`sources/${digest}.json`, {
-      txHash: digest,
-      sourceLevel: false,
-      // A bundle is keyed by code identity (S5-BUNDLE-KEYED). A Sui package's storage id
-      // names one immutable package version — an upgrade publishes a new id — so it IS
-      // the identity of the code that ran.
-      bundles: [...byPackage].map(([pkg, filesOf]) => ({
-        address: pkg,
-        codeHash: pkg,
-        files: filesOf,
-        origin: `disassembly of package ${pkg} as \`sui replay\` fetched it at the version `
-          + `that executed`,
-        shape: 'disassembly',
-        corroboration: 'single-distributor',
-        agreeingDistributors: ['the chain itself'],
-        language: POSITION_LANGUAGE,
-      })),
-    });
-    writeJson(`positions/${digest}.json`, {
-      schema: POSITION_STREAM_SCHEMA,
-      tx: digest,
-      steps: row.recording.steps,
-      positioned: row.recording.stepsPositioned,
-      measuredPostHoc: false,
-      measuredBy: `${HERE} (read from the container)`,
-      paths: files.map((f) => f.path),
-      pathId: c.steps.map((s) => s.path_id),
-      line: c.steps.map((s) => s.line),
-      column: c.steps.map((s) => s.column ?? null),
-    });
     const frames = [
       { name: '<transaction>', depth: 0, step: 0, path: null, line: null, args: [],
         contractAddress: null, endStep: null, foldedBy: null, foldWhy: null,
@@ -556,7 +626,7 @@ async function main(argv) {
       });
     }
     if (frames.length !== row.recording.callsOpened + 1) {
-      throw refuse(SourceRefusal, `${digest}: the container counts ${row.recording.callsOpened} `
+      throw refuse(SOURCE_REFUSAL, `${digest}: the container counts ${row.recording.callsOpened} `
         + `call(s) and its call stream holds ${c.callEntries.length}; S5-CALLTRACE-AGREE `
         + `requires the published frames to be the count plus one.`);
     }
@@ -580,10 +650,7 @@ async function main(argv) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main(process.argv.slice(2)).catch((e) => {
-    console.error(`${basename(HERE)}: ${e.message}`);
-    process.exit(e instanceof ConfigRefusal ? 2 : 1);
-  });
+  main(process.argv.slice(2)).catch((e) => dieOperational(basename(HERE), e));
 }
 
 export { main };

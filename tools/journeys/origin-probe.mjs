@@ -22,6 +22,7 @@
 // never given the source".
 
 import { createServer } from "node:http";
+import { storedEncodingHeader } from "../lib/stored-encoding.mjs";
 import { readFile, stat } from "node:fs/promises";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -66,6 +67,7 @@ async function serve(root) {
         // The worker is a module worker on this origin; no COOP/COEP needed
         // for the plain (non-threaded) wasm build.
         "cache-control": "no-store",
+        ...storedEncodingHeader(f),
       });
       res.end(body);
     } catch {
@@ -284,7 +286,17 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
       minCountLimit: 50,
       depthLimit: 7,
       watchExpressions: [],
-      lang: 0,
+      // THE WIRE SPELLING, AND IT IS A STRING. `lang: 0` was the ordinal of the
+      // backend's `serde_repr` `Lang`; the PINNED engine has retired that for a
+      // `Lang::wire_name` string and refuses the ordinal while reading the
+      // REQUEST — `JSON error: invalid type: integer \`0\`, expected a string` —
+      // before the container is consulted. The product's own seam is
+      // `live_locals.EngineWireLang` (= "noir"), added when three journeys went
+      // green on it; this direct-to-worker probe was not moved with it and went
+      // on asking in the retired dialect, so `body.locals` came back EMPTY every
+      // time and every count taken from it was a zero about the harness wearing
+      // the product's clothes.
+      lang: "noir",
     });
     const rows = locals?.body?.locals ?? [];
     positions.push({
@@ -318,7 +330,7 @@ const DRIVE = async ({ tracePath, writeSource, sources }) => {
     minCountLimit: 50,
     depthLimit: 7,
     watchExpressions: [],
-    lang: 0,
+    lang: "noir",
   });
 
   // ── THE MEASUREMENT ──

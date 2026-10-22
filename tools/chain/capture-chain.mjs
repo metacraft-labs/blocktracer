@@ -62,6 +62,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { resolverPresence, refusalName, refusalDetail } from './lib/replay.mjs';
+import { reasonForRuntimeClass } from './lib/refusal.mjs';
 import { classifyRefusal, refusalCounts, assertRefusalsAreClosed, refuseNotFirstInBlock,
          refuseBodyNotSoughtFromStore } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
@@ -102,6 +103,22 @@ const die = (m) => { console.error(`capture-chain: ${m}`); process.exit(2); };
 if (!runtime) die('--runtime <path-to-aztec-avm-runtime> is required. This repository carries no AVM.');
 if (!avm) die('--avm <avm.wasm> (or $AVM_WASM_PATH) is required. It must be the --import-memory build.');
 if (!ctWriter) die('--ct-writer <aztec_ct_writer.wasm> (or $CT_WRITER_WASM_PATH) is required.');
+
+// §1e's ceiling in RAW bytes. 0 is never compact and is the default, so a run
+// that does not ask for it writes exactly the containers it wrote before this
+// option existed. See `lib/replay.mjs` for why it is sent even then.
+const compactThreshold = (() => {
+  const raw = arg('compact-threshold', process.env.CT_COMPACT_THRESHOLD ?? '0');
+  if (!/^[0-9]+$/.test(String(raw))) {
+    die(`--compact-threshold must be a non-negative integer of raw bytes, got [${raw}].`);
+  }
+  return String(raw);
+})();
+
+// `getTxByHash` is the one call with a horizon — about an hour of the node's
+// active pool. A capture enumerating from the TIP does not normally need the
+// store, which is why this is off unless asked.
+const bodyStore = arg('body-store', '');
 for (const [label, p] of [['runtime', runtime], ['avm', avm], ['ct-writer', ctWriter]]) {
   if (!existsSync(p)) die(`${label} path does not exist: ${p}`);
 }
@@ -241,6 +258,21 @@ for (const c of candidates) {
     '--module', resolve(avm),
     '--ct', ctPath,
     '--ct-writer', resolve(ctWriter),
+    // ── THE COMPACT PROFILE, SENT EVEN WHEN ZERO ───────────────────────────
+    //
+    // `lib/replay.mjs`'s `replayTransaction` states the rule and the reason:
+    // §1e's threshold is a CEILING IN RAW BYTES, zero means never compact, and
+    // the flag goes on every run so a driver too old to know it fails on the
+    // first transaction rather than writing a whole corpus in the wrong
+    // profile.
+    //
+    // THIS TOOL BUILDS ITS OWN ARGV rather than calling `replayTransaction`,
+    // and that duplication is why the flag had to be added twice. It is not
+    // consolidated here because the two differ in what they do with the exit
+    // code — see the paragraph below — and collapsing them is a change to that
+    // behaviour, not a tidy-up.
+    '--compact-threshold', String(compactThreshold),
+    ...(bodyStore ? ['--body-store', String(bodyStore)] : []),
     '--sources', srcPath,
     '--json',
   ], runtime);
@@ -282,10 +314,27 @@ for (const c of candidates) {
     // the only surviving evidence of why a transaction was lost. Duplicating the logic meant
     // fixing it twice; this asks the library instead, so it is fixed once.
     const why = refusalName(r.err);
-    console.error(`capture-chain:   refused (${why})`);
+    // ── THE CLOSED-SET REASON, WHICH THIS ROW DID NOT CARRY ────────────────
+    //
+    // `refusal` is THEIRS — the runtime's own error class, kept as evidence —
+    // and `refusalReason` is OURS, a member of the seven in
+    // `refusal-reasons.json`. This row set the first and not the second, so
+    // `assertRefusalsAreClosed` threw at the end of the capture:
+    //
+    //   0x1c714607…: outcome refused is untraced and carries NO refusalReason
+    //   — an unexplained absence
+    //
+    // Measured 2026-10-14 against the live testnet: ONE replay candidate in a
+    // 600-block window, refused `SettledTransactionNotFound`, and the whole
+    // capture aborted on the missing field rather than recording a legitimate
+    // outcome. The mapping already existed — `reasonForRuntimeClass` maps that
+    // class to `body-unavailable` — and nothing here called it.
+    const reason = reasonForRuntimeClass(why);
+    console.error(`capture-chain:   refused (${why} -> ${reason})`);
     replays.set(c.txHash, {
       replayed: false,
       refusal: why,
+      refusalReason: reason,
       reason: `This transaction could not be re-executed: the replay runtime refused with `
         + `${why}. No trace was recorded for it.`,
       detail: refusalDetail(r.err, why),
@@ -293,7 +342,17 @@ for (const c of candidates) {
     continue;
   }
   if (!existsSync(ctPath)) {
-    replays.set(c.txHash, { replayed: false, refusal: 'no-container-written', detail: 'the driver reported success and wrote no container' });
+    // `runtime-refused` is a MEMBER with its own stated condition, not a
+    // fallback: the runtime declined and the name is not one the registry
+    // classifies further. `no-container-written` is not a runtime class at
+    // all, so it goes in `refusal` as the evidence and the reason says what
+    // kind of thing it is.
+    replays.set(c.txHash, {
+      replayed: false,
+      refusal: 'no-container-written',
+      refusalReason: 'runtime-refused',
+      detail: 'the driver reported success and wrote no container',
+    });
     continue;
   }
   const bytes = (await readFile(ctPath)).length;

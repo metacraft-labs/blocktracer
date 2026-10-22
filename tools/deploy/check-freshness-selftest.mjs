@@ -63,6 +63,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { brotliCompressSync } from "node:zlib";
 
 import { approxMegabytes, declaredEngineBytes } from "./check-freshness.mjs";
 
@@ -70,6 +71,35 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const CHECKER = join(HERE, "check-freshness.mjs");
 
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
+// The manifest's own hash function — `contract/ids.nim:contentHashSha1`.
+const sha1ct = (b) => "sha1:" + createHash("sha1").update(b).digest("hex");
+
+// ── A PRE-COMPRESSED CONTAINER, AS THE EXPORTER PUBLISHES ONE ──────────────
+//
+// `generator.nim` writes the brotli bytes at `trace.ct` and, beside them, a
+// manifest carrying all three of CTFS §1e's figures: `bytes`/`hash` describe
+// the container as the loader sees it, `encoding`/`storedBytes`/`storedHash`
+// describe the object at rest. These arms build exactly that shape, because
+// F4's whole job is now to get from the second back to the first.
+const BR_CONTAINER = "t/zz/qq/zzqqbrotlicontainer00000000/trace.ct";
+const BR_MANIFEST  = "t/zz/qq/zzqqbrotlicontainer00000000/manifest.json";
+const brManifest = (raw, stored) => JSON.stringify({
+  schema: "selftest",
+  container: {
+    file: "trace.ct",
+    bytes: raw.length, hash: sha1ct(raw),
+    encoding: "br", storedBytes: stored.length, storedHash: sha1ct(stored),
+  },
+}, null, 2);
+/** Add a committed capture published pre-compressed, manifest and all. */
+const withBrotli = (w, body) => {
+  const raw = Buffer.from(body);
+  const stored = brotliCompressSync(raw);
+  w.fixtures["client/fixtures/chain/aztec/ct/0xbr01.ct"] = raw;
+  w.built[BR_CONTAINER] = stored;
+  w.built[BR_MANIFEST] = brManifest(raw, stored);
+  return { raw, stored };
+};
 
 // ── The synthetic world ────────────────────────────────────────────────────
 //
@@ -398,6 +428,99 @@ const arms = [
     name: "9c F4 — containers are published and no committed capture exists",
     mutateWorld: (w) => { w.fixtures = {}; return w; },
     expect: "F4",
+  },
+
+  // ── CCP-6: THE OBJECT AT REST IS NOT THE CONTAINER ────────────────────
+  //
+  // Run 38640661710 reported `F4  FAIL  25 of 25 published container(s) match
+  // NO committed capture` over a tree whose recordings had not changed at all:
+  // the objects were brotli and the captures were not, and the check compared
+  // them as one figure. These five arms are the two halves of the repair — the
+  // encoded publish must pass, and every way of corrupting it must still fail.
+  //
+  // MEASURED, not asserted. Against the PREVIOUS F4 (`known.has(A[r].sha256)`,
+  // restored from HEAD and the suite re-run): 9d, 9e, 9f and 9g all FAIL and
+  // 9h passes. Against the new F4 with its first branch disabled — the
+  // "declared `br`, therefore these bytes are compressed" assumption — only 9h
+  // fails. So each arm has a defect it is the one to catch, and 9h's is the
+  // one that would have reddened every container of a real deployment.
+  {
+    name: "9d F4 — a container published BROTLI, with its manifest, passes",
+    setup: (w) => { withBrotli(w, "CTFMT0\0a capture published pre-compressed\n"); return w; },
+    also: { F4: "PASS", F1: "PASS", F2: "PASS" },
+  },
+  {
+    // The defect the check exists for, now wearing an encoding: the object at
+    // rest is a valid brotli stream of something that is not the capture.
+    name: "9e F4 — brotli bytes that decode to a DIFFERENT recording still fail",
+    setup: (w) => { withBrotli(w, "CTFMT0\0a capture published pre-compressed\n"); return w; },
+    mutateWorld: (w) => {
+      const other = Buffer.from("CTFMT0\0a DIFFERENT recording, compressed\n");
+      const stored = brotliCompressSync(other);
+      w.built[BR_CONTAINER] = stored;
+      w.built[BR_MANIFEST] = brManifest(other, stored);   // self-consistent, and wrong
+      return w;
+    },
+    expect: "F4",
+    // Self-consistent is the point: the manifest describes the object it sits
+    // beside, exactly as the exporter would have written it. Only the
+    // comparison against the committed capture can see this.
+    also: { F1: "PASS", F2: "PASS" },
+  },
+  {
+    // A manifest that describes some OTHER object. The decode path is reached
+    // by matching `storedHash`, so a wrong one must not be allowed to select
+    // it — otherwise the manifest, not the bytes, decides the verdict.
+    name: "9f F4 — a manifest whose storedHash is not the object fails",
+    setup: (w) => { withBrotli(w, "CTFMT0\0a capture published pre-compressed\n"); return w; },
+    mutateWorld: (w) => {
+      const raw = Buffer.from("CTFMT0\0a capture published pre-compressed\n");
+      const m = JSON.parse(w.built[BR_MANIFEST]);
+      m.container.storedHash = sha1ct(Buffer.from("not this object"));
+      void raw;
+      w.built[BR_MANIFEST] = JSON.stringify(m, null, 2);
+      return w;
+    },
+    expect: "F4",
+  },
+  {
+    // Truncated in transit or on disk: brotli will refuse it. The verdict must
+    // be F4 and not an exception — a checker that throws reports nothing about
+    // the other twenty-four containers.
+    name: "9g F4 — an object that does not decompress fails, and does not throw",
+    setup: (w) => { withBrotli(w, "CTFMT0\0a capture published pre-compressed\n"); return w; },
+    mutateWorld: (w) => {
+      const raw = Buffer.from("CTFMT0\0a capture published pre-compressed\n");
+      const stored = brotliCompressSync(raw);
+      const cut = stored.subarray(0, Math.max(1, stored.length - 4));
+      w.built[BR_CONTAINER] = cut;
+      // The manifest declares the TRUNCATED object, so the decode path is
+      // genuinely selected and genuinely fails — a manifest left describing
+      // the whole object would fail at the discriminator instead, which is a
+      // different arm (9f).
+      const m = JSON.parse(w.built[BR_MANIFEST]);
+      m.container.storedBytes = cut.length;
+      m.container.storedHash = sha1ct(cut);
+      w.built[BR_MANIFEST] = JSON.stringify(m, null, 2);
+      return w;
+    },
+    expect: "F4",
+  },
+  {
+    // THE ORIGIN SHAPE, IN THE DIRECTORY TARGET. `originTarget` fetches, and
+    // `fetch` decodes `Content-Encoding` transparently — so against a live
+    // origin the bytes that arrive are already the container while the
+    // manifest still declares `br`. A check that assumed "declared br ⇒ these
+    // bytes are compressed" would fail every container of a real deployment.
+    // The discriminator reaches the raw branch by matching `hash` first, which
+    // is exactly what this arm pins.
+    name: "9h F4 — bytes that arrive ALREADY DECODED pass, as from an origin",
+    setup: (w) => {
+      const { raw } = withBrotli(w, "CTFMT0\0a capture published pre-compressed\n");
+      w.built[BR_CONTAINER] = raw;     // what `fetch` hands back
+      return w;
+    },
+    also: { F4: "PASS" },
   },
 
   {

@@ -117,13 +117,18 @@ jobs:
           # — is not what the branches do.
           #
           # THE COST ARGUMENT WAS RIGHT, AND IS ANSWERED BELOW RATHER THAN
-          # OVERRULED. A `ci` run really is TEN `[self-hosted, linux, x64]` jobs since
-          # `journeys-bite` became a 4-way matrix (counted from the file, not
-          # remembered: contract, client-sdk, visual-design-canary, viewmodels,
-          # debug-route, journeys, journeys-bite×4). Three refs dispatched
-          # blindly every two hours against a pool observed running four at a
-          # time would make this clock the biggest consumer of the capacity it
-          # exists to extract a verdict from.
+          # OVERRULED. A `ci` run really is FIFTEEN `[self-hosted, linux, x64]`
+          # jobs (counted from the file, not remembered: chain-follower-linux,
+          # client-sdk, contract, debug-route, journeys, viewmodels,
+          # visual-design-canary, and journeys-bite×8). This line said TEN and
+          # `journeys-bite×4` — it was counted from the file once and then the
+          # matrix went to eight without it, which is the one failure a
+          # "counted, not remembered" parenthesis is supposed to prevent.
+          # The pool it is counted against is SEVEN non-GARM runners, four of
+          # them on one host, which is why `journeys-bite` now carries
+          # `max-parallel: 3`. Three refs dispatched blindly every two hours
+          # against that pool would make this clock the biggest consumer of the
+          # capacity it exists to extract a verdict from.
           #
           # What made that true was dispatching on a TIMER rather than on a
           # NEED. `staging` and `live` change only on a promotion, so a

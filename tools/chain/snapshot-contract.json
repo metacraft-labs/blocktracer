@@ -194,6 +194,10 @@
       "section": "§5.3",
       "statement": "`provenance.prestateStrategy` is drawn from a closed set, verbatim; a value outside it is refused naming the set, because a producer emitting an unlisted strategy is a gap in the table rather than a producer using a free-text field."
     },
+    "S5-ORDERING-CLOSED": {
+      "section": "§5.3",
+      "statement": "`provenance.ordering` is OPTIONAL and names the quantity that sequences this chain's transactions, from the closed set the reader can build from a snapshot: `blockIndex` (from `blocks[]`; also what an absent member means) and `checkpoint` (whose sequence number is each block's `number`). A value outside the set, or one that is not a string, is refused naming the set: building an unlisted ordering as a height would publish the silently-wrong ordering Static-Site-Architecture.md §2.3 makes ordering a union to prevent."
+    },
     "S5-COST-VECTOR": {
       "section": "§5.3",
       "statement": "A row's cost is a VECTOR the producer states, and every entry names itself and carries a figure; the reader supplies no name, unit or token, because a cost the reader named is a page that looks right and states the wrong cost. The vector carries at least one entry: a rule that ranges over entries is vacuously clean on zero of them, and an empty vector publishes a transaction page with no cost at all — indistinguishable from a producer that forgot, in the one seam this contract supplies no default for."
@@ -223,7 +227,7 @@
   "_prestateStrategiesComment": [
     "THE CLOSED SET `provenance.prestateStrategy` IS DRAWN FROM.",
     "",
-    "It is the six rows of Chain-Support-Matrix.md §1.4, verbatim, and it is DATA here for the",
+    "It is the seven rows of Chain-Support-Matrix.md §1.4, verbatim (the seventh, `forward-capture`, added 2026-10-22 for Solana on an operator decision), and it is DATA here for the",
     "reason the refusal-reason set and the rule table are: two languages need it, the reader",
     "refuses a value outside it by name, and a set spelled twice is two sets.",
     "",
@@ -241,7 +245,8 @@
       "prestate-trace",
       "replay-preceding",
       "hydrated-from-node",
-      "self-contained-circuit"
+      "self-contained-circuit",
+      "forward-capture"
     ]
   },
 
@@ -412,8 +417,12 @@
                      "holds": "who recorded this capture's executions, and in what trace schema — §5.3"},
         "prestateStrategy": {"required": true, "access": "optional", "enforcedBy": "S5-PRESTATE-STATED",
                              "holds": "how the producer obtained the state each execution ran against, from Chain-Support-Matrix.md §1.4's closed set — §5.3"},
+        "ordering": {"required": false, "access": "optional", "enforcedBy": "S5-ORDERING-CLOSED",
+                     "holds": "the quantity that sequences this chain's transactions, from the closed set `blockIndex` / `checkpoint`. Absent means `blockIndex`, which is what every tree published before the member existed was built as — §5.3"},
         "identifierEncoding": {"required": false, "access": "optional", "enforcedBy": "S5-IDENTIFIER-ENCODING-CLOSED",
-                               "holds": "how this chain writes its identifiers, per kind — the one declaration the reader keys every sharded path from AND publishes onto the registry row. Absent means hex, which is what every tree published before the member existed was keyed under — §5.6"}
+                               "holds": "how this chain writes its identifiers, per kind — the one declaration the reader keys every sharded path from AND publishes onto the registry row. Absent means hex, which is what every tree published before the member existed was keyed under — §5.6"},
+        "vm": {"required": false, "access": "optional",
+               "holds": "the executable format this chain's programs are executed from, as {\"instructionSet\": \"…\"} — the declaration that reaches the registry row's `vm` without an instruction listing. An absent member means the producer declared no format, which is NOT a claim that the chain has none — Configuration.md §2.1, §5.3"}
       }
     },
 
@@ -698,7 +707,7 @@
         "steps": {"required": true, "access": "optional", "enforcedBy": "S5-INSTRUCTIONS-AGREE",
                   "holds": "the listing's own step count, which must equal the recording's"},
         "isa": {"required": false, "access": "optional",
-                "holds": "the instruction set this listing's opcode numbers are numbers in; carried up to the chain's registry row so a consumer may select a mnemonic table before it opens a recording"}
+                "holds": "the instruction set this listing's opcode numbers are numbers in; carried up to the chain's registry row — where the capture declares no `provenance.vm` of its own (§5.3) — so a consumer may select a mnemonic table before it opens a recording"}
       }
     },
 

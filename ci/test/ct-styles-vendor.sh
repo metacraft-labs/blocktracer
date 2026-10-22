@@ -23,6 +23,24 @@
 #   B. BYTE CONFORMANCE (needs a CodeTracer checkout)
 #      Each file is compared byte for byte with its upstream path.
 #
+# ── AND ONE OF THEM IS NOT A STYLESHEET ───────────────────────────────────
+#
+# `frontend/viewmodel/views/debug_control_marks.nim` is in this set too: the
+# twelve inline-SVG marks CodeTracer's debugger toolbar draws, which
+# `components/debugger.controlMark` renders and the vendored `button.styl`
+# sizes through `.ct-control-mark`. The button and the mark inside it are one
+# component, so a reader asking "is this control still upstream's?" should
+# find one answer, in one manifest, behind one gate.
+#
+# The FILE NAMES still say `styles`. They were not churned for this: nine
+# files reference `ct-styles-vendor.sh` and five the manifest, including the
+# coverage registry that proves every gate is wired, and a rename would be a
+# dozen edits buying nothing a sentence cannot. This is that sentence.
+#
+# The byte-comparison argument below applies unchanged, and more simply: this
+# file is copied unmodified and compiled as-is, so there is no reworded-prose
+# case to make an exception for.
+#
 # ── WHY PART B IS A BYTE COMPARISON AND THE OTHER TWO GATES' IS NOT ────────
 #
 # The two Nim manifests compare by VALUE and say so at length: their files are
@@ -88,6 +106,7 @@ rels=(
 	"frontend/styles/components/data_tables.styl"
 	"frontend/styles/components/golden_layout.styl"
 	"frontend/styles/components/empty_states.styl"
+	"frontend/viewmodel/views/debug_control_marks.nim"
 )
 
 fail() {
@@ -105,7 +124,7 @@ digest() {
 	fi
 }
 
-echo "=== the vendored CodeTracer component stylesheets ==="
+echo "=== the vendored CodeTracer component files ==="
 
 # ---------------------------------------------------------------------------
 # A. Local integrity
@@ -155,7 +174,7 @@ for rel in "${rels[@]}"; do
 	fi
 	i=$((i + 1))
 done
-echo "--- A: ${#rels[@]} stylesheet(s) match their manifest digests"
+echo "--- A: ${#rels[@]} file(s) match their manifest digests"
 
 pinned=""
 if [ -f "${pin_file}" ]; then
@@ -252,5 +271,5 @@ if [ "${failed}" -ne 0 ]; then
 	echo "  is a change to how both products' tab bars look." >&2
 	exit 1
 fi
-echo "--- B: ${#rels[@]} stylesheet(s) are byte-identical to upstream"
-echo "=== the vendored CodeTracer component stylesheets: OK"
+echo "--- B: ${#rels[@]} file(s) are byte-identical to upstream"
+echo "=== the vendored CodeTracer component files: OK"

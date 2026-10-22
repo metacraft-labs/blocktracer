@@ -54,74 +54,102 @@ import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 import {
+  CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
+  parseProducerArgs, readJsonOrRefuse as readJson, refuseOperation as refuse,
+} from './lib/producer-runtime.mjs';
+import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, INSTRUCTION_SET,
   INSTRUCTION_STREAM_SCHEMA, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY,
   RECORDER, costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
 } from './lib/starknet-producer-facts.mjs';
+
+// WHAT THE RECORDER PROVED ABOUT A CLASS'S SOURCE, republished. A class the recorder ran
+// with a `bind-class` binding (`trace-block --class-sources`) has a build of its published
+// source proved against the chain's own class: the Sierra program felt for felt, the entry
+// points, the class version and the ABI, with the class hash recomputed from the chain's
+// answer (Source-Resolution.md §4). That proves an ARTIFACT, so the row says `resolved`;
+// what the artifact gives this recording is NAMES — every Cairo function, type and
+// libfunc in the listing — and not lines, unless the build recorded statement locations,
+// which `codeLocations` states. `recording.sourceLevel` is not raised by a binding.
+/** The Cairo files of `rec` that class `classHash`'s own steps were shown in. */
+function cairoFilesOf(rec, classHash) {
+  const row = (rec.report.classes ?? []).find((k) => k.classHash === classHash);
+  const want = new Set(row?.cairoSources ?? []);
+  return rec.listings.filter((L) => L.classHash === null && want.has(L.interned));
+}
+
+export function artifactRow(k, r) {
+  const address = (r.frames.find((f) => f.classHash === k.classHash) ?? {}).contract ?? '';
+  const src = k.source ?? null;
+  if (src?.bound === true) {
+    const b = src.provenance?.build ?? {};
+    const what = [b.repository, b.tag ?? b.revision, b.contract].filter(Boolean).join(' ');
+    return {
+      address,
+      contractClassId: k.classHash,
+      resolved: true,
+      origin: `a build of ${what || 'the class\'s published source'}`
+        + (b.toolchain ? ` with ${b.toolchain}` : ''),
+      corroboration: 'the chain itself',
+      reason: 'A build of this class\'s published source was proved against the class the '
+        + 'chain serves — the same Sierra program felt for felt, the same entry points, '
+        + 'class version and ABI, and the class hash recomputed from the chain\'s answer — so '
+        + `its debug info names the program: ${src.functionsNamed} Cairo functions, and every `
+        + 'type and libfunc, are named in the listing. '
+        + (!src.codeLocations
+          ? 'Its compiler records no file and line per statement, so steps stay positioned '
+            + 'on CASM instructions, under those names.'
+          : (k.cairoSources ?? []).length > 0
+            ? 'The build also records a Cairo file and line per Sierra statement, and its '
+              + `sources are republished, so this class's steps are shown at those lines, in `
+              + `${k.cairoSources.length} file(s); a step whose statement has no location `
+              + 'stays on its CASM instruction.'
+            : 'The build records a Cairo file and line per Sierra statement, but its sources '
+              + 'are not republished here, so steps stay positioned on CASM instructions.'),
+      sourceBinding: src.provenance ?? null,
+    };
+  }
+  return {
+    address,
+    contractClassId: k.classHash,
+    resolved: false,
+    origin: null,
+    corroboration: null,
+    reason: 'A declared class carries its Sierra program and ABI and no debug info that '
+      + 'maps a program counter to a Cairo source line, and no build of its source was '
+      + 'proved against it'
+      + (src?.bound === false ? ` (a binding was offered and refused: ${src.refused})` : '')
+      + ', so every step is positioned in a listing of the CASM the VM ran — compiled from '
+      + 'the Sierra class the node served, by the recorder.',
+  };
+}
 
 const HERE = 'tools/chain/produce-starknet-snapshot.mjs';
 
 /** The block report format `codetracer-cairo-onchain trace-block` writes. */
 export const BLOCK_REPORT_FORMAT = 'codetracer-cairo-onchain/block-report@1';
 
-const ConfigRefusal = 'config';
-const SourceRefusal = 'source';
-const refuse = (kind, message) => Object.assign(new Error(message), { refusalKind: kind });
+// DEL-7: the operational refusal, its exit code, the argv grammar, the JSON reader, the
+// container reader's path and the CTFS container header come from
+// `lib/producer-runtime.mjs`, shared with the other four producers. The tokens' VALUES are
+// unchanged — `'config'` and `'source'` — which is what keeps this file's selftest arms
+// asserting on `e.refusalKind` valid across the move.
 
 const USAGE = `usage: produce-starknet-snapshot.mjs --capture DIR [--capture DIR]...
          --recorder-commit SHA --out DIR [--ct-print PATH] [--label TEXT]
          [--endpoint-label URL] [--captured-at ISO] [--dry-run]`;
 
-function parseArgs(argv) {
-  const many = new Map();
-  const flags = new Set();
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith('--')) throw refuse(ConfigRefusal, `unexpected argument '${a}'\n${USAGE}`);
-    const name = a.slice(2);
-    if (name === 'dry-run' || name === 'help') { flags.add(name); continue; }
-    const v = argv[++i];
-    if (v === undefined) throw refuse(ConfigRefusal, `--${name} needs a value\n${USAGE}`);
-    if (!many.has(name)) many.set(name, []);
-    many.get(name).push(v);
-  }
-  const one = (n, dflt) => {
-    const vs = many.get(n) ?? [];
-    if (vs.length > 1) throw refuse(ConfigRefusal, `--${n} given ${vs.length} times`);
-    return vs[0] ?? dflt;
-  };
-  return { one, all: (n) => many.get(n) ?? [], has: (n) => flags.has(n) };
-}
+const parseArgs = (argv) => parseProducerArgs(argv, { usage: USAGE });
 
-function readJson(path, what) {
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch (e) {
-    throw refuse(SourceRefusal, `${what} at ${path} is not readable JSON: ${e.message}`);
-  }
-}
+/** The reader this producer's containers are opened with: the sibling
+ *  `codetracer-trace-format-nim` checkout's `ct-print`, unless one is named. */
+const ctPrintPath = (explicit) => containerReaderPath({
+  explicit,
+  fallbacks: [resolve('..', 'codetracer-trace-format-nim', 'ct-print')],
+  hint: "The reader is codetracer-trace-format-nim's `ct-print`.",
+});
 
-function ctPrintPath(explicit) {
-  const cands = [explicit, process.env.CT_PRINT,
-                 resolve('..', 'codetracer-trace-format-nim', 'ct-print')].filter(Boolean);
-  for (const c of cands) if (existsSync(c)) return c;
-  throw refuse(ConfigRefusal,
-    `no container reader found. Pass --ct-print <path> or set $CT_PRINT. Tried: `
-    + `${cands.join(', ')}. The reader is codetracer-trace-format-nim's \`ct-print\`.`);
-}
-
-/** The container version byte, read from the CTFS header rather than assumed. */
-function containerVersion(file) {
-  const b = readFileSync(file).subarray(0, 8);
-  const magic = [0xc0, 0xde, 0x72, 0xac];
-  for (let i = 0; i < 4; i++) {
-    if (b[i] !== magic[i]) {
-      throw refuse(SourceRefusal, `${file} does not begin with the CTFS magic; a snapshot `
-        + `container holds what a recorder wrote.`);
-    }
-  }
-  return b[5];
-}
+const CTFS_NOTE = 'A snapshot container holds what a recorder wrote.';
 
 /** Run `ct-print` and hand each line of its stdout to `onLine`, without buffering it:
  *  a Starknet transaction can run a million VM steps, and one JSON line per step is more
@@ -134,7 +162,7 @@ function streamLines(cmd, args, onLine) {
     const rl = createInterface({ input: p.stdout, crlfDelay: Infinity });
     rl.on('line', (l) => { if (l.trim().length > 0) onLine(l); });
     p.on('close', (code) => (code === 0 ? ok()
-      : fail(refuse(SourceRefusal, `${cmd} ${args.join(' ')} exited ${code}: ${err.slice(0, 400)}`))));
+      : fail(refuse(SOURCE_REFUSAL, `${cmd} ${args.join(' ')} exited ${code}: ${err.slice(0, 400)}`))));
   });
 }
 
@@ -145,7 +173,7 @@ async function readContainer(ctPrint, file) {
   await streamLines(ctPrint, ['--meta-json', file], (l) => { metaText += `${l}\n`; });
   let meta;
   try { meta = JSON.parse(metaText); } catch (e) {
-    throw refuse(SourceRefusal, `${ctPrint} --meta-json ${file} did not answer JSON: ${e.message}`);
+    throw refuse(SOURCE_REFUSAL, `${ctPrint} --meta-json ${file} did not answer JSON: ${e.message}`);
   }
   const pathId = [];
   const line = [];
@@ -164,7 +192,7 @@ async function readContainer(ctPrint, file) {
     if (o.kind === 'io') ioEvents += 1;
   });
   return { counts: meta.counts, flags: meta.metadata.flags, paths, pathId, line, callEntries,
-           ioEvents, version: containerVersion(file) };
+           ioEvents, version: containerVersion(file, { note: CTFS_NOTE }) };
 }
 
 /** `0x<pc>  <instruction>` per line; label lines (no `0x` lead) are holes, kept as holes
@@ -205,12 +233,12 @@ export async function main(argv) {
   const captureDirs = args.all('capture');
   const recorderCommit = args.one('recorder-commit');
   const outDir = args.one('out');
-  if (captureDirs.length === 0) throw refuse(ConfigRefusal, `--capture is required\n${USAGE}`);
-  if (!recorderCommit) throw refuse(ConfigRefusal, `--recorder-commit is required\n${USAGE}`);
-  if (!outDir && !args.has('dry-run')) throw refuse(ConfigRefusal, `--out is required\n${USAGE}`);
+  if (captureDirs.length === 0) throw refuse(CONFIG_REFUSAL, `--capture is required\n${USAGE}`);
+  if (!recorderCommit) throw refuse(CONFIG_REFUSAL, `--recorder-commit is required\n${USAGE}`);
+  if (!outDir && !args.has('dry-run')) throw refuse(CONFIG_REFUSAL, `--out is required\n${USAGE}`);
   const capturedAtFlag = args.one('captured-at');
   if (capturedAtFlag && Number.isNaN(Date.parse(capturedAtFlag))) {
-    throw refuse(ConfigRefusal, `--captured-at must be a date Date.parse accepts`);
+    throw refuse(CONFIG_REFUSAL, `--captured-at must be a date Date.parse accepts`);
   }
   assertReadableSnapshotFormat(SNAPSHOT_FORMAT, HERE);
   assertRefusalsAreClosed();
@@ -219,11 +247,11 @@ export async function main(argv) {
   const caps = captureDirs.map((dir) => {
     const b = readJson(join(dir, 'block.json'), 'the block report');
     if (b.format !== BLOCK_REPORT_FORMAT) {
-      throw refuse(SourceRefusal, `${dir}/block.json is ${JSON.stringify(b.format)}, and this `
+      throw refuse(SOURCE_REFUSAL, `${dir}/block.json is ${JSON.stringify(b.format)}, and this `
         + `producer reads ${BLOCK_REPORT_FORMAT} only.`);
     }
     if (!b.chain?.header || !Array.isArray(b.chain?.transactions)) {
-      throw refuse(SourceRefusal, `${dir}/block.json carries no \`chain\` member — it was `
+      throw refuse(SOURCE_REFUSAL, `${dir}/block.json carries no \`chain\` member — it was `
         + `written by a recorder older than the one that records the chain's side of the `
         + `capture, and this producer will not ask the network for it.`);
     }
@@ -233,7 +261,7 @@ export async function main(argv) {
     const seen = new Set();
     for (const c of caps) {
       if (seen.has(c.b.blockNumber)) {
-        throw refuse(ConfigRefusal, `block ${c.b.blockNumber} is captured twice`);
+        throw refuse(CONFIG_REFUSAL, `block ${c.b.blockNumber} is captured twice`);
       }
       seen.add(c.b.blockNumber);
     }
@@ -246,7 +274,7 @@ export async function main(argv) {
   // must carry it.
   const probed = caps.filter((c) => c.b.floorProbe);
   if (probed.length === 0) {
-    throw refuse(SourceRefusal, `no capture carries a floor probe. Run one block of the set `
+    throw refuse(SOURCE_REFUSAL, `no capture carries a floor probe. Run one block of the set `
       + `with \`trace-block --probe-floor\`: \`window.replayableFrom\` is derived from it, `
       + `and a typed floor is the defect CPC-5 records.`);
   }
@@ -255,7 +283,7 @@ export async function main(argv) {
   const ns = floorProbe.nodeState;
   if (!(ex?.acceptedAtFloor === true && ex?.refusedBelow === true
         && ns?.positiveControlHeld === true && ns?.negativeControlHeld === true)) {
-    throw refuse(SourceRefusal, `the floor probe's controls did not all hold `
+    throw refuse(SOURCE_REFUSAL, `the floor probe's controls did not all hold `
       + `(${JSON.stringify({ acceptedAtFloor: ex?.acceptedAtFloor, refusedBelow: ex?.refusedBelow,
                              positive: ns?.positiveControlHeld, negative: ns?.negativeControlHeld })}); `
       + `a floor whose instrument did not discriminate is not a measurement.`);
@@ -266,7 +294,7 @@ export async function main(argv) {
   const finalized = Number(newest.chain.l1Accepted);
   const control = newest.chain.endpointControl;
   if (control?.classified === 'ok') {
-    throw refuse(SourceRefusal, `the endpoint answered \`thisMethodDoesNotExist\` with a `
+    throw refuse(SOURCE_REFUSAL, `the endpoint answered \`thisMethodDoesNotExist\` with a `
       + `result: it is a blind proxy and none of its answers discriminate.`);
   }
 
@@ -282,7 +310,7 @@ export async function main(argv) {
       const tdir = join(dir, r.txHash);
       const cts = readdirSync(tdir).filter((f) => f.endsWith('.ct'));
       if (cts.length !== 1) {
-        throw refuse(SourceRefusal, `${tdir} holds ${cts.length} container(s); a recorded `
+        throw refuse(SOURCE_REFUSAL, `${tdir} holds ${cts.length} container(s); a recorded `
           + `transaction has exactly one.`);
       }
       const src = join(tdir, cts[0]);
@@ -292,31 +320,50 @@ export async function main(argv) {
         // eslint-disable-next-line no-await-in-loop
         rec.c = await readContainer(ctPrint, src);
         if (rec.c.version !== 5) {
-          throw refuse(SourceRefusal, `${src} is container version ${rec.c.version}, and this `
+          throw refuse(SOURCE_REFUSAL, `${src} is container version ${rec.c.version}, and this `
             + `producer declares ${RECORDER.traceSchema}.`);
         }
         if (rec.c.counts.steps !== r.container.steps) {
-          throw refuse(SourceRefusal, `${src}: the reader counts ${rec.c.counts.steps} steps `
+          throw refuse(SOURCE_REFUSAL, `${src}: the reader counts ${rec.c.counts.steps} steps `
             + `and the recorder reported writing ${r.container.steps}. A recording the two `
             + `disagree about is not published.`);
         }
         // ONE LISTING PER INTERNED PATH, located by the name the recorder gave it inside
         // THIS transaction's own capture, never by arithmetic on the interned string.
         rec.listings = rec.c.paths.map((interned) => {
+          // A CAIRO SOURCE FILE, interned by the recorder for a class bound to a proved
+          // build that embeds its sources (`./sources/cairo/<package@version or root>/…`).
+          // It is published under `cairo/<…>`, a trailing suffix of the interned path, and
+          // carries no instruction listing: a step there is placed at a source line.
+          const cm = /^\.\/sources\/(cairo\/.+\.cairo)$/.exec(interned);
+          if (cm) {
+            if (cm[1].split('/').includes('..')) {
+              throw refuse(SOURCE_REFUSAL, `${src} interns ${interned}, which climbs out of `
+                + 'its capture directory.');
+            }
+            const file = join(tdir, 'sources', cm[1]);
+            if (!existsSync(file)) {
+              throw refuse(SOURCE_REFUSAL, `${src} interns ${interned} and ${file} does not exist.`);
+            }
+            const text = readFileSync(file, 'utf8');
+            return { interned, publishedPath: cm[1], classHash: null, text, listing: null,
+                     lines: text.split('\n').length };
+          }
           const name = interned.split('/').pop();
           const m = /^(0x[0-9a-f]{1,64})\.casm$/.exec(name);
           if (!m) {
-            throw refuse(SourceRefusal, `${src} interns ${interned}, whose name is not `
+            throw refuse(SOURCE_REFUSAL, `${src} interns ${interned}, whose name is not `
               + `\`<class hash>.casm\`; the class a listing is of is the name the recorder `
               + `gave it.`);
           }
           const file = join(tdir, 'sources', name);
           if (!existsSync(file)) {
-            throw refuse(SourceRefusal, `${src} interns ${interned} and ${file} does not exist.`);
+            throw refuse(SOURCE_REFUSAL, `${src} interns ${interned} and ${file} does not exist.`);
           }
           const text = readFileSync(file, 'utf8');
-          return { interned, publishedPath: name, classHash: m[1], text,
-                   listing: parseListing(text) };
+          const listing = parseListing(text);
+          return { interned, publishedPath: name, classHash: m[1], text, listing,
+                   lines: listing.length };
         });
         // Every step lands inside its own listing, or nothing is published: an
         // out-of-range (path, line) would place a step at an instruction it did not run.
@@ -324,11 +371,11 @@ export async function main(argv) {
         for (let i = 0; i < rec.c.pathId.length; i++) {
           const L = rec.listings[rec.c.pathId[i]];
           const ln = rec.c.line[i];
-          if (!L || ln < 1 || ln > L.listing.length) bad.push(i);
+          if (!L || ln < 1 || ln > L.lines) bad.push(i);
           if (bad.length > 5) break;
         }
         if (bad.length > 0) {
-          throw refuse(SourceRefusal, `${src}: step(s) ${bad.join(', ')} do not land inside a `
+          throw refuse(SOURCE_REFUSAL, `${src}: step(s) ${bad.join(', ')} do not land inside a `
             + `listing this capture holds.`);
         }
       }
@@ -344,7 +391,7 @@ export async function main(argv) {
     const byHash = new Map(b.chain.transactions.map((t) => [t.hash, t]));
     const header = b.chain.header;
     if (b.perTransaction.length !== b.chain.transactions.length) {
-      throw refuse(SourceRefusal, `block ${b.blockNumber}: ${b.perTransaction.length} report(s) `
+      throw refuse(SOURCE_REFUSAL, `block ${b.blockNumber}: ${b.perTransaction.length} report(s) `
         + `for ${b.chain.transactions.length} transaction(s).`);
     }
     blocks.push({
@@ -361,7 +408,7 @@ export async function main(argv) {
     for (const r of b.perTransaction) {
       const t = byHash.get(r.txHash);
       if (!t) {
-        throw refuse(SourceRefusal, `block ${b.blockNumber}: report for ${r.txHash}, which the `
+        throw refuse(SOURCE_REFUSAL, `block ${b.blockNumber}: report for ${r.txHash}, which the `
           + `block's transaction list does not hold.`);
       }
       const { body, receipt } = t;
@@ -402,6 +449,13 @@ export async function main(argv) {
       const c = rec.c;
       const steps = c ? c.counts.steps : r.container.steps;
       const positioned = c ? c.pathId.filter((p, i) => p !== null && c.line[i] > 0).length : 0;
+      // MEASURED, never declared: source level means EVERY step sits on a Cairo source line
+      // (a class bound to a proved build whose sources are republished). One step on a CASM
+      // listing — any class with no such build, or a statement its build did not locate —
+      // makes it false, which is the AND Data-Contract §5.2b defines.
+      const onSource = c ? c.pathId.filter((p) => rec.listings[p]?.classHash === null).length : 0;
+      rec.sourceLevel = c ? steps > 0 && onSource === steps : false;
+      rec.stepsOnSource = onSource;
       rows.push({
         ...base,
         outcome: reproduced ? 'replayed' : 'divergent',
@@ -419,9 +473,9 @@ export async function main(argv) {
           steps,
           callsOpened: c ? c.counts.calls : r.container.entryPointFrames + r.container.internalCalls,
           logEvents: c ? c.counts.io_events : r.container.eventsWritten,
-          // `false`, measured: every position points into a CASM listing, because a
-          // declared class carries no debug info mapping a pc to a Cairo line.
-          sourceLevel: false,
+          sourceLevel: rec.sourceLevel,
+          // How many steps are on a Cairo source line rather than a CASM listing line.
+          stepsOnSource: rec.stepsOnSource,
           stepsPositioned: positioned,
           stepsUnpositioned: steps - positioned,
           contexts: rec.listings ? rec.listings.length : r.classes.length,
@@ -432,17 +486,7 @@ export async function main(argv) {
         instructions: `instructions/${r.txHash}.json`,
         positions: `positions/${r.txHash}.json`,
         callTrace: `calltrace/${r.txHash}.json`,
-        artifacts: r.classes.map((k) => ({
-          address: (r.frames.find((f) => f.classHash === k.classHash) ?? {}).contract ?? '',
-          contractClassId: k.classHash,
-          resolved: false,
-          origin: null,
-          corroboration: null,
-          reason: 'A declared class carries its Sierra program and ABI and no debug info that '
-            + 'maps a program counter to a Cairo source line, so no artifact is proved and '
-            + 'every step is positioned in a listing of the CASM the VM ran — compiled from '
-            + 'the Sierra class the node served, by the recorder.',
-        })),
+        artifacts: r.classes.map((k) => artifactRow(k, r)),
       });
       yielded.push({ txHash: r.txHash, outcome: reproduced ? 'replayed' : 'divergent' });
     }
@@ -525,20 +569,36 @@ export async function main(argv) {
     // `./sources/<class hash>.casm`, which is how the source island matches them.
     writeJson(`sources/${txHash}.json`, {
       txHash,
-      sourceLevel: false,
-      bundles: listings.map((L) => ({
+      sourceLevel: rec.sourceLevel,
+      // A class bound to a proved build that embeds its sources ALSO carries the Cairo
+      // files its own steps were shown in (the recorder's `classes[].cairoSources`), in
+      // the same bundle: the reader keys bundles by class. Its language is then `cairo`.
+      bundles: listings.filter((L) => L.classHash !== null).map((L) => {
+        const cairo = cairoFilesOf(rec, L.classHash);
+        return {
         address: row.artifacts.find((a) => a.contractClassId === L.classHash)?.address ?? '',
         codeHash: L.classHash,
-        files: { [L.publishedPath]: L.text },
+        files: { [L.publishedPath]: L.text,
+                 ...Object.fromEntries(cairo.map((F) => [F.publishedPath, F.text])) },
         origin: 'CASM compiled by the recorder from the Sierra class starknet_getClass '
-          + `served at block ${row.preStateReadAt}`,
-        shape: 'disassembly',
+          + `served at block ${row.preStateReadAt}`
+          + (row.artifacts.find((a) => a.contractClassId === L.classHash)?.resolved
+            ? ', labelled with the names of a build of its source proved against that class'
+            : '')
+          + (cairo.length
+            ? `; and ${cairo.length} Cairo source file(s) of that build, read by it, which `
+              + 'the steps of this class are shown in where the build located them'
+            : ''),
+        shape: cairo.length ? 'source' : 'disassembly',
         corroboration: 'single-distributor',
         agreeingDistributors: ['the chain itself'],
-        language: POSITION_LANGUAGE,
-      })),
+        language: cairo.length ? 'cairo' : POSITION_LANGUAGE,
+        };
+      }),
     });
-    const at = (i) => listings[c.pathId[i]]?.listing[c.line[i] - 1] ?? null;
+    // A step on a Cairo source line has no instruction listing behind it, so its pc
+    // and opcode are not stated (null), never guessed.
+    const at = (i) => listings[c.pathId[i]]?.listing?.[c.line[i] - 1] ?? null;
     const pc = new Array(c.pathId.length);
     const op = new Array(c.pathId.length);
     let counters = 0;
@@ -600,7 +660,7 @@ export async function main(argv) {
     if (frames.length !== row.recording.callsOpened) {
       // `counts.calls` includes the container's own top-level call, which is the
       // synthetic frame here — so the two readings must agree exactly.
-      throw refuse(SourceRefusal, `${txHash}: the container counts ${row.recording.callsOpened} `
+      throw refuse(SOURCE_REFUSAL, `${txHash}: the container counts ${row.recording.callsOpened} `
         + `call(s) and its call stream yields ${frames.length} frame(s).`);
     }
     row.recording.callsOpened = frames.length - 1;
@@ -625,7 +685,12 @@ export async function main(argv) {
     format: 'blocktracer/artifact-resolution@1',
     chain: CHAIN_SLUG,
     measuredAt: capturedAt,
-    measuredBy: { tool: HERE, resolver: 'none yet — CASM listings only (CXP-CAIRO-4)',
+    // THE RESOLVER IS THE RECORDER'S `bind-class` CHECK, applied at trace time: a class is
+    // resolved when a build of its source was proved against it (see `artifactRow`).
+    // Counted over distinct classes, so a class two transactions entered counts once.
+    measuredBy: { tool: HERE,
+                  resolver: 'codetracer-cairo-onchain bind-class bindings, re-checked against '
+                    + 'the class that ran (trace-block --class-sources); names, not lines',
                   runtimeCommit: recorderCommit },
     endpoint: endpointLabel,
     counts: {
@@ -634,7 +699,8 @@ export async function main(argv) {
       stepsPositioned: rows.reduce((n, x) => n + (x.recording?.stepsPositioned ?? 0), 0),
       stepsTotal: rows.reduce((n, x) => n + (x.recording?.steps ?? 0), 0),
       contracts: new Set(rows.flatMap((x) => (x.artifacts ?? []).map((a) => a.contractClassId))).size,
-      resolved: 0,
+      resolved: new Set(rows.flatMap((x) => (x.artifacts ?? [])
+        .filter((a) => a.resolved === true).map((a) => a.contractClassId))).size,
     },
     transactions: rows.filter((x) => x.replayed === true).map((x) => ({
       txHash: x.txHash, blockNumber: x.blockNumber, artifacts: x.artifacts, positions: null,
@@ -658,8 +724,5 @@ export async function main(argv) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  main(process.argv.slice(2)).catch((e) => {
-    console.error(`${HERE}: ${e.message}`);
-    process.exit(e.refusalKind === ConfigRefusal ? 2 : 1);
-  });
+  main(process.argv.slice(2)).catch((e) => dieOperational(HERE, e));
 }

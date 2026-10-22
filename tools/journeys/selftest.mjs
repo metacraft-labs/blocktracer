@@ -83,12 +83,29 @@
 //    behaviour in a browser instead — which is what the journeys are for.
 
 import { readFile, writeFile, readdir, rm } from "node:fs/promises";
-import { writeFileSync, readFileSync, writeSync } from "node:fs";
+import { writeFileSync, readFileSync, writeSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
+
+// ── IS THIS FILE BEING RUN, OR MERELY LOADED? ─────────────────────────────
+//
+// It writes to real product source, so the two must not be the same thing.
+// `process.argv[1]` is the script node was given; under `node -e`, under an
+// editor's module resolver, and under any future caller that imports `ARMS`,
+// it is either undefined or some other file. `pathToFileURL(undefined)`
+// THROWS, so the undefined case is tested first and not merely compared.
+//
+// Used twice, and the second use matters as much as the first: the `exit`
+// hook below prints `RESULT: DID NOT RUN` for any process that reaches the
+// end without a verdict, which is EVERY importer. A verdict nobody asked for,
+// about a run that never started, written over the journal of the last real
+// one — the same defect `queryMode` is there to prevent, arriving by a
+// different door.
+const RUNNING_AS_ENTRY_POINT =
+  typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -230,7 +247,25 @@ const ARMS = [
     find: `  of tkInt: node{"i"}.getStr("")`,
     replace: `  of tkInt: ""`,
     journey: "a-stepped-session-shows-the-values-it-is-at",
-    assertion: "every row the pane draws carries both a name and a value",
+    // THE *REAL* ARM, AND THE MUTATION ONLY REACHES THAT ONE. This named the
+    // synthetic arm's copy of the claim — "every row the pane draws carries
+    // both a name and a value" — and SURVIVED on CI run 38918156174, shard 8.
+    //
+    // Not because the assertion is weak: because no value it quantifies over
+    // is an integer. MEASURED by asking the engine for the locals of both
+    // subjects this journey drives and reading `value.kind` off the wire:
+    //
+    //   demo  `kc5nqr…`  kind 0 (Seq), 12 (Bool), 9 (String)
+    //   chain `um3w46…`  kind 7 (INT), 9 (String)
+    //
+    // `tkInt` is 7, so blanking it changes nothing a demo-only walk can see,
+    // and the one surface that would see it is the chain capture — whose
+    // `contextId` is an integer. The claim is made there too, a few lines
+    // down, under the "REAL: " prefix this file's own ambiguity note warns
+    // about. Pointing the arm at that copy is the whole repair; the two
+    // strings are not substrings of each other, so the match stays exactly
+    // one.
+    assertion: "REAL: every row carries both a name and a value",
   },
   {
     id: "C/phase-renamed",
@@ -1433,6 +1468,15 @@ proc noteFor*`,
     find: `  result.positioned = engineReported or served.positioned`,
     replace: `  result.positioned = step > 0`,
     journey: "position-survives-hydration",
+    // LEFT ON THE `HYDRATED` ARM, AND THE OTHER ONE WAS TRIED. The defect is
+    // `positioned = step > 0`, so it bites only where the step IS zero, and
+    // the obvious repair was to point this at `HYDRATED-REAL` — the chain
+    // capture whose SERVED frame stands at step 0 of 790. Measured: it
+    // survives there too, and the reading says why — `step 1 of 790 names
+    // tick 1 of 48 — drew 48 ticks, playhead on 1 (1 marked)`. By the time
+    // either arm reads, the engine has reported and the step is 1, so the
+    // sentinel is true on both. Moving the target buys nothing, so it stays
+    // where it was and the gap is registered in `known-survivors.json`.
     assertion: "HYDRATED: the playhead is on the tick the session's own step names",
   },
 
@@ -1540,9 +1584,23 @@ proc noteFor*`,
       " eleven kinds and renders every string, bool, char, array and tuple as the" +
       " empty string, which is why the ordinals here were derived against the" +
       " engine rather than borrowed. A count cannot see it.",
+    // A KIND THIS JOURNEY'S SUBJECT ACTUALLY RENDERS. This blanked `tkInt`
+    // and SURVIVED on CI run 38918156174, shard 5 — not because the overlay
+    // is unguarded but because nothing it draws is an integer. Measured by
+    // asking the engine for the locals of the capture this journey walks and
+    // reading `value.kind` off the wire: kind 0 (Seq), 12 (Bool), 9 (String),
+    // and `tkInt` is 7.
+    //
+    // `tkString` is the kind the overlay draws most of, and it is present on
+    // both this subject and the chain captures. Blanking it is the same
+    // defect class the `why` above describes — a mis-read ordinal rendering a
+    // whole kind as the empty string — aimed at a value the overlay puts on a
+    // line. `L/the-value-kind-is-misread` keeps `tkInt`, against the Values
+    // pane's chain arm where integers do appear, so the two arms stay
+    // distinct defects rather than one mutation named twice.
     file: join(CLIENT, "hydrate", "live_locals.nim"),
-    find: `  of tkInt: node{"i"}.getStr("")`,
-    replace: `  of tkInt: ""`,
+    find: `  of tkString: "\\"" & node{"text"}.getStr("") & "\\""`,
+    replace: `  of tkString: ""`,
     journey: "a-stepped-session-shows-the-values-recorded-on-its-lines",
     assertion: "every value label carries a value and not just a name",
   },
@@ -1639,7 +1697,23 @@ proc noteFor*`,
     find: `  h.session.requestLandingLocals()`,
     replace: `  discard  # MUTATED: the landing locals request is not issued`,
     journey: "a-session-shows-the-values-it-landed-on",
-    assertion: "the Values pane at the landing position says what it says on returning to it",
+    // THE EQUALITY CANNOT SEE THIS DEFECT, AND THE NON-VACUITY CONTROL CAN.
+    //
+    // This named "the Values pane at the landing position says what it says on
+    // returning to it" and SURVIVED on CI run 38918156174, shard 8. Remove
+    // `requestLandingLocals()` and the landing has no values until the visitor
+    // steps — so the landing reading is empty, the returned reading is empty,
+    // and an equality over two empty sets is satisfied. The assertion is
+    // correct and simply cannot be the one that sees this: it compares two
+    // readings, and the mutation empties both.
+    //
+    // The journey already carries the reading that can. Unmutated it counts
+    // four: "at least one session paints Values rows at the position it landed
+    // on, before any motion" — which is the arm's own title stated as a
+    // verdict, and which the mutation takes to zero by construction.
+    assertion:
+      "at least one session paints Values rows at the position it landed on, " +
+      "before any motion",
   },
   {
     id: "S/the-file-list-unfolds-in-place",
@@ -2068,6 +2142,7 @@ process.on("exit", () => {
   // the caller is parsing as arm ids, AND overwriting the journal of whatever
   // real run last happened. Caught by the partition proof itself: the union of
   // four shards came to 72 lines against a 64-arm list.
+  if (!RUNNING_AS_ENTRY_POINT) return;
   if (queryMode) return;
   if (verdictPrinted) return;
   // A `throw`, a dependency calling `process.exit`, or any path that reached
@@ -2659,6 +2734,7 @@ async function verdictFor(journey, assertion) {
   // independent closures of one hole. Both are kept: the raise depends on
   // `run.mjs` spending exit 2 correctly, and this does not depend on anything.
   await rm(REPORT, { force: true });
+  let lastOutput = "";
   try {
     await run("node", [join(HERE, "run.mjs"), "--only", journey, "--json", REPORT], {
       cwd: REPO,
@@ -2705,12 +2781,56 @@ async function verdictFor(journey, assertion) {
       );
     }
     /* a red journey exits 1; the verdict comes from the report, not from this */
+    // KEEP WHAT IT SAID, THOUGH. A red journey's own output is noise when the
+    // report arrives, and it is the ONLY evidence when the report does not —
+    // the `no-report` branch below can say that nothing was written and
+    // nothing about why, and the next person is told to go and re-run the
+    // journey by hand. That round trip is avoidable: the child already
+    // printed the reason into this variable.
+    lastOutput = String(err.stdout ?? "") + String(err.stderr ?? "");
   }
   const report = JSON.parse(await readFile(REPORT, "utf8").catch(() => "{}"));
-  const j = (report.journeys ?? []).find((x) => x.id === journey);
-  if (!j || !j.records) return { found: false };
+  // THREE WAYS TO MISS, AND THEY USED TO ARRIVE AS ONE SENTENCE.
+  //
+  // `{ found: false }` with nothing else on it printed "no single assertion
+  // matched that name on the unmutated tree" whether the report held no such
+  // JOURNEY, held the journey with no matching RECORD, or was not written at
+  // all. Those are three different problems — a run that produced nothing, an
+  // arm naming a journey that no longer exists, and an assertion that was
+  // reworded — and only the last is about the arm.
+  //
+  // It costs a CI afternoon each time it happens. Measured on run 38903629511:
+  // every arm of `journeys-bite` shards 5 and 8 reported NEVER RAN, nine at a
+  // time, about 1.8 seconds apart, and the summary said `RESULT: FAILED` while
+  // naming none of the cause. The comment above `rm(REPORT)` records the same
+  // shape from the settings-bundle incident — "all 65 arms scored NEVER RAN,
+  // in about a second, and the run reported FAILED while naming none of it" —
+  // and the refusal path was closed then. This is the other half of that hole:
+  // exit 2 is now named, exit 1 with an unusable report still is not.
+  const journeys = report.journeys ?? [];
+  if (journeys.length === 0) {
+    return { found: false, why: "no-report", tail: lastOutput.trim().split("\n").slice(-12) };
+  }
+  // DEFENSIVE, and said so rather than left to be chased: `run.mjs --only X`
+  // writes a report holding exactly that journey or refuses with exit 2 (which
+  // is raised above), so under this caller a report with journeys in it and
+  // not this one cannot arise. Tried: pointing an arm at a journey id that
+  // does not exist produces `--only … matched no journey` and exit 2, which
+  // comes out as DID NOT RUN. The branch stays because the alternative is
+  // returning the bare `{found:false}` this whole block exists to stop.
+  const j = journeys.find((x) => x.id === journey);
+  if (!j || !j.records) {
+    return { found: false, why: "no-journey", saw: journeys.map((x) => x.id) };
+  }
   const hits = j.records.filter((r) => r.what.includes(assertion));
-  if (hits.length !== 1) return { found: false, ambiguous: hits.length };
+  if (hits.length !== 1) {
+    return {
+      found: false,
+      ambiguous: hits.length,
+      why: hits.length === 0 ? "no-record" : "ambiguous",
+      records: j.records.length,
+    };
+  }
   // `vacuous` is carried through because a red that is only a poisoned
   // zero-against-zero is NOT a kill — see the verdict block below and
   // `harness.mjs`'s `#vacuityCheck`.
@@ -2975,6 +3095,30 @@ async function main() {
     const before = await verdictFor(arm.journey, arm.assertion);
     if (!before.found) {
       log(`    NEVER RAN — no single assertion matched that name on the unmutated tree`);
+      // WHICH OF THE THREE MISSES, named rather than left to be guessed. See
+      // `verdictFor` for what each one means and what it cost to read them as
+      // one.
+      if (before.why === "no-report") {
+        log(`               THE UNMUTATED RUN PRODUCED NO REPORT AT ALL — it did not`);
+        log(`               exit 2 (that is raised as DID NOT RUN), so it ran and judged`);
+        log(`               nothing. Every arm after this one will say the same thing.`);
+        const tail = before.tail ?? [];
+        if (tail.length) {
+          log(`               ITS LAST LINES, which are the only evidence there is:`);
+          for (const line of tail) log(`                 ${line}`);
+        } else {
+          log(`               Run \`node tools/journeys/run.mjs --only ${arm.journey}\` and`);
+          log(`               read ITS output; the cause is there and not here.`);
+        }
+      } else if (before.why === "no-journey") {
+        log(`               THE REPORT HOLDS NO JOURNEY '${arm.journey}'. It holds:`);
+        log(`               ${(before.saw ?? []).join(", ") || "(none)"}`);
+        log(`               An arm names a journey by id; this one names one that did not run.`);
+      } else if (before.why === "no-record") {
+        log(`               THE JOURNEY RAN — ${before.records} assertion(s) — and none of them`);
+        log(`               contains that text. The assertion was reworded and this arm`);
+        log(`               still names the old wording.`);
+      }
       // AND WHICH OF THE TWO WAYS IT MISSED. `verdictFor` matches with
       // `r.what.includes(assertion)` and treats any count but 1 as no match, so
       // "the assertion was renamed" and "a SECOND assertion's text now CONTAINS
@@ -3015,6 +3159,39 @@ async function main() {
     // exactly that.
     inFlight = { file: arm.file, original };
     await writeFile(arm.file, original.split(arm.find).join(arm.replace));
+    // ── A HOLD POINT, FOR THE ONE TEST THAT HAS TO CATCH THIS MOMENT ───────
+    //
+    // `selftest-verdict-test.sh`'s SIGTERM probes need a run that is MID-ARM:
+    // the mutation on disk and the process still alive, so that signalling it
+    // proves the restore happens without a `finally`. They used to find that
+    // moment by polling for the mutated file every 500ms — which worked only
+    // because the arm was slow.
+    //
+    // It stopped being slow. Until 2026-10-16 the journeys REFUSED on a
+    // container-3 corpus, so every arm spent its time failing; with the corpus
+    // re-recorded the same arm completes in 18 seconds, and the probe began
+    // sampling after the mutation had already been put back:
+    //
+    //   [FAILED] the arm's mutation is on disk — the probe has a subject
+    //   kill: (3880677) - No such process
+    //
+    // A faster subject is not a reason to loosen the probe, and a slower one
+    // is not something to arrange. The race is removed instead: when
+    // `JOURNEY_SELFTEST_HOLD` names a path, the mutation is announced by
+    // creating it and the run waits until it is deleted. The probe then has no
+    // window to miss — it waits for the file, kills, and deletes.
+    //
+    // INERT WITHOUT THE VARIABLE, which is why it is safe here: no CI job and
+    // no developer run sets it, and the branch is one `if` on an env read.
+    const holdPath = process.env.JOURNEY_SELFTEST_HOLD;
+    if (holdPath) {
+      await writeFile(holdPath, `${arm.id}\n`);
+      // Bounded, so a probe that dies without cleaning up cannot wedge a run
+      // forever — it becomes a slow arm, which is the old behaviour.
+      for (let i = 0; i < 1200 && existsSync(holdPath); i++) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
     let verdict;
     let mutatedId = beforeId;
     try {
@@ -3228,12 +3405,33 @@ async function main() {
   );
 }
 
-main().catch((e) => {
-  // A verdict, not just a stack. This path used to print the stack and nothing
-  // else, so a `playwright is not installed` — which judges nothing — left a log
-  // ending in an exception and no `RESULT:` line at all: the exact shape that
-  // reads to a human like a suite nobody ran.
-  console.error(String(e && e.stack ? e.stack : e));
-  restoreInFlight();
-  finish("did-not-run", `RESULT: DID NOT RUN — the run threw ${progressSoFar()}`, 2);
-});
+// ── THIS FILE WRITES TO REAL PRODUCT SOURCE, SO IT RUNS ONLY WHEN INVOKED ──
+//
+// `main()` used to be called at module scope, with no guard, and that makes
+// IMPORTING this file indistinguishable from RUNNING it. An editor's module
+// resolver, a `node -e 'import(...)'` typed to read the arm list, a future
+// `--combine` caller that wants `ARMS` — any of them starts a full mutation
+// sweep that rewrites files under `client/src/`.
+//
+// MEASURED, which is why this guard is here: `node -e 'import(".../
+// selftest.mjs")'`, typed to count arms per journey, rewrote
+// `client/src/debugger/source_island.nim` (the `R/the-position-document-is-
+// found-by-path` mutation), rebuilt the tree under a journey run that was
+// already in flight, and invalidated it. The SIGTERM handler did its job and
+// restored the file byte-identically, which is the only reason that incident
+// cost a rebuild rather than a diff nobody could explain.
+//
+// `run.mjs` has carried this guard since it was written — `import.meta.url ===
+// pathToFileURL(process.argv[1]).href` — and it is the same guard, for the
+// stronger reason: that file only READS the tree.
+if (RUNNING_AS_ENTRY_POINT) {
+  main().catch((e) => {
+    // A verdict, not just a stack. This path used to print the stack and nothing
+    // else, so a `playwright is not installed` — which judges nothing — left a log
+    // ending in an exception and no `RESULT:` line at all: the exact shape that
+    // reads to a human like a suite nobody ran.
+    console.error(String(e && e.stack ? e.stack : e));
+    restoreInFlight();
+    finish("did-not-run", `RESULT: DID NOT RUN — the run threw ${progressSoFar()}`, 2);
+  });
+}

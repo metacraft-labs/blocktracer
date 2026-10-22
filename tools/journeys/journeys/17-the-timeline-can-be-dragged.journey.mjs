@@ -65,7 +65,7 @@
 // performed no drags, and a `for` loop that threw on its first iteration is
 // exactly how a suite comes to perform none.
 
-import { visit, readFacts } from "../lib/probe.mjs";
+import { visit, readFacts, waitForFacts } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
 export const id = "the-timeline-can-be-dragged";
@@ -474,6 +474,20 @@ async function demoArm(browser, site, j, subject) {
     j.countIs(live.pageErrors.length, 0, "no uncaught page errors while the session came up");
 
     const total = Number(live.facts.totalSteps);
+
+    // THE SAME WAIT AS THE CHAIN ARM'S, AND IT BELONGS ON BOTH. When the
+    // chain arm was given this, the demo arm was left reading at `ready` —
+    // and on run 39391579661 it failed with the identical symptom one arm
+    // over: `seekable=false role=null tabindex=null max=null of 1315`, with
+    // all three of its drags landing exactly on the tick they asked for
+    // (want == got at f=0.75, 0.3 and 0.55).
+    //
+    // `readFacts`'s comment beside `seekable` names the build that stamps it:
+    // `components/debugger` draws the track on every build and
+    // `hydrate.markScrubberSeekable` adds the gesture on the one that can
+    // honour it, after `goLive` has published the phase. Fixing one arm and
+    // not its sibling is how this journey, 09 and 03 each went red twice.
+    await waitForFacts(page, (f) => f.timeline?.seekable === true, 8000);
     const t = await readTrack(page);
 
     j.expect(
@@ -763,6 +777,27 @@ async function chainArm(browser, site, j, subject) {
     j.countIs(live.pageErrors.length, 0, "REAL: the chain session came up with no page errors");
 
     const total = Number(live.facts.totalSteps);
+
+    // `ready` AND `seekable` ARE TWO EVENTS, AND THIS READ USED TO TAKE THE
+    // FIRST FOR THE SECOND. `readFacts`'s own comment beside `seekable` says
+    // which build stamps it: "`components/debugger` renders the track on every
+    // build and `hydrate.markScrubberSeekable` adds the gesture on the one that
+    // can honour it". The settle above waits for `phase === "ready"`, which
+    // `goLive` publishes with the controls; the gesture is marked after it.
+    //
+    // MEASURED on run 39352321787: this assertion read `hit=true
+    // seekable=false role=null tabindex=null` while the three drags below it
+    // all landed exactly on the tick they asked for — want == got at f=0.75,
+    // 0.3 and 0.55. A timeline that seeks correctly and reports no role is not
+    // a product that lost its slider; it is a reading taken before the mark
+    // was made. It was green on the run before, over the same bytes, and is
+    // green on an idle workstation: three browser-driving jobs were sharing
+    // the pool.
+    //
+    // The wait is for the condition the assertion is about, with the timeout
+    // AS the failure — so a build that genuinely never marks the track still
+    // reddens here, after 8s, with the same sentence.
+    await waitForFacts(page, (f) => f.timeline?.seekable === true, 8000);
     const t = await readTrack(page);
     j.expect(
       t.present && t.hitAtCentre && t.seekable && t.role === "slider" && t.tabindex === "0",

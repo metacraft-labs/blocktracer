@@ -100,9 +100,11 @@ export const INSTRUCTION_SET = 'evm';
  * A fresh array per call: the row it goes into is mutated by later passes, and a frozen
  * shared literal would make two rows the same object.
  */
-export const executionsForRow = (reason) => (reason
-  ? [{ selector: 'transaction', reason }]
-  : [{ selector: 'transaction' }]);
+// DEL-7: the one `*ForRow` helper all five chains had byte-identically (5 definitions,
+// 1 distinct text, against 5-in-5 for `costVectorForRow` and `rolesForRow`). The shared
+// implementation is `lib/producer-runtime.mjs`; the export keeps its contract name here,
+// so this module stays the one place a producer imports its row shapes from.
+export { oneExecutionPerTransaction as executionsForRow } from './producer-runtime.mjs';
 
 /**
  * `transactions[].cost` — the VECTOR Static-Site-Architecture.md §2.3 defines, for one

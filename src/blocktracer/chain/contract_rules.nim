@@ -241,6 +241,7 @@ const
   RuleRecorderStated* = cite("S5-RECORDER-STATED")
   RulePrestateStated* = cite("S5-PRESTATE-STATED")
   RulePrestateClosed* = cite("S5-PRESTATE-CLOSED")
+  RuleOrderingClosed* = cite("S5-ORDERING-CLOSED")
   RuleCostVector* = cite("S5-COST-VECTOR")
   RuleExecutionsNamed* = cite("S5-EXECUTIONS-NAMED")
   RuleExecutionsOneTraced* = cite("S5-EXECUTIONS-ONE-TRACED")

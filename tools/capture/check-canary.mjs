@@ -53,12 +53,16 @@ const REPO_ROOT = resolvePath(HERE, "..", "..");
 const DEFAULT_OUT = join(REPO_ROOT, "screenshots");
 
 function parseArgs(argv) {
-  const opts = { out: DEFAULT_OUT, runs: 2, json: false, dist: null, build: true };
+  const opts = { out: DEFAULT_OUT, runs: 2, json: false, dist: null, build: true, attempts: 3 };
   for (let i = 2; i < argv.length; i++) {
     switch (argv[i]) {
       case "--out": opts.out = resolvePath(argv[++i]); break;
       case "--dist": opts.dist = resolvePath(argv[++i]); break;
       case "--runs": opts.runs = Number(argv[++i]); break;
+      // How many times a run may be re-attempted while the BROWSER dies. 1
+      // disables the retry, which is what the selftest's single-attempt arm
+      // uses to see the did-not-run verdict without waiting for three.
+      case "--attempts": opts.attempts = Number(argv[++i]); break;
       case "--no-build": opts.build = false; break;
       case "--json": opts.json = true; break;
       default: throw new Error(`unknown argument: ${argv[i]}`);
@@ -79,17 +83,75 @@ async function hashDir(dir) {
   return out;
 }
 
-function runCapture(outDir, { dist, build }) {
+// ── A BROWSER THAT DIED MEASURED NOTHING ──────────────────────────────────
+//
+// Playwright reports a browser that closed under it as
+// `browser.newContext: Target page, context or browser has been closed` and
+// `browserContext.newPage: …` on the first view it was already inside. Measured
+// across four CI runs of this job: it failed on `garm-kkxhwoqhagaz` and on
+// `gpu-server-002-mcl-001`, captured 0 of 5 images in each, and PASSED on
+// `gpu-server-002-mcl-003` with the same label set, the same commit shape and
+// the same pinned environment. `--disable-dev-shm-usage` and
+// `chromiumSandbox: false` are both already set, so the usual container causes
+// are not it; what varies is the host.
+//
+// THAT IS NOT A VERDICT ABOUT DETERMINISM, which is the only question this
+// checker asks. A run that produced no image cannot be compared with another,
+// and reporting it the same way as "the two runs differ" says the harness
+// stopped being fixed when nothing was measured at all — the distinction
+// `tools/journeys/run.mjs` draws between DID NOT RUN and FAILED, and the one
+// `deploy-requeue.yml` draws between infrastructure and content.
+const BROWSER_DIED = [
+  "Target page, context or browser has been closed",
+  "browserType.launch",
+  "Target closed",
+];
+export function classifyCapture(status, text) {
+  if (status === 0) return "ok";
+  const t = text ?? "";
+  const died = BROWSER_DIED.some((m) => t.includes(m));
+  // `captured: 0 image(s)` is the capture's own count. A crash that still
+  // produced images is NOT a did-not-run: something was measured and the
+  // comparison below is entitled to see it.
+  const nothing = /captured:\s+0 image\(s\)/.test(t);
+  return died && nothing ? "did-not-run" : "failed";
+}
+
+function runCaptureOnce(outDir, { dist, build }) {
   const args = [join(HERE, "capture.mjs"), "--canary", "--out", outDir];
   if (dist) args.push("--dist", dist);
   if (!build) args.push("--no-build");
   const r = spawnSync(process.execPath, args, { encoding: "utf8" });
-  if (r.status !== 0) {
-    throw new Error(
-      `canary capture exited ${r.status}\n${(r.stdout ?? "") + (r.stderr ?? "")}`,
-    );
+  const text = (r.stdout ?? "") + (r.stderr ?? "");
+  return { status: r.status, text, stdout: r.stdout ?? "" };
+}
+
+/**
+ * One canary run, retried while the BROWSER dies and not otherwise.
+ *
+ * A determinism mismatch is content and is never retried — retrying it would be
+ * the "raise the threshold" move this file's own output warns against. A dead
+ * browser is infrastructure, so it gets `attempts` tries and the output says how
+ * many it took, because a run that needed three is a fact worth seeing even
+ * when it ends green.
+ */
+function runCapture(outDir, { dist, build, attempts = 3, quiet = false }) {
+  let last;
+  for (let a = 1; a <= attempts; a++) {
+    last = runCaptureOnce(outDir, { dist, build: build && a === 1 });
+    const kind = classifyCapture(last.status, last.text);
+    if (kind === "ok") {
+      if (a > 1 && !quiet) console.log(`  (the browser died ${a - 1}× here; this is attempt ${a})`);
+      return { ok: true, stdout: last.stdout, attempts: a };
+    }
+    if (kind === "failed") {
+      throw new Error(`canary capture exited ${last.status}\n${last.text}`);
+    }
+    if (!quiet && a < attempts) {
+      console.log(`  (the browser closed before any image was captured — attempt ${a} of ${attempts})`);
+    }
   }
-  return r.stdout ?? "";
+  return { ok: false, didNotRun: true, text: last.text, attempts };
 }
 
 /**
@@ -130,8 +192,44 @@ async function main() {
     const dir = join(canaryRoot, `run-${i}`);
     await mkdir(dir, { recursive: true });
     if (!opts.json) console.log(`run ${i}/${opts.runs} …`);
-    const out = runCapture(dir, { dist: opts.dist, build: opts.build && i === 1 });
-    if (!opts.json) process.stdout.write(out.split("\n").filter((l) => l.startsWith("  ")).join("\n") + "\n");
+    const r = runCapture(dir, {
+      dist: opts.dist, build: opts.build && i === 1,
+      attempts: opts.attempts, quiet: opts.json,
+    });
+    if (!r.ok) {
+      // NOT MEASURED, with its own status. `require-deterministic.mjs` reads
+      // `status.json`, so the verdict has to say this rather than be absent.
+      const verdict = {
+        check: "verify_canary_capture_is_byte_identical",
+        result: "did-not-run",
+        // BOTH OF THESE ARE FALSE AND NEITHER IS THE REASON. A reader of this
+        // file — `require-deterministic.mjs` is one — must not be able to take
+        // a did-not-run for a pass, and must not read it as "the harness is not
+        // deterministic" either. `result` is what says which.
+        deterministic: false,
+        baselinesUsable: false,
+        reason: `the browser closed before any image was captured, ${r.attempts}× in a row`,
+        run: i, runs: opts.runs, attempts: r.attempts,
+        at: new Date().toISOString(),
+      };
+      await mkdir(canaryRoot, { recursive: true });
+      await writeFile(join(canaryRoot, "status.json"), `${JSON.stringify(verdict, null, 2)}\n`);
+      if (opts.json) console.log(JSON.stringify(verdict, null, 2));
+      else {
+        console.log("");
+        console.log(`DID NOT RUN — the browser closed before any image was captured, ${r.attempts}× in a row.`);
+        console.log("");
+        console.log("This is NOT a verdict about determinism: nothing was captured, so nothing");
+        console.log("could be compared. Both failures measured on CI captured 0 of 5 images and");
+        console.log("named `Target page, context or browser has been closed`, while the same");
+        console.log("commit shape passed on another host with the same labels.");
+        console.log("");
+        console.log(r.text.split("\n").filter((l) => l.trim()).slice(-6).join("\n"));
+        console.log(`\nverdict: ${join(canaryRoot, "status.json")}`);
+      }
+      return 3;
+    }
+    if (!opts.json) process.stdout.write(r.stdout.split("\n").filter((l) => l.startsWith("  ")).join("\n") + "\n");
     runDirs.push(dir);
   }
 
@@ -265,9 +363,18 @@ async function main() {
   return deterministic ? 0 : 1;
 }
 
-main()
-  .then((c) => process.exit(c))
-  .catch((e) => {
-    console.error(`canary check failed: ${e.message}`);
-    process.exit(2);
-  });
+// ── RUN ONLY AS THE ENTRY POINT ───────────────────────────────────────────
+//
+// `classifyCapture` is exported and `canary-retry-selftest.mjs` imports it. An
+// unguarded `main()` at module scope ran the WHOLE CANARY as a side effect of
+// that import — two browser captures and a build — racing the selftest's own
+// output and exiting whichever finished first. The selftest looked like it
+// passed; what it proved is that a race can be won.
+if (process.argv[1] && resolvePath(process.argv[1]) === resolvePath(fileURLToPath(import.meta.url))) {
+  main()
+    .then((c) => process.exit(c))
+    .catch((e) => {
+      console.error(`canary check failed: ${e.message}`);
+      process.exit(2);
+    });
+}

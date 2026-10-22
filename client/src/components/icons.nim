@@ -204,119 +204,25 @@ const DebugBadgePath = "M10 13C10 14.103 9.103 15 8 15C6.897 15 6 14.103 6 " &
   ## the circle subpath of `debug-step-over.svg`, so the drawn marks and the
   ## vendored ones cannot drift apart at the one element they share.
 
-const ContinuePath = "M14.578 7.149L7.578 2.186C7.397 2.058 7.198 2 7.003 2C6" &
-  ".484 2 6 2.411 6 3.002V13.003C6 13.594 6.485 14.005 7.004 14.005C7.201 14." &
-  "005 7.403 13.946 7.585 13.815L14.585 8.777C15.142 8.376 15.139 7.546 14.57" &
-  "9 7.15L14.578 7.149ZM7.5 12.027V3.969L13.14 7.968L7.5 12.027ZM3.5 2.75V13." &
-  "25C3.5 13.664 3.164 14 2.75 14C2.336 14 2 13.664 2 13.25V2.75C2 2.336 2.33" &
-  "6 2 2.75 2C3.164 2 3.5 2.336 3.5 2.75Z"
-  ## `debug-continue.svg`, verbatim: a bar at x 2–3.5 and an outlined triangle
-  ## with its apex at x=14.6.
-  ##
-  ## THE BAR IS AT THE TAIL — behind the direction of travel, marking where
-  ## execution is stopped — and that is the entire difference between this mark
-  ## and the media transport glyph the toolbar used to carry. `⏭` U+23ED puts
-  ## its bar at the HEAD, in front of the triangle, at the end you skip TO.
-  ## Same two elements, opposite arrangement, opposite meaning. Six of the seven
-  ## products surveyed draw Continue exactly this way (Visual Studio is the one
-  ## exception, a bare triangle); not one of them, in any command, puts the bar
-  ## at the head.
+# ── THE TOOLBAR'S EIGHT MARKS LEFT THIS FILE ──────────────────────────────
+#
+# `ContinuePath` and its seven siblings, `filledMark`, `badgedMark` and the
+# eight `*Mark` procs were here: hand-drawn SVG for the debugger toolbar, in a
+# product whose claim is that its debugger looks like CodeTracer's. They were
+# close to upstream's and they were not upstream's, and nothing propagated
+# when a glyph changed there.
+#
+# They are now `vendor/frontend/viewmodel/views/debug_control_marks`, vendored
+# byte-verbatim at the embed-SDK pin, rendered through
+# `components/debugger.controlMark`, and sized by the `.ct-control-mark` rule
+# the vendored `button.styl` already carried and nothing used. See that proc,
+# and `ci/test/control-marks-vendor.sh`.
+#
+# `DebugBadgePath` above stays: it is the filled dot the OTHER marks in this
+# file share, and its comment records that it is byte-identical to the circle
+# subpath of `debug-step-over.svg` so the drawn and vendored marks cannot
+# drift at the one element they share.
 
-const ReverseContinuePath = "M8.99688 2C8.80188 2 8.60288 2.058 8.42188 2.186" &
-  "L1.42188 7.149C0.861882 7.546 0.858882 8.376 1.41588 8.776L8.41588 13.814C" &
-  "8.59788 13.945 8.79988 14.004 8.99688 14.004C9.51588 14.004 10.0009 13.593" &
-  " 10.0009 13.002V3.002C10.0009 2.412 9.51688 2 8.99788 2H8.99688ZM8.49988 1" &
-  "2.027L2.85988 7.968L8.49988 3.969V12.027ZM13.9999 2.75V13.25C13.9999 13.66" &
-  "4 13.6639 14 13.2499 14C12.8359 14 12.4999 13.664 12.4999 13.25V2.75C12.49" &
-  "99 2.336 12.8359 2 13.2499 2C13.6639 2 13.9999 2.336 13.9999 2.75Z"
-  ## `debug-reverse-continue.svg`, verbatim — `ContinuePath` reflected, bar
-  ## still at the tail (now the right). Added to the codicon set in commit
-  ## 1ee703d9 to close microsoft/vscode#85111, whose bug was that VS Code had
-  ## been shipping a FORWARD-pointing triangle on its reverse-continue button
-  ## because no reverse glyph existed. Improvising a reverse mark from an
-  ## incomplete set is a documented way to ship a control pointing the wrong
-  ## way, which is why these four are vendored rather than approximated.
-
-const StepOverPath = "M9.99993 13C9.99993 14.103 9.10293 15 7.99993 15C6.8969" &
-  "3 15 5.99993 14.103 5.99993 13C5.99993 11.897 6.89693 11 7.99993 11C9.1029" &
-  "3 11 9.99993 11.897 9.99993 13ZM13.2499 2C12.8359 2 12.4999 2.336 12.4999 " &
-  "2.75V4.027C11.3829 2.759 9.75993 2 7.99993 2C5.03293 2 2.47993 4.211 2.060" &
-  "93 7.144C2.00193 7.554 2.28793 7.934 2.69793 7.993C2.73393 7.999 2.76993 8" &
-  ".001 2.80493 8.001C3.17193 8.001 3.49293 7.731 3.54693 7.357C3.86093 5.159" &
-  " 5.77593 3.501 8.00093 3.501C9.52993 3.501 10.9199 4.264 11.7439 5.501H9.7" &
-  "5093C9.33693 5.501 9.00093 5.837 9.00093 6.251C9.00093 6.665 9.33693 7.001" &
-  " 9.75093 7.001H13.2509C13.6649 7.001 14.0009 6.665 14.0009 6.251V2.751C14." &
-  "0009 2.337 13.6649 2.001 13.2509 2.001L13.2499 2Z"
-  ## `debug-step-over.svg`, verbatim: the badge, and an arc that hops OVER it
-  ## and lands in a right-angle arrowhead at the top RIGHT. The badge is
-  ## included in this path — it is one `d` in the source file.
-
-const ReverseStepOverPath = "M8 11C6.897 11 6 11.897 6 13C6 14.103 6.897 15 8" &
-  " 15C9.103 15 10 14.103 10 13C10 11.897 9.103 11 8 11ZM13.939 7.144C13.52 4" &
-  ".211 10.966 2 8 2C6.24 2 4.617 2.758 3.5 4.027V2.75C3.5 2.336 3.164 2 2.75" &
-  " 2C2.336 2 2 2.336 2 2.75V6.25C2 6.664 2.336 7 2.75 7H6.25C6.664 7 7 6.664" &
-  " 7 6.25C7 5.836 6.664 5.5 6.25 5.5H4.257C5.081 4.263 6.471 3.5 8 3.5C10.22" &
-  "5 3.5 12.14 5.158 12.454 7.356C12.508 7.73 12.829 8 13.196 8C13.231 8 13.2" &
-  "67 7.998 13.303 7.992C13.713 7.933 13.998 7.554 13.94 7.143L13.939 7.144Z"
-  ## `debug-step-back.svg`, verbatim — `StepOverPath` reflected, arrowhead now
-  ## at the top LEFT, badge still at the bottom centre.
-
-# The drawn four. Each is one open polyline — shaft, then the two legs of the
-# arrowhead — stroked rather than filled, at the codicon's own 1.5-ish weight.
-# Each `Reverse*` constant is its partner under `x → 16-x`, arithmetic that a
-# reader can check by hand, which is the point of writing them out rather than
-# emitting a `transform`: a `scaleX(-1)` would also mirror the badge, and the
-# badge is the one element that must NOT move.
-
-const StepInPath = "M4.6 3.6L10.4 9.4M10.4 6.2L10.4 9.4L7.2 9.4"
-  ## Down-and-right into the badge: arrowhead in the RIGHT half (forward),
-  ## pointing DOWN at the dot (into the callee).
-
-const ReverseStepInPath = "M11.4 3.6L5.6 9.4M5.6 6.2L5.6 9.4L8.8 9.4"
-  ## `StepInPath` reflected: 4.6↔11.4, 10.4↔5.6, 7.2↔8.8.
-
-const StepOutPath = "M5.6 9.4L11.4 3.6M8.2 3.6L11.4 3.6L11.4 6.8"
-  ## Up-and-right away from the badge: arrowhead in the RIGHT half (forward),
-  ## pointing UP and away (out of the callee).
-
-const ReverseStepOutPath = "M10.4 9.4L4.6 3.6M7.8 3.6L4.6 3.6L4.6 6.8"
-  ## `StepOutPath` reflected: 5.6↔10.4, 11.4↔4.6, 8.2↔7.8.
-
-proc filledMark(cls, d: string): string =
-  ## A vendored codicon: one filled path, the badge included in its own `d`.
-  ui:
-    svg(class = cls, viewBox = "0 0 16 16", fill = "currentColor",
-        `aria-hidden` = "true", focusable = "false"):
-      path(d = d)
-
-proc badgedMark(cls, d: string): string =
-  ## One of the drawn four: the shared badge, then the stroked arrow.
-  ##
-  ## `stroke-width` is a number and not a token because it is in USER UNITS of
-  ## a 16-unit viewBox, not a CSS length — it scales with the mark, and a
-  ## `--bt-*` value here would be a px quantity applied inside a coordinate
-  ## system that has none. It is also why these carry no `width`/`height`, for
-  ## the reason at the top of this file.
-  ui:
-    svg(class = cls, viewBox = "0 0 16 16", fill = "currentColor",
-        `aria-hidden` = "true", focusable = "false"):
-      path(d = DebugBadgePath)
-      path(d = d, fill = "none", stroke = "currentColor",
-           `stroke-width` = "1.6", `stroke-linecap` = "round",
-           `stroke-linejoin` = "round")
-
-proc continueMark*(cls = "svgicon dcmark"): string = filledMark(cls, ContinuePath)
-proc reverseContinueMark*(cls = "svgicon dcmark"): string =
-  filledMark(cls, ReverseContinuePath)
-proc stepOverMark*(cls = "svgicon dcmark"): string = filledMark(cls, StepOverPath)
-proc reverseStepOverMark*(cls = "svgicon dcmark"): string =
-  filledMark(cls, ReverseStepOverPath)
-proc stepInMark*(cls = "svgicon dcmark"): string = badgedMark(cls, StepInPath)
-proc reverseStepInMark*(cls = "svgicon dcmark"): string =
-  badgedMark(cls, ReverseStepInPath)
-proc stepOutMark*(cls = "svgicon dcmark"): string = badgedMark(cls, StepOutPath)
-proc reverseStepOutMark*(cls = "svgicon dcmark"): string =
-  badgedMark(cls, ReverseStepOutPath)
 
 const SettingsPath = "M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 " &
   "1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169" &

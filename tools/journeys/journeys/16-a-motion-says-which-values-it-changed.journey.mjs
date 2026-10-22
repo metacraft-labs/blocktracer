@@ -57,6 +57,7 @@ import {
   POSITION_ANSWERED,
   tickOf,
   waitForFacts,
+  waitForValuesSettled,
 } from "../lib/probe.mjs";
 import { transactions, landingOf } from "../lib/corpus.mjs";
 
@@ -78,9 +79,32 @@ const paneOf = (facts) => ({
   note: facts.stateNote,
 });
 
-/** Wait for the pane to stop changing. A predicate, never a sleep. */
+/**
+ * Wait for the pane to hold an ANSWER, and then to stop changing.
+ *
+ * STABILITY WAS NOT SETTLEDNESS, AND THAT IS WHY THIS WALK READ ZEROES. The
+ * loop below declares the pane settled after three consecutive identical
+ * readings 130ms apart — about 390ms — and "Reading the values at this
+ * position…" is perfectly stable for the whole second it is on screen. So the
+ * pane's PENDING state satisfied the predicate and the reading was taken of
+ * the sentence rather than of the values that arrive after it.
+ *
+ * MEASURED on `aztec-testnet-frames/0x00689495…`, nine positions:
+ * `updateLocals: setting 5 variables` in the log at every one of them, the
+ * pane showing the pending sentence and 0 rows at eight, and five rows at all
+ * nine when the pane is waited for — 1.1s after the position answer, every
+ * time. The header below records the engine and the recording being ruled out
+ * one at a time; this is the third thing in the chain and it was the harness.
+ *
+ * `waitForValuesSettled` FIRST, then stability. The two are different
+ * questions and both are needed: the first says the pane has an answer for
+ * this position, the second says it has stopped moving. A pane that genuinely
+ * has no values settles on its own sentence and passes the first immediately,
+ * so this is not a wait for a particular outcome.
+ */
 async function settled(page, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
+  await waitForValuesSettled(page, timeoutMs);
   let seen = "";
   let stable = 0;
   let facts = await readFacts(page);
@@ -93,6 +117,43 @@ async function settled(page, timeoutMs = 15000) {
   }
   return paneOf(facts);
 }
+
+// ── THE CHAIN ARM'S ZERO IS NOT YET A VERDICT ABOUT THE PRODUCT ───────────
+//
+// `CHAIN: CONTROL — transitions with values on both sides` reads 0 on
+// `aztec-testnet-frames/0x00689495…`, and the engine is not the reason. Asked
+// directly over the worker protocol, it answers `ct/load-locals` at every tick
+// of that walk — ticks 5 through 13, five named locals each time.
+//
+// WHAT THE PAGE DOES DEPENDS ON HOW THE DRIVER WAITS, which is the part that
+// has to be settled before this is called a defect. Three drives of the same
+// subject, same clicks, same `settled`:
+//
+//   click, then sleep and sample for 20s          5 rows at every sample,
+//                                                 from +500ms to +20s
+//   click, then `settled` and click again         7 positions of 9 with rows
+//   click, then `waitForConsoleLine` + `waitForFacts`
+//     then `settled` — i.e. THIS walk             1 position of 9 with rows
+//
+// The third is the one that is red, and it is also the one that waits
+// LONGEST, so "the driver is too fast" does not explain it. Making
+// `waitForConsoleLine`'s scan linear instead of quadratic did not move it
+// either (1 of 9 before and after), so neither does "the driver starves the
+// page", at least not through that loop.
+//
+// What is known: the page emits ~10,000 console lines on landing and ~7,600
+// per step, nearly all of them the replay engine's own INFO and WARN output,
+// and the hydration bundle logs TWO `updateDebuggerPosition` and ONE
+// `updateLocals` per move. One reply for two position writes is consistent
+// with the pane being put back to `lpPending` by a second request the engine
+// never answers — `live_locals.LocalsDeadlineMs` would then end it 8s later —
+// but the 20s sample above shows no such regression, so that story is not
+// established either.
+//
+// Left RED deliberately. The arm is not ledgered and the wait is not relaxed:
+// a journey that goes green by waiting differently would be measuring the
+// driver, and the next person should start from the three readings above
+// rather than from a silenced assertion.
 
 async function walk(page) {
   const readings = [await settled(page)];

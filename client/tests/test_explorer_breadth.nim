@@ -40,6 +40,7 @@ import ../src/ssr
 import ../src/reader
 import ../src/viewutil
 import ../src/components/degraded
+import ../src/components/layout
 import ../src/components/tables as viewTables
 # The shard rule, from the one module that holds it — a test that recomputed the
 # published layout by hand would be the second derivation this suite is about.
@@ -103,6 +104,42 @@ proc inAnchorTag(html: string; index: int): bool =
     inc k
   result = name.toLowerAscii in ["a", "area"]
 
+proc inXmlnsAttribute(html: string; index: int): bool =
+  ## Is the URL at `index` the value of an `xmlns` / `xmlns:*` attribute?
+  ##
+  ## An XML NAMESPACE IS A NAME, NOT AN ADDRESS. `xmlns="http://www.w3.org/
+  ## 2000/svg"` identifies which vocabulary the element belongs to; no browser
+  ## has ever requested it, and the page renders identically with w3.org
+  ## unreachable — which is the property §1 is about. It looks like a URL
+  ## because XML namespaces are SPELLED as URIs, deliberately, so that two
+  ## vendors cannot collide on one.
+  ##
+  ## This is the same shape of correction as the `<a href>` one above: the
+  ## scanner reads characters, so it cannot tell a vocabulary name from a
+  ## subresource unless it is told what it is reading.
+  ##
+  ## It arrived with the vendored CodeTracer control marks. Those are inline
+  ## `<svg>` — the whole point, so the mark inherits the button's `color`
+  ## instead of being a themed asset — and an inline `<svg>` in an HTML
+  ## document carries the SVG namespace. The alternative readings were to drop
+  ## `xmlns` from upstream's markup, which would mean editing a vendored file
+  ## and breaking the byte conformance that makes the marks propagate, or to
+  ## add `http://www.w3.org` beside the `sitemaps.org` exception below, which
+  ## is the same mistake a second time: that one is ALSO a namespace, on
+  ## `sitemap.xml`'s root element, admitted one domain at a time.
+  var k = index
+  while k > 0 and html[k - 1] in {'"', '\''}: dec k
+  if k == 0 or html[k - 1] != '=': return false
+  dec k                                   # now on '='
+  var name = ""
+  while k > 0 and html[k - 1] notin {' ', '\t', '\n', '<', '>'}:
+    dec k
+    name.add html[k]
+  for i in 0 .. name.high div 2:          # the walk collected it backwards
+    swap name[i], name[name.high - i]
+  let lower = name.toLowerAscii
+  result = lower == "xmlns" or lower.startsWith("xmlns:")
+
 proc externalReferences*(html: string): seq[string] =
   ## Every absolute URL a page would FETCH from an origin that is not its own.
   ##
@@ -144,6 +181,7 @@ proc externalReferences*(html: string): seq[string] =
     if not url.startsWith(SiteDomain) and
        not url.startsWith("http://www.sitemaps.org") and
        not inAnchorTag(html, at) and
+       not inXmlnsAttribute(html, start) and
        url notin result:
       result.add url
     i = stop
@@ -418,6 +456,30 @@ suite "M9 — e2e_explorer_renders_from_published_files_only":
     if offenders.len > 0: echo "  external references: ", offenders
     check offenders.len == 0
 
+  test "THE CONTROL: the scanner still reports a real foreign subresource":
+    ## The `xmlns` carve-out is the second exemption `externalReferences` has
+    ## granted, and an exemption that is too wide turns the check above into a
+    ## check of nothing — it would pass on a page with a CDN script on it. So
+    ## both directions are pinned here, over markup written for the purpose:
+    ## the namespace is let through, a real subresource beside it is not, and
+    ## they are in the SAME document so neither answer can come from the
+    ## scanner having stopped early.
+    const planted = """<!doctype html><html><body>
+      <svg class="ct-control-mark" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1 1L2 2"></path></svg>
+      <script src="https://cdn.example.com/analytics.js"></script>
+      <link rel="stylesheet" href="https://fonts.example.com/x.css">
+      <a href="https://github.com/metacraft-labs/blocktracer">Source</a>
+      </body></html>"""
+    let found = externalReferences(planted)
+    # The two real fetches are reported …
+    check "https://cdn.example.com/analytics.js" in found
+    check "https://fonts.example.com/x.css" in found
+    # … and the namespace and the hyperlink are not.
+    check "http://www.w3.org/2000/svg" notin found
+    check "https://github.com/metacraft-labs/blocktracer" notin found
+    check found.len == 2
+
   test "no rendered page ships script, so nothing can fetch one later":
     # A page with no external reference but an inline fetch would satisfy the
     # check above and violate the claim. The client ships nothing a browser
@@ -623,13 +685,71 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
     # …and the guard did not swallow the real chain.
     check renderRoute(root, "/" & Chain & "/blocks")[0] == 200
 
-  test "the 404 body is §14's row and is the same bytes as 404.html":
+  test "the 404 body is §14's row and is 404.html modulo the stylesheet's delivery":
     let root = newDataRoot(dist)
+    # The exporter writes the stylesheet once, as `/_a/<hash>.css`, and every
+    # page it writes LINKS it (`static_export.nim`, `useExternalCss`); a
+    # dispatcher left in its default mode inlines the same rules as a
+    # `<style>`. So the comparison renders in the exporter's mode, naming the
+    # asset the file names, and restores the default afterwards.
+    let exported = readFile(dist / "404.html")
+    let hrefAt = exported.find("href=\"/_a/")
+    check hrefAt >= 0
+    let hrefStart = hrefAt + "href=\"".len
+    useExternalCss(exported[hrefStart ..< exported.find('"', hrefStart)])
     let (status, body, _) = renderRoute(root, "/no/such/thing/at/all")
+    useExternalCss("")
     check status == 404
     check "data-degradation=\"cdObjectNotFound\"" in body
     check Chain in body                      # the chains that were checked
-    check readFile(dist / "404.html") == body
+
+    # ── THE ONE DIFFERENCE THE EXPORTER IS ALLOWED TO MAKE ──────────────────
+    #
+    # This asserted raw byte-identity, and the exporter has since externalised
+    # the stylesheet: it writes `<link rel="stylesheet" href="/_a/<hash>.css">`
+    # where the renderer emits `<style>…</style>` inline. Measured — the two
+    # first differ at offset 322, and the exported page is 4,517 bytes against
+    # the rendered 346,103 — so the assertion was comparing a delivery choice,
+    # not the page.
+    #
+    # It had been red since that change and nobody saw it: `debug-route` failed
+    # at an earlier step, so `just test` never ran.
+    #
+    # TWO BRANCHES FIXED THIS INDEPENDENTLY AND THE MERGE KEPT BOTH, which did
+    # not compile — one `hrefStart` declared twice in one `test`. They were not
+    # the same fix. The preamble above is the better half and is kept: it puts
+    # the RENDERER into the exporter's own external-CSS mode, so the delivery
+    # choice stops being a difference and plain byte-identity means something
+    # again. What the other half had and this one did not is the FILE: holding
+    # the two pages equal says nothing about the stylesheet the link points at,
+    # which raw byte-identity never checked either, because the file was never
+    # read. So that claim is kept too, below, and asked the only way it can be
+    # — by rendering a second time in the DEFAULT mode, where the rules are
+    # inline and there is something to compare the file against.
+    check exported == body
+
+    # (a) THE EXTERNALISED FILE IS THE BYTES THE RENDERER WOULD INLINE. A link
+    #     to a stylesheet that does not carry the rules is the same silence as
+    #     no stylesheet, one indirection further away.
+    #
+    # ASKED OF `siteCss()` DIRECTLY, not of a second render, and the first
+    # draft of this did render again: it called `renderRoute` once more after
+    # `useExternalCss("")` and pulled the rules out of the `<style>` block.
+    # That CRASHED on CI with `value out of range: -1` — a `find` that missed,
+    # used as a slice index — while passing here. Two things were wrong with
+    # it and only one of them was the crash. `check` RECORDS a failure and
+    # keeps going, so a guard written as `check styleAt >= 0` does not stop the
+    # slice on the next line from running with -1; and asking a renderer to
+    # render again, in a mode set by GLOBAL state a previous line mutated, is a
+    # question with more moving parts than the claim needs.
+    #
+    # `siteCss()` IS the thing the renderer inlines. Comparing the published
+    # file to it is the same claim with no render, no mode, and no `find`.
+    require hrefAt >= 0
+    let hrefEnd = exported.find('"', hrefStart)
+    require hrefEnd > hrefStart
+    let sheetHref = exported[hrefStart ..< hrefEnd]
+    check readFile(dist / sheetHref.strip(chars = {'/'})) == siteCss()
 
 
 # ──────────────────────────────────────────────────────────────────────────

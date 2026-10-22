@@ -577,6 +577,26 @@ export async function run({ browser, site, j }) {
     // into anchors then they are not clickable, and "a clickable row shows a
     // hand" would be a claim about nothing — passing here while the product
     // had lost its navigation entirely.
+    // AND IT IS WAITED FOR, BECAUSE `ready` DOES NOT PROMISE IT. `goLive`
+    // publishes the phase with the CONTROLS; `hydrate.writePane` replaces the
+    // navigation panes when the engine's reply arrives, which is later — the
+    // same gap journey 09's REAL arm has carried a bounded wait for since it
+    // was written, and journey 09's demo arm has just been given one.
+    //
+    // MEASURED on run 39377965689, where this journey went red having been
+    // green the run before over the same bytes: `call trace: total 0, shown
+    // 0` and `event log rows: total 0`, so the precondition below and all
+    // three SUBJECTS floors failed together. The panes were not lost; they
+    // were not written yet.
+    //
+    // The predicate is the precondition itself and the budget is bounded, so a
+    // build that really does lose its anchors still fails here after 15s with
+    // the same sentence and the same count.
+    await page
+      .waitForFunction(() => document.querySelectorAll("a.ctrow,a.evrow").length > 0, null, {
+        timeout: 15000,
+      })
+      .catch(() => {});
     const rowKinds = await page.evaluate(() => ({
       rows: document.querySelectorAll(".ctrow,.evrow").length,
       anchors: document.querySelectorAll("a.ctrow,a.evrow").length,
@@ -761,8 +781,44 @@ async function realArm(browser, site, j, subject) {
       "REAL: the chain session reached `ready` with live controls",
       `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
     );
+    // WAIT FOR THE ENGINE'S ROWS BEFORE JUDGING THEIR CURSOR, and let the
+    // wait running out be the failure rather than a shorter read.
+    //
+    // `settle` is `phase === "ready" && controlsLive > 0` — the session being
+    // usable, not the navigation feed having answered. On a chain capture
+    // those are seconds apart, and this arm was reading the gap: measured on
+    // this subject it saw nine rows (the export's six call-trace rows and
+    // three event-log rows) where the engine's answer is sixteen, and every
+    // one of the nine computed `auto`. That is a true reading of the EXPORT's
+    // rows — `debugger.nim` renders a frame with no `href` as a `tdiv`, which
+    // has no cursor rule and, as the `a.ctrow` comment says, none of the focus,
+    // Enter, middle-click or context-menu behaviour either — but this arm's
+    // subject is the row set a visitor ends up with, which is the engine's.
+    //
+    // The predicate is NOT the claim: it waits for the row set to stop being
+    // the one the export shipped, and then asks about the cursor. A feed that
+    // never answers runs the budget out and the cursor verdict is taken over
+    // the export's rows, which is the reading this comment records.
+    const servedCt = await page.evaluate(async (u) => {
+      const text = await (await fetch(u, { cache: "no-store" })).text();
+      return new DOMParser().parseFromString(text, "text/html")
+        .querySelectorAll(".ctrow").length;
+    }, site.origin + subject.debugPath);
+    const answered = await page
+      .waitForFunction(
+        (n) => document.querySelectorAll(".ctrow").length !== n,
+        servedCt,
+        { timeout: 15000 },
+      )
+      .then(() => true)
+      .catch(() => false);
     const rows = await cursorsAtCentre(page, ".ctrow,.evrow");
-    j.note(`REAL rows: ${shape(rows)}`);
+    j.note(
+      `REAL rows: ${shape(rows)}` +
+        (answered
+          ? ` (the engine's answer replaced the export's ${servedCt} call-trace row(s))`
+          : ` (the navigation feed did not answer within 15s; these are the export's ${servedCt} call-trace row(s))`),
+    );
     judge(j, rows, "REAL: navigation rows on a chain capture", "pointer");
   } finally {
     await page.close();

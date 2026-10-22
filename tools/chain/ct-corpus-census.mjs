@@ -159,6 +159,28 @@ export function findReader(root = REPO_ROOT) {
   }
 }
 
+/**
+ * A `--reader` the caller NAMED, checked. `findReader` checks the sibling walk
+ * and `$CT_PRINT` for existence and the execute bit; the flag never was, so
+ * `--reader /nonexistent` made `readerPresent` TRUE with every read failing —
+ * measured: the selftest reported 3 failing arms over a reader that was not
+ * there, which reads as a corpus problem. A named path that cannot be run is
+ * the caller's mistake and is refused by name, not folded into NOT MEASURED:
+ * "I asked for this reader" and "there is no reader" are different sentences.
+ */
+export function requireReader(path) {
+  if (!existsSync(path)) {
+    throw new Error(`--reader ${path} does not exist. A reader this tool was ASKED for and ` +
+      'cannot find is a refusal, not a NOT MEASURED: omit the flag to let it look for one.');
+  }
+  try {
+    if (!(statSync(path).mode & 0o111)) throw new Error('not executable');
+  } catch {
+    throw new Error(`--reader ${path} is not executable.`);
+  }
+  return path;
+}
+
 export function loadRegistry(file = REGISTRY) {
   return JSON.parse(readFileSync(file, 'utf8'));
 }
@@ -319,14 +341,29 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     // "Detected unsettled top-level await" and the process exits having run
     // nothing. Measured, not theorised — that is what the first version did.
     // A child process has one direction of dependency and therefore no cycle.
+    //
+    // `--reader` IS FORWARDED, and it was not. The child called `findReader()`
+    // itself, so the flag was dropped and the selftest measured whatever
+    // `ct-print` the host happened to have beside it. Measured 2026-10-14: on a
+    // workstation whose sibling checkout is at a different revision, arm 3 — the
+    // BASE CASE — failed with fifteen readability deltas, and arm 2's bite
+    // failed with it; on CI, where there is no sibling at all, both arms SKIP
+    // and the suite is green. A gate whose instrument cannot be chosen is a
+    // gate that passes because the instrument is absent.
+    const readerArg = arg('reader', null);
     try {
-      execFileSync(process.execPath, [join(HERE, 'ct-corpus-census-selftest.mjs')], { stdio: 'inherit' });
+      execFileSync(
+        process.execPath,
+        [join(HERE, 'ct-corpus-census-selftest.mjs'), ...(readerArg ? ['--reader', readerArg] : [])],
+        { stdio: 'inherit' },
+      );
       process.exit(0);
     } catch (e) {
       process.exit(typeof e.status === 'number' ? e.status : 1);
     }
   }
-  const reader = arg('reader', findReader());
+  const named = arg('reader', null);
+  const reader = named === null ? findReader() : requireReader(named);
   const c = census({ reader });
   if (argv.includes('--json')) {
     // Three fields are dropped, and each for its own reason:

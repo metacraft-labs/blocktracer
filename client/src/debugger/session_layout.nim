@@ -127,13 +127,30 @@ proc blockTracerReplayLayout*(): LayoutNode =
   ## do I want to be" and it now serves two panes rather than one, so it keeps
   ## the larger share; Values keeps a definite two fifths rather than the third
   ## of a column it had, which is what stops it from becoming a strip.
+  ## THE NAMES ARE UPPERCASE BECAUSE CODETRACER'S ARE, and in CodeTracer that
+  ## is CONTENT and not a stylesheet rule. Measured on the running product
+  ## (noirstudio.dev in replay mode): `.lm_tab` and `.lm_title` both compute
+  ## `text-transform: none`, and the titles read `"FILES"`, `"VCS"`, `"TESTS"`,
+  ## `"STATE"`, `"SCRATCHPAD"`, `"CALLTRACE"` — the strings themselves are
+  ## capitals. So a `text-transform` added here would have been BlockTracer
+  ## inventing chrome the product does not have, to imitate a product that
+  ## reaches the same look another way; the string is the honest copy.
+  ##
+  ## FILE TABS ARE THE EXCEPTION, in CodeTracer and here. Its document tab
+  ## reads `"src/main.nr"`, lowercase, because a file's name is the file's and
+  ## not a label this layout chose. `.srctab` carries paths for the same
+  ## reason and is untouched by this.
+  ##
+  ## WHICH WORD each pane gets is still BlockTracer's own decision and is
+  ## argued in §3 — "Code" not "Editor", "Values" not "State". Case is how the
+  ## name is set, not which name it is.
   row([
-    pane(paneEditor, "Code", weight = 3.0),
+    pane(paneEditor, "CODE", weight = 3.0),
     column([
       stack([
-        pane(paneCalltrace, "Call Trace"),
-        pane(paneEventLog, "Event Log")],
+        pane(paneCalltrace, "CALL TRACE"),
+        pane(paneEventLog, "EVENT LOG")],
         activeIndex = 0, weight = 3.0),
-      pane(paneState, "Values", weight = 2.0)],
+      pane(paneState, "VALUES", weight = 2.0)],
       weight = 2.0)],
     weight = 1.0)

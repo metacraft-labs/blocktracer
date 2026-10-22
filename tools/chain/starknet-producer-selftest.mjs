@@ -19,6 +19,8 @@
 //       cannot be published honestly — no floor probe, a probe whose controls did not
 //       hold, a foreign report format, a report missing a row — is refused, not published
 //       around
+//   §3  a class's artifact row from what the recorder proved about its source: a bound
+//       class is `resolved` with its build named, a refused binding is not, and says so
 //
 // Every arm that asserts a refusal or a distinction has a control beside it that takes
 // the other branch, so the arm measures the rule and not the fixture
@@ -32,7 +34,7 @@ import {
   CHAIN_SLUG, IDENTIFIER_ENCODING, PRESTATE_STRATEGY, RECORDER,
   costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
 } from './lib/starknet-producer-facts.mjs';
-import { BLOCK_REPORT_FORMAT, main as produce } from './produce-starknet-snapshot.mjs';
+import { BLOCK_REPORT_FORMAT, artifactRow, main as produce } from './produce-starknet-snapshot.mjs';
 
 let asserted = 0;
 let failed = 0;
@@ -41,7 +43,7 @@ const ck = (label, cond) => {
   if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`);
 };
 const test = (name) => console.error(`\n${name}`);
-const DECLARED = 26;
+const DECLARED = 31;
 
 const SENDER = '0x48ddc53f41523d2a6b40c3dff7f69f4bbac799cd8b2e3fc50d3de1d4119441f';
 const TARGET = '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
@@ -247,6 +249,38 @@ test('§2 the producer end to end, over captures with no container in them');
                                       '--ct-print', '/nonexistent/ct-print']);
   ck('a recorded row with no container beside it is REFUSED rather than published as traced',
      !recorded.ok);
+}
+
+{
+  test('§3 a class\'s artifact row is what the recorder proved about its source');
+  const C = '0x36078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f';
+  const r = { frames: [{ classHash: C, contract: SENDER }] };
+  const bound = artifactRow({ classHash: C, source: {
+    bound: true, functionsNamed: 198, codeLocations: false,
+    provenance: { build: { repository: 'https://github.com/argentlabs/argent-contracts-starknet',
+                           tag: 'account-0.4.0', contract: 'ArgentAccount',
+                           toolchain: 'scarb 2.6.3' } } } }, r);
+  ck('a class with a binding the recorder applied is RESOLVED, its build named in `origin`',
+     bound.resolved === true && bound.address === SENDER
+     && /argent-contracts-starknet account-0\.4\.0 ArgentAccount with scarb 2\.6\.3/.test(bound.origin)
+     && /198 Cairo functions/.test(bound.reason) && /no file and line/.test(bound.reason));
+  const refused = artifactRow({ classHash: C, source: { bound: false,
+    refused: 'the binding is for Sierra program 0x1, the chain served 0x2' } }, r);
+  ck('a binding the recorder REFUSED leaves the class unresolved, and the row says it was refused',
+     refused.resolved === false && refused.origin === null
+     && /a binding was offered and refused: the binding is for Sierra program/.test(refused.reason));
+  const shown = artifactRow({ classHash: C, cairoSources: ['./sources/cairo/a.cairo', './sources/cairo/b.cairo'],
+    source: { bound: true, functionsNamed: 178, codeLocations: true, provenance: { build: {} } } }, r);
+  ck('a bound build whose sources are republished says its steps are shown at Cairo lines, in how many files',
+     shown.resolved === true && /shown at those lines, in 2 file\(s\)/.test(shown.reason));
+  const located = artifactRow({ classHash: C, cairoSources: [],
+    source: { bound: true, functionsNamed: 208, codeLocations: true, provenance: { build: {} } } }, r);
+  ck('CONTROL: one that locates statements but republishes no source says steps stay on CASM',
+     located.resolved === true && /not republished here, so steps stay positioned on CASM/.test(located.reason)
+     && !/shown at those lines/.test(located.reason));
+  const none = artifactRow({ classHash: C, source: null }, r);
+  ck('CONTROL: a class with no binding is unresolved and claims no refusal',
+     none.resolved === false && !/refused/.test(none.reason));
 }
 
 rmSync(work, { recursive: true, force: true });

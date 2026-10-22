@@ -1186,6 +1186,45 @@ type
     totalSteps*: int      ## from the manifest's execution summary
     positioned*: bool     ## whether `step` means anything yet
 
+# ── WHY THIS LIVES HERE AND NOT IN `hydrate/session_project` ──────────────
+#
+# It is the other half of what `controlLabel` below does: a control is an
+# ACTION, and everything else about it — its name, its wire id, and now its
+# MARK — is derived from that action rather than carried beside it. The
+# `ControlButton` comment above records what happened when two producers each
+# kept their own copy of the toolbar: the copies drifted until Step Over was
+# labelled "Step forward" and wore the Resume glyph.
+#
+# It was in `hydrate/session_project`, which is the browser bundle, so the
+# SERVED renderer could not reach it. `components/debugger` needs it to ask
+# CodeTracer's vendored `debug_control_marks` for a mark — that module is
+# keyed by exactly these eight strings — and the alternative was a second
+# `case` over the same enum producing the same eight literals, in the file
+# whose own comments are about not doing that.
+#
+# `session_project` still has it: it imports this module and the symbol is
+# exported, so the VM dispatch it was written for is unchanged.
+func toolbarActionId*(a: DebugAction): string =
+  ## BlockTracer's `DebugAction` → the `actionId` `DebugControlsVM
+  ## .invokeToolbarStep` dispatches on.
+  ##
+  ## Two vocabularies, and they agree on six of eight. `daStepForward` is DAP's
+  ## `next` and `daStepBackward` is CodeTracer's `reverse-next`; the six others
+  ## are spelled identically in both. A total `case` rather than a table so
+  ## that a control added to the toolbar is a compile error here — an unmapped
+  ## action would otherwise reach the VM as an unknown string, be ignored, and
+  ## present as a button that is enabled and does nothing, which is the one
+  ## failure mode this whole route is built to avoid.
+  case a
+  of daStepForward: "next"
+  of daStepBackward: "reverse-next"
+  of daStepIn: "step-in"
+  of daStepOut: "step-out"
+  of daContinue: "continue"
+  of daReverseContinue: "reverse-continue"
+  of daReverseStepIn: "reverse-step-in"
+  of daReverseStepOut: "reverse-step-out"
+
 func controlLabel*(a: DebugAction): string =
   ## What the control is CALLED — its `title`, its `aria-label`, and the name a
   ## reader checks a mark against. One total `case`, so a control added to the

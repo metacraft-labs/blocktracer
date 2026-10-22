@@ -35,13 +35,10 @@
 ## (CodeTracer-Embed-SDK.md §7). Nothing here reaches an internal module, and
 ## `ci/test/debug-panes-test.sh` re-checks that against this file's own imports.
 ##
-## `./live_locals` is not an exception to that: it is a sibling in this same
-## tree, on this same side of the line, and it reaches CodeTracer through the
-## facade exactly as this file does. It is separate because it is the only
-## thing here that reads a WIRE FORMAT rather than a ViewModel, and that is a
-## different kind of knowledge with a different way of being wrong.
+## The live session is the SDK's own `DebuggerSession` (HSF-B1): this module
+## projects its ViewModels and decodes nothing off the wire.
 
-import std/[options, strutils]
+import std/[json, options, strutils]
 
 import codetracer_embed
 
@@ -50,276 +47,174 @@ import ../src/debugger/flow_view
 import ../src/debugger/instruction_listing
 import ../src/debugger/session_view
 import ../src/debugger/source_island
-import ./live_flow
-import ./live_locals
-import ./live_navigation
-import ./live_origin
 export deeplink_landing
 # `flow_view` is in this module's PUBLIC surface — `projectFlowWindow` returns
 # its `FlowWindowInput` and `applyLiveFlow` takes its `EditorPane` — so a
 # consumer that could call them but not name their types would have to reach
 # past this facade to use it.
 export flow_view
-export live_flow
-export live_locals
-export live_navigation
-export live_origin
 
 # ---------------------------------------------------------------------------
-# One store, one backend, five ViewModels
+# One session: the SDK's `DebuggerSession`
 # ---------------------------------------------------------------------------
+#
+# Headless-SDK-Front-Ends HSF-B1 (Shared-DOM-Front-Ends D8): the live session
+# is the SDK's own. `DebuggerSession` performs the handshake, wakes the panel
+# ViewModels once a trace is open, and its stop loader loads the locals on
+# every stop; the ViewModels load their own call-trace sections, event-log
+# pages and flow windows from the viewports this page measures. Nothing here
+# decorates the backend or decodes the wire any more: the four decorators
+# (`live_locals`, `live_navigation`, `live_origin`, `live_flow`) and their
+# private decoders went when the SDK started doing what they did — the store
+# applies its own call-trace answers, the stop loader its locals, `FlowVM`
+# keeps the window the layout reads, `OriginChainVM` applies its own chains,
+# and the worker transport delivers events in the envelope the SDK reads.
 
 type
-  PositionReport* = ref object
-    ## WHETHER THE ENGINE HAS STATED A POSITION FOR THIS SESSION — the fact
-    ## itself, carried explicitly, because every attempt to infer it from the
-    ## step has been wrong.
+  LiveSession* = ref object
+    ## One live debugging session of this page.
     ##
-    ## `ReplayDataStore` initialises `debugger.rrTicks` to `0`, so a session that
-    ## has heard nothing and a session the engine has parked on the FIRST STEP OF
-    ## THE TRACE hold the same number. Reading `step > 0` as "the engine has
-    ## reported" therefore silently misclassifies tick 0, which is not a
-    ## degenerate case: it is where `run-to-entry` lands, and it is the
-    ## `data-step` of the first row of the call trace and the event log, so
-    ## "click the first row" is the ordinary gesture that produces it.
-    ##
-    ## That sentinel shipped, and it broke the jump: a click on a row whose step
-    ## is 0 produced an engine report indistinguishable from silence, the served
-    ## frame won, and the session did not move
-    ## (`09-a-jump-moves-the-position`). The flag exists so that no site has to
-    ## ask "is this step real" of a number that cannot answer.
-    ##
-    ## A `ref` so that it survives being copied. `LiveSession` is an object of
-    ## handles passed BY VALUE into the projection, and a plain `bool` field
-    ## would be copied at that boundary — the projection would read one session's
-    ## answer off another session's copy. One cell, shared by every copy, has one
-    ## answer.
-    arrived*: bool
-
-  LiveSession* = object
-    ## The five ViewModels of one session, plus the store they all read.
-    ##
-    ## An object of handles and not a `ref` with behaviour: the projection is a
-    ## pure function of these, and giving it a lifecycle would create a second
-    ## place where "what the panes show" is decided.
-    store*: ReplayDataStore
-    reported*: PositionReport
-      ## Set the moment a stop is written through `applyPosition`, whatever tick
-      ## it names. Read by `projectReplayPanes` and by nothing else.
-    editor*: EditorVM
-    calltrace*: CalltraceVM
-    state*: StateVM
-    eventLog*: EventLogVM
-    controls*: DebugControlsVM
+    ## A `ref`: the panel ViewModels exist only once the trace is open
+    ## (`DebuggerSession`'s `dspReady`), and the origin-chain ViewModel is
+    ## built then, so every holder of the session must see the same object.
+    debugger*: DebuggerSession
     originChain*: OriginChainVM
-      ## The sixth ViewModel, and the one BlockTracer built five of and not
-      ## this. It is driven entirely by the visitor — no auto-load effect —
-      ## so it costs nothing on a session where nobody asks for an origin.
-    origin*: OriginFeed
-      ## The `ct/originChain` reply and the `ct/updated-origin-chain` event,
-      ## which `OriginChainVM` issues and discards for itself
-      ## (`live_origin.nim`). Beside `locals` and `navigation`, and for the
-      ## third time the same reason: the engine answers, the pinned consumer
-      ## drops it, and the surface looks like a missing feature.
-    navigation*: NavigationFeed
-      ## The `ct/updated-calltrace` and `ct/updated-events` payloads this
-      ## session's store and EventLogVM cannot read for themselves
-      ## (`live_navigation.nim`). Beside `locals` for the same reason and with
-      ## the same shape: the engine answers, the pinned consumer drops it, and
-      ## a pane that had never once shown a live row looked healthy because the
-      ## static export shipped fixture rows for the demo chain.
-    locals*: LocalsFeed
-      ## The `ct/load-locals` traffic this session's store cannot read for
-      ## itself (`live_locals.nim`). Held beside the ViewModels rather than
-      ## inside one because it is not a ViewModel: it is what the pinned store
-      ## would hold if its `requestLocals` kept the reply, and `projectState`
-      ## reads it for exactly the reason `projectEditor` reads the store's
-      ## position — the VM exposes the values but not whether they are THIS
-      ## position's.
-    flowWindow*: FlowFeed
-      ## The `ct/updated-flow` STEPS this session's `FlowVM` cannot read for
-      ## itself (`live_flow.nim`). Beside `locals` and `navigation` for the same
-      ## reason and with the same shape, and it is the fifth time this exact
-      ## shape has been found here: the engine answers in full, the pinned
-      ## consumer keeps a part of the answer, and the pane looked healthy
-      ## because the static export shipped a real overlay for the served frame.
-      ##
-      ## Measured on the wire before it was written — see `live_flow`'s header
-      ## for the numbers, including the one that names the defect: 23 value
-      ## labels on the served frame, 0 after hydration, 0 after four steps,
-      ## with a window carrying 13 lines' worth of values arriving for every
-      ## one of those positions.
-    flow*: FlowVM
-      ## The sixth, and it is not one of the five panes.
-      ##
-      ## `FlowVM` is what issues `ct/load-flow` on every debugger move and
-      ## consumes the queued `ct/updated-flow` EVENT the engine answers with —
-      ## which is the hazard `Omniscience-Flow.md` records by name: a consumer
-      ## that read only the reply stays permanently empty against the real
-      ## engine while every mock-driven test passes. Using the SDK's own applier
-      ## rather than parsing that payload here is the point. It is the code
-      ## written against the engine by the people who wrote the engine, and its
-      ## answer to "which pass is the debugger inside" is the one issue #593 was
-      ## filed and fixed on.
+      ## Built once the session is ready; the State pane's "where did this
+      ## value come from" control. Driven by the visitor, so it costs nothing
+      ## on a session where nobody asks.
+    sourcePublished*: bool
+      ## Whether the page published this recording's source (the source
+      ## island's own declaration). The engine cannot know it.
+    valuesWrittenAt*: string
+      ## The stop identity a host wrote values for itself (`applyLocals`), or
+      ## "" — values the stop loader did not fetch but which are this
+      ## position's all the same.
+    localsTimedOut*: string
+      ## The stop identity (`stopIdentityOf`) whose locals the page gave up
+      ## waiting for (`LocalsDeadlineMs`), or "". §8 forbids an indeterminate
+      ## wait, and the stop loader keeps no clock: the page owns the deadline.
 
 const
-  CalltraceViewportDepth* = 20
-    ## The nesting the first request asks for. `DEFAULT_VIEWPORT_DEPTH` in the
-    ## SDK, restated here for the same reason `CalltraceViewportRows` is: the
-    ## request this module re-issues has to ask for the same window the VM's own
-    ## effect asks for, or the two would disagree about what "the section" is.
-
-  CalltraceViewportRows* = 64
-    ## How many call-trace rows the session asks the engine for.
-    ##
-    ## `CalltraceVM`'s auto-load effect issues `ct/load-calltrace-section` with
-    ## the VIEWPORT's height, and the viewport defaults to zero — a session
-    ## that never sets it asks for a section of no rows and renders an empty
-    ## pane while the engine is working perfectly. A web pane has no measured
-    ## height (there is no resize observer on this route, by design), so a
-    ## generous constant is the honest stand-in: it over-fetches a little and
-    ## cannot under-fetch into a blank pane.
-
   NoSourceOriginNote* =
     "This recording carries no source, so a value cannot be traced to its " &
     "origin: the origin is read from the line that assigned the value, and " &
     "an Aztec contract class does not publish one."
     ## The §14 sentence for a recording that cannot support the capability.
-    ##
-    ## Written in the register `demo_session.nim` already uses for the sibling
-    ## fact ("This recording carries no variable names: naming a local needs
-    ## debug symbols, which an Aztec contract class does not publish") — states
-    ## what is missing, why it is missing, and stops. It does not apologise and
-    ## it does not promise the feature later, because for this recording there
-    ## is no later.
 
-  EventLogPageRows* = 50
-    ## `EventLogVM`'s own `DEFAULT_PAGE_SIZE`, restated so the page the
-    ## projection slices is a decision this consumer made rather than one it
-    ## inherited silently.
+  ReadingNote* = "Reading the values at this position…"
+    ## What the State pane says between a move and its answer.
+  NoValuesNote* = "The engine reports no values at this position."
+    ## A true empty frame.
+  RefusedNote* = "The replay engine did not answer with values here."
+  TimedOutNote* = "The replay engine did not answer with values for this " &
+    "position."
+  LocalsDeadlineMs* = 8000
+    ## How long a position may wait for its values before the pane says it did
+    ## not get them — generous, because a cold engine on a slow link is a
+    ## legitimate wait, not a failure.
+
+proc store*(s: LiveSession): ReplayDataStore = s.debugger.store
+proc ready*(s: LiveSession): bool = s.debugger.isReady
+  ## Whether the trace is open and the panel ViewModels exist.
+proc editor*(s: LiveSession): EditorVM = s.debugger.session.editorVM
+proc calltrace*(s: LiveSession): CalltraceVM = s.debugger.session.calltraceVM
+proc state*(s: LiveSession): StateVM = s.debugger.session.stateVM
+proc eventLog*(s: LiveSession): EventLogVM = s.debugger.session.eventLogVM
+proc controls*(s: LiveSession): DebugControlsVM =
+  s.debugger.session.debugControlsVM
+proc flow*(s: LiveSession): FlowVM = s.debugger.session.flowVM
+proc arrived*(s: LiveSession): bool = s.store.positionReported.val
+  ## Whether the engine has stated a position — tick 0 included. The store's
+  ## fact (`ReplayDataStore.positionReported`), not inferred from the step.
 
 proc openLiveSession*(backend: BackendService; sourceIsPublished: bool):
     LiveSession =
-  ## The five ViewModels over one store over one backend.
+  ## A session over `backend`, not yet launched (`launchLive` opens the
+  ## trace). The backend is a parameter so that the browser's worker and
+  ## `tests/tdebugpanes.nim`'s `MockBackendService` run the same code.
   ##
-  ## The backend is a parameter and not a constructed `WorkerBackendService`,
-  ## because that is what makes this the same code in the browser and under
-  ## `MockBackendService` in `tests/tdebugpanes.nim`. A projection that could
-  ## only be exercised against a live worker would be a projection nobody could
-  ## test without an 18 MB download.
-  ##
-  ## Three things are set here that a session which did not set them would get
-  ## wrong QUIETLY — each was found by driving the real engine:
-  ##
-  ##   * `completedReplay`. `canStepBackward` reads the session mode, and the
-  ##     default is not it. A replay of a published container is completed by
-  ##     definition — there is no recording head to track — and a toolbar whose
-  ##     reverse half is disabled on this route would remove the product's
-  ##     premise.
-  ##   * the calltrace viewport. See `CalltraceViewportRows`.
-  ##   * the source availability. The ENGINE does not know whether anyone
-  ##     published source for this contract; the published data plane does, and
-  ##     the page carries its answer as the source island. So the caller passes
-  ##     what the page knows, and `projectEditor` renders §14's
-  ##     "no verified source" row when it is false — instruction-level
-  ##     stepping with the supply-sources action, rather than an empty pane.
-  ##   * the locals feed. `createReplayDataStore` is given the DECORATED
-  ##     backend, so the `ct/load-locals` request `StateVM`'s own effect issues
-  ##     on every move passes through `live_locals` and its reply is read on
-  ##     the way back. Wrapping here rather than at the call site is what makes
-  ##     it true of every session — the browser's and `tests/tdebugpanes.nim`'s
-  ##     alike — instead of true of whichever caller remembered.
-  ##   * the navigation feed. The same arrangement for the Call Trace and the
-  ##     Event Log, whose payloads arrive as EVENTS rather than as responses —
-  ##     `live_navigation` registers one handler on the decorated backend and
-  ##     writes `updateCalltraceSection` / `appendLiveDebuggerStop`, which
-  ##     nothing in this repository called outside `tests/tdebugpanes.nim`.
-  let feed = LocalsFeed()
-  let nav = NavigationFeed()
-  let origin = OriginFeed()
-  let flowWindow = FlowFeed()
-  let store = createReplayDataStore(
-    withLiveFlow(
-      withLiveOrigin(withLiveNavigation(withLiveLocals(backend, feed), nav),
-                     origin),
-      flowWindow))
-  feed.store = store
-  feed.sourcePublished = sourceIsPublished
-  nav.store = store
-  store.setSessionMode(completedReplay)
-  store.setSourceAvailability(
+  ## Two facts this page knows and the engine does not are written into the
+  ## store here, before anything is asked: the session is a completed replay
+  ## (a published container has no recording head, so stepping backward must
+  ## be offered), and whether the source was published (§14: without it the
+  ## editor renders instruction-level stepping, not an empty pane).
+  let session = newDebuggerSession(backend)
+  session.store.setSessionMode(completedReplay)
+  session.store.setSourceAvailability(
     if sourceIsPublished: savVerified else: savUnverified)
-  result = LiveSession(
-    store: store,
-    # Constructed here and never left nil, so `projectReplayPanes` reads a fact
-    # rather than testing a handle. A session that has not heard from the engine
-    # says so with `arrived == false`, which is a different sentence from "there
-    # is no cell to ask".
-    reported: PositionReport(arrived: false),
-    locals: feed,
-    navigation: nav,
-    editor: createEditorVM(store),
-    calltrace: createCalltraceVM(store),
-    state: createStateVM(store),
-    eventLog: createEventLogVM(store),
-    controls: createDebugControlsVM(store),
-    originChain: createOriginChainVM(store),
-    origin: origin,
-    flowWindow: flowWindow,
-    flow: createFlowVM(store))
-  # AFTER the VMs exist: the feed writes event rows through the EventLogVM's own
-  # `appendLiveDebuggerStop`, so it needs the handle the line above creates. The
-  # handler registered inside `withLiveNavigation` reads this field when an
-  # event arrives, which is necessarily later than here.
-  nav.eventLog = result.eventLog
-  # The same knot, tied for the locals' summaries and for the chain: both VMs
-  # are built on the store which is built on the decorations, so neither could
-  # have been handed to its feed at construction time.
-  feed.state = result.state
-  origin.chain = result.originChain
-  result.calltrace.setViewportHeight(CalltraceViewportRows)
-  result.eventLog.setPageSize(EventLogPageRows)
+  LiveSession(debugger: session, sourcePublished: sourceIsPublished)
+
+proc whenReady(s: LiveSession) =
+  ## The panel ViewModels exist from here on.
+  if s.originChain.isNil:
+    s.originChain = createOriginChainVM(s.store)
+
+proc launchLive*(s: LiveSession; trace: TraceSource) =
+  ## Open `trace` through the SDK's own handshake (`DebuggerSession.launch`).
+  ## On a synchronous transport the session is ready when this returns; on
+  ## the worker it becomes ready when the answers arrive, and `phase` says so.
+  s.debugger.launch(trace, clientId = "blocktracer")
+  if s.debugger.isReady:
+    s.whenReady()
+
+proc settleLaunch*(s: LiveSession) =
+  ## Call when `phase` has moved to ready on an asynchronous transport.
+  if s.debugger.isReady:
+    s.whenReady()
 
 proc applyPosition*(s: LiveSession; ticks: uint64; file: string; line: int) =
-  ## Write a stop into the store: the position, and the status that goes with
-  ## having arrived.
-  ##
-  ## `updateDebuggerPosition` alone is not enough, and the reason is a real
-  ## defect this fixed. `requestStep` sets `status = dsStepping` when it issues
-  ## the command and — deliberately, because "the host owns event delivery" —
-  ## resets it nowhere; `updateDebuggerPosition` PRESERVES the status it finds.
-  ## So a session that only called that one stepped exactly once: the position
-  ## moved, `status` stayed `dsStepping`, `canStepForward` (which is
-  ## `status in {dsIdle}`) went false, and every button in the toolbar went
-  ## inert with the served page's "waiting for the engine" tooltip on it.
-  ##
-  ## A fresh `DebuggerState` rather than a mutated one, for the reason the
-  ## store's own setters give: on the JS backend `var x = signal.val` is a
-  ## reference, so writing back a mutated copy compares equal to itself and the
-  ## signal never fires.
-  # THE ENGINE HAS SPOKEN, whatever it said. Set unconditionally and never
-  # cleared: `ticks` is the position the engine reported, and `0` is as real an
-  # answer as any other — it is the first step of the trace, where run-to-entry
-  # lands and what the first navigable row of every region carries. Anything
-  # that gates this on the value would rebuild the sentinel this flag exists to
-  # remove.
-  if s.reported != nil: s.reported.arrived = true
-  s.store.updateDebuggerPosition(ticks, file = file, line = line)
-  let current = s.store.debugger.val
-  s.store.debugger.val = DebuggerState(
-    rrTicks: current.rrTicks,
-    location: current.location,
-    status: dsIdle,
-    threadId: current.threadId)
+  ## Write a stop the engine reported into the store, through the SDK's one
+  ## move decoder (`applyCompleteMove`): the position, `positionReported`, and
+  ## the debugger back to idle so the step controls are live again.
+  s.store.applyCompleteMove(%*{"location": {
+    "path": file, "line": line, "rrTicks": ticks}})
 
 proc close*(s: LiveSession) =
-  s.editor.dispose()
-  s.calltrace.dispose()
-  s.state.dispose()
-  s.eventLog.dispose()
-  s.controls.dispose()
-  s.flow.dispose()
-  s.store.dispose()
+  ## Dispose the session and everything it owns.
+  if not s.originChain.isNil:
+    s.originChain.dispose()
+  s.debugger.dispose()
+
+func classifiedOriginOf*(summary: OriginSummary): string =
+  ## The origin the State pane offers a control for: a summary that SAYS
+  ## something — not a placeholder, not "unknown source", not zero
+  ## confidence. A summary is present on essentially every local, so "has a
+  ## summary" would put a control everywhere.
+  if summary.isPlaceholder: return ""
+  if summary.terminatorKind == tkwUnknownSource: return ""
+  if summary.confidence <= 0.0: return ""
+  summary.terminatorExpr
+
+proc localsNote*(s: LiveSession; values: int): string =
+  ## What the State pane says instead of values, or "" when it has this
+  ## position's values. From the stop loader's own record of the current
+  ## stop's load.
+  if not s.ready or s.debugger.stops.isNil:
+    return ReadingNote
+  let stop = stopIdentityOf(s.store.debugger.val)
+  if s.valuesWrittenAt.len > 0 and s.valuesWrittenAt == stop:
+    return (if values == 0: NoValuesNote else: "")
+  case s.debugger.stops.status[spLocals].val
+  of plsApplied:
+    if values == 0: NoValuesNote else: ""
+  of plsFailed:
+    RefusedNote
+  of plsNone, plsInFlight, plsDropped:
+    if s.localsTimedOut.len > 0 and s.localsTimedOut == stop: TimedOutNote
+    else: ReadingNote
+
+proc settlingPosition*(s: LiveSession): bool =
+  ## Whether the current stop's values are still on their way — what the
+  ## page waits a few frames for before painting, so a step does not flash
+  ## "Reading…" for an answer that is about to land.
+  s.ready and not s.debugger.stops.isNil and
+    s.debugger.stops.status[spLocals].val == plsInFlight
+
+proc noteLocalsDeadline*(s: LiveSession) =
+  ## The page's deadline for the current stop's values has passed.
+  if s.settlingPosition or
+     (s.ready and s.debugger.stops.status[spLocals].val != plsApplied):
+    s.localsTimedOut = stopIdentityOf(s.store.debugger.val)
 
 # ---------------------------------------------------------------------------
 # ViewModel state -> the pane types the renderers read
@@ -445,7 +340,49 @@ proc projectEditor*(vm: EditorVM; store: ReplayDataStore;
     result.availability = SourceAvailabilityView.srcAbsent
     result.reason = "This execution ran no contract code."
 
-proc projectFlowWindow*(feed: FlowFeed; pane: EditorPane;
+proc copyLayoutWindow[D, S](dst: var D; src: S) =
+  ## The SDK's `FlowLayoutWindow` into this page's vendored copy of the same
+  ## module (`client/src/debugger/vendor/…/flow_layout.nim`, byte-identical at
+  ## the pin, but a different Nim type because it is a different module).
+  ## Field by field, so a field added upstream and not vendored fails the
+  ## build rather than being dropped.
+  dst.tabSize = src.tabSize
+  dst.sourceLines = src.sourceLines
+  dst.steps.setLen(0)
+  for st in src.steps:
+    var step: typeof(dst.steps[0])
+    step.stepCount = st.stepCount
+    step.line = st.line
+    step.loopIndex = st.loopIndex
+    step.iteration = st.iteration
+    step.rrTicks = st.rrTicks
+    step.exprOrder = st.exprOrder
+    for v in st.beforeValues:
+      var value: typeof(step.beforeValues[0])
+      value.expression = v.expression
+      value.text = v.text
+      step.beforeValues.add value
+    for v in st.afterValues:
+      var value: typeof(step.afterValues[0])
+      value.expression = v.expression
+      value.text = v.text
+      step.afterValues.add value
+    dst.steps.add step
+  dst.loops.setLen(0)
+  for lp in src.loops:
+    var loop: typeof(dst.loops[0])
+    loop.base = lp.base
+    loop.baseIteration = lp.baseIteration
+    loop.internal = lp.internal
+    loop.first = lp.first
+    loop.last = lp.last
+    loop.registeredLine = lp.registeredLine
+    loop.stepCounts = lp.stepCounts
+    loop.rrTicksForIterations = lp.rrTicksForIterations
+    loop.iterationSteps = lp.iterationSteps
+    dst.loops.add loop
+
+proc projectFlowWindow*(vm: FlowVM; pane: EditorPane;
                         ticks: uint64): FlowWindowInput =
   ## The engine's window, joined to the page's source text.
   ##
@@ -476,31 +413,37 @@ proc projectFlowWindow*(feed: FlowFeed; pane: EditorPane;
   ## An unresolvable path yields an input with an empty `path`, which
   ## `applyFlow` refuses — the honest reading of "no window has been loaded for
   ## any file this page is showing".
-  if feed == nil: return
+  if vm.isNil: return
   # A window that named no file resolves to NOTHING, explicitly. The suffix rule
   # is written for two spellings of one real path and says nothing useful about
   # the empty string; letting it decide would make "the engine did not say which
   # file" indistinguishable from "the engine said this one", and the values
   # would land on whichever document sorted first. That is the invented-overlay
   # failure with no wrong data in it at all.
-  if feed.enginePath.len == 0: return
+  let enginePath = vm.windowPath.val
+  if enginePath.len == 0: return
   var paths: seq[string]
   for doc in pane.documents: paths.add doc.path
-  let index = positionDocumentIndex(paths, feed.enginePath)
+  let index = positionDocumentIndex(paths, enginePath)
   if index < 0: return
   result.path = pane.documents[index].path
-  result.returns = feed.returns
+  for r in vm.windowReturns.val:
+    result.returns.add FlowReturn(
+      line: r.line,
+      # A return recorded outside every real loop belongs to no pass and is
+      # shown whatever the rail is set to; `flow_view.NoIteration` is that.
+      iteration: (if r.loop > 0: r.iteration else: NoIteration),
+      text: r.text)
   # THE SESSION'S TICK, NOT THE WINDOW'S. `locationTicks` decides which loop
   # pass the overlay shows and which pass the rail opens on, and that is a
   # question about where the DEBUGGER is — `flow_view` rule 2, and issue #593,
   # which was a counter that read pass 1 of 8 for as long as the session lasted.
   # The window's own `location.rrTicks` is the engine's answer to a different
   # question and, measured on every answer this build receives, is 0 (journey
-  # 15) — so reading it would pin every session to pass 0. `feed.locationTicks`
-  # is kept on the feed and is what journey 19 reads; nothing draws from it.
+  # 15) — so reading it would pin every session to pass 0.
   result.locationTicks = int(ticks)
-  result.functionLabel = feed.functionLabel
-  result.window = feed.window
+  result.functionLabel = vm.windowFunction.val
+  copyLayoutWindow(result.window, vm.layoutWindow.val)
   # The text, line for line, from the document the engine's path resolved to.
   # `SourceLine.text` and not the island's raw blob: the pane is what the
   # renderer draws, so placing an expression against anything else would let the
@@ -518,7 +461,7 @@ proc projectFlowWindow*(feed: FlowFeed; pane: EditorPane;
     lines.add line.text
   result.window.sourceLines = lines
 
-proc applyLiveFlow*(pane: var EditorPane; feed: FlowFeed;
+proc applyLiveFlow*(pane: var EditorPane; vm: FlowVM;
                     ticks: uint64): bool =
   ## Draw the engine's window on the pane, if the window is THIS position's.
   ##
@@ -534,8 +477,8 @@ proc applyLiveFlow*(pane: var EditorPane; feed: FlowFeed;
   ## for — see `projectFlowWindow`. It is not a staleness gate: `hasWindow`'s
   ## header records why the tick stopped being one and what refuses a window
   ## that belongs to another file.
-  if not feed.hasWindow(): return false
-  let input = projectFlowWindow(feed, pane, ticks)
+  if vm.isNil or vm.layoutWindow.val.steps.len == 0: return false
+  let input = projectFlowWindow(vm, pane, ticks)
   if input.path.len == 0: return false
   applyFlow(pane, input)
   true
@@ -859,36 +802,28 @@ proc selectLandingFrame*(s: LiveSession; anchor: string): bool =
   true
 
 proc applyLocals*(s: LiveSession; variables: seq[Variable]) =
-  ## Mirror a backend locals response into the store, as the session's own
-  ## position's.
-  ##
-  ## `store.updateLocals` is the SDK's documented bridge for a host that has
-  ## already parsed a reply, and it is the whole of what a caller needed before
-  ## the pane knew WHICH position its values belong to. It is not the whole of
-  ## it now: values in the store with no statement about their position is the
-  ## condition `projectState` refuses to render, so a driver that writes the
-  ## store directly says here that it is writing this position's.
+  ## Write values a host already has into the store, as the current
+  ## position's (`store.updateLocals` is the SDK's bridge for that).
   s.store.updateLocals(variables)
-  s.locals.adopt(s.store.debugger.val.rrTicks)
+  s.valuesWrittenAt = stopIdentityOf(s.store.debugger.val)
 
-proc projectState*(vm: StateVM; feed: LocalsFeed; ticks: uint64): StatePane =
+proc projectState*(s: LiveSession): StatePane =
   ## The values at the position the session is AT, or the reason there are
   ## none to show.
   ##
-  ## `feed` is the second argument because `currentVariables` alone cannot
-  ## answer the question the pane asks. It is a memo over `store.locals.locals`,
-  ## which holds whatever was last written into it — the previous position's
-  ## values while this position's are in flight, and nothing at all for the life
-  ## of a session whose store discards every reply. Neither of those is "the
-  ## values here", and a pane that rendered them as if they were is the defect
-  ## `live_locals` exists to close.
+  ## `currentVariables` alone cannot answer the question the pane asks: it is
+  ## a memo over `store.locals.locals`, which holds the previous position's
+  ## values while this position's are in flight. `localsNote` reads the stop
+  ## loader's record of the CURRENT stop's load, so a pane never shows another
+  ## position's values as this one's.
   ##
   ## `note` is what `renderState` draws when there are no values, and it is
   ## produced for EVERY state that is not "this position's values are in the
   ## store". So a live session's State pane always has something in it, which
   ## is what makes `renderPanes`' latch replace the statically exported one —
   ## the served frame's values are never left standing as a fallback.
-  result.note = feed.noteFor(ticks, vm.currentVariables.val.len)
+  let vm = s.state
+  result.note = s.localsNote(vm.currentVariables.val.len)
   # WHY NO VALUE HERE CAN BE TRACED, when none can — said once, and said only
   # for the recording that cannot rather than for the value that happened not
   # to be. The origin classifier parses the right-hand side of a source
@@ -922,29 +857,26 @@ proc projectState*(vm: StateVM; feed: LocalsFeed; ticks: uint64): StatePane =
   # `sourcePublished`, and it does not become unknown while a request is in
   # flight. So it is stated unconditionally and the note goes on deciding only
   # whether there are ROWS to state it beside.
-  if not feed.sourcePublished:
+  if not s.sourcePublished:
     result.originNote = NoSourceOriginNote
   if result.note.len > 0: return
   for v in vm.currentVariables.val:
     let summary = vm.originSummaryFor(v.name)
     # WHAT THE LAST MOTION CHANGED, from the position the session came from.
     #
-    # A time-travel session needs no extra recording for this: the prior
-    # position is still queryable, and `LocalsFeed` has already held its values
-    # on the way past. `diffFor` answers for one row; the feed decides whether
-    # the question is answerable at all (`baselineValid`) and says "unchanged"
-    # for every row when it is not — a marker on a guess would be worse than no
-    # marker.
+    # The SDK's own answer (`StateVM.valueChanges`, PLAT-51): what the step
+    # that produced this stop changed, against the recording's predecessor —
+    # the same marking every CodeTracer front-end draws.
     #
     # `changed` used to be `vm.selectedPath.val == v.name`, which is a different
     # fact wearing this one's name: it lit the "changed at this step" hue on
     # whichever row the VM had selected, so the pane's only colour said
     # "selected" while its stylesheet said "changed".
-    let diff = feed.diffFor(v.name, v.value)
+    let diff = vm.valueChanges.val.changeFor(v.name)
     result.values.add StateValue(
       name: v.name, typ: v.typeName, value: v.value,
-      changed: diff == dvChanged,
-      appeared: diff == dvAppeared,
+      changed: diff == vchModified,
+      appeared: diff == vchAdded,
       # The control is offered for a CLASSIFIED origin and for nothing else —
       # see `classifiedOriginOf`. A summary is present on essentially every
       # local (6 of 6, measured), so "has a summary" would put a control
@@ -964,15 +896,15 @@ proc kindOf*(row: EventLogRow): EventKind =
   else: evEvent
 
 proc projectEventLog*(vm: EventLogVM; contentHash = ""): EventLogPane =
-  ## The page the EventLogVM's paging signals select. The VM owns the rows, the
-  ## page index and the page size and exposes no pre-sliced memo, so the slice
-  ## is the consumer's — which is the right side of the boundary for it: how
-  ## many rows a pane shows is a property of the pane.
-  let rows = vm.eventRows.val
-  let size = max(1, vm.pageSize.val)
-  let first = vm.currentPage.val * size
-  for i in first ..< min(first + size, rows.len):
-    let row = rows[i]
+  ## The rows the EventLogVM holds: the window its own load asked for from
+  ## the viewport this page measured (`ReplayDataStore.eventLog.rows`, one
+  ## window and not the whole log), so no slicing happens here.
+  for row in vm.eventRows.val:
+    # An event the producer gave no position (a rung row) is not a place to
+    # go, and this pane's rows are navigation rows: it is left out, as it
+    # always was here. The SDK keeps the fact (`EventLogRow.noPosition`).
+    if row.noPosition:
+      continue
     result.rows.add EventRow(
       kind: kindOf(row),
       step: int(row.rrTicks),
@@ -987,27 +919,6 @@ proc projectEventLog*(vm: EventLogVM; contentHash = ""): EventLogPane =
   for i in 0 ..< result.rows.len:
     result.rows[i].href = positionQuery(
       contentHash, result.rows[i].step, result.rows[i].anchor)
-
-func toolbarActionId*(a: DebugAction): string =
-  ## BlockTracer's `DebugAction` → the `actionId` `DebugControlsVM
-  ## .invokeToolbarStep` dispatches on.
-  ##
-  ## Two vocabularies, and they agree on six of eight. `daStepForward` is DAP's
-  ## `next` and `daStepBackward` is CodeTracer's `reverse-next`; the six others
-  ## are spelled identically in both. A total `case` rather than a table so
-  ## that a control added to the toolbar is a compile error here — an unmapped
-  ## action would otherwise reach the VM as an unknown string, be ignored, and
-  ## present as a button that is enabled and does nothing, which is the one
-  ## failure mode this whole route is built to avoid.
-  case a
-  of daStepForward: "next"
-  of daStepBackward: "reverse-next"
-  of daStepIn: "step-in"
-  of daStepOut: "step-out"
-  of daContinue: "continue"
-  of daReverseContinue: "reverse-continue"
-  of daReverseStepIn: "reverse-step-in"
-  of daReverseStepOut: "reverse-step-out"
 
 proc canDo*(vm: DebugControlsVM; a: DebugAction): bool =
   ## Whether the VM says this move is available right now.
@@ -1119,7 +1030,7 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
     # it is not, `projectFlowRail` is what the pane had before this line existed
     # and the pane keeps it, so nothing regresses on a session whose window has
     # not landed yet.
-    if not applyLiveFlow(result.editor, s.flowWindow,
+    if not applyLiveFlow(result.editor, s.flow,
                          s.store.debugger.val.rrTicks):
       result.editor.flow =
         projectFlowRail(s.flow, s.store.debugger.val.location.file)
@@ -1129,122 +1040,21 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
   # keeps the rows' links pointing at the same trace the metadata pane
   # describes.
   result.calltrace = projectCalltrace(s.calltrace, base.traceContentHash)
-  result.state = projectState(s.state, s.locals, s.store.debugger.val.rrTicks)
+  result.state = projectState(s)
   result.eventLog = projectEventLog(s.eventLog, base.traceContentHash)
   # `base.controls` and not `base.controls.totalSteps` alone: the served frame's
   # STEP is inherited for the same reason its total is, and for the window in
   # which the engine has not yet stated one. See `projectControls`.
   #
-  # `engineReported` comes off the session's own cell and NOT off the step, which
-  # is the whole of the fix: `s.reported.arrived` is set by `applyPosition` when
-  # a frame arrives, so tick 0 reports as loudly as tick 128.
+  # `engineReported` is the store's `positionReported` and NOT the step: it is
+  # set by every position the engine reports, so tick 0 reports as loudly as
+  # tick 128.
   result.controls = projectControls(
     s.controls, int(s.store.debugger.val.rrTicks), base.controls.totalSteps,
     live = true,
-    engineReported = (s.reported != nil and s.reported.arrived),
+    engineReported = s.arrived,
     served = base.controls)
   result.integrity =
     if s.controls.divergenceDetected.val: siDivergent
     elif s.controls.traceTruncated.val: siTruncated
     else: base.integrity
-
-proc requestNavigationSections*(s: LiveSession) =
-  ## Ask the engine for the call trace, now that there is an engine to ask.
-  ##
-  ## `CalltraceVM`'s auto-load effect fires the moment the VM is CONSTRUCTED,
-  ## which `goLive`'s own comment records is several hundred milliseconds before
-  ## `startWorker` — so `postJson` finds no worker, drops the message, and the
-  ## effect does not run again until something it reads changes. Clearing the
-  ## `RequestTracker` (which `goLive` does) unblocks the NEXT request; it does
-  ## not re-issue the one that was thrown away.
-  ##
-  ## For the call trace it is the difference between a pane that fills on
-  ## arrival and one that stays empty until the visitor happens to step — which
-  ## is what a visitor landing on a transaction saw: an empty Call Trace, and no
-  ## row to click.
-  ##
-  ## THIS COMMENT USED TO CONTINUE "for locals that costs nothing, because
-  ## `StateVM`'s effect re-fires on every move", and that sentence is why the
-  ## Values pane kept the defect this one fixed for a week. See
-  ## `requestLandingLocals` for what it got wrong: arriving is not a move.
-  ##
-  ## Issued through the store's own public request rather than by nudging a
-  ## signal to make the effect re-run: a re-entry that depended on which signal
-  ## the SDK's effect happens to read would break silently on any upstream
-  ## change, and this says what it means.
-  if s.store == nil: return
-  let dbg = s.store.debugger.val
-  s.store.requestCalltraceSection(
-    startIndex = 0,
-    height = CalltraceViewportRows,
-    depth = CalltraceViewportDepth,
-    rrTicks = dbg.rrTicks,
-    file = dbg.location.file,
-    line = dbg.location.line)
-
-proc requestLandingLocals*(s: LiveSession) =
-  ## Ask the engine for the values at the position the session LANDS on.
-  ##
-  ## ## ARRIVING IS NOT A MOVE, AND THAT IS THE WHOLE DEFECT
-  ##
-  ## `requestNavigationSections` above used to excuse the Values pane from the
-  ## same treatment on the grounds that "`StateVM`'s effect re-fires on every
-  ## move". The effect does. The first position a session takes is not reached
-  ## by moving.
-  ##
-  ## THE SEQUENCE, MEASURED IN A BROWSER by logging
-  ## `store.requestTracker.hasPending("load-locals")` at each of the three
-  ## points below on the deployed engine and a real chain container, rather
-  ## than reasoned about:
-  ##
-  ##   1. `openLiveSession` constructs the ViewModels. `StateVM`'s effect runs
-  ##      immediately and calls `requestLocals(0)`, which marks `load-locals`
-  ##      pending and sends — several hundred milliseconds before
-  ##      `startWorker`, so `postJson` finds no worker and drops the message.
-  ##      The future never settles, so `markComplete` never runs and the entry
-  ##      stays pending.
-  ##   2. `hydrate` seeds the store with the SERVED frame's position. That is
-  ##      the one write that genuinely changes `store.debugger`, so it is the
-  ##      one that re-runs the effect — and `requestLocals` finds its own key
-  ##      and arguments already pending from step 1 and SKIPS THE SEND.
-  ##      Measured at `goLive`, before its clear: `hasPending` is `true`.
-  ##   3. `goLive` clears the tracker. One moment too late: every later write
-  ##      of the position — the `stackTrace` reply, the `ct/complete-move` —
-  ##      writes the SAME coordinate the served frame already put there, the
-  ##      signal does not change, and the effect never runs again.
-  ##
-  ## So the request was issued exactly once, into nothing, and the pane waited
-  ## on a reply to a message that was never delivered. Measured against
-  ## `blocktracer-dev.pages.dev` on a real chain transaction: `ct/load-locals`
-  ## requests reaching the engine at landing, ZERO; Values rows, ZERO; the pane
-  ## reading "Reading the values at this position…" for as long as the tab was
-  ## open. One click of Step forward moved the store to a coordinate nothing
-  ## had asked about, the effect issued a request that was not a duplicate, and
-  ## the same pane filled with five rows. The values were there the whole time.
-  ##
-  ## The Call Trace escaped it by luck rather than by design: `CalltraceVM`'s
-  ## auto-load reads the viewport height as well as the position, and that
-  ## changes between construction and first paint — so its second run carried
-  ## different arguments, was not deduplicated, and went out. One pane in this
-  ## pair has been fixed twice for one cause; this is the other half.
-  ##
-  ## ## WHY IT IS SAFE TO ASK FOR A POSITION THE STOP HAS NOT ARRIVED AT
-  ##
-  ## `goLive` runs on the `threads` reply, before the first `stackTrace`, so
-  ## the coordinate read here is the store's — which for every ordinary visit
-  ## IS the entry frame the engine is about to report. A deep link that seeks
-  ## elsewhere moves the store to a coordinate this request did not name, and
-  ## `StateVM`'s effect issues that one on its own, because THAT is a move.
-  ## Neither answer can be shown under the wrong position: `live_locals.knows`
-  ## requires a completed reply for the exact `rrTicks` the pane is rendering,
-  ## so a reply for the entry frame under a sought position produces the
-  ## sentence, never the wrong values.
-  ##
-  ## ## AND IT MUST BE CALLED AFTER `locals.scheduleTimeout` IS INSTALLED
-  ##
-  ## `LocalsFeed.awaiting` arms §8's deadline from `scheduleTimeout`, and a
-  ## request issued while that hook is still nil is a request with no deadline
-  ## — which would leave the pane on "Reading…" forever in exactly the case the
-  ## deadline exists for. `goLive` orders the two, and this is the reason.
-  if s.store == nil: return
-  s.store.requestLocals(s.store.debugger.val.rrTicks)

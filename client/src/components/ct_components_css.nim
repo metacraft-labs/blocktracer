@@ -83,7 +83,7 @@
 ## ink. The rows are in `Bridge` above, each with what it resolves to upstream
 ## and what it was costing.)
 
-import std/[tables, strutils]
+import std/[tables, strutils, base64]
 import ../design_system/ct_styl
 
 export StylReport
@@ -203,13 +203,51 @@ const CtIconRows = static:
     let bytes = staticRead(CtIconVendorDir & "/" & key)
     doAssert bytes.len > 0,
       "vendored icon " & key & " is zero bytes; the copy step produced nothing"
-    rows.add (key, CtIconPublishedRoot & "/" & key, bytes.len)
+    rows.add (key, "data:image/svg+xml;base64," & encode(bytes), bytes.len)
   rows
 
 proc ctIconUrls*(): OrderedTable[string, string] =
-  ## `<group>/<file>` → the published URL of BlockTracer's copy. This is what
+  ## `<group>/<file>` → a `data:` URI carrying BlockTracer's copy. This is what
   ## `StylPort.assetUrls` carries, and `client/tests/test_ct_components_css.nim`
   ## reads it to assert the two sheets' nine urls are all placed.
+  ##
+  ## ## WHY THE BYTES AND NOT THE URL, AND WHAT WOULD UNDO IT
+  ##
+  ## These used to emit `CtIconPublishedRoot & "/" & key` — `/assets/ct-icons/
+  ## <group>/<file>`, the path `copyStaticAssets` publishes them at. The files
+  ## are published there still. The ORIGIN WILL NOT SERVE THEM, and that is
+  ## measured rather than inferred: three probe objects published to the
+  ## production bucket on 2026-10-17 and read back from the apex gave
+  ##
+  ##   assets/ct-icons/origin-icons/zz-origin-probe.txt   200
+  ##   assets/ct-icons/zz-origin-probe.svg                404
+  ##   assets/fonts/zz-origin-probe.svg                   404
+  ##
+  ## with all three confirmed present by the publish's own bucket comparison
+  ## (`assets/: tree 19, bucket 19, missing from bucket 0`). A brand-new object
+  ## four segments deep under the "cursed" directory serves the moment it is
+  ## not an SVG, and an SVG 404s under `assets/fonts/` where every font beside
+  ## it serves. The prefix is innocent and so is path depth: this origin
+  ## refuses SVG as a class, which is an ordinary posture for a zone, since
+  ## SVG can carry script.
+  ##
+  ## THIS IS A ROUTE AROUND THAT, STATED AS ONE. The infrastructure cause is
+  ## real, is not fixed by this, and is recorded on infra #1883 with the table
+  ## above. What this changes is who is waiting: nine icons were missing from
+  ## every visitor's rendered design until someone with the Cloudflare account
+  ## acts, and now they are not.
+  ##
+  ## IT IS ALSO THE BETTER SHAPE ON ITS OWN TERMS, which is why it is not
+  ## grudging. The nine total 3,753 bytes — under 5 KB base64 inside a 344 KB
+  ## stylesheet, about 1.5% — and inlining them removes nine requests for
+  ## assets smaller than the headers that would fetch them.
+  ## `check-design-parity.mjs` already filters `data:` out of the urls it
+  ## resolves, so this is a shape that gate was written to accept.
+  ##
+  ## TO UNDO IT once the zone serves SVG: put `CtIconPublishedRoot & "/" & key`
+  ## back in `CtIconRows` above. The files are still published, the rows still
+  ## name them, and `check-assets.mjs` A6 still checks the published bytes — so
+  ## nothing else has to move.
   result = initOrderedTable[string, string]()
   for (key, url, _) in CtIconRows:
     doAssert key notin result, "duplicate row in CtVendoredIcons: " & key
@@ -310,6 +348,31 @@ const Bridge*: seq[(string, string)] = @[
   ("colors-ui-surface-alert-information", "var(--bt-status-info-bg)"),
 
   # text ────────────────────────────────────────────────────────────────────
+  #
+  # TWO OF THESE ARE ONE RUNG OFF AND STAY THAT WAY; the rest land exactly, and
+  # the `->` in the trailing comments is where to see which is which. They are
+  # `label` (neutral-150 -> neutral-100) and `body-subtle` (neutral-200 ->
+  # neutral-250), and both are off because BlockTracer's ramp has no rung there,
+  # not because a value was chosen loosely.
+  #
+  # IT IS VISIBLE, AND IT WAS MEASURED RATHER THAN WAVED THROUGH. The label tier
+  # is what a PANE TAB takes — eleven vendored rules read it, across
+  # golden_layout, input and shared_widgets — so on 2026-10-22 it was compared
+  # against the running product: CodeTracer's active tab title computes
+  # `rgb(200, 200, 200)` (#c8c8c8, neutral-150) and BlockTracer's `rgb(221, 221,
+  # 221)` (#dddddd, neutral-100). The INACTIVE title matches exactly on both
+  # sides, `#727272`, through `text-primary-disabled` below.
+  #
+  # WHY IT IS NOT CLOSED BY ADDING A ROLE. A `--bt-text-label` at neutral-150
+  # would close the dark theme and would have to INVENT the light one:
+  # CodeTracer ships a single dark theme, so there is no upstream value to copy
+  # for the half of this product the explorer runs in, and a token whose light
+  # value is a guess is worse than a documented one-rung difference. The
+  # difference also runs the safe way — #dddddd on #282828 measures 10.4:1
+  # against #c8c8c8's 8.81:1 (upstream's own `golden_layout.styl` comment
+  # records that 8.81). So: a real divergence, one rung, decided and dated here
+  # rather than left looking like a slip. `docs/WEB-IDE-RESEMBLANCE.md` §2a
+  # carries it as the one open item of its 2026-10-22 reading.
   ("colors-ui-text-primary-body", "var(--bt-text-strong)"),               # neutral-50 = neutral-50
   ("colors-ui-text-primary-label", "var(--bt-text-default)"),             # neutral-150 -> neutral-100
   ("colors-ui-text-primary-body-subtle", "var(--bt-text-muted)"),         # neutral-200 -> neutral-250
@@ -380,6 +443,11 @@ const Aliases*: seq[(string, string)] = @[
 # ── 3. the rules BlockTracer does not emit ─────────────────────────────────
 
 const Dropped*: seq[(string, string)] = @[
+  (".selector",
+   "upstream's floating selection overlay (`shared_widgets.styl`), which no " &
+   "page on this site renders — and its background is a raw hex colour, which " &
+   "`test_static_export`'s shipped-rules scan rejects. A rule nothing can " &
+   "match leaves the port rather than upstream's bytes being edited"),
   (".lm_splitter.lm_dragging",
    "there is no drag on a route with no JavaScript, so the class is never " &
    "applied — and it carries the ONE raw hex colour upstream writes in the " &

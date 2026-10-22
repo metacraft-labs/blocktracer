@@ -13,11 +13,20 @@
     # static sites (reprobuild-web-site / codetracer-web-site), recorded in the
     # isonim-sites registry.
     isonim = {
-      url = "github:metacraft-labs/isonim/2a24d9549543c2a894525f65c4e608f9881b7373";
+      url = "github:metacraft-labs/isonim/d2193dc4935039f5faa0836e0a26eed9e15f1a72";
       flake = false;
     };
     nim-everywhere = {
-      url = "github:metacraft-labs/nim-everywhere/b2ce1c6b31743c4351aff4ad835f385f79b70edd";
+      url = "github:metacraft-labs/nim-everywhere/95977e85e3aa9f3d8f54ecb42fdc9505ac3d3107";
+      flake = false;
+    };
+    # The Embed SDK's editor core reads IsoNim-TUI's width tables
+    # (`editor/selection.nim`), so the hydration bundle needs it. Pinned with
+    # isonim and nim-everywhere to the revisions codetracer's own `repro.lock`
+    # names at `ci/embed-sdk-pin.env`'s CODETRACER_REF — the same three values
+    # that file records, so the bundle nix builds is the one the pin names.
+    isonim-tui = {
+      url = "github:metacraft-labs/isonim-tui/594398d5962a911f89f18d77cc1794404858283d";
       flake = false;
     };
 
@@ -116,7 +125,7 @@
     codetracer = {
       # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
       # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=af70456c981ea8e3c8de2534cdee16eca5550efd&submodules=0";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/agents&rev=0d1325584b9e7c77d13bbb766077e3418395fe94&submodules=0";
       flake = false;
     };
 
@@ -133,6 +142,56 @@
     #
     # `flake = false`: both are consumed as source trees, not as flakes. The
     # runtime's own flake exposes only a wasi-sdk, which nothing here needs.
+    # MOVED 75d1592a -> f972b415 ON 2026-10-14, AND THE MOVE IS THE DELIVERABLE.
+    # At 75d1592a the `ct-writer` crate had no `[features]` block, no `build.rs`
+    # and no `trace_format_nim_writer` anchor: there was ONE writer, the pure
+    # Rust Path A, built against a `codetracer-trace-format` whose
+    # `codetracer_ctfs/src/header.rs` declares `VERSION = 3` and whose
+    # `meta_dat.rs` declares `META_DAT_VERSION = 3`, and which carries no file
+    # matching "compact" at all.
+    #
+    # So `ctWriterWasm` below produced — measured 2026-10-14, by
+    # `WebAssembly.Module.exports` on the module this flake builds — 38 ABI
+    # functions plus `memory`, 0 imports, and NO
+    # `ct_writer_set_compact_threshold`. Every container this repository has
+    # ever published was written by a writer with no compact lever to pull, which
+    # is the whole reason `ctfs-container.md` §1e's compact profile is unused
+    # here rather than any decision about it.
+    #
+    # THE ANCHOR SET MOVED ON `agents` AND THIS BRANCH'S HOLD YIELDED TO IT.
+    # This branch pinned the runtime at aeb67e6d and read `trace_format` /
+    # `trace_format_nim` out of THAT revision's `pins.json` (3fada0b0 /
+    # 051efd22b0). `agents` advanced the runtime to 75d1592a, whose `pins.json`
+    # anchors `trace_format` at 592fa42c, and advanced the other two inputs
+    # with it; `flake.lock` names that newer trio throughout. A merge cannot
+    # hold half of an anchor set, and the mainline's advance is a decision
+    # rather than drift, so all three follow it here. The paragraph below is
+    # kept because WHY these are anchored together has not changed.
+    #
+    # Checked before following, because the one thing this must not do is
+    # publish containers the deployed engine refuses: `7b8b587c`'s
+    # `src/codetracer_trace_writer/meta_dat.nim` emits `MetaDatVersion = 6`,
+    # and `client/hydrate/engine-pin.txt`'s engine accepts `meta.dat` [6].
+    # Inside the ceiling.
+    #
+    # ONE THING IS LEFT FLAGGED RATHER THAN CHANGED: 75d1592a's `pins.json`
+    # anchors `trace_format_nim` at baea0740 and `agents` pins 7b8b587c, so
+    # that pair does not agree the way the aeb67e6d set did. Both are inside
+    # the engine's ceiling, it is the Flow/EVM work's area and not this
+    # branch's, and reverting it here would break those chains to satisfy a
+    # comment this branch wrote. Raised with that work rather than resolved by
+    # a merge.
+    #
+    # aeb67e6d was `agents` after CCP-6 (the lever reachable from
+    # `replay/tools/replay_settled_transaction.mjs` as `--compact-threshold`) and
+    # CCP-7 (the two hooks that let a nix sandbox build Path B at all — see
+    # `ctWriterWasm`). The default feature there is `path-b`, the NIM writer,
+    # which is a USER DECISION taken on measurement and recorded in
+    # `ct-writer/Cargo.toml`: Path A linked `ruzstd`, which returns 4,194,304
+    # bytes of wrong data where C libzstd refuses a frame corrupted under a
+    # content checksum, and Path A has no in-memory reader. Building Path A to
+    # avoid Path B's toolchain would reverse that decision silently, so this
+    # builds what the runtime ships.
     aztec-avm-runtime = {
       url = "github:metacraft-labs/aztec-avm-runtime/75d1592a3d1ab4dc795e04d931c9f268b4973835";
       flake = false;
@@ -144,6 +203,67 @@
     # become two distinct types that will not unify.
     codetracer-trace-format = {
       url = "github:metacraft-labs/codetracer-trace-format/592fa42cbfd759cf13398180798daaf856eb7e9d";
+      flake = false;
+    };
+
+    # ── THE WRITER ITSELF, which was never an input and had to become one ────
+    #
+    # `pins.json`'s `trace_format_nim_writer` anchor in the runtime revision
+    # above. A THIRD anchor appeared there on 2026-10-08 and this flake had no
+    # row for it, which is exactly why the paragraph above about
+    # `codetracer-trace-format` stopped being the answer: under `path-b` the Nim
+    # tree is the writer and the Rust one only supplies the path dependencies
+    # the lockfile names.
+    #
+    # `ct-writer/build.rs` materialises it out of a git OBJECT STORE, which a
+    # sandbox does not have. CCP-7 added `CT_TRACE_FORMAT_NIM_SRC` plus
+    # `CT_TRACE_FORMAT_NIM_SRC_REV` for exactly this: a plain tree, with the
+    # revision DECLARED and checked against `pins.json` rather than trusted,
+    # because a tree cannot prove its own provenance. `traceFormatNimRev` below
+    # is that declaration, and a mismatch is refused by the build script.
+    #
+    # HELD AT 051efd22b0 AND NOT FOLLOWED TO `agents`, deliberately and in the
+    # unusual direction. At 051efd22b0 the writer emits container 5
+    # (`CtfsVersion`), container 6 under the compact profile
+    # (`compact.nim` stamps `image[5] = CtfsVersionV6`) and `meta.dat` 6
+    # (`MetaDatVersion* = 6`), and the engine pinned at
+    # `client/hydrate/engine-pin.txt` accepts container {5,6} and `meta.dat`
+    # [6] — both profiles land inside it. That repository's `agents` HEAD is at
+    # `MetaDatVersion* = 7`, which the deployed engine REFUSES: advancing this
+    # pin would produce containers this site's own reader cannot open.
+    # (The input itself is declared once, further down, beside the chain-two
+    # pins that share it. The paragraph above belongs with THIS explanation and
+    # is kept here because it is about why the revision is chosen at all.)
+
+    # ── THE WRITER'S OWN NIM DEPENDENCIES ───────────────────────────────────
+    #
+    # `codetracer_trace_format.nimble` requires `stew` and `results`, and `stew`
+    # transitively requires `unittest2`. `ct-writer/build.rs` passes exactly one
+    # `-p:` — the writer's own `src` — so until CCP-7 those three were resolved
+    # from whatever the building machine happened to have. In a sandbox it has
+    # none, and the build died at `cannot open file: results` with the compiler
+    # unable to say whose dependency it was.
+    #
+    # THE REVISIONS ARE NOT A FREE CHOICE EITHER. They are the ones
+    # `codetracer-trace-format-nim`'s OWN `flake.lock` pins at the revision
+    # above, read out of it rather than picked: that repository's flake declares
+    # the same three inputs and describes the `--path:` list built from them as
+    # what makes the `requires` importable "from a bare `nim c` (the package
+    # build below, and the FFI static lib the Rust sibling's build.rs
+    # compiles)". So this is that list, reconstructed here because the input is
+    # consumed as a source tree and its outputs are not available.
+    #
+    # Moving the writer pin above means re-reading these three out of its lock.
+    nim-stew = {
+      url = "github:status-im/nim-stew/1a5d0b99209f50ff055d9b5216849ba0365f8cf5";
+      flake = false;
+    };
+    nim-results = {
+      url = "github:arnetheduck/nim-results/b319652e98a198fa881ca70a76754c2dd6f09804";
+      flake = false;
+    };
+    nim-unittest2 = {
+      url = "github:status-im/nim-unittest2/92e1c13dcfb6d7e4ea6fb624fe9cc31e3dc76813";
       flake = false;
     };
 
@@ -164,6 +284,23 @@
     # one binary. eth.nix runs the same two builds, through the writer's own
     # `build_ffi.nims`, against its three Nim dependencies at the revisions the
     # writer's flake.lock records at this pin.
+    # THE CEILING ON THIS PIN IS `meta.dat` 6, AND IT IS NOT A STYLE RULE.
+    # The engine pinned at `client/hydrate/engine-pin.txt` accepts container
+    # {5,6} and `meta.dat` [6]. This repository's HEAD emits
+    # `MetaDatVersion* = 7`, which that engine REFUSES — advancing to it would
+    # publish containers this site's own reader cannot open.
+    #
+    # Two branches pinned this input independently and a merge brought both
+    # spellings into one file, which Nix refuses as a duplicate attribute —
+    # that is how the pair was noticed rather than one silently winning. The
+    # revisions were then compared at the only place that decides it:
+    #
+    #     051efd22b0  src/codetracer_trace_writer/meta_dat.nim  MetaDatVersion = 6
+    #     7b8b587c72  src/codetracer_trace_writer/meta_dat.nim  MetaDatVersion = 6
+    #
+    # Both are inside the ceiling, so the newer one is taken and the lock
+    # already names it. The ceiling itself stays written down, because the
+    # thing it guards against is one commit away on that repository's mainline.
     codetracer-trace-format-nim = {
       url = "github:metacraft-labs/codetracer-trace-format-nim/7b8b587c72ec31f6825ae124ab89ad7954f6dca7";
       flake = false;
@@ -172,7 +309,7 @@
     # tools/chain/nix/flow.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chain two.
     codetracer-flow-recorder = {
-      url = "github:metacraft-labs/codetracer-flow-recorder/da664d95f9c59bea9ad42b6b011c64ccd7b9473b";
+      url = "github:metacraft-labs/codetracer-flow-recorder/04a05d33653da6809a1e1372e4c564d7fd462e3c";
       flake = false;
     };
     flow-trace-format = {
@@ -186,36 +323,36 @@
       url = "github:metacraft-labs/codetracer-solana-recorder/0a1950220964d8c8793b43fa6c4ec1fb9bed35ef";
       flake = false;
     };
+    # ── Sui: the Move recorder (tools/chain/nix/sui.nix says why) ─────────────
+    # Its trace-format path dependencies are `flow-trace-format` above, whose
+    # revision is exactly the one this recorder's repro.lock names.
+    codetracer-move-recorder = {
+      url = "github:metacraft-labs/codetracer-move-recorder/6f27c33004012eb9d57bfa9f649a0486697ccf83";
+      flake = false;
+    };
     # ── Starknet: the Cairo recorder (and the transcript it commits) ──────────
     # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chains two and three.
     codetracer-cairo-recorder = {
-      url = "github:metacraft-labs/codetracer-cairo-recorder/71501b35b6894aef73985c74b99fc17eb4589410";
+      url = "github:metacraft-labs/codetracer-cairo-recorder/67ee2770506398c28e9cf1ea9874471a8b0349ae";
       flake = false;
     };
     cairo-trace-format = {
       url = "github:metacraft-labs/codetracer-trace-format/3fada0b03c3d1a0cbc7c35f278aa639028d702c5";
       flake = false;
     };
-    nim-stew = {
-      url = "github:status-im/nim-stew/1a5d0b99209f50ff055d9b5216849ba0365f8cf5";
-      flake = false;
-    };
-    nim-results = {
-      url = "github:arnetheduck/nim-results/b319652e98a198fa881ca70a76754c2dd6f09804";
-      flake = false;
-    };
-    nim-unittest2 = {
-      url = "github:status-im/nim-unittest2/92e1c13dcfb6d7e4ea6fb624fe9cc31e3dc76813";
-      flake = false;
-    };
+    # (`nim-stew`, `nim-results` and `nim-unittest2` are declared once, above,
+    # with the note on where their revisions are read from. Both branches added
+    # them at the SAME three revisions; the duplicate copy that stood here was
+    # removed rather than either set being re-pinned.)
   };
 
-  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, codetracer-design-system, codetracer
+  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, isonim-tui, codetracer-design-system, codetracer
             , aztec-avm-runtime, codetracer-trace-format
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
             , codetracer-solana-recorder
+            , codetracer-move-recorder
             , codetracer-cairo-recorder, cairo-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
@@ -231,12 +368,32 @@
         srcEnv = {
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
+          ISONIM_TUI_SRC = isonim-tui;
           DESIGN_SYSTEM_SRC = codetracer-design-system;
           # The Embed SDK, for `just hydrate` and for the cross-repo suites
           # (`just debug-panes`, `just sdk-test-embed`, `just viewmodel-seam`),
           # every one of which resolves $CODETRACER_SRC before falling back to
           # a ../codetracer sibling.
           CODETRACER_SRC = codetracer;
+
+          # ── THE CTFS WRITER'S NIM SOURCE, FOR TOOLS THAT LINK IT ──────────
+          #
+          # `tools/chain/compact_container.nim` imports `codetracer_ctfs` and
+          # `codetracer_trace_writer` to apply `ctfs-container.md` §1e. Those
+          # are not vendored here and not on any default Nim path, so without
+          # these a recipe that builds it fails with `cannot open file:
+          # codetracer_ctfs/types` — measured, on the first run of
+          # `just ct-compact-check`.
+          #
+          # The REVISION is the one `ctWriterWasm` builds the shipped writer
+          # from, so a tool that converts a container and the writer that
+          # produces one cannot drift apart: both read this input.
+          CT_TRACE_FORMAT_NIM_SRC = codetracer-trace-format-nim;
+          # Its `.nimble` requires, in the order that repository's own flake
+          # lists them. Colon-joined because that is the shape
+          # `ct-writer/build.rs` reads, and the same string serves both.
+          CT_NIM_EXTRA_PATHS =
+            builtins.concatStringsSep ":" [ nim-stew nim-results nim-unittest2 ];
         };
 
         # CI dev shell — the execution environment CI runs project commands in
@@ -380,6 +537,9 @@
           avmRuntimeRev = aztec-avm-runtime.rev;
           traceFormatSrc = codetracer-trace-format;
           traceFormatRev = codetracer-trace-format.rev;
+          traceFormatNimSrc = codetracer-trace-format-nim;
+          traceFormatNimRev = codetracer-trace-format-nim.rev;
+          traceFormatNimDeps = [ nim-stew nim-results nim-unittest2 ];
         };
 
         eth = pkgs.callPackage ./tools/chain/nix/eth.nix {
@@ -407,6 +567,16 @@
           recorderSrc = codetracer-solana-recorder;
           recorderRev = codetracer-solana-recorder.rev;
           solTraceFormatSrc = flow-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
+
+        sui = pkgs.callPackage ./tools/chain/nix/sui.nix {
+          nodejs = followerNodejs;
+          recorderSrc = codetracer-move-recorder;
+          recorderRev = codetracer-move-recorder.rev;
+          suiTraceFormatSrc = flow-trace-format;
           writerSrc = codetracer-trace-format-nim;
           writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
           blocktracerRoot = ./.;
@@ -458,20 +628,27 @@
         packages.flow-capture-tree = flow.flowCaptureTree;
         packages.flow-ct-print = flow.ctPrint;
 
-        # ── Solana, produced the same way, and NOT yet in produced-captures ──
-        # Its prestate token (`forward-capture`) is not in §1.4's set, so the reader
-        # refuses the tree; it joins produced-captures as `solana-mainnet` once the
-        # row lands (Chain-Delivery DEL-3b). See tools/chain/nix/sol.nix.
+        # ── Solana, produced the same way (Recorder-Solana CXP-SOL-6) ──
+        # In produced-captures as `solana-mainnet` since 2026-10-22, when §1.4 gained the
+        # `forward-capture` row. See tools/chain/nix/sol.nix.
         packages.solana-recorder = sol.solanaRecorder;
         packages.sol-capture-tree = sol.solCaptureTree;
+
+        # ── Sui mainnet, produced the same way (Recorder-Move CXP-MOVE-6) ──────────
+        # In produced-captures as `sui-mainnet`: byte-reproducible (`nix build --rebuild`
+        # rc 0) from the committed GraphQL transcript. See tools/chain/nix/sui.nix.
+        packages.move-recorder = sui.moveRecorder;
+        packages.sui = sui.sui;
+        packages.sui-capture-tree = sui.suiCaptureTree;
+        packages.sui-ct-print = sui.ctPrint;
 
         # ── Starknet mainnet, produced the same way (Recorder-Cairo CXP-CAIRO-6) ──
         packages.cairo-onchain-recorder = starknet.onchainRecorder;
         packages.starknet-capture-tree = starknet.starknetCaptureTree;
         packages.starknet-ct-print = starknet.ctPrint;
 
-        # The site with the STAGING-ONLY chains added: `default` plus the Ethereum
-        # Flow and Starknet trees, placed where the exporter already looks for a live-chain capture.
+        # The site with the STAGING-ONLY chains added: `default` plus the Ethereum,
+        # Flow, Solana, Starknet and Sui trees, placed where the exporter already looks for a live-chain capture.
         # deploy.yml builds this for every deploy except `live`, so `live` (the
         # production Pages project) keeps `default` and carries no chain the
         # operator has not cleared for production; Chain-Expansion's environment
@@ -495,7 +672,9 @@
           mkdir -p $out
           cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
           cp -r ${flow.flowCaptureTree} $out/flow-mainnet
+          cp -r ${sol.solCaptureTree} $out/solana-mainnet
           cp -r ${starknet.starknetCaptureTree} $out/starknet-mainnet
+          cp -r ${sui.suiCaptureTree} $out/sui-mainnet
         '';
 
         packages.chain-tools = chain.chainTools;
@@ -542,8 +721,24 @@
         # No pyyaml here — these five sites use `json` from the standard
         # library and nothing else. It does not touch the capture pin: `envId`
         # is `captureEnv`'s own, and this is the devshell around it.
+        #
+        # `brotli` BECAUSE THIS SHELL RUNS THE EXPORTER. `check-canary.mjs`
+        # builds and runs `client/src/static_export`, which since CCP-6 stores
+        # every container pre-compressed, and `publish/encoding.nim` shells out
+        # to the `brotli` binary to do it. Without it on PATH the exporter does
+        # not degrade — it REFUSES, by design:
+        #
+        #   cannot publish the container for 0x00c67f6f…: cannot store a
+        #   container with Content-Encoding 'br': `brotli` is not on PATH
+        #
+        # and the canary reported `capture failed: static exporter failed`
+        # (run 38643115341). `devShells.ci` has carried brotli since CCP-6 and
+        # this one was missed, which is the whole class of defect a second
+        # shell with its own package list produces: the dependency was declared
+        # where the author was looking.
         devShells.capture = pkgs.mkShell (srcEnv // {
-          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just followerNodejs pkgs.python3 ];
+          buildInputs = [ captureEnv pkgs.nim pkgs.nimble pkgs.just followerNodejs pkgs.python3
+                          pkgs.brotli ];
           shellHook = ''
             echo "blocktracer VD.0 pinned capture environment"
             echo "  vd0-capture-env --print-pin                       — what is pinned, and its id"
@@ -578,10 +773,17 @@
         packages.default = pkgs.stdenv.mkDerivation {
           name = "blocktracer-site";
           src = ./.;
-          nativeBuildInputs = [ pkgs.nim pkgs.bash ];
+          # `brotli` BECAUSE THE CONTAINERS ARE STORED PRE-COMPRESSED.
+          # `static_export.nim`'s `PublishedEncoding` is `ceBrotli` and
+          # `publish/encoding.nim` shells out to this binary — an absent one is
+          # a NAMED refusal there and never a silent identity pass, so without
+          # it this derivation fails loudly rather than publishing raw bytes
+          # with no `Content-Encoding`.
+          nativeBuildInputs = [ pkgs.nim pkgs.bash pkgs.brotli ];
           CODETRACER_SRC = codetracer;
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
+          ISONIM_TUI_SRC = isonim-tui;
           DESIGN_SYSTEM_SRC = codetracer-design-system;
           buildPhase = ''
             export HOME=$TMPDIR

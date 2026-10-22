@@ -19,6 +19,8 @@
 //       refused rather than published around
 //   §5  the endpoint-horizon probe's verdict: a rung that stops being served fails it,
 //       and so does a control the endpoint answered
+//   §6  the GraphQL transcript: request keys, the tip mark, and a replay that serves what
+//       it holds and misses — loudly — what it does not
 //
 // Every arm that asserts a refusal or a distinction has a control beside it that takes
 // the other branch, so the arm measures the rule and not the fixture
@@ -35,6 +37,7 @@ import {
 } from './lib/sui-producer-facts.mjs';
 import { ACQUISITION_FORMAT, effectsFacts, main as produce } from './produce-sui-snapshot.mjs';
 import { compareReadings } from './sui-horizon-probe.mjs';
+import { isTipDependent, requestKey, startTranscriptServer } from './sui-graphql-transcript.mjs';
 
 let asserted = 0;
 let failed = 0;
@@ -193,26 +196,42 @@ test('§4 the producer, end to end, over a container-free window');
       return null;
     } catch (e) { return e.message; }
   };
-  const good = write('good.json', acquisition([cp(10, 'CP9', ['d1', 'd2']), cp(11, 'CP10', ['d3'])]));
+  const good = write('good.json', acquisition([cp(10, 'CP9', ['d1', 'd2']), cp(11, 'CP10', ['d3', 'd4'])]));
 
   const refusedRec = join(dir, 'rec-d2');
   mkdirSync(refusedRec, { recursive: true });
   writeFileSync(join(refusedRec, 'done.json'), JSON.stringify({ digest: 'd2',
     outcome: 'no-trace-events', recorderCommit: commit }));
 
-  const ok = await run(good, ['--rec', refusedRec]);
+  const crashedRec = join(dir, 'rec-d3');
+  mkdirSync(crashedRec, { recursive: true });
+  writeFileSync(join(crashedRec, 'done.json'), JSON.stringify({ digest: 'd3',
+    outcome: 'replay-crashed', refusal: 'SUI-REPLAY-STACK-OVERFLOW', recorderCommit: commit }));
+
+  const bigRec = join(dir, 'rec-d1');
+  mkdirSync(bigRec, { recursive: true });
+  writeFileSync(join(bigRec, 'done.json'), JSON.stringify({ digest: 'd1',
+    outcome: 'too-large', refusal: 'TRACE-TOO-LARGE', recorderCommit: commit }));
+
+  const ok = await run(good, ['--rec', refusedRec, '--rec', crashedRec, '--rec', bigRec]);
   ck(`a whole window with one refused recording produces a tree — ${ok ?? 'no refusal'}`, ok === null);
   if (ok === null) {
     const snap = JSON.parse(readFileSync(join(dir, 'tree', 'snapshot.json'), 'utf8'));
     const by = Object.fromEntries(snap.transactions.map((t) => [t.txHash, t]));
-    ck('the denominator is the enumeration: three rows for three transactions',
-       snap.transactions.length === 3 && snap.counts.transactions === 3
-       && snap.counts.accountedFor === 3);
+    ck('the denominator is the enumeration: four rows for four transactions',
+       snap.transactions.length === 4 && snap.counts.transactions === 4
+       && snap.counts.accountedFor === 4);
     ck('the refused recording is runtime-refused with the recorder\'s class beside it',
        by.d2.outcome === 'refused' && by.d2.refusalReason === 'runtime-refused'
        && by.d2.refusal === 'NO-TRACE-EVENTS');
-    ck('CONTROL: an unattempted transaction is not-attempted, so the two are told apart',
-       by.d1.outcome === 'not-attempted' && by.d1.refusalReason === 'not-attempted');
+    ck('a replay whose tracer crashed stays in the denominator, refused with the crash named',
+       by.d3.outcome === 'refused' && by.d3.refusalReason === 'runtime-refused'
+       && by.d3.refusal === 'SUI-REPLAY-STACK-OVERFLOW');
+    ck('a trace too large to record is refused as no-container-written, the size named',
+       by.d1.outcome === 'refused' && by.d1.refusalReason === 'no-container-written'
+       && by.d1.refusal === 'TRACE-TOO-LARGE');
+    ck('CONTROL: an unattempted transaction is not-attempted, so the refusals are told apart',
+       by.d4.outcome === 'not-attempted' && by.d4.refusalReason === 'not-attempted');
     ck('checkpoints are blocks, newest first, with digests and predecessor digests',
        JSON.stringify(snap.blocks.map((b) => [b.number, b.hash, b.parentArchiveRoot]))
          === JSON.stringify([[11, 'CP11', 'CP10'], [10, 'CP10', 'CP9']]));
@@ -267,10 +286,42 @@ test('§5 the endpoint-horizon verdict');
      compareReadings(reading(true), reading(true, false)).length === 1);
 }
 
+test('§6 the GraphQL transcript');
+{
+  const q = 'query($seq: UInt53!) { checkpoint(sequenceNumber: $seq) { digest } }';
+  const a = requestKey({ query: q, variables: { seq: 5, after: null } });
+  const b = requestKey({ query: `  ${q.replace(/ /g, '   ')} `, variables: { after: null, seq: 5 } });
+  ck('a key ignores whitespace and variable order', a.key === b.key);
+  ck('CONTROL: a different variable is a different key',
+     a.key !== requestKey({ query: q, variables: { seq: 6, after: null } }).key);
+  ck('a query about the tip is marked, a sequenced one is not',
+     isTipDependent({ query: '{ checkpoint { sequenceNumber } }' }) && !isTipDependent({ query: q }));
+
+  const dir = mkdtempSync(join(tmpdir(), 'sui-transcript-selftest-'));
+  const answer = { data: { checkpoint: { digest: 'CP5' } } };
+  const upstream = async () => ({ status: 200, text: async () => JSON.stringify(answer) });
+  const rec = await startTranscriptServer({ mode: 'record', dir, upstream: 'http://up.invalid',
+                                            fetchImpl: upstream });
+  const ask = async (url, variables) => (await fetch(url, { method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ query: q, variables }) })).json();
+  await ask(rec.url, { seq: 5 });
+  await rec.close();
+  const rep = await startTranscriptServer({ mode: 'replay', dir });
+  const hit = await ask(rep.url, { seq: 5 });
+  const miss = await ask(rep.url, { seq: 6 });
+  const { misses } = await rep.close();
+  ck('replay serves the recorded answer verbatim, with no upstream',
+     JSON.stringify(hit) === JSON.stringify(answer));
+  ck('CONTROL: an unrecorded request is a MISS, answered with an error and counted',
+     misses === 1 && /transcript MISS/.test(miss.errors?.[0]?.message ?? ''));
+  rmSync(dir, { recursive: true, force: true });
+}
+
 // The count is a LITERAL because `refusal-selftest.mjs` reads it out of this line and
 // cross-checks it against the Justfile header and ci.yml.
-if (asserted !== 34) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 34 — a case was added, removed or skipped.`);
+if (asserted !== 41) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 41 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

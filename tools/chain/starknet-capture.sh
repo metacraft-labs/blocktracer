@@ -24,7 +24,7 @@
 
 set -euo pipefail
 
-recorder=""; commit=""; transcript=""; out=""; work=".starknet-capture/capture"; ctprint=""
+recorder=""; commit=""; transcript=""; out=""; work=".starknet-capture/capture"; ctprint=""; sources=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --recorder) recorder="$2"; shift 2 ;;
@@ -33,6 +33,7 @@ while [ $# -gt 0 ]; do
     --out) out="$2"; shift 2 ;;
     --work) work="$2"; shift 2 ;;
     --ct-print) ctprint="$2"; shift 2 ;;
+    --class-sources) sources="$2"; shift 2 ;;
     *) echo "starknet-capture.sh: unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -52,7 +53,11 @@ read -r block recorded_at endpoint < <(node -e '
 
 rm -rf "$work" "$out"
 mkdir -p "$(dirname "$work")"
-"$recorder" trace-block "$block" --transcript-in "$transcript" -o "$work" --probe-floor
+# `--class-sources`: `bind-class` bindings of class builds proved against the chain. The
+# recorder re-checks each against the class that ran before it uses one, and the report
+# says which were applied and which refused.
+"$recorder" trace-block "$block" --transcript-in "$transcript" -o "$work" --probe-floor \
+  ${sources:+--class-sources "$sources"}
 node tools/chain/produce-starknet-snapshot.mjs --capture "$work" \
   --recorder-commit "$commit" --out "$out" \
   --captured-at "$recorded_at" --endpoint-label "$endpoint" \

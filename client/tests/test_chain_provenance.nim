@@ -1696,7 +1696,14 @@ suite "8 — a curated chain publishes only transactions that open":
     # knows the cover was lost rather than never existed.
     let curatedTest = chainInfo(curatedRoot, RealChain).provenanceDetail
     let fullTest = chainInfo(root, RealChain).provenanceDetail
-    ck "This is a preliminary export covering 2 September 2026." in curatedTest
+    # MOVED 2 September -> 31 August ON 2026-10-16, and the CLAIM is unchanged:
+    # the curated banner states the span of the slice that is PUBLISHED, and
+    # the full tree states the span of everything watched. Re-recording the
+    # corpus onto compact CTFS changed which transactions carry a readable
+    # recording, so the published slice now falls in a different day. The
+    # assertion below it — that the two strings differ — is the one carrying
+    # the claim, and it has not moved.
+    ck "This is a preliminary export covering 31 August 2026." in curatedTest
     ck "This is a preliminary export covering 31 August to 2 September 2026." in
        fullTest
     ck curatedTest != fullTest
@@ -2135,12 +2142,28 @@ suite "9 — the home page features a session that can actually be shown":
     # positions, permanently.
     #
     # Subject chosen out of the snapshot, like every other subject in this file:
-    # the first transaction whose CAPTURE measured positioned steps. If a future
-    # snapshot has none the test skips rather than passing vacuously — a green
-    # assertion over an empty set is what §6.2 keeps calling out.
+    # the first transaction whose CAPTURE measured positioned steps AND whose
+    # POSITIONS ARE PUBLISHED. If a future snapshot has none the test skips
+    # rather than passing vacuously — a green assertion over an empty set is
+    # what §6.2 keeps calling out.
+    #
+    # THE SECOND HALF OF THAT CONDITION WAS ADDED ON 2026-10-16, and the first
+    # half alone was a proxy that had been exact by accident. The defect this
+    # arm pins is "a 108-row `positions.json` was published and the page
+    # rendered a listing over it" — so it is only expressible on a transaction
+    # that HAS one. While exactly one capture positioned anything, "first with
+    # `stepsPositioned > 0`" and "has a `positions.json`" picked the same
+    # transaction and nothing distinguished them.
+    #
+    # Re-recording the corpus onto compact CTFS positioned a SECOND capture,
+    # `0x12525d6d…`, which sorts first and has no sidecar. The arm then failed
+    # on `listingDocs == 1` — correctly, since there is no published
+    # positioning for the pane to render beside the source, and wrongly as a
+    # statement about the product, which had not changed.
     var positionedTx = ""
     for t in snap["transactions"]:
-      if t{"recording"}{"stepsPositioned"}.getInt(0) > 0:
+      if t{"recording"}{"stepsPositioned"}.getInt(0) > 0 and
+         fileExists(snapshotDir / "positions" / (t["txHash"].getStr & ".json")):
         positionedTx = t["txHash"].getStr
         break
     if positionedTx.len == 0:
@@ -3659,12 +3682,42 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     while true:
       let page = txsFrom(root, realInfo, fromH)
       for row in page.rows:
-        if row.sources.state == scAll:
+        # THE SUBJECT IS AN UNPOSITIONED ONE, AND THAT IS THE CLAIM'S OWN
+        # CONDITION rather than a narrowing. The badge is being held to "do not
+        # promise source for a recording that positions nothing" — the two
+        # lines below this loop assert `postHoc` and `not positioned`, which
+        # ARE the case being judged. Selecting on `scAll` alone was exact only
+        # while no capture both carried every source and positioned steps.
+        #
+        # Re-recording the corpus onto compact CTFS produced three that do, and
+        # since this loop keeps the LAST match the subject became one of them:
+        # a row that correctly says "Sources available", failing three
+        # assertions that describe the other case entirely.
+        if row.sources.state == scAll and row.sources.postHoc and
+           not row.sources.positioned:
           inc found
           subject = row.sources
       if not page.hasMore: break
       fromH = page.nextFrom
-    ck found > 0
+
+    # ── THE SUBJECT IS CONSTRUCTED, AND THE CORPUS IS ASKED SEPARATELY ──────
+    #
+    # `found` is allowed to be ZERO now, and the claim is still judged. After
+    # the corpus was re-recorded onto compact CTFS, every capture that carries
+    # all of its sources also positions steps — so the case this arm is about,
+    # all sources and nothing positioned, has no subject left in the tree.
+    #
+    # Skipping would have been the file's usual answer to an empty set, and it
+    # is the wrong one HERE: a user paid for this line. The claim is a property
+    # of `sourcesState`/`sourcesClass`/`sourcesNote`, not of whichever capture
+    # happens to be in the corpus this month, so the subject is built directly
+    # and the functions are held to it. That makes the guard permanent — no
+    # future re-record can take it away — and it is strictly more than the old
+    # arm, which could only ever judge whatever the corpus happened to hold.
+    if found == 0:
+      echo "    (no capture currently carries every source while positioning " &
+           "nothing — the badge rule below is judged on a constructed view)"
+      subject = SourceCoverageView(state: scAll, postHoc: true, positioned: false)
     # THE BADGE, AND A USER PAID FOR THIS LINE. It used to assert
     # `Sources available` here, with the caveat carrying the correction. A
     # visitor read the badge on this exact transaction, clicked, and got
@@ -3683,6 +3736,33 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     ck sourcesNote(subject).contains("matches what ran on the chain")
     # No surface claims the strong word — §9 owns `verified`.
     ck not sourcesNote(subject).toLowerAscii.contains("verified")
+
+    # ── AND THE OTHER DIRECTION, WHICH THE CORPUS GAINED ───────────────────
+    #
+    # A badge that said "Source not recorded" for everything would satisfy
+    # every assertion above. Re-recording positioned three captures that carry
+    # all their sources, so the affirmative case is now witnessed by real data
+    # for the first time, and it is asserted here rather than left implied.
+    # ASSERTED AS AN AGGREGATE, not once per row: a per-row `ck` would make
+    # this suite's declared assertion count a function of how many captures
+    # happen to match, so every future re-record would move a number that has
+    # nothing to do with the claim.
+    var positionedWithSources = 0
+    var allSayAvailable = true
+    var noneMuted = true
+    fromH = -1
+    while true:
+      let page = txsFrom(root, realInfo, fromH)
+      for row in page.rows:
+        if row.sources.state == scAll and row.sources.positioned:
+          inc positionedWithSources
+          if sourcesState(row.sources) != "Sources available": allSayAvailable = false
+          if sourcesClass(row.sources) == "muted": noneMuted = false
+      if not page.hasMore: break
+      fromH = page.nextFrom
+    ck positionedWithSources > 0
+    ck allSayAvailable
+    ck noneMuted
 
   # ── mutation arms ────────────────────────────────────────────────────────
   #
@@ -3777,7 +3857,7 @@ suite "13 — a transaction list says which transactions can be debugged fully":
     ck not sourcesNote(positioned).contains("not its source code")
 
   test "assertion count":
-    expectCount(136)
+    expectCount(138)
 
 # ───────────────────────────────────────────────────────────────────────────
 # SUITE 14 — ONE CHAIN, TWO RECORDERS, NEITHER MISFILED
@@ -3848,9 +3928,40 @@ suite "14 — one chain carries containers from two recorders, each filed as its
   # control's own answer per container rather than against `incumbentBuild`. That
   # is the stronger form anyway — "unchanged" is the claim, and comparing to a
   # literal only tested it while every row happened to share one build.
+  #
+  # IT IS INGESTED FROM A NORMALISED COPY, NOT FROM THE FIXTURE, and that is
+  # new. The control and the subject must differ in EXACTLY the attributions
+  # this suite adds and in nothing else, and the fixture stopped supporting
+  # that when the re-record began naming the runtime on every row it produced:
+  # all 25 replayed rows now carry `recordedBy 94a96e4c…` against a chain-level
+  # `provenance.runtimeCommit` of `29bd9cfd…`.
+  #
+  # Clearing that field in the subject alone makes the two trees disagree about
+  # the 23 rows nobody attributed, which is not a finding about anything —
+  # measured, it failed `m["recorder"]["build"] == oneManifests[tx]…` with
+  # `508588d9…` against `fa46eb0a…` on every one of them. So the normalisation
+  # happens ONCE, here, and both trees are built from its output.
+  let baseCap = rd / "base"
+  copyDir(snapshotDir, baseCap)
+  block normalise:
+    # Every replayed row takes the chain default, so "the incumbent" is a
+    # non-empty set and the attributions below are the only difference between
+    # the control and the subject. `JsonNode` is a ref, so the loop variable
+    # already aliases the element.
+    var doc = parseJson(readFile(baseCap / "snapshot.json"))
+    var cleared = 0
+    for t in doc["transactions"]:
+      if t["outcome"].getStr in ["replayed", "divergent"] and
+         t.hasKey("recordedBy"):
+        t.delete("recordedBy")
+        inc cleared
+    writeFile(baseCap / "snapshot.json", doc.pretty)
+    doAssert cleared > 0,
+      "expected the fixture to attribute its replayed rows, so this suite has " &
+      "something to normalise away; cleared " & $cleared
   let oneTree = rd / "one"
   createDir(oneTree)
-  discard ingestSnapshot(IngestConfig(outDir: oneTree, snapshotDir: snapshotDir))
+  discard ingestSnapshot(IngestConfig(outDir: oneTree, snapshotDir: baseCap))
   let oneManifests = manifestsByTx(oneTree)
   # Captured NOW: the last test re-ingests the mixed capture into `oneTree` and
   # rewrites this file, so a later read would not be the control's inventory.
@@ -3863,21 +3974,37 @@ suite "14 — one chain carries containers from two recorders, each filed as its
   # ── the subject: the same capture, with SOME containers attributed to a
   #    second recorder, stated in both of the two ways a snapshot may state it ─
   let mixedCap = rd / "cap"
-  copyDir(snapshotDir, mixedCap)
+  copyDir(baseCap, mixedCap)
   var mixedDoc = parseJson(readFile(mixedCap / "snapshot.json"))
   var viaCapturesTx, viaRecordedByTx = ""
   block attribute:
     # Two recorded transactions, chosen from the capture's own JSON in a stable
     # order so the subject is the same on every run.
-    # A ROW THAT ALREADY NAMES ITS OWN RECORDER IS NOT A CANDIDATE. The capture
-    # now carries one (`0x20ed5b91…`, the frames container it publishes), and
-    # attributing this suite's second build to it would overwrite the very field
-    # under test and leave the subject indistinguishable from the fixture. The
-    # two subjects must be rows that would otherwise take the chain's default.
+    # THE SUBJECT IS MANUFACTURED HERE, AND IT HAS TO BE.
+    #
+    # Both halves of this suite need a row that takes the CHAIN'S DEFAULT
+    # recorder, because that is the state a `captures[]` entry or a
+    # `recordedBy` field is supposed to override. This used to select such rows
+    # out of the fixture — "a row that already names its own recorder is not a
+    # candidate", filtering on `recordedBy` being absent — and the fixture has
+    # since stopped containing any.
+    #
+    # It stopped when the re-record started attributing what it produced.
+    # MEASURED on `client/fixtures/chain/aztec-testnet/snapshot.json`: all 25
+    # replayed rows carry `recordedBy` `94a96e4c…`, the runtime that
+    # re-recorded them, against a chain-level `provenance.runtimeCommit` of
+    # `29bd9cfd…`. So the filter found zero and the suite died on its own
+    # precondition — `it holds 0` — which is a true statement about the fixture
+    # and tells a reader nothing about what it was trying to test.
+    #
+    # Selecting a subject out of a corpus is what broke; this builds one. The
+    # two rows have their `recordedBy` REMOVED from this suite's own copy, so
+    # they take the chain default by construction, and the attributions below
+    # are then overriding a default rather than overwriting a fact. The copy is
+    # `rd / "cap"` and nothing outside this block reads it.
     var recorded: seq[string]
     for t in mixedDoc["transactions"]:
-      if t["outcome"].getStr in ["replayed", "divergent"] and
-         t{"recordedBy"}.getStr.len == 0:
+      if t["outcome"].getStr in ["replayed", "divergent"]:
         recorded.add t["txHash"].getStr
     recorded.sort()
     doAssert recorded.len >= 2,
@@ -3885,6 +4012,10 @@ suite "14 — one chain carries containers from two recorders, each filed as its
       "about a MIXED chain; it holds " & $recorded.len
     viaCapturesTx = recorded[0]
     viaRecordedByTx = recorded[1]
+    # NOTHING TO CLEAR HERE. `baseCap` above already normalised every replayed
+    # row onto the chain default, and this copy is taken from it — so these two
+    # rows take the default by construction and the attributions below override
+    # a default rather than overwrite a fact.
     # (a) a `captures[]` entry — the follower's own contemporaneous note of
     #     which build was running when it caught this transaction.
     var attributed = 0
@@ -4929,3 +5060,42 @@ suite "18 — who called what, from the snapshot to the row":
     #   1 — the empty-address role is dropped
     #   3 — and all three are empty when the snapshot states neither
     expectCount(3 + 1 + 3)
+
+suite "a transaction's ordering row is the chain's own coordinate":
+  asserted = 0
+  ## Static-Site-Architecture.md §2.3 makes ordering a union. A checkpoint-ordered
+  ## chain (Sui) has no block position, so its transaction page must name the
+  ## checkpoint and not print a fabricated `0:0` linked to `/block/` with no hash.
+
+  test "a checkpoint row names the checkpoint and links nowhere":
+    var v: TxView
+    v.hash = "StiTgKUtyMD1bMYjH2qJPWTVsGrrrkNFKrM52iYu8xi"
+    v.positionKnown = false
+    v.orderKind = tokCheckpoint
+    v.orderLabel = "336806210"
+    let rows = txMetadataRows(RealChain, v, chainInfo(root, RealChain))
+    let cp = rows.filterIt(it.label == "Checkpoint")
+    ck cp.len == 1
+    ck cp.len == 1 and cp[0].value == "336806210"
+    ck cp.len == 1 and cp[0].href == ""
+    ck rows.filterIt(it.label == "Block").len == 0
+
+  test "CONTROL: a height-ordered row is the linked block and index, as before":
+    var v: TxView
+    v.hash = "0xreal"
+    v.positionKnown = true
+    v.orderKind = tokBlockIndex
+    v.height = 19_000_000
+    v.index = 12
+    v.blockHash = "0xabc"
+    let rows = txMetadataRows(RealChain, v, chainInfo(root, RealChain))
+    let blk = rows.filterIt(it.label == "Block")
+    ck blk.len == 1
+    ck blk.len == 1 and blk[0].value == "19000000:12"
+    ck blk.len == 1 and blk[0].href == blockUrl(RealChain, "0xabc")
+    ck rows.filterIt(it.label == "Checkpoint").len == 0
+
+  test "assertion count":
+    #   4 — the checkpoint row: one row, its value, no link, no Block row
+    #   4 — the control: one Block row, its value, its link, no Checkpoint row
+    expectCount(4 + 4)

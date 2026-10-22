@@ -213,7 +213,43 @@ html[data-register="debugger"],
   border-bottom-color:var(--bt-status-info-border);
   border-left-color:var(--bt-status-info-border)}
 .dbgbanner .bannertitle{font-weight:var(--bt-type-h3-weight);white-space:nowrap}
-.dbgbanner .bannertext{color:inherit;max-width:var(--bt-measure-prose)}
+/* THE BAND IS FULL-BLEED AND THE PROSE WAS NOT, so the width the band spent
+   was mostly empty and its HEIGHT never fell. Measured at 1440x900: a 1440px
+   band, 183px tall, holding a 610px column of 8 lines — 654px of painted
+   surface with nothing in it, and at 1920 the band grew to 1920px while the
+   column stayed 610px, so the waste rose to 1134px and the height did not
+   move. 183px is 20% of the viewport, taken from the IDE below it, which got
+   601px of 900.
+
+   `max-width: var(--bt-measure-prose)` is why, and it is not wrong: a line of
+   prose 1200px long is unreadable, which is the whole reason the measure
+   token exists. So the cap moves from the COLUMN to the LINE — `columns`,
+   which keeps every line inside a measure and spends the leftover width on
+   more lines side by side instead of on emptiness.
+
+   THE COLUMN WIDTH IS `--bt-measure-narrow` (44ch) AND NOT `--bt-measure-
+   prose` (68ch), and that is the whole of the trick rather than a detail.
+   `columns:<width>` is a MINIMUM, and the count the browser derives is
+   `floor((available + gap) / (width + gap))`. The band's text area is 1240px
+   at 1440 viewport; with the 68ch prose measure that is floor(1264/634) = 1,
+   so it yields a SINGLE column 1240px wide — the unreadable line the measure
+   exists to prevent, arrived at by asking for the measure. Tried, measured,
+   rejected. At 44ch (~395px) the same arithmetic gives 3 columns of ~397px at
+   1440, 2 of ~528px at 1280 and 4 of ~412px at 1920 — every one of them
+   inside the prose measure, at every width, and never one column.
+
+   `column-fill:balance` so two short columns are equal rather than one full
+   and one with a single line in it, and `orphans`/`widows` so a column never
+   ends on one line of a sentence.
+
+   NOT A CHANGE TO WHAT THE BANNER SAYS OR WHO SEES IT. It is still page
+   level, still undismissable, still carries the rail and the title that the
+   rules above argue for. Only the shape of the paragraph changed. The length
+   of the copy is the other half of this and is NOT settled here: eight lines
+   of prose above an IDE is a lot, and CodeTracer puts none there at all. */
+.dbgbanner .bannertext{color:inherit;flex:1 1 auto;min-width:0;
+  columns:var(--bt-measure-narrow);column-gap:var(--bt-rhythm-stack);
+  column-fill:balance;orphans:2;widows:2}
 
 /* §6.0a's landing notice: where a deep link actually put the session, when
    that is not where it asked to be.
@@ -469,11 +505,7 @@ a.lm_title{display:block;line-height:inherit}
    pitch: L3 measured the last fully-inside-the-box line at 2.19-2.22:1 against
    the floor, so the ramp stays at `lg` rather than lengthening, and the next
    move is a different treatment rather than a different number. */
-.lm_content{flex:1 1 0;min-height:0;overflow:auto;
-  -webkit-mask-image:linear-gradient(to bottom,currentColor
-    calc(100% - var(--bt-space-lg)),transparent);
-  mask-image:linear-gradient(to bottom,currentColor
-    calc(100% - var(--bt-space-lg)),transparent)}
+.lm_content{flex:1 1 0;min-height:0;overflow:auto}
 
 /* ── a note INSIDE a panel, which is not an empty panel ─────────────────── */
 /* NO CODETRACER COUNTERPART, and upstream says so itself. `empty_states.styl`
@@ -563,7 +595,55 @@ a.lm_title{display:block;line-height:inherit}
    `flex:1 1 0` items under an auto-height ancestor resolves to zero — which
    renders the pane empty rather than short. The explicit height gives the
    chain a definite one to divide. */
-.srcwrap{display:flex;flex-direction:column;min-height:0;height:100%}
+/* ── THE CODE IS THE PANE'S FLOOR, NOT ITS REMAINDER ──────────────────────
+   `min-height:0` used to sit where the floor below is, and it let the one
+   thing the pane exists to show be the one thing squeezed out of it.
+
+   MEASURED at 1280x720 on `/aztec-testnet-frames/tx/0x0a807e4e…/debug`, a
+   capture that resolves source for 86 of its 459 steps and therefore carries
+   every explanatory band at once: pane 435px, and above `.srcwrap` sit
+   `.srcpos` 29, `.srcrung` 99, `.srccause` 195, `.srcattr` 139 and `.srcnone`
+   121 — 583px of prose in a 435px pane. `.srccause` and `.srcattr` are
+   `flex:0 0 auto` and cannot give, so the whole 583px deficit landed on the
+   one child that could: `.srcwrap` resolved to 0px, `.src` inside it to 8px,
+   and the listing rendered ZERO rows. The reader was shown five notes
+   explaining a listing that was not on the screen.
+
+   WHY A FLOOR AND NOT A SHRINK ORDER. The bands cannot be shrunk into
+   usefulness — they are 583px of sentences — so the question is not how to
+   divide 435px but which way the pane overflows. `.lm_content` is already
+   `overflow-y:auto`, so a floor here makes the pane scroll and the reader
+   reaches the notes by scrolling past them, in the order the page states
+   them.
+
+   THE VALUE IS DERIVED, NOT CHOSEN, like `.srcstrip`'s directly below. It is
+   that same strip row — the tab box plus the list's `3xs` padding and the
+   row's hairline — plus eight rows of code at the code type's own size and
+   line height, and it resolves to 222px. Eight because the pane has to show a
+   position IN CONTEXT: the marked line, and enough either side of it to read
+   what it is doing.
+
+   WHAT THE FLOOR ACTUALLY PUTS ON THE SCREEN IS SIX ROWS, NOT EIGHT, and the
+   difference is not slack in the number. The floor is on `.srcwrap`, and the
+   active `.srcdoc` inside it carries its OWN tab strip — 33 files on this
+   subject — whose height depends on how those tabs wrap. Measured on the same
+   subject, `.srcwrap` at the floor both times: 1280x720 gives `.src` 139px
+   and six rows, 1440x900 gives 158px and six. A floor on `.srcwrap` can
+   promise the listing a definite share of the pane; it cannot promise a row
+   count, because what sits above the listing INSIDE it is width-dependent.
+   Six rows of context is the measurement, and it is the one to re-read if
+   this number is ever raised.
+
+   AT A HEALTHY VIEWPORT THIS CHANGES NOTHING, which is the other half of the
+   claim. Measured at 1920x1080 on the same subject, before and after: pane
+   797px, `.srcwrap` 336px, `.src` 289px, 12 rows, `scrollHeight ==
+   clientHeight` — identical readings. The floor is 222px, under the 336 the
+   layout already gives it, so it does not bind. At 1280x720 and 1440x900 it
+   does, and the pane scrolls (813 over 435, and 757 over 617). */
+.srcwrap{display:flex;flex-direction:column;height:100%;
+  min-height:calc(var(--bt-layout-tabstrip-row-min) +
+    2 * var(--bt-space-3xs) + var(--bt-stroke-hairline) +
+    8 * var(--bt-type-code-size) * var(--bt-type-code-line))}
 /* One panel per document, switched by `:target`. The ACTIVE document is
    emitted last so every alternate can reach forward and hide it — CSS has
    only a forward sibling combinator. Each panel carries its OWN tab strip
@@ -606,8 +686,36 @@ a.lm_title{display:block;line-height:inherit}
    instruction-listing page, and an earlier draft of this paragraph quoted it
    literally — which put one occurrence on every listing page in the build and
    turned a comment into a red suite. */
+/* THE ROW'S HEIGHT IS ITS OWN, NOT ITS TALLEST CHILD'S, and that is what the
+   paragraph above promises: "it leaves the flow entirely, so the row keeps its
+   height, the document keeps its position". It did not. MEASURED at 1280 and
+   1440 on three subjects: opening the list took 5px out of the row and pulled
+   the source up with it, because the tab row IS the tallest child and taking
+   it out of flow leaves the trigger — five pixels shorter — setting the
+   height on its own.
+
+   THE FLOOR IS IN THE SAME UNITS THE TAB IS BUILT FROM, so it cannot drift
+   from it. `.srctab` carries the design system's `ct-tab`, whose box is
+   em-relative all the way down — `padding:0.5em 0.75em`, `line-height:1.2`,
+   `border-bottom:0.125em` — which is the 2.325em of vertical box that
+   `--bt-layout-tabstrip-row-min` holds. Add the list's own `3xs` padding top
+   and bottom and this row's hairline, and the floor is the closed row,
+   expressed as the same arithmetic rather than as the 36.8px it comes to.
+
+   THE EM LIVES IN THE TOKEN AND NOT HERE, and A2 is why: a Layer 2 view may
+   carry no raw length, and it caught this one — `debugger_css.nim:632
+   2.325em`. The rule is right and the token is the better home anyway: the
+   quantity is the design system's tab box, which is Layer 1's to state.
+
+   It is a FLOOR and deliberately a hair above the natural height: a rounded
+   border makes the exact natural height a fraction smaller, and a floor that
+   can sit below it would let the two states diverge again on a platform whose
+   font metrics differ. Above it, both states resolve to the floor and the row
+   cannot move. */
 .srcstrip{position:relative;display:flex;align-items:stretch;flex:0 0 auto;
   min-width:0;
+  min-height:calc(var(--bt-layout-tabstrip-row-min) +
+    2 * var(--bt-space-3xs) + var(--bt-stroke-hairline));
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   background:var(--bt-surface-sunken)}
 .srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:nowrap;
@@ -657,8 +765,22 @@ a.lm_title{display:block;line-height:inherit}
    surface rather than a colour of its own, so it is not a shadow in the visual
    sense at all: it is a soft mask that fades the text approaching the chip
    instead of clipping it, and it is invisible when the tab is in its natural
-   position with nothing underneath to fade. Same idiom as the code pane's
-   right-edge fade — one overflow treatment on this page, and it is the fade. */
+   position with nothing underneath to fade.
+
+   IT IS NOW THE ONLY MASK OF ITS KIND ON THE PAGE. This used to read "same
+   idiom as the code pane's right-edge fade"; that fade, and the five other
+   `mask-image` fades this repository carried, were removed because
+   CodeTracer's own chrome spends no gradients and the operator's report was
+   that they are what BlockTracer does and the product does not. So the
+   sentence naming a sibling was left pointing at a rule that no longer
+   exists. All six that went were `mask-image`; the `box-shadow` below was
+   never one of them, which is why it is still here to be explained.
+
+   IT SURVIVES ON DIFFERENT GROUNDS from the ones that went. Those were
+   decoration over a scroll edge. This is the occlusion a sticky chip needs in
+   order not to cut the tab passing beneath it mid-glyph. If that need goes
+   away — a tab strip that cannot overflow, or a pin that is not sticky — this
+   goes with it rather than becoming a house style. */
 .srctab.on{position:sticky;left:0;right:0;z-index:1;
   background:var(--bt-surface-sunken);
   box-shadow:0 0 var(--bt-space-xs) var(--bt-space-3xs) var(--bt-surface-sunken);
@@ -830,12 +952,19 @@ a.lm_title{display:block;line-height:inherit}
   font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line);
   color:var(--bt-text-code);background:var(--bt-surface-raised);
   padding:var(--bt-space-2xs) 0;min-width:0;flex:1 1 0;overflow:auto}
-.src,.mdsec pre.raw{
-  -webkit-mask-image:linear-gradient(to right,currentColor
-    calc(100% - var(--bt-space-2xl)),transparent);
-  mask-image:linear-gradient(to right,currentColor
-    calc(100% - var(--bt-space-2xl)),transparent);
-  -webkit-mask-clip:padding-box;mask-clip:padding-box}
+/* ── NO SCROLL-EDGE FADE: CODETRACER HAS NO GRADIENT ANYWHERE ─────────────
+   Measured across all eight vendored CodeTracer component stylesheets:
+   ZERO occurrences of `gradient` of any kind. This repository had six, and
+   all six were this one idea — a `mask-image` dissolving the last
+   `--bt-space-2xl` (or `lg`) of a scroller to say "the content continues".
+   It is a real affordance and it is not upstream's; a reader with both
+   products open sees BlockTracer's panes dissolve at an edge where
+   CodeTracer's end on a hard line, and the fade is the most visible of the
+   differences because it is in motion whenever anything scrolls.
+
+   Removed rather than tokenised. What replaces it is the browser's own
+   scrollbar and the hard edge upstream uses, which is the whole of
+   CodeTracer's answer to the same question. */
 /* `min-width:max-content` stops a row being narrower than its own text, so a
    long line is not wrapped or squeezed by the pane it scrolls inside.
 
@@ -1967,7 +2096,22 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    on the text baseline and would have left the descender's worth of space
    inside a 32px button that has none to give. */
 .dcglyph{display:block}
-.dcglyph .dcmark{display:block;width:var(--bt-space-md);height:var(--bt-space-md)}
+/* ── THE MARK'S SIZE IS UPSTREAM'S, AND IS DELIBERATELY NOT RESTATED ──────
+   `.dcglyph .dcmark{width:…;height:…}` sized the hand-drawn marks this
+   repository used to carry. The marks are CodeTracer's now
+   (`vendor/.../debug_control_marks`), they carry `.ct-control-mark`, and the
+   vendored `button.styl` sizes that class — `height: 1em`, width resolved
+   from the viewBox, with its own comment explaining that the strip's marks
+   are not all square (`0 0 18 17` among them) and that fixing the width
+   would squash two of them.
+
+   So nothing replaces the deleted rule. A `width`/`height` here would be
+   this repository having an opinion about a design value it has just
+   finished handing upstream, and it would silently win — a local rule
+   against a vendored one is the fork the vendoring exists to prevent.
+
+   `display:block` on the WRAPPER stays: it is about the span, not the mark,
+   and the comment above it records the descender it removes. */
 /* A TRACK, not forty tick marks. `gap:0` is the whole difference: at one
    hairline between ticks the control read as ~40 low-contrast dashes with no
    track, no handle and no endpoints — a decorative equaliser rather than the
@@ -1998,8 +2142,18 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    at 10% on a page that is loading an 18 MB engine reads as the engine's
    loading, not as position in a trace. Full track height and the strong accent
    so it is the most legible mark in the control. */
+/* THE FLOOR IS `--bt-space-2xs` (4px) AND NOT `--bt-stroke-thick` (2px). The
+   track is 260px wide and carries 48 ticks, so a tick is ~5.4px and the
+   playhead — which is one tick — was being floored at 2px, under half of its
+   neighbours. At step 1 of 790 that put a 2px accent mark at the extreme left
+   end of a 260px bar with no elapsed run beside it yet, and a reviewer looking
+   at the control reported it as "a uniform grey bar with no thumb". The mark
+   was there and was doing everything this rule asks of it; it was simply too
+   thin to be found. 4px is still inside one tick, so the playhead never
+   overlaps its neighbour, and it is a SPACING rung rather than a stroke
+   because what is being set is the width of a mark, not the weight of a line. */
 .dctl .tick.at{background:var(--bt-mark-position);height:100%;
-  min-width:var(--bt-stroke-thick);border-radius:var(--bt-radius-xs);
+  min-width:var(--bt-space-2xs);border-radius:var(--bt-radius-xs);
   flex:0 0 auto}
 /* THE GESTURE, SAID AS A CURSOR — and only where the gesture exists.
    `.seekable` is stamped by `hydrate.markScrubberSeekable`, which is in the
@@ -2059,11 +2213,61 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
   font-size:var(--bt-type-body-sm-size)}
 .mdrevert.bad{color:var(--bt-status-danger-fg)}
 .mdrevert.note{color:var(--bt-text-muted)}
-.mddl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0}
+/* THE LABEL COLUMN MUST BE ABLE TO SHRINK, AND IT COULD NOT.
+   `auto` sizes the first column to its widest label, and `.mddl dt` was
+   `white-space:nowrap`, so the longest label was UNBREAKABLE and took whatever
+   width it wanted. On this corpus that label is `Cost · Transaction<nbsp>fee`,
+   and at @laptop it left the value column too narrow for its own contents:
+
+     AGE       `No timestamp published`  overflows its <dd> by 14px
+     FINALITY  `Finalized`               overflows its <dd> by  6px
+     SOURCES   `Instruction level`       overflows its <dd> by 19px
+
+   `FINALIZED` IS WHY THIS IS A COLUMN FIX AND NOT A WRAPPING ONE. The other
+   two are phrases and `white-space:normal` on the pill lets them wrap — that
+   rule is already here, at `.mddl dd .badge`, and already shipped. A single
+   word cannot wrap, so a six-pixel overflow on `Finalized` says the CELL is
+   too narrow and no amount of pill wrapping will reach it.
+
+   So the column is `minmax(0,auto)`, which lets it shrink below its content,
+   and the label may wrap. THE NON-BREAKING SPACE STAYS: it holds
+   `Transaction fee` together while permitting the break after `Cost ·`, which
+   is the break a reader would choose.
+
+   `fit-content(45%)` AS THE MAX, BECAUSE SHRINKING WHEN FORCED IS NOT THE
+   SAME AS SHARING. `minmax(0,auto)` only gives width back when the track
+   cannot otherwise fit; while it fits, `auto` still takes max-content, so on
+   the debug route's 284px metadata pane the label column settled at ~170px
+   and left the values 114px — about twelve characters a line. Measured there:
+   `Aztec testnet — live Noir call frames` wrapped to 4.4 lines, `No timestamp
+   published` to 3.4 and `Instruction level` to 2.4, while `Yes` and `Pending`
+   sat on one. Nothing overflowed — the wrapping fix above holds — but a pane
+   whose every informative value is four lines tall and whose labels are one
+   is not reading as a two-column grid any more.
+
+   The cap bounds the label track at 45% of the pane instead of at its own
+   max-content, so the values get the rest. It is a MAXIMUM and not a fixed
+   width: a short-labelled grid still sizes to its labels and nothing is
+   padded out to 45%.
+
+   `fit-content(45%)` IS WRITTEN BARE AND NOT INSIDE `minmax()`. The obvious
+   spelling — `minmax(0,fit-content(45%))`, to keep the explicit 0 floor the
+   note above asks for — is INVALID: `minmax()` takes a breadth, and
+   `fit-content()` is not one. An invalid track list drops the whole
+   declaration, the grid falls back to `none`, and every row auto-places into
+   one implicit column: built, measured, and caught by the value cells coming
+   back 286px wide in a 286px pane. The floor is not lost by writing it bare,
+   because `fit-content()` already resolves to `minmax(auto, …)` and `auto`
+   here is min-content — and `.mddl dt` is `white-space:normal` with
+   `overflow-wrap:break-word`, so its min-content is one word, not the whole
+   label. That is exactly the shrink-and-wrap behaviour the original note
+   needs. */
+.mddl{display:grid;
+  grid-template-columns:fit-content(45%) minmax(0,1fr);gap:0}
 .mddl dt{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);
   letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;
-  color:var(--bt-text-subtle);white-space:nowrap;
+  color:var(--bt-text-subtle);white-space:normal;overflow-wrap:break-word;
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
 /* `word-break:break-all` applied to the whole cell broke WORDS as well as
    hashes: `mana (FeeJuice)` came out as `mana (Fe` / `eJuice)`, which three
@@ -2136,7 +2340,37 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    `normal` PERMITS wrapping, it does not force it: `Yes` and `Pending` have
    room and still occupy one line. Scoped to `.badge`, so the `.muted` SUFFIX
    span above keeps its nowrap — `mana (FeeJuice)` must not come apart. */
-.mddl dd .badge{white-space:normal}
+/* ── `normal` WAS NOT ENOUGH, AND THE REASON IS THE MIN-CONTENT FLOOR ─────
+   `white-space:normal` lets the pill's text wrap at a SPACE. It does not let
+   the pill be narrower than its widest WORD, and `.badge` is
+   `display:inline-flex`, so that text is an anonymous flex item whose
+   `min-width:auto` resolves to exactly that min-content width. A cell
+   narrower than one word plus the pill's padding is therefore still
+   overflowed, by the difference.
+
+   `.mddl dd` declares `overflow-wrap:break-word`, which does NOT reduce
+   min-content size — that is the whole documented difference between it and
+   `anywhere`, and it is why the explorer's `.dl dd`, which has carried
+   `overflow-wrap:anywhere` since it was written, does not clip while this
+   list does.
+
+   MEASURED on run 39352321787, where `check-badge-legibility` went red having
+   been green on the run before it over the same bytes, on
+   `/aztec-testnet/tx/0x0858d644…` @laptop: `No timestamp published` by 14px,
+   `Instruction level` by 19px, `Finalized` by 6px. It passes on this
+   workstation — the gate's own control strip reads "Finalized 84px outside a
+   scrolling table" here against 106px there, so the runner's glyphs are
+   simply wider, and 6px of margin is not a design.
+
+   REPRODUCED BY WIDENING THE TEXT RATHER THAN BY GUESSING AT THE HOST. With
+   `letter-spacing` forced on the pill at 1440px, 4 badges clip at 1.25em and
+   5 at 2em (`No timestamp published` 296px in a 114px cell); with this one
+   declaration added, ZERO clip at every step. The gate's own instruction is
+   "let the pill wrap where its text is unbounded", and this is what lets it.
+
+   Scoped to the pill and not raised on `.mddl dd` itself: the cell's values
+   are identifiers and numbers, and `break-word` is the right floor for them. */
+.mddl dd .badge{white-space:normal;overflow-wrap:anywhere}
 .mddl dd a{color:var(--bt-text-link);text-decoration:underline;
   text-underline-offset:var(--bt-space-3xs)}
 .mdexec{padding:var(--bt-density-cell-y) var(--bt-density-cell-x)}

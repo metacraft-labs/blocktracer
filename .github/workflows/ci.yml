@@ -478,7 +478,7 @@ jobs:
       # They are all offline and toolchain-free, which is why they belong in
       # THIS job rather than behind the Nix runner.
       - name: Does the replay verdict rule bite? (which outcome a driver run is)
-        # 98 assertions over twelve cases of recorded driver output. The three
+        # 105 assertions over thirteen cases of recorded driver output. The three
         # that have already
         # cost something are pinned as fixtures: a non-zero exit that is a
         # divergence and not a refusal, a refusal whose name was `unknown`
@@ -532,7 +532,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 238 assertions, and the reason it is offline is the reason it
+        # ING-3, 241 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -858,7 +858,7 @@ jobs:
         run: node tools/chain/yield-method-selftest.mjs
 
       - name: Does the committed `.ct` corpus census refuse a corpus that moved?
-        # 6 arms on every host, plus two more where a container reader is present.
+        # 7 arms on every host, plus two more where a container reader is present.
         # Two configurations rather than one, for `chain-health-selftest`'s reason:
         # the version census is read from the BYTES and runs anywhere, while
         # readability needs `ct-print`, which is not a dependency of this
@@ -920,15 +920,19 @@ jobs:
         run: node tools/chain/eth-regen-check-selftest.mjs
 
       - name: Are a Flow transaction's three roles and fee vector published as the chain states them?
-        # 6 assertions, offline and needing only node: the committed block listing and
+        # 9 assertions, offline and needing only node: the committed block listing and
         # transcript under fixtures/chain-inputs/flow-mainnet/ are read off disk. Each
         # arm runs beside its control -- distinct payer, proposer and authorizers against
         # one account in every role, a FeesDeducted event against none -- so a function
-        # that returned a constant fails one side.
+        # that returned a constant fails one side. The last three are the DECLARED
+        # executable format (Chain-Delivery DEL-6): the token names the format and not the
+        # executor, the convention is derived from the four chains that already declare
+        # one, and the producer is shown to spell the member through its facts module --
+        # each beside a planted defect, including the token this module used to export.
         run: node tools/chain/flow-producer-facts-selftest.mjs
 
       - name: Does the Sui producer state its chain's facts and refuse a broken window?
-        # 34 assertions, host-independent: every arm is offline and needs only node.
+        # 41 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Sui producer's roles (sponsored, self-paid, system), its signed
         # storage-rebate cost entry, the seven-fact effects comparison a traced
@@ -941,14 +945,17 @@ jobs:
         run: node tools/chain/sui-producer-selftest.mjs
 
       - name: Does the Starknet producer state its chain's facts and refuse what it cannot publish?
-        # 26 assertions, host-independent: every arm is offline and needs only node.
+        # 31 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Starknet producer's three-dimension cost vector and fee, the roles each
         # transaction type has (none for an L1 handler), the multicall payload, and the
         # producer over container-free captures: a refused era published as refusals,
         # and refusals for a missing or uncontrolled floor probe, a foreign report
-        # format, a report missing a row and a recorded row with no container. Traced
-        # rows need a container and are run by `just starknet-capture`.
+        # format, a report missing a row and a recorded row with no container; and a
+        # class's artifact row from the recorder's source binding (resolved when bound,
+        # not when the binding was refused; shown at Cairo lines only when its sources
+        # are republished). Traced rows need a container and are run
+        # by `just starknet-capture`.
         run: node tools/chain/starknet-producer-selftest.mjs
 
       - name: Does the Solana producer state its chain's facts, and do its committed inputs hold?
@@ -961,6 +968,34 @@ jobs:
         # so it goes red the day the row lands. Traced rows need the recorder and are
         # built by `nix build .#sol-capture-tree`.
         run: node tools/chain/solana-producer-selftest.mjs
+
+      - name: Is every abstraction DEL-7 extracted reached by two chains?
+        # 33 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # Chain-Delivery DEL-7's `test_every_abstraction_has_two_consumers`. Each export of
+        # `lib/producer-runtime.mjs` is counted by the producers' and facts modules' own
+        # import statements, with `solana` and `sol` folded to one chain so one network
+        # cannot supply two consumers. Four controls run in the same pass: one consumer's
+        # import is deleted and the same judgement is watched reporting the shortfall; the
+        # no-dispatch judgement is driven against a synthetic module that does dispatch;
+        # the shared exit path is driven with a source refusal and must answer 1 where a
+        # configuration refusal answers 2; and the classification file is mutated to claim
+        # a consumer the code does not have. It also runs all five producers with no
+        # arguments and reads their real exit codes.
+        run: node tools/chain/abstraction-consumers-selftest.mjs
+
+      - name: Can DEL-7's ingestion classification be shown to be wrong?
+        # 24 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # Chain-Delivery DEL-7's `test_the_classification_can_be_wrong`. Four ways a
+        # classification can be wrong, judged against the code rather than the document:
+        # a component called network-agnostic with nothing shared; one whose consumers pass
+        # behaviourally different arguments with no finding recorded, and the mirror of
+        # that; one called network-specific that two chains in fact share; and one called
+        # per-prestate-class whose consumers are not one class. Each prestate class is read
+        # from the chain's own `PRESTATE_STRATEGY`, so the document cannot decide its own
+        # test, and every judgement is re-run against a deliberately mis-classified copy.
+        run: node tools/chain/classification-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this
@@ -1545,12 +1580,45 @@ jobs:
           nix develop .#ci --command bash -c \
             'cd client && nim c -r --mm:orc -d:isServer -d:release --hints:off src/static_export.nim'
 
+      # Does the canary tell a dead browser from a moved harness? Bare `node`
+      # is deliberate here and nowhere else in this job: the arms are pure
+      # string classification over CI output captured verbatim, with no browser,
+      # no build and no pinned environment to need.
+      - name: Does the canary tell a dead browser from a moved harness?
+        run: nix run .#capture-env -- node tools/capture/canary-retry-selftest.mjs
+
       - name: Tier 1 — the determinism canary, byte-identical
         # verify_canary_capture_is_byte_identical. Two captures of the canary
         # set in two separate processes; the assertion is byte-identity, not a
         # threshold, because at this scope anything less exact is not answering
         # the question.
-        run: nix run .#capture-env -- node tools/capture/check-canary.mjs --no-build
+        #
+        # ── EXIT 3 IS "DID NOT RUN", NOT "THE HARNESS MOVED" ──────────────
+        #
+        # Measured across four runs of this job: it failed on
+        # `garm-kkxhwoqhagaz` and on `gpu-server-002-mcl-001`, capturing 0 of
+        # 5 images and naming `Target page, context or browser has been
+        # closed`, and PASSED on `gpu-server-002-mcl-003` with the same
+        # labels, the same commit shape and the same pinned environment.
+        # `--disable-dev-shm-usage` and `chromiumSandbox: false` are both
+        # already set, so the usual container causes are not it; what varies
+        # is the host.
+        #
+        # The checker retries a dead browser (three attempts) and exits 3 if it
+        # stays dead, which is a different sentence from exit 1. BOTH ARE RED —
+        # a canary that cannot run leaves every tier-2 baseline unverified and
+        # passing would be worse — but the title says which, so nobody looks
+        # for a rasterisation change that did not happen. Same shape as the
+        # `rc -eq 3` arm on the gate-selftest step below.
+        run: |
+          set -uo pipefail
+          rc=0
+          nix run .#capture-env -- node tools/capture/check-canary.mjs --no-build || rc=$?
+          if [ "$rc" -eq 3 ]; then
+            echo "::error title=DID NOT RUN — the canary browser died::The browser closed before any image was captured, on every attempt. Nothing was compared, so this is not a verdict about determinism. What varies is the host; see the step comment."
+            exit 1
+          fi
+          exit "$rc"
 
       - name: The tier-1 verdict is USABLE — not advisory, not incoherent
         # verify_canary_failure_invalidates_the_baselines, from the other side.
@@ -1905,6 +1973,21 @@ jobs:
             bash ci/test/ct-styles-vendor.sh &&
             bash ci/test/ct-styles-vendor-test.sh'
 
+      - name: Every shell that can run the exporter carries what it needs
+        # `devShells.capture` ran the exporter without `brotli` and nothing
+        # said so until a full canary capture had failed on it (run
+        # 38643115341). The exporter REFUSES rather than degrading, which is
+        # right — but a multi-minute browser capture is the wrong place to
+        # learn that a 1 MB binary is missing from a package list.
+        #
+        # The rule is `nim` implies `brotli`, over the REALISED inputs of every
+        # dev shell rather than the text of `flake.nix`: `devShells.default`
+        # names neither package and has both, so a grep would have passed it.
+        run: |
+          nix develop .#ci --command bash -c '
+            bash ci/test/devshell-exporter-deps.sh &&
+            bash ci/test/devshell-exporter-deps-test.sh'
+
       # DOES `test_selection_detail.nim` BITE? The proof-of-bite for the one Nim
       # suite that exists BECAUSE a guard somewhere else was dead.
       #
@@ -2073,11 +2156,30 @@ jobs:
       # journeys below are going to refuse and this names the reason in one
       # screen.
       #
-      # The figures are ASSERTED, not printed. `--expect-opened 10
-      # --expect-refused 45` is today's engine against today's corpus; either
+      # The figures are ASSERTED, not printed. `--expect-opened 52
+      # --expect-refused 3` is today's engine against today's corpus; either
       # number moving is a finding — a re-pin, a container re-encoded, or a
       # corpus that gained or lost a recording — and the commit that changes a
       # number has to say which.
+      #
+      # MOVED 10/45 -> 12/43 ON 2026-10-14, and both halves are "a container
+      # re-encoded". The two `chain/aztec` containers were RE-RECORDED from
+      # container 3 to container 6 with the compact profile, and the ten
+      # `fixtures/trace` containers were CONVERTED from container 5 to container
+      # 6 by `tools/chain/compact_container.nim` applying `ctfs-container.md`
+      # §1e at its RECOMMENDED 1 MiB raw ceiling.
+      #
+      # MOVED 12/43 -> 52/3 ON 2026-10-16, and it is one cause: the FORTY
+      # REMAINING container-3 recordings were re-recorded. Every `.ct` this
+      # repository commits is now container 6 / `meta.dat` 6 / profile 1, and
+      # the pinned engine opens all fifty-two.
+      #
+      # THE THREE REFUSALS ARE NOW A FIXED SET and not a remainder: the
+      # conformance kit's 229-byte ASCII placeholders, which are not containers
+      # by design. `--expect-refused 3` therefore asserts something stronger
+      # than it used to — that nothing in the corpus is unreadable EXCEPT the
+      # three files that are deliberately not containers. A forty-first
+      # refusal is now visible as a finding instead of being lost in a count.
       #
       # THE SELFTEST RUNS FIRST, HERE AND NOT IN `deploy-gates`, because this is
       # the one job with an engine staged. Six of its ten arms need a verdict
@@ -2091,7 +2193,7 @@ jobs:
         run: |
           nix develop .#ci --command node tools/deploy/engine-opens.mjs \
             --engine client/.replay-engine-cache --corpus \
-            --expect-opened 10 --expect-refused 45
+            --expect-opened 52 --expect-refused 3
 
       # THE WORKING TREE IS NOT THE NIX BUILD, and the selftest below uses the
       # working tree.
@@ -2262,10 +2364,111 @@ jobs:
   # A SHARD IS NOT A VERDICT. Its journal is a claim about the arms it holds;
   # the claim about the suite is made by `journeys-combine` below, and only
   # there.
+  #
+  # ── AND EIGHT AT ONCE WAS THE THING THAT BROKE, NOT EIGHT ─────────────────
+  #
+  # The sizing above divides WORK by shards and says nothing about how many
+  # shards are in flight. Eight were, and the pool cannot carry eight
+  # browser-driving jobs: `gh api orgs/metacraft-labs/actions/runners` lists
+  # seven non-GARM `self-hosted linux x64` runners, and FOUR OF THEM —
+  # `gpu-server-002-mcl-001` through `-004` — are four runners on ONE host.
+  # Eight shards, plus `journeys`, `contract` and `visual-design-canary`, is
+  # more browser-heavy jobs than there are machines.
+  #
+  # WHAT THAT COST, measured on run 39006414958, and it is all four failure
+  # shapes at once:
+  #
+  #   shards 1, 2     timed out at 150 minutes mid-sweep
+  #   shards 3, 4     aborted on an Arm II refusal that was a 30s SILENCE
+  #                   (see `engineArm`'s retry) and not a refusal
+  #   shards 6, 7, 8  lost their runners outright — steps with a `null`
+  #                   conclusion, no logs uploaded, at 05:54:4x and 06:16:0x
+  #   journeys-combine  5 of 8 shards left no journal, so there was nothing
+  #                   to combine and the suite's claim was never made
+  #
+  # And the per-arm cost moved with the contention rather than with the arms:
+  # shard 1 did five arms in its first 19 minutes and then did not finish
+  # four more in the next 131; shard 5 averaged 16.3 min/arm over a full nine
+  # while seven siblings were running. The sizing above was computed at 9.65.
+  #
+  # `max-parallel` AND NOT A SHARD COUNT, because the two bound different
+  # things. `timeout-minutes` bounds ONE JOB; the matrix's total wall clock is
+  # not bounded by anything and does not need to be. Capping concurrency makes
+  # each shard an uncontended job that finishes well inside 150 while the
+  # SWEEP takes three waves — and it leaves four runners for the jobs that
+  # were being starved beside it. Raising the shard count does the opposite of
+  # both: it is the same work in more, smaller, MORE contended pieces.
+  #
+  # THREE, from the pool and not from taste: seven runners, of which four
+  # share `gpu-server-002`. Three keeps at most two shards on that host and
+  # leaves `journeys`, `contract` and `visual-design-canary` a runner each.
+  #
+  # ── THREE WAS STILL TOO MANY, AND THE SWEEP NOW WAITS FOR `journeys` ─────
+  #
+  # `max-parallel: 3` fixed the shape and not the amount. On run 39352321787,
+  # the first run to carry it: the shards did go in waves, shard 8 finished a
+  # full nine arms, and no shard timed out. Two things still broke, and both
+  # are the pool.
+  #
+  #   * SHARD 7 DIED AT `browser.newPage` — "Target page, context or browser
+  #     has been closed", in Arm I, 2 minutes in, with nothing judged. It
+  #     started at 03:02:05, inside the same minute shard 4 ended and three
+  #     minutes before shard 8 began: three browser-driving jobs changing
+  #     hands at once on a pool where four runners share `gpu-server-002`.
+  #
+  #   * `journeys` ITSELF WENT RED IN THREE PLACES THAT ARE NOT VERDICTS about
+  #     the product. It ran 01:16–01:53, concurrently with shards 1, 2 and 3.
+  #     `a-jump-moves-the-position` read "call trace served 12, hydrated 12 ·
+  #     event log served 8, hydrated 8" — the engine's navigation feed had not
+  #     arrived inside the journey's bounded wait. `the-timeline-can-be-
+  #     dragged` landed every drop exactly (want == got, three of three) and
+  #     then found the slider carrying `seekable=false role=null
+  #     tabindex=null`. `a-session-shows-the-values-it-landed-on` landed with
+  #     `live_locals.TimedOutNote` and 0 rows, then read 5 on the way back.
+  #     All three were GREEN on the run before this one, over the same bytes,
+  #     and all three are green on an idle workstation. The budgets they
+  #     exceeded were measured on a machine that was not also running three
+  #     browser sweeps.
+  #
+  # So the sweep is sequenced AFTER `journeys` and capped at TWO. The ordering
+  # is not only about contention: this sweep's entire claim is "the journeys
+  # BITE", which is not a question worth five hours of runner time while the
+  # journeys themselves are red. A red `journeys` now skips it instead of
+  # paying for it.
+  #
+  # The cost is wall clock and it is stated rather than discovered: four waves
+  # instead of three, after a 40-minute `journeys`. The runner-hours do not
+  # change, and they were already being spent twice over on re-runs.
   journeys-bite:
+    needs: journeys
     runs-on: [self-hosted, linux, x64]
     strategy:
       fail-fast: false
+      # TWO SHARDS AT A TIME. This was briefly set to 1, and the reason it is
+      # back is arithmetic that was not done first.
+      #
+      # On run 39400689697 four of eight shards lost their browser between
+      # `chromium.launch()` and the first `newPage`, and memory pressure from a
+      # sibling shard was the reading that fit. Serialising is the one thing
+      # that removes that mechanism, so it was set to 1 as a test of the
+      # reading rather than as a dressing.
+      #
+      # THEN AN ARM WAS TIMED. Run 39777105820, shard 2: a single arm took
+      # 570s, because every arm rebuilds the tree three times — before,
+      # mutated, after. Nine arms is ~86 minutes a shard, so eight shards
+      # serially is ELEVEN HOURS against under six at two. A gate nobody can
+      # get a verdict from inside a working day is the state `ci.yml`'s own
+      # concurrency comment describes as "no commit is gated in useful time",
+      # and it is not worth a hypothesis.
+      #
+      # WHAT IS KEPT IS THE DIAGNOSTIC, which is the half that was not
+      # speculative: `probe.mjs` now proves the browser is alive at
+      # `openBrowser` and raises a classified REFUSAL — exit 2, DID NOT RUN —
+      # when it is not. So the next occurrence arrives as one line per shard
+      # naming the host, instead of nine NEVER RANs that blame the arms. If it
+      # recurs often enough to matter, the next move is a bigger runner or a
+      # cheaper arm, not a longer queue.
+      max-parallel: 2
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
@@ -2392,9 +2595,21 @@ jobs:
   # imports nothing else, so it needs neither the Nix runner nor a browser. A
   # gate that needs the busy Nix pool to state its verdict is a gate that waits
   # behind the thing it is judging.
+  #
+  # AND NOT WHEN THE SWEEP WAS SKIPPED, which `always()` alone could not say.
+  # `journeys-bite` now carries `needs: journeys`, so a red `journeys` leaves
+  # the matrix SKIPPED — and `always()` then ran this against zero journals and
+  # reported `DID NOT RUN — 8 of 8 shard(s) produced no verdict` as a FAILURE
+  # of its own, on top of the red it was downstream of. Measured on run
+  # 39377965689, where it was the third red line against two real ones.
+  #
+  # `!cancelled()` keeps the property the paragraph above is about — a red
+  # shard still reaches a verdict here — while `!= 'skipped'` says the thing
+  # `always()` cannot: a sweep that did not happen has nothing to combine, and
+  # saying so twice does not make the run more informative.
   journeys-combine:
     needs: journeys-bite
-    if: always()
+    if: ${{ !cancelled() && needs.journeys-bite.result != 'skipped' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

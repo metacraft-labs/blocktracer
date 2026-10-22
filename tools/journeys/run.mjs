@@ -346,6 +346,34 @@ async function engineArm(browser, site) {
     ],
     ["recordings that publish no source", sessions.filter((t) => !t.hasSource)],
   ];
+  // ── A SILENCE IS RETRIED ONCE; A REFUSAL IS NOT ───────────────────────
+  //
+  // This arm spends exit 2 — "nothing was judged" — and under `selftest.mjs`
+  // that exit code ABORTS THE WHOLE SHARD, every arm after it included. So the
+  // cost of reading a transient as a refusal is not one bad reading, it is up
+  // to two and a half hours of CI producing no verdict at all.
+  //
+  // MEASURED, on run 39006414958: shard 3 aborted here at 06:51:04, three and
+  // a half minutes AFTER `VD2/every-value-is-marked-changed` had already
+  // scored KILLED — so the refusal was not caused by the mutation, it landed
+  // on the next unmutated baseline run. Shard 4 aborted the same way at
+  // `SC7/End-asks-for-a-coordinate-past-the-end`. Eight browser-heavy shards
+  // were in flight on the pool at the time, two of them timed out at 150
+  // minutes, and three more lost their runners outright.
+  //
+  // THE TWO CASES ARE NOT THE SAME READING, which is what makes a retry
+  // honest here rather than a way of not looking. The engine ANSWERING with a
+  // refusal — an unsupported container version, a member it cannot inflate —
+  // is a fact about the corpus and repeats on every attempt. The engine not
+  // answering AT ALL within 30s, or no worker being on the page yet, is a
+  // statement about this machine at this moment. Only the second is retried,
+  // only once, and the retry is PRINTED: a reading that needed a second
+  // attempt is a weaker reading and the log says so rather than smoothing it
+  // into the first.
+  const TRANSIENT = [
+    "the engine did not answer `threads` within 30s",
+    "no replay worker on the page",
+  ];
   const out = [];
   for (const [label, list] of groups) {
     if (list.length === 0) {
@@ -353,6 +381,28 @@ async function engineArm(browser, site) {
       continue;
     }
     const subject = list[0];
+    let answer = await askTheEngine(browser, site, subject);
+    if (!answer.opened && TRANSIENT.includes(answer.error)) {
+      const first = answer.error;
+      answer = await askTheEngine(browser, site, subject);
+      answer.retried = first;
+      console.log(`         [RETRY]  ${label}: ${first} — asked once more`);
+    }
+    out.push({ label, subject: subject.debugPath, ...answer });
+  }
+  return out;
+}
+
+/**
+ * One `threads` request against one subject, on a page of its own.
+ *
+ * Split out of `engineArm` so the retry above drives exactly the same code
+ * path as the first attempt. A retry that re-implements the request is a
+ * second instrument, and two instruments disagreeing is the reading this arm
+ * exists to prevent.
+ */
+async function askTheEngine(browser, site, subject) {
+  {
     const live = await visit(browser, site.origin, subject.debugPath, {
       settle: (f) => f.phase === "ready" && f.controlsLive > 0,
     });
@@ -386,12 +436,11 @@ async function engineArm(browser, site) {
           w.postMessage({ seq: s, type: "request", command: "threads", arguments: {} });
         });
       });
-      out.push({ label, subject: subject.debugPath, ...answer });
+      return answer;
     } finally {
       await live.page.close();
     }
   }
-  return out;
 }
 
 async function main() {
@@ -748,7 +797,12 @@ async function main() {
 // it is built out of the resolver rather than out of string formatting.
 export { discover };
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// `typeof` FIRST, AND NOT AS A STYLE: `process.argv[1]` is undefined under
+// `node -e` and `pathToFileURL(undefined)` throws, so the bare comparison
+// turns "this file was imported, do not run it" into a crash at module scope.
+// The same line in `selftest.mjs` carries the same test, for a much larger
+// stake — that file writes to product source.
+if (typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((err) => {
     console.error(String(err && err.message ? err.message : err));
     process.exitCode = err && err.exitCode ? err.exitCode : 1;

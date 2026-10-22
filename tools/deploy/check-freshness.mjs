@@ -115,6 +115,7 @@
 //     claim to make, not this one's.
 
 import { createHash } from "node:crypto";
+import { brotliDecompressSync } from "node:zlib";
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join, relative, resolve as resolvePath, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -472,19 +473,117 @@ export async function verify({ manifest, target }) {
         `Either the fixtures moved — in which case this list is stale — or the record step ` +
         `read the wrong repository root.`);
     } else {
-      const changed = frozen.filter((r) => !known.has(A[r].sha256));
+      // ── THE COMPARISON IS AGAINST THE CONTAINER, NOT THE OBJECT ─────────
+      //
+      // This used to be `known.has(A[r].sha256)` — the sha256 of the published
+      // FILE against the sha256s of the committed captures. That was the same
+      // number until the exporter began storing containers pre-compressed
+      // (CCP-6), and then it was two different figures compared as one. Run
+      // 38640661710, the first dry run to reach this check over a brotli tree:
+      //
+      //   F4  FAIL  25 of 25 published container(s) match NO committed capture
+      //
+      // Twenty-five true statements about the wrong quantity. Nothing had
+      // changed about any recording; the objects were brotli and the captures
+      // were not. CTFS §1e names exactly this: "Three figures — at rest, on the
+      // wire, and as the loader sees it — are what a publisher needs, and
+      // conflating any two of them is how a size argument goes wrong." It goes
+      // wrong for an immutability argument in the same way.
+      //
+      // So the object is brought back to the container before it is compared,
+      // and the manifest beside it says how. Both halves are checked: the
+      // object at rest IS what the manifest declares, and the container it
+      // decodes to is a committed capture. A manifest that described some other
+      // object would fail the first; a container that changed fails the second.
+      //
+      // WHICH FIGURE ARRIVED IS DISCOVERED, NOT ASSUMED, because it depends on
+      // the target. `dirTarget` reads the file, so the bytes are the object at
+      // rest. `originTarget` uses `fetch`, which decodes `Content-Encoding`
+      // transparently, so the bytes are already the container. Hard-coding
+      // either would make this check pass vacuously against the other.
+      const changed = [];
+      const undecodable = [];
+      for (const rel of frozen) {
+        const buf = await target.read(rel);
+        if (buf === null) { undecodable.push(`/${rel}  published, and ABSENT from ${target.what}`); continue; }
+
+        const side = join(dirname(rel), "manifest.json").split(sep).join("/");
+        const sideBuf = await target.read(side);
+        let enc = "", declRaw = "", declStored = "";
+        if (sideBuf !== null) {
+          try {
+            const c = JSON.parse(sideBuf.toString("utf8")).container ?? {};
+            enc = c.encoding ?? "";
+            declRaw = c.hash ?? "";
+            declStored = c.storedHash ?? "";
+          } catch (e) {
+            undecodable.push(`/${rel}  /${side} is not readable JSON: ${e.message}`);
+            continue;
+          }
+        }
+        // NO MANIFEST IS NOT A FAILURE, and making it one would have been this
+        // fix overreaching. Before CCP-6 there was no manifest in this check at
+        // all and the comparison was sound, because the file WAS the container.
+        // That is still true of any tree published under identity. So an
+        // unmanifested container is compared directly, exactly as before — and
+        // if it then fails, the message says both things, because "it is not a
+        // committed capture" and "there is nothing here that would say it is an
+        // encoded one" are different facts and the second changes what to look
+        // at next.
+        if (sideBuf === null) {
+          const got0 = createHash("sha256").update(buf).digest("hex");
+          if (!known.has(got0)) {
+            changed.push(`/${rel}  ${buf.length} bytes (${got0.slice(0, 12)}…) is no committed ` +
+                         `capture, and there is no manifest at /${side} to say whether it is an ` +
+                         `encoded one`);
+          }
+          continue;
+        }
+
+        // `contentHashSha1` is the manifest's own hash function
+        // (`contract/ids.nim`): "sha1:" and the lowercase hex digest.
+        const h = (b) => "sha1:" + createHash("sha1").update(b).digest("hex");
+        let raw = null;
+        if (declRaw && h(buf) === declRaw) {
+          raw = buf;                       // already the container (origin, or identity)
+        } else if (enc === "br" && declStored && h(buf) === declStored) {
+          try { raw = brotliDecompressSync(buf); } catch (e) {
+            undecodable.push(`/${rel}  declared ${enc} and did not decompress: ${e.message}`);
+            continue;
+          }
+          if (h(raw) !== declRaw) {
+            undecodable.push(
+              `/${rel}  decoded from ${enc} to ${raw.length} bytes (${h(raw)}), and its ` +
+              `manifest declares the container ${declRaw}`);
+            continue;
+          }
+        } else {
+          undecodable.push(
+            `/${rel}  ${buf.length} bytes (${h(buf)}) is neither the container its manifest ` +
+            `declares (${declRaw || "—"}) nor the object at rest it declares ` +
+            `(${declStored || "—"}, encoding ${enc || "identity"})`);
+          continue;
+        }
+
+        const got = createHash("sha256").update(raw).digest("hex");
+        if (!known.has(got)) {
+          changed.push(`/${rel}  container ${raw.length} bytes (${got.slice(0, 12)}…)` +
+                       (enc ? `, stored ${enc} as ${buf.length} bytes` : ""));
+        }
+      }
+      const bad = [...undecodable, ...changed];
       add("F4", "every published trace container is its committed capture, unchanged",
-        changed.length === 0,
-        changed.length
-          ? `${changed.length} of ${frozen.length} published container(s) match NO committed ` +
+        bad.length === 0,
+        bad.length
+          ? `${bad.length} of ${frozen.length} published container(s) are not a committed ` +
             `or declared-produced capture. A frozen container that changed is a different ` +
             `recording under the same ` +
             `URL, and every visitor replays the new one without being told:\n` +
-            fmt(changed, (r) => `/${r}  (${A[r].bytes} bytes, ${A[r].sha256.slice(0, 12)}…)`)
-          : `all ${frozen.length} published container(s) are byte-identical to one of the ` +
-            `${known.size} capture(s) committed under ${FIXTURE_ROOTS.join(", ")} or declared ` +
-            `with --produced (${Object.values(frozenSource).filter((s) => s.startsWith("produced:")).length} ` +
-            `of them produced)`);
+            fmt(bad, (s2) => s2)
+          : `all ${frozen.length} published container(s) decode to one of the ${known.size} ` +
+            `capture(s) committed under ${FIXTURE_ROOTS.join(", ")} or declared with ` +
+            `--produced (${Object.values(frozenSource).filter((s) => s.startsWith("produced:")).length} ` +
+            `of them produced), and each object at rest is the one its manifest declares`);
     }
 
     // ── F5 — the engine size the page TELLS a visitor is true ──────────────

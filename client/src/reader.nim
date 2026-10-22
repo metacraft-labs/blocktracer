@@ -505,6 +505,15 @@ type
     chain*, hash*: string
     height*, index*: int
     blockHash*: string
+    positionKnown*: bool
+      ## Whether `height`, `index` and `blockHash` mean anything: true only for a
+      ## chain ordered by block height and index. A chain ordered otherwise (Sui by
+      ## checkpoint) has no block position, and its coordinate is `orderKind` /
+      ## `orderLabel` instead — never a fabricated height of 0.
+    orderKind*: TxOrderKind
+    orderLabel*: string
+      ## The chain's own ordering coordinate, spelled the chain's own way
+      ## (`entities.orderLabel`): "19000000:12", a checkpoint's sequence, …
     outcome*: OutcomeOverall
     outcomeReason*: string
     roles*: seq[Role]
@@ -1002,6 +1011,9 @@ proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   result.height = pos.height
   result.index = pos.index
   result.blockHash = pos.blockHash
+  result.positionKnown = pos.known
+  result.orderKind = v.facts.order.kind
+  result.orderLabel = orderLabel(v)
   result.outcome = v.facts.outcome.overall
   result.outcomeReason = v.facts.outcome.reason
   result.roles = v.facts.roles

@@ -15,6 +15,17 @@
 ## reader reads back — over trees the real producers wrote, plus the refusals
 ## that keep the closed sets closed.
 ##
+## ## The `vm` member has TWO routes to a row, and both are graded here
+##
+## A listing's own `isa`, lifted to the chain once every listing agrees, and —
+## since 2026-10-22 — the capture's own `provenance.vm` DECLARATION, which is
+## the route a chain that publishes no instruction listing has. Configuration.md
+## §2.1 carries the definition that makes the second route necessary: the member
+## names the executable, formally defined format a program is executed from, and
+## a bytecode instruction set is the commonest kind of such format rather than
+## the only one. Both routes, their precedence, and the four malformed
+## declarations that publish nothing are driven through the real producer below.
+##
 ## `tests/tidentifierencoding.nim` is the sibling this file is shaped after:
 ## same producers, same registry, same additive rule, a different member.
 ## Deliberately not merged with it. That file's subject is one member and it is
@@ -49,6 +60,12 @@ const
                 "aztec-mainnet-live"
   ListingCapture = RepoRoot / "client" / "fixtures" / "chain" / "aztec-testnet"
   RegistryRel = "registry/chains.v1.json"
+  # THE TOKENS THIS FILE DECLARES, and they are deliberately not any producer's.
+  # A test that read the token out of the module under test would assert that the
+  # producer agrees with itself; these are arbitrary strings whose only property
+  # is that no listing in either capture declares them.
+  DeclaredFormat = "a-declared-executable-format"
+  DisagreeingFormat = "a-format-no-listing-here-declares"
   OrderingKindCount = ord(high(TxOrderKind)) - ord(low(TxOrderKind)) + 1
   ReachKindCount = ord(high(ReachKind)) - ord(low(ReachKind)) + 1
 
@@ -297,6 +314,71 @@ suite "both producers state what they MEASURED, and nothing they did not":
     ck row["vm"]["instructionSet"].getStr == published
     removeDir tree
 
+  test "a DECLARED format reaches the row on a capture with no listing at all":
+    # **THE ROUTE THAT DOES NOT RUN THROUGH AN INSTRUCTION LISTING** (2026-10-22).
+    #
+    # The subject is the capture one arm above: a real capture that publishes no
+    # `instructions/` sidecar, whose row therefore carried no `vm` however
+    # definite its chain's executable format was. Configuration.md §2.1 defines
+    # the member as the executable, formally defined format a program is
+    # executed from — of which a bytecode instruction set is the commonest kind
+    # and not the only one — so a chain executed from an AST has one to state,
+    # and `provenance.vm` is where it states it.
+    #
+    # THE SAME CAPTURE IS ITS OWN CONTROL. The arm above drives this directory
+    # unmodified and asserts `not row.hasKey("vm")`; this one drives a copy with
+    # one member added. So the difference between the two rows is the
+    # declaration and nothing else, and neither arm is consistent with a reader
+    # that always publishes the member or never does.
+    let snapDir = tmpDir("ing-declared-snap")
+    copyDir(LiveMainnet, snapDir / "capture")
+    let capture = snapDir / "capture"
+    var doc = parseJson(readFile(capture / "snapshot.json"))
+    ck not doc["provenance"].hasKey("vm")
+    doc["provenance"]["vm"] = %*{"instructionSet": DeclaredFormat}
+    writeFile(capture / "snapshot.json", $doc)
+    let tree = buildIngest("ing-declared", capture)
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    # IT CAME FROM THE DECLARATION, which is asserted rather than assumed: this
+    # tree publishes no listing, so there is no `isa` anywhere in it to harvest.
+    ck anyPublishedIsa(tree) == ""
+    ck row["vm"]["instructionSet"].getStr == DeclaredFormat
+    # …and it reads back through the one function the client and the validator
+    # parse the row with, so the declaration and the row cannot be understood
+    # two ways.
+    ck parseChainProfile(row).vm.stated
+    ck parseChainProfile(row).vm.instructionSet == DeclaredFormat
+    # …and the other three members are untouched, so this is one member's route
+    # and not a second writer of the profile.
+    ck row["reach"].getStr == $rkWindowed
+    ck row["ordering"]["kind"].getStr == $tokBlockIndex
+    ck row["historyFloor"]["height"].getInt > 0
+    removeDir tree
+    removeDir snapDir
+
+  test "CONTROL: a declaration that states no token publishes no member, not a guess":
+    # FOUR SHAPES A PRODUCER COULD GET WRONG, and all four are ONE answer here:
+    # nothing was declared. A member filled from any of them would be this
+    # reader stating a fact about somebody else's chain, which is the property
+    # §2.2 and `ingest.nim`'s own comment protect and which this new route must
+    # not have cost. The arm above shows the route works; this one shows it
+    # cannot be made to invent a token.
+    var i = 0
+    for bad in [%*{}, %*{"instructionSet": ""}, %"a-bare-string",
+                %*{"instructionSet": 7}]:
+      inc i
+      let snapDir = tmpDir("ing-nodecl-snap" & $i)
+      copyDir(LiveMainnet, snapDir / "capture")
+      let capture = snapDir / "capture"
+      var doc = parseJson(readFile(capture / "snapshot.json"))
+      doc["provenance"]["vm"] = bad
+      writeFile(capture / "snapshot.json", $doc)
+      let tree = buildIngest("ing-nodecl" & $i, capture)
+      let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+      ck not row.hasKey("vm")
+      removeDir tree
+      removeDir snapDir
+
   test "CONTROL: a boundary that does NOT track the finalized pointer is a floor, not a window":
     # The kind is DERIVED, so both of its values have to be producible or the
     # derivation is a constant wearing a rule's clothes.
@@ -354,7 +436,7 @@ suite "both producers state what they MEASURED, and nothing they did not":
     removeDir tree
 
   test "assertion count":
-    expectCount(9 + 2 + 5 + 5 + 5)
+    expectCount(9 + 2 + 8 + 4 + 5 + 5 + 5)
 
 # ───────────────────────────────────────────────────────────────────────────
 suite "a producer that declares one thing and publishes another is caught":
@@ -401,6 +483,37 @@ suite "a producer that declares one thing and publishes another is caught":
     ck named > 0
     removeDir tree
 
+  test "a DECLARED format outranks the listings, and a disagreement is still reported":
+    # WHY THE DECLARATION WINS RATHER THAN HAVING TO AGREE. Where a capture both
+    # declares a format and publishes listings, the declaration is what reaches
+    # the row — it is a statement about the CHAIN, which is what this member is,
+    # where an `isa` is a statement about one recording. Publishing nothing on a
+    # disagreement would SILENCE the validator's check rather than satisfy it:
+    # that check fires only on a row that declares something, so a contradiction
+    # would publish a tree with no `vm` and no finding either. This arm is the
+    # evidence for that sentence, driven through the real producer and the
+    # shipping validator.
+    let snapDir = tmpDir("val-decl-snap")
+    copyDir(ListingCapture, snapDir / "capture")
+    let capture = snapDir / "capture"
+    var doc = parseJson(readFile(capture / "snapshot.json"))
+    doc["provenance"]["vm"] = %*{"instructionSet": DisagreeingFormat}
+    writeFile(capture / "snapshot.json", $doc)
+    let tree = buildIngest("val-decl", capture)
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    let published = anyPublishedIsa(tree)
+    ck published.len > 0
+    ck published != DisagreeingFormat
+    ck row["vm"]["instructionSet"].getStr == DisagreeingFormat
+    let found = validateTree(tree)
+    ck found.len > 0
+    var named = 0
+    for f in found:
+      if DisagreeingFormat in f and published in f: inc named
+    ck named > 0
+    removeDir tree
+    removeDir snapDir
+
   test "a malformed profile is reported by name, with the whole set":
     let tree = buildIngest("val-shapes", LiveMainnet)
     let bareFloor = findingsWith(tree, proc(row: JsonNode) =
@@ -428,7 +541,7 @@ suite "a producer that declares one thing and publishes another is caught":
     removeDir tree3
 
   test "assertion count":
-    expectCount(1 + 2 + 3 + 3)
+    expectCount(1 + 2 + 3 + 5 + 3)
 
 # ───────────────────────────────────────────────────────────────────────────
 suite "the additive rule: a client built for the current schema reads all four":

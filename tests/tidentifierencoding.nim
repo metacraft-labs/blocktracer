@@ -2235,7 +2235,13 @@ suite "the boundary: who knows about each half of the seam":
     # corrupting it. The sweep asks who NAMES the member, so both belong — but
     # only the first kind is a consumer, and a future reviewer counting
     # "consumers" from this number would over-count by one.
-    ck expectedLen("declaration", "tools") == 3
+    #
+    # EIGHT AND NOT THREE: from 2026-10-20 the PRODUCERS that declare the member
+    # joined, a third kind beside readers and exempters — the Sui producer and its
+    # selftest (base58 digests), then Starknet's producer and selftest and Solana's
+    # producer. This suite runs in no CI job, which is how the figure stayed at three
+    # while the census and its JavaScript twin moved.
+    ck expectedLen("declaration", "tools") == 8
     ck expectedLen("caseRule", "src") == 6
     ck expectedLen("caseRule", "client") == 3
     ck expectedLen("caseRule", "tools") == 1
@@ -2466,4 +2472,17 @@ suite "the boundary: who knows about each half of the seam":
 # expectation was stale rather than the code being wrong, and the suite has been
 # red on `agents` since that merge. Recorded here because a declared count is only
 # evidence if the number and the reason travel together.
-expectCount(894)
+# 894 -> 899: PRE-EXISTING AND NOT MINE EITHER, and it is the SAME MISTAKE the
+# paragraph above records `7dbc566` making. `c3f33d4` ("a Sui digest is base58, so its
+# shape is the 43-44 row") moved `expectedLen("declaration", "tools")` from 3 to 8 —
+# correctly, with the diagnosis in its own comment — but each `expected` entry
+# contributes one `ck fileExists(...)` in the sweep arm, so five new entries are five
+# new assertions, and this total was not bumped with them. 894 + 5 = 899.
+#
+# MEASURED THE SAME WAY, for the same reason: a detached worktree at `c3f33d4` with the
+# executable-format wave ABSENT reports `assertion count is 899, expected 894` with 0
+# failing arms — identical to the working tree — so the figure is independent of that
+# wave and the expectation was stale rather than the code being wrong. The suite has been
+# red on `agents` since `c3f33d4`, which is also why nothing caught it: this file runs in
+# no CI job, exactly as the `expectedLen` comment at the sweep arm says.
+expectCount(899)

@@ -459,7 +459,11 @@ proc debugPage*(s: DebugSessionView): string =
               # `.lm_tab.btdefault` when no panel is targeted, so a lone tab
               # without it renders as a back tab over its own panel.
               li(class = "lm_tab btdefault t-pane-metadata"):
-                span(class = "lm_title"): text "Transaction"
+                # Uppercase for the reason `session_layout`'s own comment
+                # gives: CodeTracer's pane names are capitals in the CONTENT,
+                # not via `text-transform`. This pane is built here rather
+                # than from the layout model, so it has to say so itself.
+                span(class = "lm_title"): text "TRANSACTION"
             # No dismiss control.
             #
             # It had one, and nothing was behind it: the page ships no

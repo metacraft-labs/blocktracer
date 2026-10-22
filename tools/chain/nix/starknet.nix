@@ -130,6 +130,9 @@ let
 
   # The committed input set, read from the recorder input — see the header.
   transcript = recorderSrc + "/onchain/tests/fixtures/mainnet-16664301";
+  # The class-source bindings that recorder revision proved (`bind-class`), from the same
+  # pin for the same reason: a binding is checked against the class the transcript serves.
+  classSources = recorderSrc + "/onchain/tests/fixtures/class-sources";
 
   # What the capture reads from this repository, and nothing else.
   captureSrc = lib.fileset.toSource {
@@ -156,6 +159,7 @@ let
         --recorder ${onchainRecorder}/bin/codetracer-cairo-onchain \
         --recorder-commit ${recorderRev} \
         --transcript ${transcript} \
+        --class-sources ${classSources} \
         --ct-print ${ctPrint}/bin/ct-print \
         --out $TMPDIR/tree --work $TMPDIR/work
       runHook postBuild

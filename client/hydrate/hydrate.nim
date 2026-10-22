@@ -44,22 +44,21 @@
 when not defined(js):
   {.error: "hydrate is the browser bundle; it is built with `nim js`.".}
 
-import std/[dom, json, strutils]
+import std/[dom, json, options, strutils]
 
 import isonim/core/async_compat
+from isonim/core/batch import untrack
 import codetracer_embed
 
 import ../src/debugger/replay_engine
 import ../src/debugger/session_view
 import ../src/debugger/keymap
-import ../src/debugger/scrub_queue
 import ../src/debugger/source_island
 import ../src/components/debugger as panes
 
 import ./engine_transport
 import ./live_breakpoints
 import ./live_preferences
-import ./live_origin
 import ./live_source
 import ./session_project
 
@@ -1428,9 +1427,10 @@ type
     #    The handle itself never waits for any of it (`paintScrubber`), so the
     #    gesture is immediate even in that tail.
     #
-    #    THE RULE ITSELF IS NOT HERE. It is `debugger/scrub_queue.nim`, which
-    #    is ordinary data with no browser, no worker and no clock in front of
-    #    it, so `tests/test_scrub_queue.nim` can state the orderings directly.
+    #    THE RULE ITSELF IS NOT HERE. It is the Embed SDK's `ScrubQueue`
+    #    (`sdk/scrub_queue.nim`), which is ordinary data with no browser, no
+    #    worker and no clock in front of it, so its suite states the orderings
+    #    directly.
     #    That module's header records why: the one failure this rule has is a
     #    drag that ends where the visitor merely dragged THROUGH, it shipped
     #    once, and the browser-level gate written for it could not reproduce it
@@ -1670,7 +1670,7 @@ proc paintWhenSettled(h: Hydration) =
     if h.stopped:
       h.framePending = false
       return
-    if h.session.locals.settlingPosition() and
+    if h.session.settlingPosition() and
        h.framesWaited < PositionSettleFrames:
       inc h.framesWaited
       h.paintWhenSettled()
@@ -2637,6 +2637,49 @@ proc bindGestures(h: Hydration) =
 # The bootstrap sequence
 # ---------------------------------------------------------------------------
 
+proc paneRowsOf(pane: Element; rowSelector: cstring): int {.importjs: """
+  (function(pane, sel) {
+    if (!pane) return 0;
+    var row = pane.querySelector(sel);
+    var rowPx = row ? row.getBoundingClientRect().height : 0;
+    if (!(rowPx > 0)) {
+      rowPx = parseFloat(getComputedStyle(pane).lineHeight) || 0;
+    }
+    var h = pane.clientHeight || 0;
+    return (rowPx > 0 && h > 0) ? Math.max(1, Math.floor(h / rowPx)) : 0;
+  })(#, #)""".}
+
+proc observePaneResize(pane: Element; cb: proc()) {.importjs: """
+  (function(pane, cb) {
+    if (pane && typeof ResizeObserver === 'function') {
+      new ResizeObserver(function() { cb(); }).observe(pane);
+    }
+  })(#, #)""".}
+
+proc measureViewports(h: Hydration) =
+  ## THE PANES' SIZES ARE THE VIEWMODELS' INPUT (Viewport-Driven-Loading V3):
+  ## the Call Trace and the Event Log ask the engine for the rows their pane
+  ## can show, measured here — rows from the pane's height over a rendered
+  ## row's, depth columns from the indentation ladder this pane draws — and
+  ## re-reported on every resize. An unmeasured pane asks for nothing, so a
+  ## pane hidden in a collapsed region costs no request.
+  proc report() =
+    if h.stopped or not h.session.ready: return
+    let calltraceRows = paneRowsOf(h.ui.calltrace, cstring".ctrow")
+    if calltraceRows > 0:
+      let v = h.session.calltrace.viewport.val
+      if v.rows != calltraceRows:
+        h.session.calltrace.setViewport(
+          v.withRows(calltraceRows).withCols(panes.MaxIndentDepth + 1))
+    let eventRows = paneRowsOf(h.ui.eventLog, cstring".evrow")
+    if eventRows > 0:
+      let v = h.session.eventLog.viewport.val
+      if v.rows != eventRows:
+        h.session.eventLog.setViewport(v.withRows(eventRows))
+  report()
+  observePaneResize(h.ui.calltrace, report)
+  observePaneResize(h.ui.eventLog, report)
+
 proc goLive(h: Hydration) =
   ## The engine has answered and the session is positioned.
   ##
@@ -2713,138 +2756,94 @@ proc goLive(h: Hydration) =
   # live and then fails is caught by `stopped` — the same mechanism, one
   # `failAllPending` later, where a repaint would re-enable with `live = true`
   # the very buttons `fail` had just turned off.
-  h.session.locals.onApplied = proc() =
-    if not h.stopped: h.render()
-  # THE SAME CALLBACK FOR THE SAME REASON, two panes over. The Call Trace and
-  # the Event Log arrive as unsolicited events after their request is answered,
-  # so — exactly like locals — they cannot be written by `applyStop` and must
-  # re-render on arrival or wait for the next move to be seen. Without this the
-  # first section the engine sends would sit in the store, unrendered, until
-  # something else happened to repaint.
-  h.session.navigation.onApplied = proc() =
-    if not h.stopped: h.render()
-  # AND ONCE MORE FOR THE FLOW WINDOW, which is the same arrangement a third
-  # time: `FlowVM` asks on every move, `ct/updated-flow` comes back as an
-  # unsolicited event a round trip later, and `live_flow` parses it. Without
-  # this the values overlay would land one STEP behind the position it belongs
-  # to — visible, plausible, and describing the frame the visitor just left,
-  # which is the failure the whole module is written against.
-  h.session.flowWindow.onApplied = proc() =
-    if not h.stopped: h.render()
-  # AND RE-ISSUE THE ONE REQUEST THE CLEAR ABOVE CANNOT REPLAY. See
-  # `requestNavigationSections`: the call trace's auto-load fired before the
-  # worker existed and its effect will not run again until something it reads
-  # changes, so without this the pane fills on the visitor's first STEP rather
-  # than on arrival. `ct/event-load` needs no equivalent — it is issued after
-  # the session is up and does arrive.
-  h.session.requestNavigationSections()
-  # §8's deadline, for the pane rather than for the session. The engine is
-  # documented to drop requests silently in some handshake orders
-  # (`backend/dap_dialect.md` §1), and a request that is never answered leaves a
-  # promise that never settles — so without this the pane would say "Reading the
-  # values at this position…" for as long as the tab is open, which is a spinner
-  # with a name. Injected rather than reached for, so `live_locals` stays a
-  # module a headless suite can drive.
-  h.session.locals.scheduleTimeout = proc(ms: int; action: proc()) =
-    afterMs(ms, action)
-  # The same deadline for the flow window, and it matters more here than it
-  # reads: an unanswered `ct/load-flow` would leave the feed `ffPending`
-  # forever, `hasWindow` false forever, and the pane back on the loop rail
-  # with no values — which is the state this change exists to leave. The
-  # deadline is what turns that into a settled `ffUnavailable` the next answer
-  # can replace.
-  h.session.flowWindow.scheduleTimeout = proc(ms: int; action: proc()) =
-    afterMs(ms, action)
-  # THE VALUES PANE'S HALF OF THE RE-ISSUE ABOVE, and it is deliberately DOWN
-  # HERE rather than beside `requestNavigationSections`: `LocalsFeed.awaiting`
-  # arms §8's deadline out of `scheduleTimeout`, so a locals request issued
-  # three lines earlier would be one with no deadline behind it — the pane
-  # stuck on "Reading the values at this position…" with nothing to end it,
-  # which is the state this call exists to leave rather than to enter.
-  #
-  # See `requestLandingLocals` for why the clear above is not enough on its
-  # own: the one position write that would have re-run `StateVM`'s effect is
-  # the served frame's, and it happens BEFORE that clear — so the effect's
-  # request is deduplicated against the one dropped before the worker existed,
-  # and every write after the clear names the same coordinate and changes no
-  # signal. Measured on the deployed dev channel, a visitor landing on a chain
-  # transaction got zero `ct/load-locals` at the engine and an empty Values
-  # pane until they stepped.
-  h.session.requestLandingLocals()
-  # The CONTROLS only. Not the panes: at this instant the engine has answered
-  # `threads` and has not yet produced a call trace, a set of locals or a
-  # position, so every pane projection is empty and rendering them would blank
-  # four full served panes. `renderPanes`'s latch would refuse most of that
-  # anyway; not asking is clearer than being refused.
-  #
-  # The panes arrive on the first `ct/complete-move`, which is a real frame.
+  # ONE RE-RENDER, over the SDK's own state. The session's ViewModels load
+  # what the panes show by themselves now — the stop loader the values, the
+  # call trace and the event log the windows their viewports ask for, the flow
+  # its window — so the page repaints when any of that changes rather than
+  # when a decorator it installed says so.
+  let hh = h
+  createRoot proc(dispose: proc()) =
+    createEffect proc() =
+      let session = hh.session
+      discard session.store.calltrace.lines.val
+      discard session.store.locals.locals.val
+      discard session.store.eventLog.rows.val
+      discard session.flow.layoutWindow.val
+      if not session.debugger.stops.isNil:
+        discard session.debugger.stops.status[spLocals].val
+      untrack(proc() =
+        if not hh.stopped: hh.render())
+    # §8: the values of a stop get a deadline, so the pane never says
+    # "Reading…" for as long as the tab is open. The stop loader keeps no
+    # clock; the page does.
+    var armedFor = ""
+    createEffect proc() =
+      let stop = stopIdentityOf(hh.session.store.debugger.val)
+      untrack(proc() =
+        if stop == armedFor: return
+        armedFor = stop
+        afterMs(LocalsDeadlineMs, proc() =
+          if armedFor == stop and not hh.stopped:
+            hh.session.noteLocalsDeadline()
+            hh.render()))
+  h.measureViewports()
   setControls(h.ui,
               projectReplayPanes(h.session, h.base, h.ui.island),
               h.keymap)
 
+proc afterReady(h: Hydration) =
+  ## The trace is open: the SDK's panel ViewModels exist. What follows is the
+  ## page's own — the positioning phase, `threads`, going live, and the landing.
+  h.session.settleLaunch()
+  # `positioning` is a phase the visitor sees, briefly and truthfully: the
+  # container is open and the session is being seeked to the frame the URL
+  # asked for. §8 requires the three phases to be named.
+  var positioning = h.base
+  positioning.phase = spPositioning
+  setRail(h.ui, positioning)
+  h.service.send("threads", newJObject()).onComplete(
+    onSuccess = proc(_: JsonNode) =
+      h.goLive()
+      # §6.3: "Resolution happens before first paint, so a shared link opens
+      # AT the position rather than at the start with a visible jump." The
+      # fallback is the ordinary path, so an engine that refuses the seek
+      # still ends up with a live, positioned session.
+      if h.landing.coordinate > 0:
+        h.gotoTicks(h.landing.coordinate,
+                    onRefused = proc() = h.requestPosition())
+      else:
+        h.requestPosition(),
+    onError = proc(message: string) =
+      h.fail("The replay engine failed to start: " & message))
+
 proc handshake(h: Hydration) =
-  ## DAP: initialize → launch → configurationDone, then the first position.
-  ##
-  ## This order and not `DebuggerSession.launch`'s `initialize →
-  ## configurationDone → launch`. Both work against an engine that was made
-  ## order-independent, and this is the one its own WASM e2e suite drives, so
-  ## it is the one with evidence behind it against the published bundle. When
-  ## the engine's order-independence is verified against the DEPLOYED wasm,
-  ## this can become `session.launch` and lose a dozen lines.
+  ## Open the trace through the SDK's own handshake (`DebuggerSession.launch`:
+  ## `initialize`, `configurationDone`, `launch`), then continue when the
+  ## session's `phase` says the answers are in. Its failure is the SDK's §6.3
+  ## taxonomy, classified once, there.
   if h.started: return
   h.started = true
-  proc step(command: string; args: JsonNode; next: proc()) =
-    h.service.send(command, args).onComplete(
-      onSuccess = proc(response: JsonNode) =
-        if not response{"success"}.getBool(true):
-          # The §6.3 taxonomy, from the SDK's own classifier rather than from a
-          # string match here — a consumer "must be able to distinguish 'this
-          # trace does not exist' from 'the worker died' without string
-          # matching", and doing it twice would be one place for the two
-          # answers to differ.
-          h.fail("The trace could not be opened (" &
-                 $classifyBackendFailure(response) & ").")
-          return
-        next(),
-      onError = proc(message: string) =
-        h.fail("The replay engine failed to start: " & message))
-
-  step("initialize", %*{
-    "clientID": "blocktracer",
-    "adapterID": "codetracer",
-    "supportsProgressReporting": false,
-  }, proc() =
-    step("launch", %*{"traceFolder": VfsTraceFolder}, proc() =
-      step("configurationDone", newJObject(), proc() =
-        # `positioning` is a phase the visitor sees, briefly and truthfully:
-        # the container is open and the session is being seeked to the frame
-        # the URL asked for. §8 requires the three phases to be named; this is
-        # the third arriving on its own account rather than as decoration.
-        var positioning = h.base
-        positioning.phase = spPositioning
-        setRail(h.ui, positioning)
-        h.service.send("threads", newJObject()).onComplete(
-          onSuccess = proc(_: JsonNode) =
-            h.goLive()
-            # §6.3: "Resolution happens before first paint, so a shared link
-            # opens AT the position rather than at the start with a visible
-            # jump." The decision was made at load (`announceLanding`); this is
-            # where it is acted on, and it is acted on INSTEAD of asking where
-            # the engine landed rather than after it — a `stackTrace` first
-            # would render the panes at the container's entry point and then
-            # move them, which is the visible jump, on the one route that
-            # exists to be deep-linked into.
-            #
-            # The fallback is the ordinary path, so an engine that refuses the
-            # seek still ends up with a live, positioned session rather than a
-            # frozen served one.
-            if h.landing.coordinate > 0:
-              h.gotoTicks(h.landing.coordinate,
-                          onRefused = proc() = h.requestPosition())
-            else:
-              h.requestPosition(),
-          onError = proc(message: string) =
-            h.fail("The replay engine failed to start: " & message)))))
+  let hh = h
+  var settled = false
+  createRoot proc(dispose: proc()) =
+    createEffect proc() =
+      let phase = hh.session.debugger.phase.val
+      untrack(proc() =
+        if settled: return
+        case phase
+        of dspReady:
+          settled = true
+          hh.afterReady()
+        of dspFailed:
+          settled = true
+          # A page that already said why (the engine deadline) keeps its own
+          # sentence; the session's `failure` is the same classification.
+          if hh.stopped: return
+          let kind = hh.session.debugger.failure.val
+          hh.fail("The trace could not be opened (" &
+                  (if kind.isSome: $kind.get else: "BackendError") & ").")
+        else: discard)
+  h.session.launchLive(localFolderTrace(VfsTraceFolder))
 
 proc onControl(h: Hydration; message: JsonNode) =
   ## The worker's own bootstrap traffic — everything that is not a DAP frame.
@@ -3027,7 +3026,12 @@ proc hydrate() =
         h.fail("The replay engine loaded but would not open this trace " &
                "container. The engine is running and reachable — it rejected " &
                "the container's format; the container can still be downloaded " &
-               "and opened in CodeTracer."))
+               "and opened in CodeTracer.")
+      # The session is settled with the SDK's classification of the same fact
+      # (`classifyStartFailure`), so its `failure` agrees with the sentence.
+      h.session.debugger.failStart(
+        classifyStartFailure(engineReached = h.engineLoaded),
+        "no answer within " & $EngineDeadlineMs & " ms"))
 
   if not startWorker(ReplayEngineBase & "worker.js",
                      proc(raw: string) = h.backend.deliver(raw)):
