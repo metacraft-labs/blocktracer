@@ -1174,6 +1174,11 @@ jobs:
       - name: Conformance test suite
         # The package declares no third-party requires — stdlib only — so
         # `nimble test` resolves nothing over the network.
+        #
+        # THIS IS WHERE THE ROOT `just test` SUITES RUN. No job runs that recipe
+        # (`debug-route`'s `just test` is the CLIENT one), so every Nim suite it
+        # names must also be in blocktracer.nimble's `test` task, and
+        # `ci/test/ci-coverage.sh` step 1c fails by name on one that is not.
         run: nix develop .#ci --command nimble test -y
 
       - name: Demo generator emits a contract-conformant tree

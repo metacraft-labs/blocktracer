@@ -134,6 +134,10 @@ test:
     # missing or broken `nim` would read as a pass on the one line whose whole job
     # is to say which `nim` this is. The extra banner lines are the cost of that.
     nim --version
+    # NO CI JOB RUNS THIS RECIPE. The `contract` job runs `nimble test`, so a Nim
+    # suite added below must also be added to blocktracer.nimble's `test` task, or
+    # it runs only here. `ci/test/ci-coverage.sh` step 1c fails by name on one
+    # that is missing there; four were, and three of them went red unseen.
     nim c -r --hints:off tests/tcontract.nim
     nim c -r --hints:off tests/tpublish.nim
     nim c -r --hints:off tests/tclientsdk.nim

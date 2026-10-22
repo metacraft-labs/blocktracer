@@ -664,6 +664,14 @@ proc violate(id, dir: string): string =
     # emitting a value outside the table is a gap in the table, not a producer
     # using a free-text field. Deleting the member would reach the rule above.
     doc["provenance"]["prestateStrategy"] = %"a-strategy-no-table-lists"
+  of "S5-ORDERING-CLOSED":
+    # PRESENT AND OUTSIDE THE SET. An ABSENT member means `blockIndex`, which is
+    # what every tree published before the member existed was built as, so
+    # deleting it reaches no rule at all. A value this reader cannot build is the
+    # case the rule exists for: built as a height, it would publish the silently
+    # wrong ordering Static-Site-Architecture.md §2.3 makes ordering a union to
+    # prevent.
+    doc["provenance"]["ordering"] = %"an-ordering-no-reader-builds"
   of "S5-COST-VECTOR":
     # MALFORMED RATHER THAN ABSENT, for the same reason: `cost` is required and
     # taken by an unguarded subscript, so deleting it is refused by the generated
@@ -739,6 +747,7 @@ const RuleCases = [
   "S5-CALLTRACE-FOLD-TALLY", "S5-CALLTRACE-FOLD-BOUND",
   "S5-SIDECAR-FORMAT-UNKNOWN", "S5-SIDECAR-CHAIN",
   "S5-RECORDER-STATED", "S5-PRESTATE-STATED", "S5-PRESTATE-CLOSED",
+  "S5-ORDERING-CLOSED",
   "S5-COST-VECTOR", "S5-EXECUTIONS-NAMED", "S5-EXECUTIONS-ONE-TRACED",
   "S5-POSITIONS-SCHEMA",
   "S5-IDENTIFIER-ENCODING-CLOSED", "S5-IDENTIFIER-ENCODING-SHARDABLE",
@@ -871,7 +880,13 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
   #
   # 171 → 175: ONE rule added (S5-CONTAINER-NOT-PREENCODED, CCP-6), and the same
   # arithmetic applies — 1 × 4 = 4.
-  expectCount(175)
+  #
+  # 175 → 179: ONE rule added (S5-ORDERING-CLOSED, `db3ab3a`), 1 × 4 = 4. That
+  # commit added the rule to `tools/chain/snapshot-contract.json` and not to
+  # `RuleCases`, so the equality above went red on `agents` and stayed red
+  # unseen: this suite ran in no CI job until the `contract` job's `nimble test`
+  # was made to run it.
+  expectCount(179)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT

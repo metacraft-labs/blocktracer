@@ -62,6 +62,10 @@ stage() {
 	# the CONTROL below goes red — disabling every arm in this file.
 	cp "${repo_root}/.github/workflows/ci-coverage-clock.yml" "${dest}/.github/workflows/"
 	cp "${repo_root}/client/Justfile" "${dest}/client/"
+	# The root recipe and the nimble task, which step 1c reads: the suites the
+	# root `just test` runs, and the `nimble test` that the `contract` job runs.
+	cp "${repo_root}/Justfile" "${dest}/"
+	cp "${repo_root}/blocktracer.nimble" "${dest}/"
 	cp "${repo_root}"/ci/test/*.sh "${dest}/ci/test/"
 	# THE GATES OUTSIDE ci/test/, which the guard's scan now also covers. They
 	# are copied as EMPTY STAND-INS at their real paths: the guard only ever
@@ -255,6 +259,34 @@ mutate_unname_the_selftest_step() {
 arm "1c/the by-name exemption, with the CI step taken away" \
 	"'test-selection-detail-selftest' is defined in client/Justfile and is run by NOTHING" \
 	mutate_unname_the_selftest_step
+
+# ARM 1d — A ROOT-RECIPE SUITE NO JOB RUNS. THE STATE THAT WAS LIVE until this
+# step existed: the root Justfile's `test:` ran tidentifierencoding, the
+# `contract` job ran `nimble test`, and the nimble task did not name it, so it ran
+# nowhere. The mutation takes it back out of the nimble task.
+mutate_root_suite_out_of_nimble() {
+	edit_line "${work}/arm/blocktracer.nimble" \
+		'tests/tidentifierencoding\.nim' 'tests/a-suite-that-is-not-this-one.nim' || return 1
+	# Applied, and the root recipe still runs it: otherwise this arm measures a
+	# Justfile it did not change.
+	! grep -v '^[[:space:]]*#' "${work}/arm/blocktracer.nimble" | grep -q 'tests/tidentifierencoding\.nim' &&
+		grep -q 'tests/tidentifierencoding\.nim' "${work}/arm/Justfile"
+}
+arm "1d/a root-recipe suite the nimble task dropped" \
+	"root suite 'tests/tidentifierencoding.nim' is in the root Justfile's \`test:\` recipe and NO CI job runs it" \
+	mutate_root_suite_out_of_nimble
+
+# ARM 1e — A SUITE ADDED TO THE ROOT RECIPE AND TO NOTHING ELSE, which is how the
+# four went dark in the first place. Inserted as the recipe's first command, so
+# the parser must read the body rather than a fixed list.
+mutate_root_suite_added_alone() {
+	edit_line "${work}/arm/Justfile" \
+		'^(\s+)nim --version$' '\1nim --version\n\1nim c -r --hints:off tests/tnothingrunsme.nim' || return 1
+	grep -q 'tests/tnothingrunsme\.nim' "${work}/arm/Justfile"
+}
+arm "1e/a suite added to the root recipe alone" \
+	"root suite 'tests/tnothingrunsme.nim' is in the root Justfile's \`test:\` recipe and NO CI job runs it" \
+	mutate_root_suite_added_alone
 
 # ARM 2 — a shell gate in ci/test/ that no job runs.
 mutate_orphan_gate() {
