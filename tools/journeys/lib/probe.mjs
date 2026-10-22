@@ -159,9 +159,51 @@ export async function applyCpuThrottle(page) {
 
 export async function openBrowser() {
   const chromium = requirePlaywright();
+  let browser = null;
   try {
-    return await chromium.launch({ chromiumSandbox: false });
+    browser = await chromium.launch({ chromiumSandbox: false });
+    // LAUNCHING IS NOT THE SAME AS LIVING, and the difference cost a CI
+    // afternoon. `launch()` resolves as soon as the browser answers once; if
+    // the process then DIES — the host killed it, it ran out of memory, its
+    // shared-memory mount was too small — the handle is still returned and
+    // every later call fails with playwright's own
+    //
+    //     browser.newPage: Target page, context or browser has been closed
+    //
+    // which names nothing about why. Measured on run 39400689697: on four of
+    // `journeys-bite`'s eight shards that sentence arrived at the FIRST
+    // `newPage` of Arm I, and `selftest.mjs` then reported nine arms NEVER RAN
+    // — the verdict that means "this arm describes something that is not
+    // there", about nine arms that were all perfectly well described. Shards 2
+    // and 5 passed the same commit on the same runner, so it is a condition of
+    // the host at that moment, not of the tree.
+    //
+    // So the liveness is PROVED here, where it can still be classified, by
+    // doing the smallest thing that needs a live browser. A dead one is a
+    // REFUSAL — exit 2, DID NOT RUN — and not a verdict, which is the whole
+    // distinction this suite is built on: the host failed to supply an
+    // instrument, and nothing was measured. One page per run is the cost.
+    const probe = await browser.newPage();
+    await probe.close();
+    return browser;
   } catch (err) {
+    if (browser) {
+      // It launched and then did not survive. Say THAT, rather than the
+      // "did not launch" sentence below, which would send a reader to
+      // `pinned-env.mjs` and a version skew that is not the problem.
+      try { await browser.close(); } catch {}
+      const e = new Error(
+        "the browser launched and then died before it could be used, so nothing\n" +
+          "  can be judged. This is NOT a missing or mismatched browser — `launch()`\n" +
+          "  succeeded and the process answered; it was gone by the first page.\n" +
+          "  On a shared runner the usual cause is the host reclaiming it under memory\n" +
+          "  pressure from a neighbouring job, so the same commit passes on a quieter\n" +
+          "  one. Check what else was running, and `journeys-bite`'s `max-parallel`.\n" +
+          `  (playwright said: ${err && err.message ? err.message : err})`,
+      );
+      e.exitCode = 2;
+      throw e;
+    }
     const e = new Error(
       "the pinned browser did not launch, so nothing can be judged.\n" +
         "  The playwright PACKAGE resolved; its BROWSER did not. These are two artefacts\n" +

@@ -2354,7 +2354,27 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     strategy:
       fail-fast: false
-      max-parallel: 2
+      # ONE SHARD AT A TIME, down from two.
+      #
+      # On run 39400689697 four of the eight shards lost their browser between
+      # `chromium.launch()` and the first `newPage` of Arm I. Shards 2 and 5
+      # passed the same commit on the same runner, so it is a condition of the
+      # host at that moment and not of the tree, and the shape of it — a
+      # browser that answers once and is gone a moment later — is what a host
+      # reclaiming memory from a neighbouring job looks like. Two shards of
+      # this suite are two chromiums plus two copies of a 17.8 MB wasm engine
+      # on a machine already serving the rest of the matrix.
+      #
+      # This is a TEST OF THAT READING and not a dressing: memory pressure from
+      # a sibling shard is the one mechanism serialising removes. If the deaths
+      # continue at `max-parallel: 1` the reading was wrong, and the refusal
+      # that `probe.mjs`'s liveness check now raises will say so in one line
+      # per shard instead of nine NEVER RANs that blame the arms.
+      #
+      # The cost is wall clock on a job that already runs after `journeys`, and
+      # it buys a verdict where there was none: four shards of this sweep have
+      # been reporting nothing at all.
+      max-parallel: 1
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
