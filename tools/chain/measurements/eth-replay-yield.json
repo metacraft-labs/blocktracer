@@ -6,20 +6,20 @@
   "(capture-eth-range.mjs --whole-blocks). Each block was replayed once, in order, from",
   "its parent block (replay-preceding)."
  ],
- "measuredAt": "2026-10-22T15:13:32.421Z",
+ "measuredAt": "2026-10-22T19:07:42.833Z",
  "chain": "eth",
  "endpoint": "https://eth.drpc.org",
- "chainTipAtRun": 26248949,
- "finalizedAtRun": 26248878,
+ "chainTipAtRun": 26250144,
+ "finalizedAtRun": 26250058,
  "toolchain": {
-  "recorder": "metacraft-labs/codetracer-evm-recorder d411e3a8cf4f2935dd070d746d82635f300f9ac5",
+  "recorder": "metacraft-labs/codetracer-evm-recorder dc257fe77de55e5952806cc46c991820c13816fd",
   "sourceFetch": false
  },
  "windows": [
   {
    "from": 4370100,
    "to": 4370101,
-   "blocksBelowTip": 21878848,
+   "blocksBelowTip": 21880043,
    "blocks": 2,
    "transactions": 317,
    "firstInBlock": 2,
@@ -54,14 +54,14 @@
      "refused": 0,
      "notAttempted": 0,
      "stoppedBy": null,
-     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
     }
    }
   },
   {
    "from": 12500000,
    "to": 12500001,
-   "blocksBelowTip": 13748948,
+   "blocksBelowTip": 13750143,
    "blocks": 2,
    "transactions": 242,
    "firstInBlock": 2,
@@ -96,14 +96,14 @@
      "refused": 0,
      "notAttempted": 0,
      "stoppedBy": null,
-     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
     }
    }
   },
   {
    "from": 13000000,
    "to": 13000001,
-   "blocksBelowTip": 13248948,
+   "blocksBelowTip": 13250143,
    "blocks": 2,
    "transactions": 387,
    "firstInBlock": 2,
@@ -138,14 +138,14 @@
      "refused": 0,
      "notAttempted": 0,
      "stoppedBy": null,
-     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
     }
    }
   },
   {
    "from": 17100000,
    "to": 17100001,
-   "blocksBelowTip": 9148948,
+   "blocksBelowTip": 9150143,
    "blocks": 2,
    "transactions": 224,
    "firstInBlock": 2,
@@ -180,14 +180,14 @@
      "refused": 0,
      "notAttempted": 0,
      "stoppedBy": null,
-     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
     }
    }
   },
   {
    "from": 19500000,
    "to": 19500001,
-   "blocksBelowTip": 6748948,
+   "blocksBelowTip": 6750143,
    "blocks": 2,
    "transactions": 587,
    "firstInBlock": 2,
@@ -222,14 +222,14 @@
      "refused": 0,
      "notAttempted": 0,
      "stoppedBy": null,
-     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
     }
    }
   },
   {
    "from": 22500000,
    "to": 22500001,
-   "blocksBelowTip": 3748948,
+   "blocksBelowTip": 3750143,
    "blocks": 2,
    "transactions": 382,
    "firstInBlock": 2,
@@ -264,7 +264,7 @@
      "refused": 0,
      "notAttempted": 0,
      "stoppedBy": null,
-     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
     }
    }
   }
@@ -319,5 +319,5 @@
   "_note": "T2, separately from traced (CXP-EVM-5): the windows were recorded with --skip-source-fetch, so no recording resolved verified source.",
   "tracedAtSourceLevelOverTraced": 0
  },
- "verdict": "REFUTED, AND BY THE RECORDER RATHER THAN BY THE CHAIN. Every one of the 1,424 transactions with an execution replays in all six windows (0 divergent, 0 refused), so window one is not the worst of the six on the with-execution denominator and `era` is not the dominant variable for codetracer-evm-recorder d411e3a: no variable is, because nothing fails. The premise the expectation was read from was real: under the header-field ladder it named, block 4,370,100 replayed under BERLIN and 58 of its 59 traced transactions disagreed with their receipts on gas (recorded in spec_for_block's doc comment). That was a trial, not a reading, and spec_for_block (0301bf3) now selects the revision by mainnet activation height, so the collapsed rung no longer exists. The remaining divergence in the 0301bf3 reading (27 rows) was the recorder too: 14 logs kept from reverted frames and 13 gas differences from typed-transaction fields the replay did not carry, both fixed in d411e3a. Over ALL transactions window one is lowest (34.1%), because 209 of its 317 are plain value transfers that execute no code; that is transaction mix, which the no-code-executed exclusion names, not era."
+ "verdict": "REFUTED, AND BY THE RECORDER RATHER THAN BY THE CHAIN. Every one of the 1,424 transactions with an execution replays in all six windows (0 divergent, 0 refused), so window one is not the worst of the six on the with-execution denominator and `era` is not the dominant variable for codetracer-evm-recorder dc257fe: no variable is, because nothing fails. The premise the expectation was read from was real: under the header-field ladder it named, block 4,370,100 replayed under BERLIN and 58 of its 59 traced transactions disagreed with their receipts on gas (recorded in spec_for_block's doc comment). That was a trial, not a reading, and spec_for_block (0301bf3) now selects the revision by mainnet activation height, so the collapsed rung no longer exists. Every later failure was the recorder too. The 0301bf3 reading had 27 divergent rows: 14 logs kept from reverted frames and 13 gas differences from typed-transaction fields the replay did not carry, both fixed in d411e3a. The d411e3a reading then matched every receipt while 489 of its 1,424 traces were SHORT: a DELEGATECALL implementation was never listed (0a8606e), the Sourcify lookup cap also bounded which contracts were listed (2221328), and an EIP-7702 account was listed as its 23-byte designator (dc257fe). In this reading the recorder counts both failure modes on every trace, steps no listing covered and steps at a PC the listed code has no instruction at, and both are 0 for all 1,424; the producer refuses a non-zero count. One trace holds 2 fewer steps than the replay captured, and those are the EVM's implicit STOP past the end of the code, which executes no instruction byte. Over ALL transactions window one is lowest (34.1%) because 209 of its 317 are plain value transfers that execute no code: transaction mix, which the no-code-executed exclusion names, not era."
 }

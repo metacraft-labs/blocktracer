@@ -489,7 +489,7 @@
         "windowsWithout": [],
         "_note": [
           "SIX OF SIX since the 2026-10-22 reading (`measurements/eth-replay-yield.json`): every",
-          "window was recorded by codetracer-evm-recorder d411e3a, named on each window's replay",
+          "window was recorded by codetracer-evm-recorder dc257fe, named on each window's replay",
           "ledger. Before that reading:",
           "NONE, because no reading of this chain exists yet and no window has been replayed.",
           "Declared as zero rather than left absent: an absent coverage member and a coverage",
