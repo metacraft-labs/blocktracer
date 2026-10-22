@@ -1,0 +1,239 @@
+{
+ "format": "blocktracer/historic-replay-yield@1",
+ "_comment": [
+  "ETHEREUM MAINNET, EVERY TRANSACTION OF EACH PINNED WINDOW. Recorder-EVM CXP-EVM-5,",
+  "built by tools/chain/eth-yield-reading.mjs from whole-block captures",
+  "(capture-eth-range.mjs --whole-blocks). Each block was replayed once, in order, from",
+  "its parent block (replay-preceding)."
+ ],
+ "measuredAt": "2026-10-22T15:08:30.554Z",
+ "chain": "eth",
+ "endpoint": "https://eth.drpc.org",
+ "chainTipAtRun": 26248949,
+ "finalizedAtRun": 26248878,
+ "toolchain": {
+  "recorder": "metacraft-labs/codetracer-evm-recorder d411e3a8cf4f2935dd070d746d82635f300f9ac5",
+  "sourceFetch": false
+ },
+ "windows": [
+  {
+   "from": 4370100,
+   "to": 4370101,
+   "blocksBelowTip": 21878848,
+   "blocks": 2,
+   "transactions": 317,
+   "firstInBlock": 2,
+   "notFirstInBlock": 315,
+   "replayed": 108,
+   "divergent": 0,
+   "traced": 108,
+   "privateOnly": 209,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 108,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 108,
+     "replayed": 108,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+    }
+   }
+  },
+  {
+   "from": 12500000,
+   "to": 12500001,
+   "blocksBelowTip": 13748948,
+   "blocks": 2,
+   "transactions": 242,
+   "firstInBlock": 2,
+   "notFirstInBlock": 240,
+   "replayed": 219,
+   "divergent": 0,
+   "traced": 219,
+   "privateOnly": 23,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 219,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 219,
+     "replayed": 219,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+    }
+   }
+  },
+  {
+   "from": 13000000,
+   "to": 13000001,
+   "blocksBelowTip": 13248948,
+   "blocks": 2,
+   "transactions": 387,
+   "firstInBlock": 2,
+   "notFirstInBlock": 385,
+   "replayed": 238,
+   "divergent": 0,
+   "traced": 238,
+   "privateOnly": 149,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 238,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 238,
+     "replayed": 238,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+    }
+   }
+  },
+  {
+   "from": 17100000,
+   "to": 17100001,
+   "blocksBelowTip": 9148948,
+   "blocks": 2,
+   "transactions": 224,
+   "firstInBlock": 2,
+   "notFirstInBlock": 222,
+   "replayed": 181,
+   "divergent": 0,
+   "traced": 181,
+   "privateOnly": 43,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 181,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 181,
+     "replayed": 181,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+    }
+   }
+  },
+  {
+   "from": 19500000,
+   "to": 19500001,
+   "blocksBelowTip": 6748948,
+   "blocks": 2,
+   "transactions": 587,
+   "firstInBlock": 2,
+   "notFirstInBlock": 585,
+   "replayed": 400,
+   "divergent": 0,
+   "traced": 400,
+   "privateOnly": 187,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 400,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 400,
+     "replayed": 400,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+    }
+   }
+  },
+  {
+   "from": 22500000,
+   "to": 22500001,
+   "blocksBelowTip": 3748948,
+   "blocks": 2,
+   "transactions": 382,
+   "firstInBlock": 2,
+   "notFirstInBlock": 380,
+   "replayed": 278,
+   "divergent": 0,
+   "traced": 278,
+   "privateOnly": 104,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 278,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 278,
+     "replayed": 278,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "d411e3a8cf4f2935dd070d746d82635f300f9ac5"
+    }
+   }
+  }
+ ],
+ "totals": {
+  "transactions": 2139,
+  "firstInBlock": 12,
+  "notFirstInBlock": 2127,
+  "replayed": 1424,
+  "divergent": 0,
+  "traced": 1424,
+  "privateOnly": 715,
+  "refused": 0,
+  "bodyUnavailable": 0,
+  "notAttempted": 0,
+  "withExecution": 1424,
+  "tracedAtSourceLevel": 0
+ },
+ "yield": {
+  "tracedOverAllTransactions": 66.6,
+  "perWindowTracedOverAllTransactions": [
+   34.1,
+   90.5,
+   61.5,
+   80.8,
+   68.1,
+   72.8
+  ],
+  "tracedOverWithExecution": 100,
+  "perWindowTracedOverWithExecution": [
+   100,
+   100,
+   100,
+   100,
+   100,
+   100
+  ]
+ },
+ "sourceLevel": {
+  "_note": "T2, separately from traced (CXP-EVM-5): the windows were recorded with --skip-source-fetch, so no recording resolved verified source.",
+  "tracedAtSourceLevelOverTraced": 0
+ },
+ "verdict": "REFUTED, AND BY THE RECORDER RATHER THAN BY THE CHAIN. Every one of the 1,424 transactions with an execution replays in all six windows (0 divergent, 0 refused), so window one is not the worst of the six on the with-execution denominator and `era` is not the dominant variable for codetracer-evm-recorder d411e3a: no variable is, because nothing fails. The premise the expectation was read from was real: under the header-field ladder it named, block 4,370,100 replayed under BERLIN and 58 of its 59 traced transactions disagreed with their receipts on gas (recorded in spec_for_block's doc comment). That was a trial, not a reading, and spec_for_block (0301bf3) now selects the revision by mainnet activation height, so the collapsed rung no longer exists. The remaining divergence in the 0301bf3 reading (27 rows) was the recorder too: 14 logs kept from reverted frames and 13 gas differences from typed-transaction fields the replay did not carry, both fixed in d411e3a. Over ALL transactions window one is lowest (34.1%), because 209 of its 317 are plain value transfers that execute no code; that is transaction mix, which the no-code-executed exclusion names, not era."
+}

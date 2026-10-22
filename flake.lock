@@ -91,17 +91,17 @@
     "codetracer-evm-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1792508264,
-        "narHash": "sha256-B4IE0yj4r2dGwmfeUw/QGU0oQRwM0ngT6zsjVn7T/90=",
+        "lastModified": 1792677844,
+        "narHash": "sha256-zLA5p3u60SzSpeR76iCkmest3oG1V/UI4Sd6zNpBbH4=",
         "owner": "metacraft-labs",
         "repo": "codetracer-evm-recorder",
-        "rev": "0301bf3b2309d5e54ae8c5b7495b1b28b38f9443",
+        "rev": "d411e3a8cf4f2935dd070d746d82635f300f9ac5",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-evm-recorder",
-        "rev": "0301bf3b2309d5e54ae8c5b7495b1b28b38f9443",
+        "rev": "d411e3a8cf4f2935dd070d746d82635f300f9ac5",
         "type": "github"
       }
     },
