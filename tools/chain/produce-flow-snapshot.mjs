@@ -55,7 +55,8 @@ import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import {
   RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
-  CALLTRACE_STREAM_SCHEMA, costVectorForRow, executionsForRow, rolesForRow,
+  CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET, costVectorForRow, executionsForRow,
+  rolesForRow,
 } from './lib/flow-producer-facts.mjs';
 
 const run = promisify(execFile);
@@ -310,6 +311,13 @@ async function main() {
       endpoint: anyTranscript.accessNode,
       recorder: { ...RECORDER },
       prestateStrategy: PRESTATE_STRATEGY,
+      // THE EXECUTABLE FORMAT THIS CAPTURE'S RECORDINGS ARE WRITTEN AGAINST, declared
+      // rather than carried inside an instruction listing — this chain publishes none,
+      // because Cadence is executed from its AST and a step IS a statement. The reader
+      // publishes it onto the registry row's `vm.instructionSet`
+      // (Data-Contract.md §5.2b, Configuration.md §2.1); the facts module says why the
+      // token names the format and not the interpreter that walks it.
+      vm: { instructionSet: INSTRUCTION_SET },
       capturedAt,
       nodeVersion: floor.nodeVersion,
       tool: HERE,

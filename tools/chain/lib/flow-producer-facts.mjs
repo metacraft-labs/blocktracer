@@ -29,11 +29,40 @@ export const POSITION_STREAM_SCHEMA = 'cadence-positions/1';
 export const CALLTRACE_STREAM_SCHEMA = 'cadence-call-frames/1';
 
 /**
- * `vm.instructionSet`. Cadence is interpreted from its AST, statement by statement, so
- * there is no instruction set and no instruction listing: a step IS a statement, and this
- * producer publishes no `instructions/` sidecar rather than one with nothing in it.
+ * `provenance.vm.instructionSet` — the executable, formally defined format a Cadence
+ * program on this chain is executed from, which Configuration.md §2.1 is the definition
+ * of and which is broader than a bytecode ISA.
+ *
+ * STILL NO INSTRUCTION LISTING, and that is unchanged: Cadence is executed from its AST,
+ * statement by statement, so a step IS a statement and this producer publishes no
+ * `instructions/` sidecar rather than one with nothing in it. What changed on 2026-10-22
+ * is that the member no longer travels inside a listing — it is declared on this
+ * capture's `provenance.vm` and the reader publishes it onto the registry row, so a
+ * chain without listings states its format like any other.
+ *
+ * `cadence-ast` AND NOT `cadence-interpreter`, which is what this constant said while
+ * nothing imported it. The convention is read off the four chains that already declare
+ * one — `evm`, `sbf`, `cairo`, `move` — and it has two rules, both stated in those
+ * modules rather than inferred here. The token names the FORMAT, not the chain: the
+ * Ethereum note says `evm` and not `ethereum-evm` because "the EVM's table is the same
+ * on Base, Arbitrum and every other EVM instance", and the Starknet note says `cairo`
+ * "is the same on every chain that runs the Cairo VM, so it names no chain". And the
+ * token is the STEM its sibling schema tokens are built from — `evm` under
+ * `evm-disassembly` and `evm-instructions/1`, `cairo` under `cairo-casm`, `sbf` under
+ * `sbf-disassembly` — with the suffix naming the FORM the artifact is in where a stem
+ * alone would not say.
+ *
+ * `cadence-interpreter` keeps the stem and FAILS THE FIRST RULE, which is the one that
+ * decides: an interpreter is the EXECUTOR, a fact about one implementation of the runtime
+ * rather than about the format a program is in, and nothing a consumer can select a table
+ * or a renderer by. `cadence-ast` takes
+ * the stem the sibling tokens here already use (`cadence`, `cadence-positions/1`,
+ * `cadence-call-frames/1`) and names the form: the AST. The form is qualified rather
+ * than left bare for the reason `cairo-casm` is qualified where `cairo` is not — a bare
+ * `cadence` would be the only thing available to name a compiled Cadence too, and the
+ * one job of this token is to say how a program is read.
  */
-export const INSTRUCTION_SET = 'cadence-interpreter';
+export const INSTRUCTION_SET = 'cadence-ast';
 
 /** `transactions[].executions` — one transaction, one execution. */
 export const executionsForRow = (reason) => (reason

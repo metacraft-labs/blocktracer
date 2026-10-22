@@ -420,7 +420,9 @@
         "ordering": {"required": false, "access": "optional", "enforcedBy": "S5-ORDERING-CLOSED",
                      "holds": "the quantity that sequences this chain's transactions, from the closed set `blockIndex` / `checkpoint`. Absent means `blockIndex`, which is what every tree published before the member existed was built as — §5.3"},
         "identifierEncoding": {"required": false, "access": "optional", "enforcedBy": "S5-IDENTIFIER-ENCODING-CLOSED",
-                               "holds": "how this chain writes its identifiers, per kind — the one declaration the reader keys every sharded path from AND publishes onto the registry row. Absent means hex, which is what every tree published before the member existed was keyed under — §5.6"}
+                               "holds": "how this chain writes its identifiers, per kind — the one declaration the reader keys every sharded path from AND publishes onto the registry row. Absent means hex, which is what every tree published before the member existed was keyed under — §5.6"},
+        "vm": {"required": false, "access": "optional",
+               "holds": "the executable format this chain's programs are executed from, as {\"instructionSet\": \"…\"} — the declaration that reaches the registry row's `vm` without an instruction listing. An absent member means the producer declared no format, which is NOT a claim that the chain has none — Configuration.md §2.1, §5.3"}
       }
     },
 
@@ -705,7 +707,7 @@
         "steps": {"required": true, "access": "optional", "enforcedBy": "S5-INSTRUCTIONS-AGREE",
                   "holds": "the listing's own step count, which must equal the recording's"},
         "isa": {"required": false, "access": "optional",
-                "holds": "the instruction set this listing's opcode numbers are numbers in; carried up to the chain's registry row so a consumer may select a mnemonic table before it opens a recording"}
+                "holds": "the instruction set this listing's opcode numbers are numbers in; carried up to the chain's registry row — where the capture declares no `provenance.vm` of its own (§5.3) — so a consumer may select a mnemonic table before it opens a recording"}
       }
     },
 

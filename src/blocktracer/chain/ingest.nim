@@ -1089,6 +1089,38 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
             "this reader would then have no path to write.")
       chainIdentifierEncoding(byKind)
 
+  # ---- THE EXECUTABLE FORMAT THIS CHAIN'S PROGRAMS ARE EXECUTED FROM --------
+  #
+  # `provenance.vm` is the producer's DECLARATION of the format its recordings
+  # are written against, and it is the route to the registry row's
+  # `vm.instructionSet` that does not run through an instruction listing.
+  #
+  # WHY THE MEMBER NEEDED A SECOND ROUTE. The only route used to be a listing's
+  # own `isa`, harvested further down and lifted to the chain once every listing
+  # agreed. That is reachable for a chain compiled to bytecode and UNREACHABLE
+  # for one that is not: a runtime that executes a program by walking its
+  # abstract syntax tree publishes no `instructions/` sidecar — a step IS a
+  # statement — so a chain with a perfectly definite executable format had
+  # nowhere to state it, and its row went out short of the member while every
+  # row that published a listing carried it. Configuration.md §2.1 now states the definition the
+  # member carries: THE EXECUTABLE, FORMALLY DEFINED FORMAT THAT DEFINES HOW A
+  # PROGRAM ON THIS CHAIN IS TO BE EXECUTED, of which a bytecode instruction set
+  # is the commonest kind and not the only one.
+  #
+  # IT CANNOT PUBLISH A GUESS, which is the property to keep rather than the
+  # route. This reader states no fact about any chain on a producer's behalf
+  # (Data-Contract.md §5.3), so an absent member, a member of the wrong shape
+  # and an empty token are ONE answer here — nothing was declared — and a
+  # capture that declares nothing publishes no `vm` exactly as it did before
+  # this route existed (§2.2's additive rule, in the direction that matters).
+  #
+  # ONE FUNCTION, TWO PLACES IT IS READ. `parseVmIdentity` is what the client's
+  # view model and the producer-side validator parse the REGISTRY ROW's `vm`
+  # with, and it is what parses the snapshot's declaration here, so the
+  # declaration and the row it becomes cannot be understood two ways. That is
+  # `identifierEncoding`'s arrangement above and for its reason.
+  let declaredVm = parseVmIdentity(prov{"vm"})
+
   # ---- the artifact-resolution SIDECAR, if this capture has one -------------
   #
   # WHAT IT IS FOR. Every transaction in `client/fixtures/chain/` was captured by a runtime
@@ -2917,7 +2949,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # the only thing in a position to state: where this chain's prestate boundary
   # is and what KIND of boundary it is (Chain-Support-Matrix.md §1.3), which
   # quantity sequences its transactions (Static-Site-Architecture.md §2.3's
-  # ordering union), and which instruction set its recordings are written
+  # ordering union), and which executable format its recordings are written
   # against. All three sit here rather than in `snapshot.json` because all three
   # are facts about the CHAIN and not about a row: §5.2b's census of a
   # transaction row has nowhere to put them, and a row that carried them would
@@ -2927,10 +2959,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # `replayableFrom`; its kind follows from whether that boundary coincides with
   # the node's moving finalized pointer (`reachFromWindow` states the rule); the
   # ordering kind is the kind of the rows this run published, collected as they
-  # were written; the instruction set is what the listings published above
-  # declare. Nothing here is keyed by a chain name and nothing is a constant —
-  # the reader states no fact about any chain on a producer's behalf
-  # (Data-Contract.md §5.3).
+  # were written; the executable format is the one the capture DECLARED in
+  # `provenance.vm`, or, where it declared none, the one the listings published
+  # above agree on. Nothing here is keyed by a chain name and nothing is a
+  # constant — the reader states no fact about any chain on a producer's behalf
+  # (Data-Contract.md §5.3). A DECLARATION IS NOT AN EXCEPTION TO THAT: the
+  # producer stated it, this reader only carries it, and a capture that states
+  # nothing publishes nothing.
   #
   # ALL THREE ARE ADDITIVE (Configuration.md §2.2). A capture short of the
   # inputs publishes a row short of the member, and a consumer built before the
@@ -2953,10 +2988,29 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   for k in TxOrderKind:
     if orderKinds == {k}:
       profile.ordering = ChainOrdering(state: dsDeclared, kind: k, token: $k)
-  # …and the same rule for the instruction set, for the same reason: two
-  # listings that disagree leave the chain with no single identity, and a table
-  # selected by the wrong one would name the wrong instructions confidently.
-  if isaTokens.len == 1:
+  # THE INSTRUCTION SET HAS TWO ROUTES NOW, AND THE DECLARATION WINS.
+  #
+  # `provenance.vm` is a statement about the CHAIN, which is what this member
+  # is. A listing's `isa` is a statement about one RECORDING, lifted to the
+  # chain only because every listing agreed — so where a producer has declared
+  # the chain's format, that declaration is the better-typed of the two answers
+  # and the listings are the fallback.
+  #
+  # AND WHERE BOTH ARE PRESENT AND THEY DISAGREE, PUBLISHING THE DECLARATION IS
+  # WHAT MAKES THE DISAGREEMENT LOUD. The validator reads this row back out of
+  # the tree it is validating and reports a listing whose `isa` contradicts it,
+  # naming both tokens. Declaring nothing instead would silence that check
+  # rather than satisfy it: it only fires on a row that declares something, so a
+  # contradiction would publish a tree with no `vm` and no finding either.
+  #
+  # …AND THE ONE-OR-NOTHING RULE IS UNCHANGED FOR THE LISTINGS, for its own
+  # reason: two listings that disagree leave the chain with no single identity,
+  # and a table selected by the wrong one would name the wrong instructions
+  # confidently. A capture that declares no format and publishes no listing
+  # declares nothing at all, which is the honest answer and not a default.
+  if declaredVm.stated:
+    profile.vm = declaredVm
+  elif isaTokens.len == 1:
     profile.vm = ChainVmIdentity(stated: true, instructionSet: isaTokens[0])
   row.mergeChainProfile(profile)
   reg["chains"][chain] = row

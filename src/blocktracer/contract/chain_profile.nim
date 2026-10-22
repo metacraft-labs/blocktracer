@@ -7,9 +7,9 @@
 ##     (Chain-Support-Matrix.md §1.3);
 ##   * which quantity sequences its transactions
 ##     (Static-Site-Architecture.md §2.3's ordering union);
-##   * which instruction set its recordings are written against, so a mnemonic
-##     table is SELECTED by identity instead of being unlocked by a string
-##     comparison.
+##   * which executable format its recordings are written against, so a
+##     mnemonic table is SELECTED by identity instead of being unlocked by a
+##     string comparison.
 ##
 ## Configuration.md §2.1 is the schema and §2.2 the additive rule that makes
 ## writing them safe: every member here is optional, and a consumer built for a
@@ -117,12 +117,29 @@ type
       ## accept, which is a different fact from absence and must not read as one.
 
   ChainVmIdentity* = object
-    ## Which instruction set this chain's recordings are written against.
+    ## Which executable format this chain's recordings are written against.
     ##
-    ## The token is the recording's own (`instructions.json`'s `isa`), carried
+    ## ## What the token names, which is broader than a bytecode ISA
+    ##
+    ## Configuration.md §2.1: **the executable, formally defined format that
+    ## defines how a program on this chain is to be executed**. A bytecode
+    ## instruction set is the commonest kind of such format and is not the only
+    ## one — a chain whose runtime executes a program by walking its abstract
+    ## syntax tree has one too, and a consumer needs it for the same reason. So
+    ## an interpreted-AST chain HAS an instruction set here and declares one.
+    ##
+    ## ## Where the token comes from, and it is two places
+    ##
+    ## Either the capture's own `provenance.vm` declaration, or — where it
+    ## declares none — the recording's own `instructions.json` `isa`, carried
     ## up to the chain by a producer that saw every listing it published agree.
+    ## The first route exists because the second is unreachable for a chain that
+    ## publishes no listing, which is not the same chain as one with no format.
+    ##
+    ## ## Why the set is open
+    ##
     ## It is NOT drawn from a closed set here, and that is deliberate: the set of
-    ## instruction sets in the world is open, a producer must be able to state
+    ## executable formats in the world is open, a producer must be able to state
     ## one this build has never heard of, and the closed thing is the set of
     ## TABLES a consumer holds — where an identity with no table simply yields
     ## opcode numbers, which is already the honest answer.
