@@ -378,7 +378,7 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
 .search input:not(:placeholder-shown){border-color:var(--bt-border-accent);color:var(--bt-text-strong)}
 .search input:hover::placeholder,.search input:focus-visible::placeholder{color:var(--bt-text-muted)}
 .chainstrip{display:flex;gap:var(--bt-space-md);flex-wrap:wrap;margin-top:var(--bt-rhythm-group)}
-.chaincard{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-space-lg) var(--bt-space-xl);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease),background var(--bt-motion-fast) var(--bt-motion-ease)}
+.chaincard{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-space-lg) var(--bt-space-xl);background:var(--bt-surface-raised);transition:border-color var(--bt-motion-fast) var(--bt-motion-ease),background var(--bt-motion-fast) var(--bt-motion-ease)}
 .chaincard:hover{border-color:var(--bt-border-accent);background:var(--bt-surface-hover)}
 .chaincard:active{background:var(--bt-surface-selected)}
 .chaincard .name{font-size:var(--bt-type-h3-size);font-weight:var(--bt-type-h3-weight);color:var(--bt-text-strong)}
@@ -399,9 +399,27 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
    adds nothing a reader can name and makes a structural container read as a
    floating card: measured, the shadow it dropped peaks at 1.24:1 against the
    light canvas and at 1.00:1 against the dark one, where it is a black shadow
-   on a black page. The shadow tokens are not removed and not orphaned —
-   `.chaincard` and the stacked mobile rows still take `raised`, because those
-   two ARE lifted: they are the interactive surfaces a pointer picks up.
+   on a black page.
+
+   THAT CARVE-OUT IS NOW GONE TOO. This used to end "the shadow tokens are not
+   removed and not orphaned — `.chaincard` and the stacked mobile rows still
+   take `raised`, because those two ARE lifted: they are the interactive
+   surfaces a pointer picks up." The measurement above is what retired it: a
+   shadow at 1.00:1 against the dark canvas is not a weak signal of lift, it
+   is no signal at all, so it cannot be what tells a reader those rows are
+   pickable. What tells them is the hover treatment they already carry —
+   `.chaincard` transitions its border and its background under the pointer,
+   and that works in both themes. The operator's report was that gradients and
+   drop shadows are not what the other products spend, and across all eight
+   vendored CodeTracer component stylesheets the only soft shadow of any kind
+   is `0 0.25em 0.5em rgba(0,0,0,0.2)` on a tooltip — an overlay. Every
+   CodeTracer surface that merely RESTS is held by a hairline and a tone.
+
+   So `--bt-elevation-raised` is now read by no rule. It is deliberately left
+   in the token set rather than deleted: it is a primitive Design-System.md §2
+   says the registers SHARE, and the rung is still the right answer the day
+   something genuinely floats one step above the page. `--bt-elevation-
+   overlay` is still spent, on the debugger's three real overlays.
    See docs/EXPLORER-TINT.md §2 T-2. */
 .dl{display:grid;grid-template-columns:var(--bt-layout-label-column) minmax(0,1fr);gap:0;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);overflow:hidden;background:var(--bt-surface-raised)}
 .dl dt{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);line-height:var(--bt-space-lg);letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;color:var(--bt-text-muted);background:var(--bt-surface-sunken);border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
@@ -621,16 +639,24 @@ table.tbl td.num{text-align:right}
 .btn.disabled:hover{background:var(--bt-action-disabled-bg);border-color:var(--bt-action-disabled-border)}
 
 /* ── tx-detail debug panel ──────────────────────────────────────────────── */
-/* `--bt-elevation-raised` and NOT `--bt-elevation-overlay`. This card is IN
-   FLOW — it is the first thing under the transaction hero, it displaces the
-   page, and nothing is drawn beneath it. `overlay` is the modal rung —
-   the widest, darkest shadow the system has in either theme —
-   reserved for a surface that floats OVER the document; the debugger's three
-   uses of it are all genuine overlays. Wearing a modal shadow made the page's
-   primary call to action read as a dialog that had failed to open. The card is
-   still the most raised thing on the transaction page — it keeps a shadow,
-   one rung down. See docs/EXPLORER-TINT.md T-2. */
-.debugcard{max-width:var(--bt-layout-prose);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-density-card-pad) var(--bt-density-cell-x);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised)}
+/* NO `box-shadow` AT ALL NOW, which settles an argument this comment used to
+   have with itself. It read "`--bt-elevation-raised` and NOT
+   `--bt-elevation-overlay`… the card is still the most raised thing on the
+   transaction page — it keeps a shadow, one rung down", and the half of it
+   that still stands is the half about `overlay`: that is the modal rung, this
+   card is IN FLOW, it is the first thing under the transaction hero, it
+   displaces the page and nothing is drawn beneath it, and wearing a modal
+   shadow made the page's primary call to action read as a dialog that had
+   failed to open.
+
+   What does not stand is the conclusion that it therefore keeps `raised`. The
+   definition grid's comment measured that rung at 1.24:1 on the light canvas
+   and 1.00:1 on the dark one; a shadow nobody can see does not make this the
+   most raised thing on the page, it just costs a declaration. Being first
+   under the hero is what makes it prominent, and it keeps the hairline, the
+   radius and the raised SURFACE that say so in both themes.
+   See docs/EXPLORER-TINT.md T-2. */
+.debugcard{max-width:var(--bt-layout-prose);border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);padding:var(--bt-density-card-pad) var(--bt-density-cell-x);background:var(--bt-surface-raised)}
 .debugcard .row{display:flex;align-items:center;gap:var(--bt-space-md);flex-wrap:wrap}
 .debugcard .note{color:var(--bt-text-default);font-size:var(--bt-type-body-sm-size);line-height:var(--bt-type-body-sm-line);margin-top:var(--bt-rhythm-stack);max-width:var(--bt-measure-prose)}
 .debugcard .note.spec{max-width:none;margin-top:var(--bt-rhythm-stack);padding-top:var(--bt-space-sm);border-top:var(--bt-stroke-hairline) solid var(--bt-border-subtle);color:var(--bt-text-default)}
@@ -1015,7 +1041,7 @@ table.tbl td .reason{white-space:normal;max-width:var(--bt-measure-narrow)}
   table.txtbl{display:block;font-size:var(--bt-type-body-sm-size)}
   table.txtbl thead{display:none}
   table.txtbl tbody{display:block}
-  table.txtbl tbody tr{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);background:var(--bt-surface-raised);box-shadow:var(--bt-elevation-raised);padding:var(--bt-space-sm) var(--bt-density-cell-x);margin-bottom:var(--bt-space-sm)}
+  table.txtbl tbody tr{display:block;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);background:var(--bt-surface-raised);padding:var(--bt-space-sm) var(--bt-density-cell-x);margin-bottom:var(--bt-space-sm)}
   table.txtbl tbody tr.reverted{border-color:var(--bt-status-danger-border)}
   table.txtbl td{display:flex;justify-content:space-between;align-items:baseline;gap:var(--bt-space-md);white-space:normal;border-bottom:0;padding:var(--bt-space-3xs) 0;text-align:left}
   table.txtbl td.num{text-align:left}

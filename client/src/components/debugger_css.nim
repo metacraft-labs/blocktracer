@@ -2142,8 +2142,18 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    at 10% on a page that is loading an 18 MB engine reads as the engine's
    loading, not as position in a trace. Full track height and the strong accent
    so it is the most legible mark in the control. */
+/* THE FLOOR IS `--bt-space-2xs` (4px) AND NOT `--bt-stroke-thick` (2px). The
+   track is 260px wide and carries 48 ticks, so a tick is ~5.4px and the
+   playhead — which is one tick — was being floored at 2px, under half of its
+   neighbours. At step 1 of 790 that put a 2px accent mark at the extreme left
+   end of a 260px bar with no elapsed run beside it yet, and a reviewer looking
+   at the control reported it as "a uniform grey bar with no thumb". The mark
+   was there and was doing everything this rule asks of it; it was simply too
+   thin to be found. 4px is still inside one tick, so the playhead never
+   overlaps its neighbour, and it is a SPACING rung rather than a stroke
+   because what is being set is the width of a mark, not the weight of a line. */
 .dctl .tick.at{background:var(--bt-mark-position);height:100%;
-  min-width:var(--bt-stroke-thick);border-radius:var(--bt-radius-xs);
+  min-width:var(--bt-space-2xs);border-radius:var(--bt-radius-xs);
   flex:0 0 auto}
 /* THE GESTURE, SAID AS A CURSOR — and only where the gesture exists.
    `.seekable` is stamped by `hydrate.markScrubberSeekable`, which is in the
@@ -2222,8 +2232,38 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
    So the column is `minmax(0,auto)`, which lets it shrink below its content,
    and the label may wrap. THE NON-BREAKING SPACE STAYS: it holds
    `Transaction fee` together while permitting the break after `Cost ·`, which
-   is the break a reader would choose. */
-.mddl{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:0}
+   is the break a reader would choose.
+
+   `fit-content(45%)` AS THE MAX, BECAUSE SHRINKING WHEN FORCED IS NOT THE
+   SAME AS SHARING. `minmax(0,auto)` only gives width back when the track
+   cannot otherwise fit; while it fits, `auto` still takes max-content, so on
+   the debug route's 284px metadata pane the label column settled at ~170px
+   and left the values 114px — about twelve characters a line. Measured there:
+   `Aztec testnet — live Noir call frames` wrapped to 4.4 lines, `No timestamp
+   published` to 3.4 and `Instruction level` to 2.4, while `Yes` and `Pending`
+   sat on one. Nothing overflowed — the wrapping fix above holds — but a pane
+   whose every informative value is four lines tall and whose labels are one
+   is not reading as a two-column grid any more.
+
+   The cap bounds the label track at 45% of the pane instead of at its own
+   max-content, so the values get the rest. It is a MAXIMUM and not a fixed
+   width: a short-labelled grid still sizes to its labels and nothing is
+   padded out to 45%.
+
+   `fit-content(45%)` IS WRITTEN BARE AND NOT INSIDE `minmax()`. The obvious
+   spelling — `minmax(0,fit-content(45%))`, to keep the explicit 0 floor the
+   note above asks for — is INVALID: `minmax()` takes a breadth, and
+   `fit-content()` is not one. An invalid track list drops the whole
+   declaration, the grid falls back to `none`, and every row auto-places into
+   one implicit column: built, measured, and caught by the value cells coming
+   back 286px wide in a 286px pane. The floor is not lost by writing it bare,
+   because `fit-content()` already resolves to `minmax(auto, …)` and `auto`
+   here is min-content — and `.mddl dt` is `white-space:normal` with
+   `overflow-wrap:break-word`, so its min-content is one word, not the whole
+   label. That is exactly the shrink-and-wrap behaviour the original note
+   needs. */
+.mddl{display:grid;
+  grid-template-columns:fit-content(45%) minmax(0,1fr);gap:0}
 .mddl dt{padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);
   letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;

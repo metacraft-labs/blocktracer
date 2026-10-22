@@ -103,6 +103,42 @@ proc inAnchorTag(html: string; index: int): bool =
     inc k
   result = name.toLowerAscii in ["a", "area"]
 
+proc inXmlnsAttribute(html: string; index: int): bool =
+  ## Is the URL at `index` the value of an `xmlns` / `xmlns:*` attribute?
+  ##
+  ## An XML NAMESPACE IS A NAME, NOT AN ADDRESS. `xmlns="http://www.w3.org/
+  ## 2000/svg"` identifies which vocabulary the element belongs to; no browser
+  ## has ever requested it, and the page renders identically with w3.org
+  ## unreachable — which is the property §1 is about. It looks like a URL
+  ## because XML namespaces are SPELLED as URIs, deliberately, so that two
+  ## vendors cannot collide on one.
+  ##
+  ## This is the same shape of correction as the `<a href>` one above: the
+  ## scanner reads characters, so it cannot tell a vocabulary name from a
+  ## subresource unless it is told what it is reading.
+  ##
+  ## It arrived with the vendored CodeTracer control marks. Those are inline
+  ## `<svg>` — the whole point, so the mark inherits the button's `color`
+  ## instead of being a themed asset — and an inline `<svg>` in an HTML
+  ## document carries the SVG namespace. The alternative readings were to drop
+  ## `xmlns` from upstream's markup, which would mean editing a vendored file
+  ## and breaking the byte conformance that makes the marks propagate, or to
+  ## add `http://www.w3.org` beside the `sitemaps.org` exception below, which
+  ## is the same mistake a second time: that one is ALSO a namespace, on
+  ## `sitemap.xml`'s root element, admitted one domain at a time.
+  var k = index
+  while k > 0 and html[k - 1] in {'"', '\''}: dec k
+  if k == 0 or html[k - 1] != '=': return false
+  dec k                                   # now on '='
+  var name = ""
+  while k > 0 and html[k - 1] notin {' ', '\t', '\n', '<', '>'}:
+    dec k
+    name.add html[k]
+  for i in 0 .. name.high div 2:          # the walk collected it backwards
+    swap name[i], name[name.high - i]
+  let lower = name.toLowerAscii
+  result = lower == "xmlns" or lower.startsWith("xmlns:")
+
 proc externalReferences*(html: string): seq[string] =
   ## Every absolute URL a page would FETCH from an origin that is not its own.
   ##
@@ -144,6 +180,7 @@ proc externalReferences*(html: string): seq[string] =
     if not url.startsWith(SiteDomain) and
        not url.startsWith("http://www.sitemaps.org") and
        not inAnchorTag(html, at) and
+       not inXmlnsAttribute(html, start) and
        url notin result:
       result.add url
     i = stop
@@ -417,6 +454,30 @@ suite "M9 — e2e_explorer_renders_from_published_files_only":
         if url notin offenders: offenders.add url
     if offenders.len > 0: echo "  external references: ", offenders
     check offenders.len == 0
+
+  test "THE CONTROL: the scanner still reports a real foreign subresource":
+    ## The `xmlns` carve-out is the second exemption `externalReferences` has
+    ## granted, and an exemption that is too wide turns the check above into a
+    ## check of nothing — it would pass on a page with a CDN script on it. So
+    ## both directions are pinned here, over markup written for the purpose:
+    ## the namespace is let through, a real subresource beside it is not, and
+    ## they are in the SAME document so neither answer can come from the
+    ## scanner having stopped early.
+    const planted = """<!doctype html><html><body>
+      <svg class="ct-control-mark" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1 1L2 2"></path></svg>
+      <script src="https://cdn.example.com/analytics.js"></script>
+      <link rel="stylesheet" href="https://fonts.example.com/x.css">
+      <a href="https://github.com/metacraft-labs/blocktracer">Source</a>
+      </body></html>"""
+    let found = externalReferences(planted)
+    # The two real fetches are reported …
+    check "https://cdn.example.com/analytics.js" in found
+    check "https://fonts.example.com/x.css" in found
+    # … and the namespace and the hyperlink are not.
+    check "http://www.w3.org/2000/svg" notin found
+    check "https://github.com/metacraft-labs/blocktracer" notin found
+    check found.len == 2
 
   test "no rendered page ships script, so nothing can fetch one later":
     # A page with no external reference but an inline fetch would satisfy the

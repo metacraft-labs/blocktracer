@@ -26,6 +26,7 @@ import ../src/ssr
 import ../src/reader
 import ../src/viewutil
 import ../src/debugger/vendor/frontend/headless_app/layout_model
+import ../src/debugger/vendor/frontend/viewmodel/views/debug_control_marks
 import ../src/debugger/session_layout
 import ../src/debugger/session_view
 import ../src/debugger/keymap
@@ -417,7 +418,9 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     let nav = m.children[1]
     check code.kind == lnPane
     check code.pane == paneEditor
-    check code.title == "Code"          # not "Editor" — see §3 below
+    check code.title == "CODE"          # not "Editor" — see §3 below; caps
+                                        # because CodeTracer's titles are caps
+                                        # in the content (session_layout §names)
     check nav.kind == lnColumn
     check nav.children.len == 2
 
@@ -431,11 +434,11 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     check region.children.len == 2
     check region.children[0].pane == paneCalltrace
     check region.children[1].pane == paneEventLog
-    check region.children[0].title == "Call Trace"
-    check region.children[1].title == "Event Log"
+    check region.children[0].title == "CALL TRACE"
+    check region.children[1].title == "EVENT LOG"
     check values.kind == lnPane
     check values.pane == paneState
-    check values.title == "Values"              # not "State" — see §3 below
+    check values.title == "VALUES"              # not "State" — see §3 below
 
     # Call Trace is the tab that OPENS. Selection is the primary navigation
     # gesture and the call trace is the primary selection surface; it is also
@@ -477,7 +480,7 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     # The pane titles differ; the ENUM does not, because the enum is a wire
     # format shared with the SDK and only the labels are BlockTracer's.
     check find(upstream, paneEditor).title == "Editor"
-    check find(blockTracerReplayLayout(), paneEditor).title == "Code"
+    check find(blockTracerReplayLayout(), paneEditor).title == "CODE"
     check $paneEditor == "editor"
     check $paneState == "state"
 
@@ -571,13 +574,13 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     check ("ln lm_stack w5") in dbgc.renderLayout(reweighted, s)
 
     # The titles are the MODEL's, not the renderer's: a pane relabelled in the
-    # tree is relabelled on the page, which is what makes "Code" and "Values"
+    # tree is relabelled on the page, which is what makes "CODE" and "VALUES"
     # BlockTracer's labels rather than a string buried in a `case`.
     var relabelled = blockTracerReplayLayout()
     find(relabelled, paneState).title = "Storage"
     check ">Storage<" in dbgc.renderLayout(relabelled, s)
-    check ">Values<" in reference
-    check ">Values<" notin dbgc.renderLayout(relabelled, s)
+    check ">VALUES<" in reference
+    check ">VALUES<" notin dbgc.renderLayout(relabelled, s)
 
   test "Call Trace and Event Log are ONE tabbed region, Call Trace open":
     ## The grouping, asserted over the served MARKUP rather than the model, so
@@ -3816,33 +3819,53 @@ suite "hydration — the seams the bundle reads, and the honesty they preserve":
     ## front-end that gives reverse-finish the forward step-out glyph verbatim,
     ## so two controls wear one mark and only the tooltip separates them.
     ##
-    ## Signatures rather than whole paths: enough to tell all eight apart and
-    ## to catch a swap, without pinning coordinates a redraw may legitimately
-    ## move. That the marks are PAINTED, sized and coloured by the button is a
-    ## claim markup cannot make and is asserted in a browser instead.
+    ## THE EXPECTED MARKS ARE READ OUT OF THE VENDORED TABLE, NOT TYPED HERE.
+    ## This test used to carry eight hand-copied path signatures of its own:
+    ##
+    ##   daStepForward: "M9.99993 13C9.99993"   # codicon debug-step-over
+    ##   daReverseStepIn: "M11.4 3.6L5.6 9.4"   # drawn, head bottom-left
+    ##   …and six more
+    ##
+    ## Those were BlockTracer's own drawings — VS Code codicons and a pair of
+    ## hand-cut arrows. The strip now renders CodeTracer's marks, from
+    ## `vendor/…/views/debug_control_marks.nim`, so every one of those literals
+    ## described artwork this product no longer ships and the suite went red on
+    ## all eight at once. Retyping the new coordinates would buy the same red
+    ## the next time a CodeTracer designer touches the set, which is precisely
+    ## the drift the vendoring exists to prevent.
+    ##
+    ## So the subject is `markFor`, and what is asserted is the RELATION: the
+    ## mark the vendored table gives for a control is the mark that reaches the
+    ## page, all eight differ, and the table covers every button. A change
+    ## upstream moves both sides together and stays green; a control wired to
+    ## the wrong mark, or a mark that never reaches the markup, does not.
+    ##
+    ## THE GEOMETRY ITSELF IS NOT RE-DERIVED HERE and that is deliberate. The
+    ## old test checked a mirror rule by hand — `x -> 16-x`, with two
+    ## worked literals. It is not even the rule CodeTracer draws: its reverse
+    ## marks are their forward partners rotated 180 degrees about the viewBox
+    ## centre, which for `next`/`reverse-next` is `y -> 16-y` with x fixed, and
+    ## for `step-in` (a 17-square box) is about (8.25, 7.40355). Those are
+    ## upstream's drawings. That they are upstream's, unaltered, is checked by
+    ## byte comparison in `ci/test/ct-styles-vendor.sh` and the vendor
+    ## manifest — the right place for it — and not by this suite re-measuring
+    ## someone else's artwork.
     let html = debugHtml(readyTx)
     let s = sessionFor(readyTx)
     check s.controls.buttons.len == 8
-    const sigs = {
-      daStepBackward:    "M8 11C6.897 11 6 11.897",   # codicon debug-step-back
-      daStepForward:     "M9.99993 13C9.99993",       # codicon debug-step-over
-      daReverseStepIn:   "M11.4 3.6L5.6 9.4",         # drawn, head bottom-left
-      daStepIn:          "M4.6 3.6L10.4 9.4",         # drawn, head bottom-right
-      daReverseStepOut:  "M10.4 9.4L4.6 3.6",         # drawn, head top-left
-      daStepOut:         "M5.6 9.4L11.4 3.6",         # drawn, head top-right
-      daReverseContinue: "M8.99688 2C8.80188",        # codicon debug-reverse-continue
-      daContinue:        "M14.578 7.149L7.578",       # codicon debug-continue
-    }.toTable
     var marks: HashSet[string]
     for b in s.controls.buttons:
-      check sigs[b.action] in html
-      marks.incl sigs[b.action]
+      let m = markFor(toolbarActionId(b.action))
+      # The table knows this control at all …
+      check m.buttonId.len > 0
+      check m.shapes.len > 0
+      # … and every shape it draws for it is on the page.
+      for shape in m.shapes:
+        check shape.d in html
+      marks.incl m.buttonId
+    # Eight controls, eight DIFFERENT marks — the Midas failure mode named
+    # above is two controls sharing one.
     check marks.len == 8
-
-    # The mirror rule, as arithmetic a reader can check: each drawn reverse
-    # mark is its forward partner under x -> 16-x.
-    check sigs[daReverseStepIn] == "M11.4 3.6L5.6 9.4"    # 4.6->11.4, 10.4->5.6
-    check sigs[daReverseStepOut] == "M10.4 9.4L4.6 3.6"   # 5.6->10.4, 11.4->4.6
 
     # Not one of the eight old glyphs survives IN THE STRIP. Scoped to the
     # renderer's own output rather than the page, because `▶`/`◀` are ordinary
