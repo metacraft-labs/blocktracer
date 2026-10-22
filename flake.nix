@@ -272,7 +272,7 @@
     # last revision that writes `meta.dat` 6, because the engine this site pins
     # reads 6 only. Move it with client/hydrate/engine-pin.txt, never ahead of it.
     codetracer-evm-recorder = {
-      url = "github:metacraft-labs/codetracer-evm-recorder/0301bf3b2309d5e54ae8c5b7495b1b28b38f9443";
+      url = "github:metacraft-labs/codetracer-evm-recorder/dc257fe77de55e5952806cc46c991820c13816fd";
       flake = false;
     };
     evm-trace-format = {
@@ -334,7 +334,7 @@
     # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chains two and three.
     codetracer-cairo-recorder = {
-      url = "github:metacraft-labs/codetracer-cairo-recorder/67ee2770506398c28e9cf1ea9874471a8b0349ae";
+      url = "github:metacraft-labs/codetracer-cairo-recorder/d13bba54f5e75ae10d8b04503623d20af47e71fb";
       flake = false;
     };
     cairo-trace-format = {

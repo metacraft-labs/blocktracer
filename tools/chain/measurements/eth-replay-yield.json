@@ -1,0 +1,323 @@
+{
+ "format": "blocktracer/historic-replay-yield@1",
+ "_comment": [
+  "ETHEREUM MAINNET, EVERY TRANSACTION OF EACH PINNED WINDOW. Recorder-EVM CXP-EVM-5,",
+  "built by tools/chain/eth-yield-reading.mjs from whole-block captures",
+  "(capture-eth-range.mjs --whole-blocks). Each block was replayed once, in order, from",
+  "its parent block (replay-preceding)."
+ ],
+ "measuredAt": "2026-10-22T19:07:42.833Z",
+ "chain": "eth",
+ "endpoint": "https://eth.drpc.org",
+ "chainTipAtRun": 26250144,
+ "finalizedAtRun": 26250058,
+ "toolchain": {
+  "recorder": "metacraft-labs/codetracer-evm-recorder dc257fe77de55e5952806cc46c991820c13816fd",
+  "sourceFetch": false
+ },
+ "windows": [
+  {
+   "from": 4370100,
+   "to": 4370101,
+   "blocksBelowTip": 21880043,
+   "blocks": 2,
+   "transactions": 317,
+   "firstInBlock": 2,
+   "notFirstInBlock": 315,
+   "replayed": 108,
+   "divergent": 0,
+   "traced": 108,
+   "privateOnly": 209,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 108,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 108,
+     "replayed": 108,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
+    }
+   }
+  },
+  {
+   "from": 12500000,
+   "to": 12500001,
+   "blocksBelowTip": 13750143,
+   "blocks": 2,
+   "transactions": 242,
+   "firstInBlock": 2,
+   "notFirstInBlock": 240,
+   "replayed": 219,
+   "divergent": 0,
+   "traced": 219,
+   "privateOnly": 23,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 219,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 219,
+     "replayed": 219,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
+    }
+   }
+  },
+  {
+   "from": 13000000,
+   "to": 13000001,
+   "blocksBelowTip": 13250143,
+   "blocks": 2,
+   "transactions": 387,
+   "firstInBlock": 2,
+   "notFirstInBlock": 385,
+   "replayed": 238,
+   "divergent": 0,
+   "traced": 238,
+   "privateOnly": 149,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 238,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 238,
+     "replayed": 238,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
+    }
+   }
+  },
+  {
+   "from": 17100000,
+   "to": 17100001,
+   "blocksBelowTip": 9150143,
+   "blocks": 2,
+   "transactions": 224,
+   "firstInBlock": 2,
+   "notFirstInBlock": 222,
+   "replayed": 181,
+   "divergent": 0,
+   "traced": 181,
+   "privateOnly": 43,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 181,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 181,
+     "replayed": 181,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
+    }
+   }
+  },
+  {
+   "from": 19500000,
+   "to": 19500001,
+   "blocksBelowTip": 6750143,
+   "blocks": 2,
+   "transactions": 587,
+   "firstInBlock": 2,
+   "notFirstInBlock": 585,
+   "replayed": 400,
+   "divergent": 0,
+   "traced": 400,
+   "privateOnly": 187,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 400,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 400,
+     "replayed": 400,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
+    }
+   }
+  },
+  {
+   "from": 22500000,
+   "to": 22500001,
+   "blocksBelowTip": 3750143,
+   "blocks": 2,
+   "transactions": 382,
+   "firstInBlock": 2,
+   "notFirstInBlock": 380,
+   "replayed": 278,
+   "divergent": 0,
+   "traced": 278,
+   "privateOnly": 104,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "withExecution": 278,
+   "tracedAtSourceLevel": 0,
+   "unclassified": 0,
+   "refusalsByReason": {
+    "not-first-in-block": 0,
+    "body-unavailable": 0,
+    "body-source-unreachable": 0,
+    "artifact-unresolvable": 0,
+    "prestate-unavailable": 0,
+    "runtime-refused": 0,
+    "no-container-written": 0,
+    "not-attempted": 0,
+    "instruction-unimplemented": 0
+   },
+   "refusalsUnclassified": 0,
+   "ledger": {
+    "replay": {
+     "attempted": 278,
+     "replayed": 278,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "dc257fe77de55e5952806cc46c991820c13816fd"
+    }
+   }
+  }
+ ],
+ "totals": {
+  "transactions": 2139,
+  "firstInBlock": 12,
+  "notFirstInBlock": 2127,
+  "replayed": 1424,
+  "divergent": 0,
+  "traced": 1424,
+  "privateOnly": 715,
+  "refused": 0,
+  "bodyUnavailable": 0,
+  "notAttempted": 0,
+  "withExecution": 1424,
+  "tracedAtSourceLevel": 0,
+  "refusalsByReason": {
+   "not-first-in-block": 0,
+   "body-unavailable": 0,
+   "body-source-unreachable": 0,
+   "artifact-unresolvable": 0,
+   "prestate-unavailable": 0,
+   "runtime-refused": 0,
+   "no-container-written": 0,
+   "not-attempted": 0,
+   "instruction-unimplemented": 0
+  },
+  "refusalsUnclassified": 0
+ },
+ "yield": {
+  "tracedOverAllTransactions": 66.6,
+  "perWindowTracedOverAllTransactions": [
+   34.1,
+   90.5,
+   61.5,
+   80.8,
+   68.1,
+   72.8
+  ],
+  "tracedOverWithExecution": 100,
+  "perWindowTracedOverWithExecution": [
+   100,
+   100,
+   100,
+   100,
+   100,
+   100
+  ]
+ },
+ "sourceLevel": {
+  "_note": "T2, separately from traced (CXP-EVM-5): the windows were recorded with --skip-source-fetch, so no recording resolved verified source.",
+  "tracedAtSourceLevelOverTraced": 0
+ },
+ "verdict": "REFUTED, AND BY THE RECORDER RATHER THAN BY THE CHAIN. Every one of the 1,424 transactions with an execution replays in all six windows (0 divergent, 0 refused), so window one is not the worst of the six on the with-execution denominator and `era` is not the dominant variable for codetracer-evm-recorder dc257fe: no variable is, because nothing fails. The premise the expectation was read from was real: under the header-field ladder it named, block 4,370,100 replayed under BERLIN and 58 of its 59 traced transactions disagreed with their receipts on gas (recorded in spec_for_block's doc comment). That was a trial, not a reading, and spec_for_block (0301bf3) now selects the revision by mainnet activation height, so the collapsed rung no longer exists. Every later failure was the recorder too. The 0301bf3 reading had 27 divergent rows: 14 logs kept from reverted frames and 13 gas differences from typed-transaction fields the replay did not carry, both fixed in d411e3a. The d411e3a reading then matched every receipt while 489 of its 1,424 traces were SHORT: a DELEGATECALL implementation was never listed (0a8606e), the Sourcify lookup cap also bounded which contracts were listed (2221328), and an EIP-7702 account was listed as its 23-byte designator (dc257fe). In this reading the recorder counts both failure modes on every trace, steps no listing covered and steps at a PC the listed code has no instruction at, and both are 0 for all 1,424; the producer refuses a non-zero count. One trace holds 2 fewer steps than the replay captured, and those are the EVM's implicit STOP past the end of the code, which executes no instruction byte. Over ALL transactions window one is lowest (34.1%) because 209 of its 317 are plain value transfers that execute no code: transaction mix, which the no-code-executed exclusion names, not era."
+}

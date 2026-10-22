@@ -401,8 +401,28 @@
         "NOT MONOTONE while its two deepest windows were its two worst; that is a reading from",
         "one testnet and it is not evidence about this chain. What is shared is the method."
       ],
-      "exclusions": [],
+      "exclusions": [
+        {
+          "id": "no-code-executed",
+          "removes": "privateOnly",
+          "structural": true,
+          "why": "a value transfer to an account with no code runs no EVM instruction, so there is no execution to trace at instruction level or any other. Published in Data-Contract.md §5.2's \"the chain published no execution here\" population, whose only token is `private-only` until CPC-6 renames it. Decided by the replay itself (`codetracer-evm-recorder trace-block`: \"captured 0 EVM steps\"), never by an outcome this pipeline chose. Permanent, and the transaction's shape rather than the producer's limit."
+        }
+      ],
       "exclusionsNote": [
+        "CORRECTED 2026-10-22, AFTER THE SIX WINDOWS WERE READ, AND THE CORRECTION IS TO A PREMISE",
+        "RATHER THAN TO A COUNT. The paragraph below argued that the chain-absent population is",
+        "\"empty by construction\" because \"Ethereum mainnet publishes an execution for every",
+        "transaction it settles\". The first whole-window capture refuted that: a plain value",
+        "transfer executes no code. It is 209 of window 4,370,100-4,370,101's 317 transactions, and",
+        "it is present in every window. With the population non-empty and undeclared, those rows",
+        "were neither traced nor declined, so `Y-WHOLE-WINDOWS` refused the reading as not a",
+        "partition, and `Y-DENOMINATORS-NAMED` refused the single denominator. So the population",
+        "is declared, the second denominator follows from it, and the expectation",
+        "(`expectedDominantVariable: era`, committed in c094c10 before any window was replayed)",
+        "is UNTOUCHED. The original argument is kept below as the record of what was believed",
+        "when the windows were pinned. Its `not-first-in-block` half still holds.",
+        "",
         "ZERO, AND THAT IS A STATEMENT ABOUT ETHEREUM RATHER THAN AN OMISSION — WHICH MAKES",
         "THIS CHAIN THE FIRST ONE THE METHOD'S TWO-DENOMINATOR FLOOR DOES NOT FIT. See the",
         "`eth-has-no-structural-exclusion` entry under `carried`.",
@@ -433,9 +453,20 @@
           "member": "transactions",
           "yieldMember": "tracedOverAllTransactions",
           "excludes": []
+        },
+        {
+          "id": "with-execution",
+          "member": "withExecution",
+          "yieldMember": "tracedOverWithExecution",
+          "excludes": ["no-code-executed"]
         }
       ],
       "denominatorsNote": [
+        "TWO SINCE 2026-10-22, for the reason the corrected `exclusionsNote` gives: the population",
+        "this note says Ethereum lacks exists. The second denominator is not the same fraction",
+        "under another name, the escape this note rightly refused, because its exclusion is",
+        "non-empty in every pinned window. The original note follows.",
+        "",
         "ONE, AND THE METHOD'S FLOOR IS TWO, SO A READING OF THIS CHAIN WILL RAISE",
         "`Y-DENOMINATORS-NAMED` UNTIL THE METHOD OR THIS ENTRY CHANGES. That is recorded here",
         "rather than worked around, because both available workarounds are worse than the",
@@ -454,9 +485,12 @@
         "and it is not a property of every chain, which is what `carried` is for."
       ],
       "provenanceCoverage": {
-        "windowsWithRecordedReplayLedger": 0,
-        "windowsWithout": [[4370100, 4370101], [12500000, 12500001], [13000000, 13000001], [17100000, 17100001], [19500000, 19500001], [22500000, 22500001]],
+        "windowsWithRecordedReplayLedger": 6,
+        "windowsWithout": [],
         "_note": [
+          "SIX OF SIX since the 2026-10-22 reading (`measurements/eth-replay-yield.json`): every",
+          "window was recorded by codetracer-evm-recorder dc257fe, named on each window's replay",
+          "ledger. Before that reading:",
           "NONE, because no reading of this chain exists yet and no window has been replayed.",
           "Declared as zero rather than left absent: an absent coverage member and a coverage",
           "of zero are different facts, and the first would let a later reading quote a",
@@ -866,7 +900,9 @@
       "id": "eth-has-no-structural-exclusion",
       "measuredOn": "2026-09-30",
       "note": "`Y-DENOMINATORS-NAMED`'s floor of two denominators is NOT SATISFIABLE WITHOUT REDUNDANCY by a chain that has no structurally unobservable population, and Ethereum mainnet is the first such chain to reach this file. The rule's own refusal names the second denominator as \"every transaction that was structurally observable at all\"; on Ethereum that population IS every transaction, because every settled transaction has a public execution and every one of them is replayable from its block's parent state given the archive this project measured. `tools/chain/lib/yield.mjs` fires the floor on `dens.length < 2` unconditionally, so the rule will raise on the first reading of this chain. The two escapes are both worse: a second denominator excluding nothing publishes one fraction under two names — which the gate ACCEPTS, because its derived-fraction check only bites when an exclusion is non-empty, so the redundancy would pass silently; and inventing a structural exclusion is refused by `Y-ABSENT-IS-NOT-A-FAILURE` and would be untrue. Recorded rather than patched because the floor is right for a chain with two populations and is not a property of every chain, and because a chain with ONE honest denominator is the strictest reading available rather than the laxest.",
-      "bounds": "whether `Y-DENOMINATORS-NAMED`'s floor is a property of the method or of the chain it was written from; it is currently spelled as the former"
+      "bounds": "whether `Y-DENOMINATORS-NAMED`'s floor is a property of the method or of the chain it was written from; it is currently spelled as the former",
+      "refutedOn": "2026-10-22",
+      "refutation": "The premise is false for Ethereum. Not every settled transaction has an execution to trace: a value transfer to an account with no code runs no EVM instruction. That is 209 of 317 transactions in the first pinned window, and some in every window, measured by `trace-block` as \"captured 0 EVM steps\". So Ethereum HAS a structurally unobservable population, `pinned.eth` now declares it (`no-code-executed`), and the floor of two is satisfied without redundancy. The open question this entry raises, whether the floor belongs to the method or to the chain it was written from, is unanswered by this chain and remains open for one that truly has a single population."
     },
     {
       "id": "attempted-is-per-pass-not-cumulative",

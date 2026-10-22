@@ -57,17 +57,17 @@
     "codetracer-cairo-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1792676907,
-        "narHash": "sha256-yAZc1FFxavnA0Gp2feHUcQvdJTVHC0tqKrDY7v83oqY=",
+        "lastModified": 1792686391,
+        "narHash": "sha256-oMYTj2GMFCYXszHHlGCyUaKBM7pYqM8ZOqs4Akli55M=",
         "owner": "metacraft-labs",
         "repo": "codetracer-cairo-recorder",
-        "rev": "67ee2770506398c28e9cf1ea9874471a8b0349ae",
+        "rev": "d13bba54f5e75ae10d8b04503623d20af47e71fb",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-cairo-recorder",
-        "rev": "67ee2770506398c28e9cf1ea9874471a8b0349ae",
+        "rev": "d13bba54f5e75ae10d8b04503623d20af47e71fb",
         "type": "github"
       }
     },
@@ -91,17 +91,17 @@
     "codetracer-evm-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1792508264,
-        "narHash": "sha256-B4IE0yj4r2dGwmfeUw/QGU0oQRwM0ngT6zsjVn7T/90=",
+        "lastModified": 1792690666,
+        "narHash": "sha256-uHTmEKUh0xyE0QG417cKOqtFHp5aGS0gM00NTsZ4wq4=",
         "owner": "metacraft-labs",
         "repo": "codetracer-evm-recorder",
-        "rev": "0301bf3b2309d5e54ae8c5b7495b1b28b38f9443",
+        "rev": "dc257fe77de55e5952806cc46c991820c13816fd",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-evm-recorder",
-        "rev": "0301bf3b2309d5e54ae8c5b7495b1b28b38f9443",
+        "rev": "dc257fe77de55e5952806cc46c991820c13816fd",
         "type": "github"
       }
     },

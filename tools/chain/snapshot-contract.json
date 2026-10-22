@@ -422,7 +422,9 @@
         "identifierEncoding": {"required": false, "access": "optional", "enforcedBy": "S5-IDENTIFIER-ENCODING-CLOSED",
                                "holds": "how this chain writes its identifiers, per kind — the one declaration the reader keys every sharded path from AND publishes onto the registry row. Absent means hex, which is what every tree published before the member existed was keyed under — §5.6"},
         "vm": {"required": false, "access": "optional",
-               "holds": "the executable format this chain's programs are executed from, as {\"instructionSet\": \"…\"} — the declaration that reaches the registry row's `vm` without an instruction listing. An absent member means the producer declared no format, which is NOT a claim that the chain has none — Configuration.md §2.1, §5.3"}
+               "holds": "the executable format this chain's programs are executed from, as {\"instructionSet\": \"…\"} — the declaration that reaches the registry row's `vm` without an instruction listing. An absent member means the producer declared no format, which is NOT a claim that the chain has none — Configuration.md §2.1, §5.3"},
+        "reachReason": {"required": false, "access": "optional",
+                        "holds": "the producer's own sentence for WHY this capture's history starts where `replayableFrom` says, published verbatim as the chain's floor reason in place of the reader's generic one. For a chain whose history is a capture start rather than a node's limit (`forward-capture`) the generic sentence reads as a node limit, which is wrong. Absent or empty means the reader's sentence — §5.3"}
       }
     },
 

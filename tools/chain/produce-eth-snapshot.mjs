@@ -568,16 +568,43 @@ export function parseRecorderLog(text) {
   const shape = /captured\s+(\d+)\s+step\(s\),\s+(\d+)\s+call\(s\),\s+(\d+)\s+log\(s\)/
     .exec(text);
   const entry = /entry point\s+(0x[0-9a-fA-F]{40})/.exec(text);
+  const uncovered = /^(\d+) executed step\(s\) ran where no listing or source map was registered/m
+    .exec(text);
+  const offCode = /^(\d+) executed step\(s\) ran at a PC the registered code has no instruction at/m
+    .exec(text);
   const missing = [];
   if (!status) missing.push('status');
   if (!gas) missing.push('gas used');
   if (!shape) missing.push('captured N step(s), N call(s), N log(s)');
   if (!entry) missing.push('entry point');
+  if (!uncovered) missing.push('count of executed steps no listing or source map covered');
+  if (!offCode) missing.push('count of executed steps off the registered code');
   if (missing.length > 0) {
     throw refuse(SOURCE_REFUSAL, 
       `the recorder log carries no ${missing.join(', no ')}. A traced row's \`effects\` is `
       + `a comparison against the replay's own answer, and this tool will not publish one `
       + `side of it as though both had been read.`);
+  }
+  // A RECEIPT THAT MATCHES DOES NOT MAKE A TRACE COMPLETE. Steps that ran in a frame with no
+  // listing are absent from the container while status, gas and logs still agree, which is how
+  // codetracer-evm-recorder's lookup cap and its DELEGATECALL keying (fixed in 2221328 and
+  // 0a8606e) left 489 of 1,424 traced transactions short in the pinned mainnet windows. The
+  // recorder lists every executed address, so a non-zero count is a recorder defect.
+  if (Number(uncovered[1]) !== 0) {
+    throw refuse(SOURCE_REFUSAL,
+      `the recorder reports ${uncovered[1]} executed step(s) that no listing or source map `
+      + `covered, so the container is missing them. This tool will not publish a trace `
+      + `shorter than the execution it claims to record.`);
+  }
+  // …AND A LISTING OF THE WRONG CODE IS WORSE THAN NONE. An EIP-7702 account's 23-byte
+  // designator, listed in place of its delegate's code, kept 5 of 379 steps and put 4 of them
+  // on instructions that never ran (recorder dc257fe). The recorder counts steps at a PC the
+  // listed code has no instruction at; a non-zero count is a listing of other code.
+  if (Number(offCode[1]) !== 0) {
+    throw refuse(SOURCE_REFUSAL,
+      `the recorder reports ${offCode[1]} executed step(s) at a PC the registered code has `
+      + `no instruction at, so the listing describes other code than what ran. This tool `
+      + `will not publish steps placed on instructions that never executed.`);
   }
   return {
     status: status[1],
