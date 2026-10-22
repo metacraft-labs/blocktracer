@@ -213,7 +213,43 @@ html[data-register="debugger"],
   border-bottom-color:var(--bt-status-info-border);
   border-left-color:var(--bt-status-info-border)}
 .dbgbanner .bannertitle{font-weight:var(--bt-type-h3-weight);white-space:nowrap}
-.dbgbanner .bannertext{color:inherit;max-width:var(--bt-measure-prose)}
+/* THE BAND IS FULL-BLEED AND THE PROSE WAS NOT, so the width the band spent
+   was mostly empty and its HEIGHT never fell. Measured at 1440x900: a 1440px
+   band, 183px tall, holding a 610px column of 8 lines — 654px of painted
+   surface with nothing in it, and at 1920 the band grew to 1920px while the
+   column stayed 610px, so the waste rose to 1134px and the height did not
+   move. 183px is 20% of the viewport, taken from the IDE below it, which got
+   601px of 900.
+
+   `max-width: var(--bt-measure-prose)` is why, and it is not wrong: a line of
+   prose 1200px long is unreadable, which is the whole reason the measure
+   token exists. So the cap moves from the COLUMN to the LINE — `columns`,
+   which keeps every line inside a measure and spends the leftover width on
+   more lines side by side instead of on emptiness.
+
+   THE COLUMN WIDTH IS `--bt-measure-narrow` (44ch) AND NOT `--bt-measure-
+   prose` (68ch), and that is the whole of the trick rather than a detail.
+   `columns:<width>` is a MINIMUM, and the count the browser derives is
+   `floor((available + gap) / (width + gap))`. The band's text area is 1240px
+   at 1440 viewport; with the 68ch prose measure that is floor(1264/634) = 1,
+   so it yields a SINGLE column 1240px wide — the unreadable line the measure
+   exists to prevent, arrived at by asking for the measure. Tried, measured,
+   rejected. At 44ch (~395px) the same arithmetic gives 3 columns of ~397px at
+   1440, 2 of ~528px at 1280 and 4 of ~412px at 1920 — every one of them
+   inside the prose measure, at every width, and never one column.
+
+   `column-fill:balance` so two short columns are equal rather than one full
+   and one with a single line in it, and `orphans`/`widows` so a column never
+   ends on one line of a sentence.
+
+   NOT A CHANGE TO WHAT THE BANNER SAYS OR WHO SEES IT. It is still page
+   level, still undismissable, still carries the rail and the title that the
+   rules above argue for. Only the shape of the paragraph changed. The length
+   of the copy is the other half of this and is NOT settled here: eight lines
+   of prose above an IDE is a lot, and CodeTracer puts none there at all. */
+.dbgbanner .bannertext{color:inherit;flex:1 1 auto;min-width:0;
+  columns:var(--bt-measure-narrow);column-gap:var(--bt-rhythm-stack);
+  column-fill:balance;orphans:2;widows:2}
 
 /* §6.0a's landing notice: where a deep link actually put the session, when
    that is not where it asked to be.
