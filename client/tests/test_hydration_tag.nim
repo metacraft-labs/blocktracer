@@ -31,6 +31,7 @@
 import std/[strutils, unittest]
 import ../src/debugger/replay_engine
 import ../src/components/layout
+import ./hydration_keys
 
 suite "the hydration bundle is referenced by the page that needs it":
 
@@ -38,7 +39,7 @@ suite "the hydration bundle is referenced by the page that needs it":
     # Guard the guard: if the define did not reach this compilation the test
     # below would pass vacuously on the empty branch, so fail loudly instead.
     check HydrationBundle.len > 0
-    let html = debugLayout("t", "d", "<main>x</main>")
+    let html = withoutHydrationKeys(debugLayout("t", "d", "<main>x</main>"))
     # `defer=""`, not a bare `defer`: the tag is built by the isonim DSL rather
     # than concatenated, and the SSR codegen writes every attribute in the
     # quoted form. HTML defines the two as the same boolean attribute, and the

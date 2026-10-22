@@ -40,6 +40,7 @@ import ../src/ssr
 import ../src/reader
 import ../src/viewutil
 import ../src/components/degraded
+import ../src/components/layout
 import ../src/components/tables as viewTables
 # The shard rule, from the one module that holds it — a test that recomputed the
 # published layout by hand would be the second derivation this suite is about.
@@ -686,7 +687,18 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
 
   test "the 404 body is §14's row and is 404.html modulo the stylesheet's delivery":
     let root = newDataRoot(dist)
+    # The exporter writes the stylesheet once, as `/_a/<hash>.css`, and every
+    # page it writes LINKS it (`static_export.nim`, `useExternalCss`); a
+    # dispatcher left in its default mode inlines the same rules as a
+    # `<style>`. So the comparison renders in the exporter's mode, naming the
+    # asset the file names, and restores the default afterwards.
+    let exported = readFile(dist / "404.html")
+    let hrefAt = exported.find("href=\"/_a/")
+    check hrefAt >= 0
+    let hrefStart = hrefAt + "href=\"".len
+    useExternalCss(exported[hrefStart ..< exported.find('"', hrefStart)])
     let (status, body, _) = renderRoute(root, "/no/such/thing/at/all")
+    useExternalCss("")
     check status == 404
     check "data-degradation=\"cdObjectNotFound\"" in body
     check Chain in body                      # the chains that were checked
@@ -701,42 +713,34 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
     # not the page.
     #
     # It had been red since that change and nobody saw it: `debug-route` failed
-    # at an earlier step, so `just test` never ran. Fourth instance in this
-    # campaign of one defect hiding another in the same job.
+    # at an earlier step, so `just test` never ran.
     #
-    # NOT WEAKENED — SPLIT, and the split is stronger than the original in one
-    # place. The page is still held to byte-identity, with the renderer's inline
-    # sheet replaced by the exact link tag the exported page carries; and the
-    # externalised FILE is held to the renderer's own bytes, which raw
-    # byte-identity never checked because the file was not read.
-    let onDisk = readFile(dist / "404.html")
+    # TWO BRANCHES FIXED THIS INDEPENDENTLY AND THE MERGE KEPT BOTH, which did
+    # not compile — one `hrefStart` declared twice in one `test`. They were not
+    # the same fix. The preamble above is the better half and is kept: it puts
+    # the RENDERER into the exporter's own external-CSS mode, so the delivery
+    # choice stops being a difference and plain byte-identity means something
+    # again. What the other half had and this one did not is the FILE: holding
+    # the two pages equal says nothing about the stylesheet the link points at,
+    # which raw byte-identity never checked either, because the file was never
+    # read. So that claim is kept too, below, and asked the only way it can be
+    # — by rendering a second time in the DEFAULT mode, where the rules are
+    # inline and there is something to compare the file against.
+    check exported == body
 
-    # STRING OPERATIONS, NOT A REGEX. Both halves of this need a literal `"`
-    # inside the pattern, and a Nim string literal cannot carry `\.` — the first
-    # version of this block died with `invalid character constant`. A raw string
-    # cannot escape the quotes either. `find`/slice needs neither.
-    const LinkOpen = "<link rel=\"stylesheet\" href=\"/_a/"
-    let linkAt = onDisk.find(LinkOpen)
-    check linkAt >= 0
-    let linkEnd = onDisk.find("/>", linkAt)
-    check linkEnd > linkAt
-    let linkTag = onDisk[linkAt .. linkEnd + 1]
-    let hrefStart = linkAt + "<link rel=\"stylesheet\" href=\"".len
-    let hrefEnd = onDisk.find('"', hrefStart)
+    # (a) THE EXTERNALISED FILE IS THE BYTES THE RENDERER INLINES. A link to a
+    #     stylesheet that does not carry the rules is the same silence as no
+    #     stylesheet, one indirection further away.
+    let hrefEnd = exported.find('"', hrefStart)
     check hrefEnd > hrefStart
-    let href = onDisk[hrefStart ..< hrefEnd]
+    let sheetHref = exported[hrefStart ..< hrefEnd]
 
-    let styleAt = body.find("<style>")
-    let styleEnd = body.find("</style>", styleAt)
+    let (_, inlineBody, _) = renderRoute(root, "/no/such/thing/at/all")
+    let styleAt = inlineBody.find("<style>")
+    let styleEnd = inlineBody.find("</style>", styleAt)
     check styleAt >= 0 and styleEnd > styleAt
-    let inlineSheet = body[styleAt + "<style>".len ..< styleEnd]
-
-    # (a) the externalised file IS the bytes the renderer inlines.
-    check readFile(dist / href.strip(chars = {'/'})) == inlineSheet
-
-    # (b) and with the delivery normalised, nothing else differs.
-    let normalised = body.replace("<style>" & inlineSheet & "</style>", linkTag)
-    check normalised == onDisk
+    let inlineSheet = inlineBody[styleAt + "<style>".len ..< styleEnd]
+    check readFile(dist / sheetHref.strip(chars = {'/'})) == inlineSheet
 
 
 # ──────────────────────────────────────────────────────────────────────────

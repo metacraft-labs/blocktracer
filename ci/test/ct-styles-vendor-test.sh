@@ -118,6 +118,11 @@ m = json.load(open(p))
 m["files"] = m["files"][:-1]
 json.dump(m, open(p, "w"), indent=2)
 PY
+# Counted rather than written down: a number typed here went stale the first
+# time the vendored set grew. Counted off `${d}` — the copy the block above
+# just truncated — rather than off the real manifest minus one, so the
+# expectation is read from the artefact the case actually produced and the
+# `- 1` cannot drift away from the `[:-1]`.
 short_count="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["files"]))' "${d}/ct_styles.vendor.json")"
 run_case "a manifest that lost an entry fails" 1 \
 	"the manifest records ${short_count} sha256 entries" "${d}"

@@ -701,10 +701,23 @@ test('exactly the expected files know about each half of the seam');
   // the next one arrives: a reader that derives behaviour from the declaration, and an
   // exempter that names it to avoid corrupting it. Both must be listed — the sweep asks
   // who NAMES the member, not who uses it — but only the first is a consumer.
-  ck('seven under client/, and THREE under tools/ — this suite, the census check '
-     + 'and the hostile corpus that exempts the member',
+  //
+  // FIVE AND NOT THREE: `produce-sui-snapshot.mjs` joined 2026-10-20 as the first
+  // PRODUCER that declares the member — a third kind beside the reader and the exempter —
+  // and `sui-producer-selftest.mjs` with it, asserting the declaration is made. Sui's
+  // digests are base58, so leaving the member absent would publish them as hex.
+  //
+  // SEVEN AND NOT FIVE: `produce-starknet-snapshot.mjs` joined the same day as the second
+  // producer that declares it (hex for every kind — Starknet felts), and
+  // `starknet-producer-selftest.mjs` with it.
+  //
+  // EIGHT AND NOT SEVEN: `produce-sol-snapshot.mjs` joined the same day as the third producer
+  // that declares it (base58 for every kind — signatures, addresses and blockhashes).
+  ck('seven under client/, and EIGHT under tools/ — this suite, the census check, '
+     + 'the hostile corpus that exempts the member, the Sui, Starknet and Solana producers '
+     + 'that declare it and the Sui and Starknet selftests',
      sizeOf('declaration').client.length === 7
-     && sizeOf('declaration').tools.length === 3);
+     && sizeOf('declaration').tools.length === 8);
   ck('six files under src/ read the case rule', sizeOf('caseRule').src.length === 6);
   ck('three under client/ — the query canonicaliser, the route enumerator and the '
      + 'browser bundle — and one under tools/',

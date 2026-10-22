@@ -728,9 +728,10 @@ test('§10 the lift is faithful: the producer states exactly what the reader use
   // …AND THE PRESTATE STRATEGY IS IN THE CLOSED SET IT IS NOW DRAWN FROM. The lift is only
   // faithful if the value it moved is one the new refusal admits; a producer stating a
   // value its own reader refuses is a lift that published nothing.
-  ck(`…and it is one of §1.4's six — ${contract.prestateStrategies.tokens.length} token(s)`,
+  // SEVEN since 2026-10-22, when §1.4 gained `forward-capture` (Recorder-Solana).
+  ck(`…and it is one of §1.4's seven — ${contract.prestateStrategies.tokens.length} token(s)`,
      contract.prestateStrategies.tokens.includes(PRESTATE_STRATEGY)
-     && contract.prestateStrategies.tokens.length === 6);
+     && contract.prestateStrategies.tokens.length === 7);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
@@ -1153,8 +1154,27 @@ test('§14 every tool that writes a transaction row states the lifted facts thro
   // itself an Aztec recorder, i.e. the rule would have required a false statement. The
   // facts modules are now derived from `lib/` by suffix and R1 asks for one of them;
   // nothing selects between them and nothing imports two.
+  //
+  // THE SIXTH IS A SECOND VM FAMILY'S (Recorder-Move, 2026-10-20): `produce-sui-snapshot.mjs`
+  // states a Move recorder, `version-addressed` prestate and a base58 identifier encoding,
+  // through its own `lib/sui-producer-facts.mjs`.
+  //
+  // THE SEVENTH IS A THIRD CHAIN'S (Recorder-Flow, 2026-10-20): `produce-flow-snapshot.mjs`
+  // states a Cadence recorder, `replay-preceding` prestate and Flow's three roles, through
+  // its own `lib/flow-producer-facts.mjs`.
+  //
+  // THE EIGHTH IS A THIRD VM FAMILY'S (Recorder-Cairo, 2026-10-20):
+  // `produce-starknet-snapshot.mjs` states the Cairo recorder that runs StarkWare's own
+  // executor, `replay-preceding` prestate and hex felts, through its own
+  // `lib/starknet-producer-facts.mjs`.
+  //
+  // THE NINTH IS SOLANA'S (Recorder-Solana CXP-SOL-3, 2026-10-20): `produce-sol-snapshot.mjs`
+  // states an SBF recorder and the `forward-capture` prestate strategy — a token NOT yet in
+  // §1.4's set, requested under Chain-Delivery DEL-3b — through `lib/solana-producer-facts.mjs`.
   const ROSTER = ['backfill-blocks.mjs', 'capture-chain.mjs', 'follow-chain.mjs',
-                  'ingest-range.mjs', 'produce-eth-snapshot.mjs'];
+                  'ingest-range.mjs', 'produce-eth-snapshot.mjs', 'produce-flow-snapshot.mjs',
+                  'produce-sol-snapshot.mjs', 'produce-starknet-snapshot.mjs',
+                  'produce-sui-snapshot.mjs'];
   ck(`and they are exactly — ${live.producers.join(', ')}`,
      JSON.stringify(live.producers) === JSON.stringify(ROSTER));
   ck(`the scan worked over ${live.rows} transaction-row literals and `

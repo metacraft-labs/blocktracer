@@ -13,11 +13,13 @@
       "traceSchema": "example-trace/v1"
     },
     "prestateStrategy": "self-contained",
+    "ordering": "blockIndex",
     "identifierEncoding": {
       "block": "hex",
       "transaction": "hex",
       "address": "hex"
-    }
+    },
+    "vm": { "instructionSet": "example-isa/1" }
   },
   "window": {
     "tip": 1002,

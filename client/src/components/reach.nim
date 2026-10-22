@@ -19,24 +19,24 @@
 ## (Configuration.md §2.1, from §1.3's vocabulary). Everything here is a
 ## rendering of those three members and of nothing else.
 ##
-## IT DOES NOT STATE A DEBUG TIER, and that is the one omission worth writing
-## down because §4 item 4 asks for one. Chain-Support-Matrix.md §1.2 is explicit
-## that "tier is per transaction, not per chain: the same chain yields T2 for a
-## verified contract and T1 for an unverified one, frequently within a single
-## transaction" — so a chain-wide tier is not a fact about a chain, and the
-## published tree carries no chain-wide tally of what its recordings reached
-## either. `tools/capture/expectations.mjs` already records the anti-requirement
-## this would walk into: "a debug tier badge or a historical-reach value
-## INVENTED from the recorder pin. This is the one page in the product where a
-## confident wrong answer costs the most, and a plausible T1 badge with no
-## source behind it is exactly that." A reach READ FROM THE REGISTRY is not that
-## badge; a tier derived from the pin would be.
+## IT STATES THE DEBUG TIER AS A COUNT, NEVER AS A BADGE. Chain-Support-Matrix.md
+## §1.2 is explicit that "tier is per transaction, not per chain: the same chain
+## yields T2 for a verified contract and T1 for an unverified one, frequently
+## within a single transaction" — so a chain-wide tier is not a fact about a
+## chain. `tools/capture/expectations.mjs` records the anti-requirement a badge
+## walks into: "a debug tier badge or a historical-reach value INVENTED from the
+## recorder pin. This is the one page in the product where a confident wrong
+## answer costs the most, and a plausible T1 badge with no source behind it is
+## exactly that."
 ##
-## So the tier half of §4 item 4 stays open, and it is open as a PUBLISHING gap
-## rather than as a page gap: it needs the ingest to publish how many of a
-## chain's recordings resolved source and how many stayed at instruction level,
-## which is a measurement it already makes per transaction
-## (`execution.sourceLevel`) and does not aggregate.
+## What IS a fact about a chain is how its PUBLISHED recordings divide between
+## the two tiers, and the ingest publishes exactly that: `tracesPublished` and
+## `tracesAtSourceLevel` on the summary's provenance, the second counted from the
+## same per-transaction `execution.sourceLevel` each manifest carries. So the
+## sentence is a distribution over what was recorded, read from the tree, and it
+## says in words that it is not a promise about the next transaction. A tree
+## ingested before the tally existed publishes neither figure, and the page then
+## says it states no tier rather than reading the absence as zero.
 ##
 ## ## Why the prose is a pure function and the markup is three lines
 ##
@@ -91,7 +91,8 @@ const
     "published here. A transaction already recorded carries its own execution " &
     "and steps from it for good; the boundary says that a transaction below it " &
     "cannot be recorded NOW, because the state a replay would have to start " &
-    "from no longer exists anywhere to be fetched."
+    "from is not reachable by the pipeline that records this chain. The " &
+    "sentence below is that pipeline's own record of what it measured."
     ## ── THE CLAUSE THAT HAD TO BE CORRECTED BEFORE IT SHIPPED ─────────────
     ##
     ## The first draft read "a transaction below that point is still published
@@ -109,6 +110,35 @@ const
     ## A capture taken while a block was still inside the window keeps working
     ## for as long as it is published, which is the whole reason this product
     ## records rather than replays on demand.
+    ##
+    ## ── THE CAUSE CLAUSE, CORRECTED 2026-10-21 BY MEASUREMENT ─────────────
+    ##
+    ## It read "because the state a replay would have to start from NO LONGER
+    ## EXISTS ANYWHERE TO BE FETCHED". That is a claim about somebody else's
+    ## infrastructure, this page is not in a position to make it, and two
+    ## chains it was being served for refute it:
+    ##
+    ##   * STARKNET. The row declares `floor` at 501,514, and the state below
+    ##     it IS fetchable from the same endpoint the pipeline uses:
+    ##     `starknet_simulateTransactions` with `RETURN_INITIAL_READS`
+    ##     returned a mined transaction's read set at its parent block at 12 of
+    ##     12 rungs from 300,000 to 13,000,000 — 165 written slots judged, not
+    ##     one of them already carrying what its own block wrote, with the same
+    ##     transaction at block N echoing all of them as the positive control
+    ##     (`tools/chain/measurements/starknet-readset-roundtrip.json`,
+    ##     Chain-Delivery DEL-6). 501,514 is where the RECORDER's executor runs
+    ##     out of versioned constants, which is a fact about our pipeline.
+    ##   * FLOW. The row declares `floor` at 137,390,146, the current access
+    ##     node's spork root. The previous spork's node serves 130,290,659
+    ##     upward (Chain-Support-Matrix.md §1.3), so the state between the two
+    ##     exists and is fetchable — from a node this pipeline does not ask.
+    ##
+    ## So the clause now says what the page can stand behind — the state is not
+    ## reachable BY THIS PIPELINE — and hands the reader to the producer's own
+    ## quoted note for what was measured. The registry row never carried a
+    ## cause: `ingest.nim` states in as many words that "why the node draws
+    ## the line there is a fact about the node", and this page had been adding
+    ## one.
 
 func floorPhrase(f: ChainHistoryFloor): string =
   ## "block 67,010 and above", or the honest alternative when the row states no
@@ -194,16 +224,47 @@ func reachStatement*(p: ChainProfile): ReachStatement =
          "each transaction's page states which of the two it got."
        else: ""))
 
-proc reachSection*(p: ChainProfile): string =
+func transactionsPhrase(n: int): string =
+  if n == 1: "1 transaction" else: $n & " transactions"
+
+func countSteps(n: int): string =
+  ## "none steps", "1 steps", "208 step" — the subject of one clause of the
+  ## tier sentence, agreeing with its own count.
+  if n == 0: "none steps" elif n == 1: "1 steps" else: $n & " step"
+
+func tierStatement*(published, atSourceLevel: int): string =
+  ## §1.2's two recorded tiers as a count over this chain's published
+  ## recordings. Negative figures are the "not published" value from the
+  ## session, and they get their own sentence rather than a zero.
+  if published < 0 or atSourceLevel < 0 or atSourceLevel > published:
+    "This chain's published data carries no count of debug tiers, so this " &
+    "page states none. Each transaction's own page states whether it steps " &
+    "at source level or instruction by instruction."
+  elif published == 0:
+    "No transaction published here has a recording yet, so there is no debug " &
+    "tier to state: a tier belongs to a recording, not to a chain."
+  else:
+    let instr = published - atSourceLevel
+    "Of the " & transactionsPhrase(published) & " recorded here, " &
+    countSteps(atSourceLevel) & " at source level, which needs verified " &
+    "source and debug information for every contract a transaction ran, and " &
+    countSteps(instr) & " one VM instruction at a time. A debug tier belongs to each " &
+    "recording rather than to the chain, so this counts what was recorded " &
+    "and promises nothing about the next transaction."
+
+proc reachSection*(p: ChainProfile, tracesPublished = -1,
+                   tracesAtSourceLevel = -1): string =
   ## The section, for the chain landing page. Rendered unconditionally: there is
   ## no state of the declaration for which the honest answer is silence, and a
   ## section that disappeared when a chain declared nothing would make the
   ## weakest chains the ones that say least about themselves.
   let st = reachStatement(p)
+  let tier = tierStatement(tracesPublished, tracesAtSourceLevel)
   ui:
     tdiv:
       h2(class = "sec-title next"): text ReachHeading
       p(class = "lead measure"): text st.lead
+      p(class = "measure"): text tier
       if st.note.len > 0:
         # THE PRODUCER'S WORDS, MARKED AS A QUOTATION. `historyFloor.reason` is
         # written by whatever produced the capture and is the only statement in

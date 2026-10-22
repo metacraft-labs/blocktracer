@@ -148,6 +148,9 @@ type
       ## Where this chain's data came from, as the tree states it. Empty
       ## `provenanceKind` means the generation published none, which for this
       ## repository's demo tree is the synthetic case.
+    tracesPublished*, tracesAtSourceLevel*: int
+      ## Carried from the session; `-1` is "not published", never zero. See
+      ## `ChainSession.tracesAtSourceLevel`.
 
   TourRow* = object
     ## One entry of a chain's capability tour: a small program written to be
@@ -502,6 +505,15 @@ type
     chain*, hash*: string
     height*, index*: int
     blockHash*: string
+    positionKnown*: bool
+      ## Whether `height`, `index` and `blockHash` mean anything: true only for a
+      ## chain ordered by block height and index. A chain ordered otherwise (Sui by
+      ## checkpoint) has no block position, and its coordinate is `orderKind` /
+      ## `orderLabel` instead — never a fabricated height of 0.
+    orderKind*: TxOrderKind
+    orderLabel*: string
+      ## The chain's own ordering coordinate, spelled the chain's own way
+      ## (`entities.orderLabel`): "19000000:12", a checkpoint's sequence, …
     outcome*: OutcomeOverall
     outcomeReason*: string
     roles*: seq[Role]
@@ -666,7 +678,9 @@ proc chainInfo*(r: DataRoot, chain: string): ChainInfo =
     profileName: s.pin.profile.name, traceSchema: s.pin.traceSchema,
     chainProfile: s.profile,
     provenanceKind: s.provenanceKind, provenanceLabel: s.provenanceLabel,
-    provenanceDetail: s.provenanceDetail)
+    provenanceDetail: s.provenanceDetail,
+    tracesPublished: s.tracesPublished,
+    tracesAtSourceLevel: s.tracesAtSourceLevel)
 
 # ── blocks ───────────────────────────────────────────────────────────────
 
@@ -997,6 +1011,9 @@ proc txView*(r: DataRoot, info: ChainInfo, hash: string): TxView =
   result.height = pos.height
   result.index = pos.index
   result.blockHash = pos.blockHash
+  result.positionKnown = pos.known
+  result.orderKind = v.facts.order.kind
+  result.orderLabel = orderLabel(v)
   result.outcome = v.facts.outcome.overall
   result.outcomeReason = v.facts.outcome.reason
   result.roles = v.facts.roles

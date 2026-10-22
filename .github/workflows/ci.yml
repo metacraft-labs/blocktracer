@@ -296,8 +296,9 @@ jobs:
         run: node tools/deploy/check-assets-selftest.mjs
 
       - name: Does the freshness gate bite? (provenance — the bytes are this commit's)
-        # Nineteen arms. Three of them require the gate to stay GREEN over a
+        # Twenty-one arms. Four of them require the gate to stay GREEN over a
         # legitimately-changed world — a new upstream engine, a new capture, a
+        # capture the build produces and declares with --produced, a
         # few KB of engine drift — because a gate that reddens on a normal
         # deploy is a gate that gets switched off, and then the staleness it
         # was written for ships with it nominally in place.
@@ -531,7 +532,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 233 assertions, and the reason it is offline is the reason it
+        # ING-3, 241 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -906,6 +907,92 @@ jobs:
         # `codetracer-evm-recorder` sibling, which is not built on this runner;
         # `just eth-capture` is where the end-to-end run lives.
         run: node tools/chain/eth-rpc-transcript-selftest.mjs
+
+      - name: Is a regenerated Ethereum container compared in the right canonical form?
+        # 8 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # `eth-regen-check.mjs` decides whether a container regenerated from the
+        # committed inputs records the execution a held one records. Bytes cannot be
+        # compared (a UUIDv7 recording id), and decoded output comes in two variants
+        # that differ only in the recorder's per-process interning order. This
+        # suite shows the canonical form erases that order and still sees a changed
+        # value, name, line, step, dropped variable or swapped pair.
+        run: node tools/chain/eth-regen-check-selftest.mjs
+
+      - name: Are a Flow transaction's three roles and fee vector published as the chain states them?
+        # 9 assertions, offline and needing only node: the committed block listing and
+        # transcript under fixtures/chain-inputs/flow-mainnet/ are read off disk. Each
+        # arm runs beside its control -- distinct payer, proposer and authorizers against
+        # one account in every role, a FeesDeducted event against none -- so a function
+        # that returned a constant fails one side. The last three are the DECLARED
+        # executable format (Chain-Delivery DEL-6): the token names the format and not the
+        # executor, the convention is derived from the four chains that already declare
+        # one, and the producer is shown to spell the member through its facts module --
+        # each beside a planted defect, including the token this module used to export.
+        run: node tools/chain/flow-producer-facts-selftest.mjs
+
+      - name: Does the Sui producer state its chain's facts and refuse a broken window?
+        # 41 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # The Sui producer's roles (sponsored, self-paid, system), its signed
+        # storage-rebate cost entry, the seven-fact effects comparison a traced
+        # row publishes, the version-addressed prestate read off the effects, and
+        # the producer over a container-free window: whole-window denominator, and
+        # refusals for a missing checkpoint, a broken digest chain and a recording
+        # another recorder build made; and the endpoint-horizon probe's verdict.
+        # Traced rows need a container and are run by `just sui-range` against
+        # the network.
+        run: node tools/chain/sui-producer-selftest.mjs
+
+      - name: Does the Starknet producer state its chain's facts and refuse what it cannot publish?
+        # 26 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # The Starknet producer's three-dimension cost vector and fee, the roles each
+        # transaction type has (none for an L1 handler), the multicall payload, and the
+        # producer over container-free captures: a refused era published as refusals,
+        # and refusals for a missing or uncontrolled floor probe, a foreign report
+        # format, a report missing a row and a recorded row with no container. Traced
+        # rows need a container and are run by `just starknet-capture`.
+        run: node tools/chain/starknet-producer-selftest.mjs
+
+      - name: Does the Solana producer state its chain's facts, and do its committed inputs hold?
+        # 6 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # The Solana producer's fee / compute-unit / cost-unit vector, the fee payer as
+        # sender, the first non-ComputeBudget program as target, and the committed window's
+        # content-addressed inputs, which unpack to their packed digests and refuse a
+        # tampered object. One arm asserts the prestate token is still outside §1.4's set,
+        # so it goes red the day the row lands. Traced rows need the recorder and are
+        # built by `nix build .#sol-capture-tree`.
+        run: node tools/chain/solana-producer-selftest.mjs
+
+      - name: Is every abstraction DEL-7 extracted reached by two chains?
+        # 33 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # Chain-Delivery DEL-7's `test_every_abstraction_has_two_consumers`. Each export of
+        # `lib/producer-runtime.mjs` is counted by the producers' and facts modules' own
+        # import statements, with `solana` and `sol` folded to one chain so one network
+        # cannot supply two consumers. Four controls run in the same pass: one consumer's
+        # import is deleted and the same judgement is watched reporting the shortfall; the
+        # no-dispatch judgement is driven against a synthetic module that does dispatch;
+        # the shared exit path is driven with a source refusal and must answer 1 where a
+        # configuration refusal answers 2; and the classification file is mutated to claim
+        # a consumer the code does not have. It also runs all five producers with no
+        # arguments and reads their real exit codes.
+        run: node tools/chain/abstraction-consumers-selftest.mjs
+
+      - name: Can DEL-7's ingestion classification be shown to be wrong?
+        # 24 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # Chain-Delivery DEL-7's `test_the_classification_can_be_wrong`. Four ways a
+        # classification can be wrong, judged against the code rather than the document:
+        # a component called network-agnostic with nothing shared; one whose consumers pass
+        # behaviourally different arguments with no finding recorded, and the mirror of
+        # that; one called network-specific that two chains in fact share; and one called
+        # per-prestate-class whose consumers are not one class. Each prestate class is read
+        # from the chain's own `PRESTATE_STRATEGY`, so the document cannot decide its own
+        # test, and every judgement is re-run against a deliberately mis-classified copy.
+        run: node tools/chain/classification-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this

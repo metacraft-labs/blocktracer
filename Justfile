@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# FOURTEEN suites — 105 + 19 + 24 + 24 + 57 + 233 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 = 1169 counted assertions —
+# TWENTY-ONE suites — 105 + 19 + 24 + 24 + 57 + 241 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 9 + 41 + 26 + 6 + 33 + 24 = 1324 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -179,7 +179,9 @@ test:
 # IS THE INPUT SET IT CLAIMS TO BE — every file hashed against its manifest, the
 # three independent block answers cross-checked against each other, and the
 # replay endpoint held to never reaching a network even when handed one
-# (`eth-rpc-transcript-selftest`).
+# (`eth-rpc-transcript-selftest`), and WHETHER A REGENERATED ETHEREUM CONTAINER IS COMPARED IN A FORM
+# THAT ERASES THE RECORDER'S INTERNING ORDER AND NOTHING ELSE
+# (`eth-regen-check-selftest`).
 #
 # `snapshot-contract-selftest` IS THE ONE THAT READS A NIM FILE FROM JAVASCRIPT,
 # and it is a suite rather than a review because the alternative is a person
@@ -441,6 +443,41 @@ chain-selftest:
     # codetracer-evm-recorder sibling, which is why `just eth-capture` is a
     # separate recipe and not an arm here.
     node tools/chain/eth-rpc-transcript-selftest.mjs
+    # Offline and toolchain-free: the two decoded variants are inlined, so no
+    # container and no `ct-print`. The comparison over real containers is
+    # `just eth-regen-check`, which needs the recorder.
+    node tools/chain/eth-regen-check-selftest.mjs
+    # Offline and toolchain-free: the Flow producer's role and cost facts, read
+    # from the committed block listing and transcript under
+    # fixtures/chain-inputs/flow-mainnet/, each arm beside its control.
+    node tools/chain/flow-producer-facts-selftest.mjs
+    # Offline and toolchain-free: the Sui producer's facts, its effects
+    # comparison and its refusals, driven from literals shaped as Sui's GraphQL
+    # service and `sui replay` write them. Traced rows need a container and are
+    # exercised by `just sui-range`.
+    node tools/chain/sui-producer-selftest.mjs
+    # Offline and toolchain-free: the Starknet producer's facts (three-dimension cost
+    # vector and fee, the roles each transaction type has, the multicall payload) and
+    # the producer over container-free captures — a refused era published as
+    # refusals, and every input it cannot publish honestly refused. Traced rows need
+    # a container and are exercised by `just starknet-capture`.
+    node tools/chain/starknet-producer-selftest.mjs
+    # Offline and toolchain-free: the Solana producer's facts (fee / compute-unit /
+    # cost-unit vector, fee-payer sender, ComputeBudget-skipping target), the committed
+    # window's content-addressed inputs refusing a tampered object, and the prestate
+    # token still outside §1.4's set. Traced rows need the recorder and are exercised
+    # by `nix build .#sol-capture-tree`.
+    node tools/chain/solana-producer-selftest.mjs
+    # Chain-Delivery DEL-7's two verification entries. Offline; both read the tree and
+    # `tools/chain/ingestion-classification.json` and change nothing.
+    #   test_every_abstraction_has_two_consumers — counts each export of
+    #   lib/producer-runtime.mjs by the producers' own import statements, and drives a
+    #   control that removes one consumer and watches the count fall below the floor. It
+    #   also runs all five producers with no arguments and reads their real exit codes.
+    node tools/chain/abstraction-consumers-selftest.mjs
+    #   test_the_classification_can_be_wrong — judges the classification against the code
+    #   in four directions, with a mis-classified component driven through each one.
+    node tools/chain/classification-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1595,6 +1632,9 @@ ETH_CAPTURE_TX := "0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2
 # recorder BINARY, which is a Rust build in the `codetracer-evm-recorder`
 # sibling and is not in this repository. The chain data is no longer the
 # obstacle; the toolchain is.
+# `nix build .#evm-recorder` builds that binary from this flake's pins (the writer
+# at the last `meta.dat`-6 revision), and `nix build .#eth-capture-tree` runs this
+# whole capture in the sandbox. `packages.site-staging` publishes the result.
 #
 # The container is NOT byte-identical between two runs over the same inputs, and
 # that is a property of the RECORDER rather than of the inputs — measured over
@@ -1619,6 +1659,24 @@ eth-capture RECORDER COMMIT TX=ETH_CAPTURE_TX OUT=".eth-capture/tree" *ARGS:
         --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
         --tx {{TX}} --out {{OUT}} \
         --transcript fixtures/chain-inputs/ethereum-mainnet/{{TX}} {{ARGS}}
+
+# ── does a held Ethereum container still record what the inputs produce? ────
+#
+# Regenerates the container from the committed inputs (`just eth-capture`, no
+# network) and compares it with HELD through `tools/chain/eth-regen-check.mjs`:
+# decoded by `ct-print --full`, canonicalised to erase the recorder's per-process
+# interning order and nothing else. rc 0 SAME, 1 DIFFERENT (with the first path
+# that differs), 2 a container the reader refuses, which is not a verdict.
+#
+# This is the check DEL-5 (2026-10-20) names as the condition for exempting a
+# committed Ethereum container from `ban-added-ct-recordings`: the ban's reason is
+# that a recording pins a recorder version nothing tracks, and this tracks it.
+# HELD must live outside `.eth-capture/`, which `eth-capture` deletes first.
+# Needs the recorder binary and `ct-print` (`$CT_PRINT`), so it is in no gate;
+# its canonical form is graded offline by `eth-regen-check-selftest`.
+eth-regen-check RECORDER COMMIT HELD TX=ETH_CAPTURE_TX:
+    just eth-capture {{RECORDER}} {{COMMIT}} {{TX}} .eth-capture/tree
+    node tools/chain/eth-regen-check.mjs {{HELD}} .eth-capture/tree/ct/{{TX}}.ct
 
 # Re-record the committed input set against a live archive endpoint.
 #
@@ -1684,6 +1742,66 @@ eth-inputs-verify TX=ETH_CAPTURE_TX:
 eth-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-eth-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
+
+# ── Starknet mainnet: one block, re-run in StarkWare's own executor ───────────
+#
+# Records one block with `codetracer-cairo-onchain trace-block` (codetracer-cairo-
+# recorder's `onchain/`: blockifier over cairo-vm, every step one executed CASM
+# instruction) from a committed RPC TRANSCRIPT — no network — and turns the capture
+# into a §5 tree with tools/chain/produce-starknet-snapshot.mjs. The transcript the
+# recorder repository commits as its own test fixture is the default subject:
+#
+#   just starknet-capture ../codetracer-cairo-recorder/onchain/target/release/codetracer-cairo-onchain \
+#     $(git -C ../codetracer-cairo-recorder rev-parse HEAD)
+#
+# Then `just conformance .starknet-capture/tree`. NOT in any gate, for `eth-range`'s
+# reason: it needs the recorder binary. Its offline half is
+# `starknet-producer-selftest.mjs` in `chain-selftest`.
+starknet-capture RECORDER COMMIT TRANSCRIPT="../codetracer-cairo-recorder/onchain/tests/fixtures/mainnet-16664301" OUT=".starknet-capture/tree" *ARGS:
+    bash tools/chain/starknet-capture.sh --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --transcript {{TRANSCRIPT}} --out {{OUT}} {{ARGS}}
+
+# Trace a window of SUI checkpoints into one snapshot tree (Recorder-Move
+# CXP-MOVE-1/2). The twin of `eth-range`: tools/chain/capture-sui-range.mjs reads
+# the window over Sui's GraphQL service, measures the tracing floor (the first
+# checkpoint at protocol 38, the first execution layer with trace hooks), records
+# up to `--max` transactions through `codetracer-move-recorder replay` — which
+# runs `sui replay --trace`, fetching exactly the object versions each
+# transaction names — and runs tools/chain/produce-sui-snapshot.mjs over the lot.
+#
+#   just sui-range ../codetracer-move-recorder/target/release/codetracer-move-recorder \
+#     $(git -C ../codetracer-move-recorder rev-parse HEAD) --depth 200 --max 6
+#
+# `sui` must be on PATH or given with `--sui`, built with the `tracing` feature
+# (the official release binaries are). Output defaults to .sui-range/ (ignored).
+# NOT in any gate, for `eth-range`'s reason: it needs the network and the
+# recorder. Its offline half is `sui-producer-selftest.mjs` in `chain-selftest`.
+# COMMIT is required and not derived, for `eth-capture`'s reason.
+sui-range RECORDER COMMIT *ARGS:
+    node tools/chain/capture-sui-range.mjs \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
+
+# The same capture with NO network: checkpoint 336,000,001 from its committed GraphQL
+# transcript (fixtures/chain-inputs/sui-mainnet/336000001), served on loopback. The
+# recording ids are derived and the clock readings pinned, so the tree is byte-identical
+# run to run. Needs the recorder and a `sui` with the `tracing` feature.
+sui-capture RECORDER COMMIT OUT=".sui-capture/tree" *ARGS:
+    node tools/chain/capture-sui-range.mjs \
+      --transcript fixtures/chain-inputs/sui-mainnet/336000001 \
+      --from 336000001 --to 336000001 --max 1000 \
+      --fixed-time 2026-10-22T00:00:00.000Z \
+      --work .sui-capture/work --out {{OUT}} \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --positions-reader {{RECORDER}} {{ARGS}}
+
+# Is the Sui endpoint still serving the object versions it served when the
+# committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed
+# ladder of depths, for the exact versions transactions there consumed, with a
+# control that must answer null; exit 1 names a rung the endpoint stopped
+# serving. `--record` re-takes tools/chain/measurements/sui-endpoint-horizon.json.
+# Needs the network, so it is not in `chain-selftest`; its verdict logic is.
+sui-horizon *ARGS:
+    node tools/chain/sui-horizon-probe.mjs {{ARGS}}
 
 # Publish a generated tree into a local object-store directory (M8 delta publisher).
 # Idempotent + resumable: re-run to upload only new objects and flip current.json.
@@ -2274,3 +2392,96 @@ byte-identity REF:
 
 byte-identity-mutant REF:
     tools/chain/byte-identity.sh --ref {{REF}} --mutant
+
+# ── Flow mainnet (Chain-Delivery DEL-6) ─────────────────────────────────────────
+#
+# The committed block's transcripts -> a §5 tree, with the recorder, the replay
+# helper and `ct-print` the flake builds (tools/chain/nix/flow.nix), and no
+# network: the helper re-executes each transaction with the network's FVM against
+# the registers its transcript recorded. The commit published into every row is
+# read from flake.lock, which is what pinned the recorder these builds came from.
+# The same capture runs inside the build as `.#flow-capture-tree`, and
+# `nix build --rebuild .#flow-capture-tree` checks that it is byte-reproducible.
+flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    recorder=$(nix build .#flow-recorder --no-link --print-out-paths)
+    helper=$(nix build .#cadence-replay-helper --no-link --print-out-paths)
+    ct_print=$(nix build .#flow-ct-print --no-link --print-out-paths)
+    commit=$(jq -r '.nodes["codetracer-flow-recorder"].locked.rev' flake.lock)
+    CT_PRINT="$ct_print/bin/ct-print" bash tools/chain/flow-capture.sh \
+      --recorder "$recorder/bin/codetracer-flow-recorder" \
+      --helper "$helper/bin/cadence-replay-helper" \
+      --recorder-commit "$commit" \
+      --inputs fixtures/chain-inputs/flow-mainnet/{{BLOCK}} \
+      --out {{OUT}} --work .flow-capture/work
+
+# ── the RESIDENT follower: ING-1's deployed daemon, runnable locally over a range ──
+#
+# `just eth-range` captures a range somebody asked for. This is the loop that asks:
+# it observes the chain, derives what it still owes from the PUBLISHED output, captures
+# up to its tick capacity, files and publishes each span through `eth-ingest-range`, and
+# writes an observation — including a measured zero — on every tick.
+#
+# RUNNABLE LOCALLY TODAY AND RESIDENT UNCHANGED. The same binary and the same flags; a
+# deployment differs only in `--backend s3 --bucket`, `--ticks 0` (the default) and a
+# supervisor. During development, bound it: `--floor/--ceiling` name the window,
+# `--ticks` the budget, `--heads` replays a recorded head transcript instead of the node.
+#
+# IT HOLDS NO CREDENTIAL. Every store read and the SLI write go through
+# `blocktracer-follower-state`, and the publish through `blocktracer-publish` — both take
+# `--backend`, so the follower never speaks S3 itself.
+#
+# NOT in any gate, for `eth-range`'s reason: it needs the network and the recorder binary,
+# so a gate over it would report SKIP forever. The gated, offline half is
+# `just eth-follower-proof`'s transcript-driven arms.
+#
+#     just eth-follow <recorder> <commit> --dest .eth-store --ticks 5 --tick-capacity 2
+eth-follow RECORDER COMMIT *ARGS:
+    nim c --hints:off -d:release --path:src -o:.eth-follower/bin/blocktracer-follower-state \
+      src/blocktracer_follower_state.nim
+    nim c --hints:off -d:release --path:src -o:.eth-follower/bin/blocktracer-chain-ingest \
+      src/blocktracer_chain_ingest.nim
+    nim c --hints:off -d:release --path:src -o:.eth-follower/bin/blocktracer-publish \
+      src/blocktracer_publish.nim
+    node tools/chain/follow-eth-chain.mjs \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --state-bin .eth-follower/bin/blocktracer-follower-state \
+      --ingest-bin .eth-follower/bin/blocktracer-chain-ingest \
+      --publish-bin .eth-follower/bin/blocktracer-publish {{ARGS}}
+
+# ── does the resident follower do the six things ING-1 asks of it? ──
+#
+# `eth-publish-proof` proves ONE publish cycle; `eth-coverage-proof` proves range after
+# range into one store. Both describe a run somebody started. A DAEMON has properties a run
+# does not: it must survive a kill, it must not drop a burst, it must say something during
+# a drought, and its lag must be readable by somebody who is not watching its terminal.
+#
+# THE BURST IS THE CHAIN'S, NOT THE HARNESS'S, and that is the finding that sizes the
+# design. Recorded on 2026-10-14 against `https://eth.drpc.org` by the follower's own
+# `--record-heads`, 44 ticks at 30 seconds, committed as
+# `tools/chain/measurements/eth-head-transcript-2026-10-14.json`: ETHEREUM'S FINALIZED HEAD
+# ADVANCES ONE EPOCH AT A TIME. It stood still for twelve ticks and then moved +32 in one,
+# then +32 again at tick 25 and +32 again at tick 38, while the tip crept 26,189,168 ->
+# 26,189,276. So a follower whose tick capacity is under thirty-two meets an undrainable
+# burst every six and a half minutes on the ordinary chain, and 40 of the 44 ticks observed
+# a window and found NOTHING. Average-rate reasoning predicts neither.
+#
+# Only the burst arm's CONTROL is constructed — "the same total spread evenly across ticks",
+# which a chain does not offer on request — and it carries `synthetic: true`, which the
+# follower prints on every run so a measurement cannot quietly be over a made-up chain.
+#
+# Arms 2, 6 and the roster arms need only the transcript. Arms 1, 3, 4, 5, 7, 8, 9 and 11
+# capture REAL blocks and need the network and the recorder; an ABSENT subject is exit 2,
+# never exit 0.
+#
+# 83 checks, 0 failures, measured 2026-10-14 over the window 26,189,100-26,189,105 and
+# 11,446 published objects. The default endpoint is free and rate-limits: a 429 leaves the
+# span OWED and a later tick retries it, which is the designed behaviour and is REPORTED in
+# the result block whether or not any arm went red. Pass --url <paid endpoint> to take the
+# endpoint out as a variable.
+#
+#     just eth-follower-proof
+#     just eth-follower-proof --span 4 --capacity 2 --keep
+eth-follower-proof *ARGS:
+    bash tools/chain/eth-follower-proof.sh {{ARGS}}

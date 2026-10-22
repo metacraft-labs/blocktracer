@@ -443,6 +443,11 @@ const Aliases*: seq[(string, string)] = @[
 # ── 3. the rules BlockTracer does not emit ─────────────────────────────────
 
 const Dropped*: seq[(string, string)] = @[
+  (".selector",
+   "upstream's floating selection overlay (`shared_widgets.styl`), which no " &
+   "page on this site renders — and its background is a raw hex colour, which " &
+   "`test_static_export`'s shipped-rules scan rejects. A rule nothing can " &
+   "match leaves the port rather than upstream's bytes being edited"),
   (".lm_splitter.lm_dragging",
    "there is no drag on a route with no JavaScript, so the class is never " &
    "applied — and it carries the ONE raw hex colour upstream writes in the " &

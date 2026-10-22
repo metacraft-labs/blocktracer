@@ -363,6 +363,14 @@ what is in front of them.
 `finalizedAtCapture` and `longestRunWithoutTx` — every number the four
 paragraphs this replaced used to narrate.
 
+`tracesAtSourceLevel` sits beside `tracesPublished`: how many of the published
+recordings have `execution.sourceLevel` true, which is Chain-Support-Matrix
+§1.2's T2, counted from the same per-transaction measurement the manifests carry.
+The chain landing page (`components/reach.nim`) states the debug tier from these
+two figures as a count over what was recorded, never as a chain-wide badge. A
+summary without the member was ingested before it existed, and the page then
+states no tier instead of reading the absence as zero.
+
 ---
 
 ## 5. Running a capture

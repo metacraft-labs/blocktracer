@@ -1851,3 +1851,90 @@ suite "the shipped conformance template passes all three checks, and every state
     ck rejected
 
   expectCount(34)
+
+suite "the summary's tier tally is the manifests' own sourceLevel, counted":
+
+  test "tracesAtSourceLevel equals the published manifests that say sourceLevel":
+    # The landing page states a debug tier from this figure, so it has to be
+    # the same measurement the per-transaction manifests carry and not a second
+    # derivation of it. The count below is taken from the PUBLISHED manifests,
+    # after the ingest wrote them, which is a reading independent of the
+    # counter inside `ingestSnapshot`.
+    asserted = 0
+    let outDir = tempOut("tier-tally")
+    defer: removeDir outDir
+    let snapDir = currentSourcePath().parentDir.parentDir /
+                  "client" / "fixtures" / "chain" / "aztec-testnet-frames"
+    let ing = ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: snapDir,
+                                          generation: "1", scope: isFull))
+    let prov = parseJson(readFile(
+      outDir / "d" / ing.chain / "g" / "1" / "summary.json"))["provenance"]
+    var manifests, atSource = 0
+    for path in walkDirRec(outDir / "t"):
+      if not path.endsWith("manifest.json"): continue
+      inc manifests
+      if parseJson(readFile(path)){"execution"}{"sourceLevel"}.getBool:
+        inc atSource
+    ck ing.withTrace > 0                       # the subject has recordings at all
+    ck manifests == ing.withTrace              # one manifest per recording
+    ck prov["tracesPublished"].getInt == ing.withTrace
+    ck prov.hasKey("tracesAtSourceLevel")      # present, not defaulted by a reader
+    ck prov["tracesAtSourceLevel"].getInt == atSource
+    ck prov["tracesAtSourceLevel"].getInt <= prov["tracesPublished"].getInt
+    checkpoint("aztec-testnet-frames: " & $atSource & " of " & $manifests &
+               " recordings at source level")
+  expectCount(6)
+
+  test "CONTROL: one row flipped to sourceLevel moves the tally by exactly one":
+    # Every committed capture records `sourceLevel: false` on every row, so the
+    # arm above would also pass on a counter that always wrote 0. This flips the
+    # one row that carries a source bundle — the precondition §5.4 puts on a
+    # source-level claim — and asks for 1.
+    asserted = 0
+    let dir = tempOut("tier-flip")
+    defer: removeDir dir
+    let outDir = tempOut("tier-flip-out")
+    defer: removeDir outDir
+    copyCapture(dir)
+    var doc = parseJson(readFile(dir / "snapshot.json"))
+    var flipped = 0
+    for t in doc["transactions"]:
+      if t["txHash"].getStr == PositionedTx:
+        t["recording"]["sourceLevel"] = %true
+        inc flipped
+    ck flipped == 1                            # the perturbation landed
+    writeFile(dir / "snapshot.json", pretty(doc, 1))
+    let ing = ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                          generation: "1", scope: isFull))
+    let prov = parseJson(readFile(
+      outDir / "d" / ing.chain / "g" / "1" / "summary.json"))["provenance"]
+    ck prov["tracesAtSourceLevel"].getInt == 1
+    ck prov["tracesPublished"].getInt == ing.withTrace
+  expectCount(3)
+
+suite "a transaction's target gets an address history, like its roles":
+
+  test "a payload target is published as an address the To column can link to":
+    # The transactions table links `To / target` to `/{chain}/address/{target}`.
+    # Before the target participated, the first Ethereum build linked 60 times to
+    # address pages that did not exist. CONTROL: the same capture without the
+    # payload publishes no object for that address, so the arm sees the addition.
+    asserted = 0
+    let target = "0x" & "5e".repeat(32)
+    proc publishedPathsNaming(addTarget: bool): int =
+      let dir = tempOut("target-" & $addTarget)
+      defer: removeDir dir
+      let outDir = tempOut("target-out-" & $addTarget)
+      defer: removeDir outDir
+      copyCapture(dir)
+      var doc = parseJson(readFile(dir / "snapshot.json"))
+      if addTarget:
+        doc["transactions"][0]["payload"] = %*{"target": target}
+      writeFile(dir / "snapshot.json", pretty(doc, 1))
+      discard ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                          generation: "1", scope: isFull))
+      for path in walkDirRec(outDir / "d"):
+        if target in path and path.endsWith(".json"): inc result
+    ck publishedPathsNaming(false) == 0      # the control: no such address yet
+    ck publishedPathsNaming(true) > 0        # the target has an address object
+  expectCount(2)

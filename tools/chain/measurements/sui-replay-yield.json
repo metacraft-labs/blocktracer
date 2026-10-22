@@ -1,0 +1,2203 @@
+{
+ "format": "blocktracer/historic-replay-yield@1",
+ "chain": "sui",
+ "measuredAt": "2026-10-21T06:35:41.846Z",
+ "chainTipAtRun": 336390589,
+ "finalizedAtRun": 336390589,
+ "endpoint": "https://graphql.mainnet.sui.io/graphql",
+ "toolchain": {
+  "recorder": "codetracer-move-recorder a6e676e3fbf17efc4581c1de0f92fd13e49d48ba",
+  "replay": "sui 1.81.1-e04cf9aa915c"
+ },
+ "windows": [
+  {
+   "from": 5000000,
+   "to": 5000001,
+   "blocks": 2,
+   "transactions": 16,
+   "firstInBlock": 2,
+   "notFirstInBlock": 14,
+   "replayed": 0,
+   "divergent": 0,
+   "traced": 0,
+   "refused": 16,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "transactionsByBlock": {
+    "5000000": 15,
+    "5000001": 1
+   },
+   "rows": [
+    {
+     "tx": "EboMLGy59xpYGJwgmDPS9Ci9nYGSWHh8UAHsBZXJbSRy",
+     "block": 5000000,
+     "index": 0,
+     "outcome": "refused",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "hVUUeu3EGSsqunSzYChHjfYXHViG6prnb1Cgmg5HQ7c",
+     "block": 5000000,
+     "index": 1,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "346mJWaKWcrVgcuxMwtuovermcBYJLMUT7gQ3sEnez7e",
+     "block": 5000000,
+     "index": 2,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "37szDjnuaA9uodKAnV3MW77jJvLi3QbCb9hkzH88PS8y",
+     "block": 5000000,
+     "index": 3,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "3r4FoPc3vsS7euA8JLWp4FKEJ3SP7qCckLwgpFMD9FKu",
+     "block": 5000000,
+     "index": 4,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "4smfA4n5URTdv9JRjrpkCHrBwLhgroqWcGzseZFXk98C",
+     "block": 5000000,
+     "index": 5,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "6XVPQC6Rzjt6pzyy38GKX3GUFtLTeZmP1XK3b7Ut3dCy",
+     "block": 5000000,
+     "index": 6,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "7i275qXLVD8YUeuYJG22p7Fwnqxv6RgufpYWXc81itpg",
+     "block": 5000000,
+     "index": 7,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "AB7j7z7vrRC3KurLWgwKPBVxjMuMUWrXPNNx39gXsw6a",
+     "block": 5000000,
+     "index": 8,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "C3HQvtb1jcity82nJiCu2Bv2R7ReYL73nJPVbe7X95BF",
+     "block": 5000000,
+     "index": 9,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "E2iZRUYofZp9GV6aZvJmeMY8au36W5cKhw5vsBGFDLXi",
+     "block": 5000000,
+     "index": 10,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "Eycj2TsMnFzjdpUK3QPvCAC2U4q59QS86n27LfS7bF2n",
+     "block": 5000000,
+     "index": 11,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "EzqCzzd9LmQBLs7oZ8kSKFxyKAfhw5G6TTexeRZgH6XK",
+     "block": 5000000,
+     "index": 12,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "GH2X2bYZFpaQUWbrC88HyUN6zsNFKwz88pvyfeyMhedw",
+     "block": 5000000,
+     "index": 13,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "HjN67hEk8q6cbN8oeJDwdDDQqRGUGNZytKVUhJcryefm",
+     "block": 5000000,
+     "index": 14,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    },
+    {
+     "tx": "AQQ55bmiZWfJXbTy5yXR3iLwJSbNdM449x3rFnoHnFGz",
+     "block": 5000001,
+     "index": 0,
+     "outcome": "refused",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "refusal": "NO-TRACE-EVENTS",
+     "steps": 0
+    }
+   ],
+   "protocolVersions": {
+    "5000000": 11,
+    "5000001": 11
+   },
+   "epochs": {
+    "5000000": 61,
+    "5000001": 61
+   },
+   "observable": 16,
+   "blocksBelowTip": 331362940,
+   "ledger": {
+    "replay": {
+     "at": "2026-10-21T04:40:50.650Z",
+     "attempted": 16,
+     "replayed": 0,
+     "divergent": 0,
+     "refused": 16,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "a6e676e3fbf17efc4581c1de0f92fd13e49d48ba"
+    }
+   }
+  },
+  {
+   "from": 28845373,
+   "to": 28845374,
+   "blocks": 2,
+   "transactions": 142,
+   "firstInBlock": 2,
+   "notFirstInBlock": 140,
+   "replayed": 140,
+   "divergent": 0,
+   "traced": 140,
+   "refused": 2,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "transactionsByBlock": {
+    "28845373": 3,
+    "28845374": 139
+   },
+   "rows": [
+    {
+     "tx": "Cxw7SgL7CDSijwTyQUmu4dBDrWKV1p2LfxHwJVjZWpvJ",
+     "block": 28845373,
+     "index": 0,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 15
+    },
+    {
+     "tx": "3kksHv67Hcx8sJsdMRRXUCT6B7m3wg4ELS7dWbbi5LA6",
+     "block": 28845373,
+     "index": 1,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 151924
+    },
+    {
+     "tx": "Bkp9FJAGK33h93kSjocDCvLyWqrJRnDRTnG4f94VKzgs",
+     "block": 28845373,
+     "index": 2,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176212
+    },
+    {
+     "tx": "BQotANvBffm6AZVBTMYcDUYfuUUhZNDNVYHYw6nAaiKh",
+     "block": 28845374,
+     "index": 0,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 15
+    },
+    {
+     "tx": "HyvS6XM5YNS3DDu9LzTzXzX13s9Sn2u6BmSHYEggMQJX",
+     "block": 28845374,
+     "index": 1,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "BUsxQ7g2DYoPeHjnhFtCrj7sHLRzPd2ANFCPY46wz27m",
+     "block": 28845374,
+     "index": 2,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "FhqtrBMEDV5vZnJ7GgfwovsA1gc8YXtuTeW6T9vigWk9",
+     "block": 28845374,
+     "index": 3,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "GikFSFrJVGiPVgQsHTks1zGvPdehoxbTvFfxnHFJakzR",
+     "block": 28845374,
+     "index": 4,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "9vzTTJo259nkHf6xubsFpbjXJzwgdTjVqz3FVDyk71ta",
+     "block": 28845374,
+     "index": 5,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "wfn6CS1PSRpGQoWPNhg4mrzYTvZoG1wEovwkxYHQYpN",
+     "block": 28845374,
+     "index": 6,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176068
+    },
+    {
+     "tx": "EKkhfD8gKyDmkeQRJ8rex6fTSzMQSxDVEuKpF6ZCuwmg",
+     "block": 28845374,
+     "index": 7,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "Dom68u4pKT1v1kUN84HjvstLCWREvPs2Hodsbt7kLTwj",
+     "block": 28845374,
+     "index": 8,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "3KLJqN86QoLdwNQYX6Hj6M1LQCmGfEr4G8H7ZpczjyaX",
+     "block": 28845374,
+     "index": 9,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "84C23eVRjXuCKVRmB4kADiQFNhpwFpSYcUKRpHNYvPrM",
+     "block": 28845374,
+     "index": 10,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "AG6PrGkQXALibxBXh3opznt7wiuNyxcufr2yEBjNkgXy",
+     "block": 28845374,
+     "index": 11,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "FvMzxC57Sncc7qhGM5w8c3sR2yKnBwPZAEcFvq4wZh8u",
+     "block": 28845374,
+     "index": 12,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 377404
+    },
+    {
+     "tx": "EZ7w6cWZ9oMwUY76UsirbMWF6hdojFuguMrbFfQiPyYG",
+     "block": 28845374,
+     "index": 13,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 16634
+    },
+    {
+     "tx": "128dMMbtjXzqpBD7kbtWDuKHt5zb57jdJ6gtzcRrq5Wk",
+     "block": 28845374,
+     "index": 14,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 12999
+    },
+    {
+     "tx": "GZGEnH38KiA2qd3q7yZuiwGTAZqNdmoJp8WPHBzLxjGV",
+     "block": 28845374,
+     "index": 15,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 3091
+    },
+    {
+     "tx": "P1zt8mFRu5eURgRBJqdjNiz883D1tNbS4uLdRnoZm6y",
+     "block": 28845374,
+     "index": 16,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 5979
+    },
+    {
+     "tx": "9CwRCzszYNPnLQWK8Ng4ioD6nczMkWpbNZcUgaCA4Szs",
+     "block": 28845374,
+     "index": 17,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2199
+    },
+    {
+     "tx": "12MFx2yMdBYLjxCTcfZUq556fGXSmNmNh6nZpuuXcu9a",
+     "block": 28845374,
+     "index": 18,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1623
+    },
+    {
+     "tx": "8wcibeFCiDCpGMAqeXq9UdmnUSAk2Uh8RoDhhaUuy8c",
+     "block": 28845374,
+     "index": 19,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "CwqaE5ukCbDueH4K4897AzuKFoPPcZpJfeZHQdqwkfmt",
+     "block": 28845374,
+     "index": 20,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "CnyhLLWQouZTZRuZuyugtin7gR1eUqNzY268tKHRGmXD",
+     "block": 28845374,
+     "index": 21,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176212
+    },
+    {
+     "tx": "C3pNgqGMwDFSSXH937KXK7iTwvjBTbUfA4D2gTsarcYD",
+     "block": 28845374,
+     "index": 22,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46740
+    },
+    {
+     "tx": "FnBTSKPD9Mg7w5mPUmo5Xuf4g9h6bWS7xUViTtN4fAzK",
+     "block": 28845374,
+     "index": 23,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "6VUBb7qWWbPjTkHxpGRVTtaRsQ3EJaBEoLGvo9K2eXtS",
+     "block": 28845374,
+     "index": 24,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "5m5YeV8Kzdusenkt2WFNKqG6B3vBAd8pS32SPHrVqyaE",
+     "block": 28845374,
+     "index": 25,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46855
+    },
+    {
+     "tx": "C7QUFeLZRh33xva3kunuXCJ6TYM7CHdBRcEwaKYqucz9",
+     "block": 28845374,
+     "index": 26,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46920
+    },
+    {
+     "tx": "GeGYhknc27zgmLp3Uw25HrGo2tjwsLG91eD13Lt2R1Cb",
+     "block": 28845374,
+     "index": 27,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "6pZYb1y8FMyk9HM25RSe1mFE7HmtSR2ybfef2DWg3bMu",
+     "block": 28845374,
+     "index": 28,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "FqgEYEWu42DYYXL8VteGXpFw4wkUCDrKdzq9yETidwPM",
+     "block": 28845374,
+     "index": 29,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46531
+    },
+    {
+     "tx": "8iXBey7gsNVYUXzC53KpuvNXRqPrLY9QagfSFqHbxSga",
+     "block": 28845374,
+     "index": 30,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176068
+    },
+    {
+     "tx": "3F555ki7Pu7THTpXDKynZ5CRsQPGThkamqGcJSqkmCyQ",
+     "block": 28845374,
+     "index": 31,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "8S7QvcGdzPRtP4cme2b5dGa7rbooiRauqXG1NN13iBAF",
+     "block": 28845374,
+     "index": 32,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "C4p66zeMaN6m8JFHPwCjv7LMtLswu12mex6ZB7ThHhab",
+     "block": 28845374,
+     "index": 33,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46787
+    },
+    {
+     "tx": "7JTHfEw8SfnYeccTZxbhWN4KJ1Pt3WHADtSwsphhesw3",
+     "block": 28845374,
+     "index": 34,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 140103
+    },
+    {
+     "tx": "BhQy4KHcQdZctwnApGXnB7uaSmfxk4TtEYfwUsADgLzQ",
+     "block": 28845374,
+     "index": 35,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "A34v6TfhsYnNvBqnNwNmFiGcGC7Evkv6mQ4MCASaies4",
+     "block": 28845374,
+     "index": 36,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "5e2nrRTqpKbTGjnC2WLaufszN7KfzDnsfQmRgyv367nB",
+     "block": 28845374,
+     "index": 37,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46480
+    },
+    {
+     "tx": "ESykZEVLUwvaoAHrHdiMhmGmNZjtgNP2SNy7HJHyj7Z",
+     "block": 28845374,
+     "index": 38,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "AnQixmue6bthG1CiFggQdb6ddHLDWHaFmx6Hd31HymAr",
+     "block": 28845374,
+     "index": 39,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2582
+    },
+    {
+     "tx": "49B3haGhTpVEuhMbZMJkZ3uL3DTtwwGMLEZxjJqhkw4e",
+     "block": 28845374,
+     "index": 40,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1490
+    },
+    {
+     "tx": "AoXGN1oCCBmQvWaCApUoXuk2eqCVQRRnB4McZ5yJ4sxg",
+     "block": 28845374,
+     "index": 41,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1500
+    },
+    {
+     "tx": "GZjAnDUD6wkimX98w1sRUtG56sEpufGW6DYbHin3JKKj",
+     "block": 28845374,
+     "index": 42,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1454
+    },
+    {
+     "tx": "EnhS645QrxiVqL4NXeRriwwPuxNVRTjPjCa2sM1Taa2",
+     "block": 28845374,
+     "index": 43,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1151
+    },
+    {
+     "tx": "LTSibFTvk3PiGHzaXw2Hg6SQJH7YfmEuKCPoEP3kVFS",
+     "block": 28845374,
+     "index": 44,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1085
+    },
+    {
+     "tx": "4omjHXLZLronNF1z9GSGeFDn1mwTyCixQRbq8KkLBvRz",
+     "block": 28845374,
+     "index": 45,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "2uDF3zdViSx5UNX7dNGEkbrhVnRAgrUh5yNo7hshE8Lf",
+     "block": 28845374,
+     "index": 46,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "6nV9SUthWV1Sk6CiUUfw4iQ5NRdPzreJ2j2Ub6oTpc5j",
+     "block": 28845374,
+     "index": 47,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "6cqd38ier1eE1cuLR7djFbCyzLWWXzBoMuPk3LcjEFMy",
+     "block": 28845374,
+     "index": 48,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "FBYh7S9tXrMNCif58M3Zrdp8qo8Wd5La2394n5kQqpJq",
+     "block": 28845374,
+     "index": 49,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "6xiZJinjioi4vnnSJkwSakiN78vCU2BisES3myEy7u29",
+     "block": 28845374,
+     "index": 50,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "XS5yJupZuwZXQZYzpqooXWVbZhviKDDfG9GMwN9myAx",
+     "block": 28845374,
+     "index": 51,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "96iA3taa5eTKa76JwJzavvwEbDxhscgKX4GoL4kR9DmZ",
+     "block": 28845374,
+     "index": 52,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2607
+    },
+    {
+     "tx": "5afpmtksmy2ezUXvuiwWSP6qjXnrbyjf6EUH4gxxcdyx",
+     "block": 28845374,
+     "index": 53,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 94
+    },
+    {
+     "tx": "EDzXDjY8KdBmhPautKQDLz9xk2iFq2ACDDN8zv7BsjoD",
+     "block": 28845374,
+     "index": 54,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2736
+    },
+    {
+     "tx": "ZFyxuFKKoudT2kkRgQFeGKPDzuk5N2QdgY2ZdwxH2f7",
+     "block": 28845374,
+     "index": 55,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 94
+    },
+    {
+     "tx": "ZPTYxD5hrkaXj2cH3VVLAjB36APKWwq53uFEZ1QtuyM",
+     "block": 28845374,
+     "index": 56,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 47190
+    },
+    {
+     "tx": "BTQk6twnbYFdgtBFT4GcmYwdUaBx4frVYncHYJ2W5Pf2",
+     "block": 28845374,
+     "index": 57,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2885
+    },
+    {
+     "tx": "2xKecUubrtHixSJrRjHSD54H1mPsdTSFnAeVkcNu9azg",
+     "block": 28845374,
+     "index": 58,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2810
+    },
+    {
+     "tx": "4X5HtF8dM8X7JEjVors5B3NzQXYHAe9F7SQjc3APpo9y",
+     "block": 28845374,
+     "index": 59,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1297
+    },
+    {
+     "tx": "FsHzUHWdAyJAw8xmZ39aVTUM8oRSvKG9Af5Tc9qpmj3x",
+     "block": 28845374,
+     "index": 60,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1497
+    },
+    {
+     "tx": "GD6jH18JmRPGXpz8mGqZZVxKXKyogVCoY2KWLZyGp1vk",
+     "block": 28845374,
+     "index": 61,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1643
+    },
+    {
+     "tx": "CA9Zpzpo8BbVv2gUdtVmWV3faT7t7Zzy5j4MYUFTtjB1",
+     "block": 28845374,
+     "index": 62,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1706
+    },
+    {
+     "tx": "HQ9axAZ4tDoFG5cMGzif8uep3KNHM5WziDFVUhhFVdgw",
+     "block": 28845374,
+     "index": 63,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2684
+    },
+    {
+     "tx": "F2GR4mx8dzZ7UYUXjWabZqKi5Vx1VdGamD1WK66o9VR6",
+     "block": 28845374,
+     "index": 64,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 94
+    },
+    {
+     "tx": "roUdAErrY6RTjimPvoWr81aAJQvFZ37KD3Zks54jdKf",
+     "block": 28845374,
+     "index": 65,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 94
+    },
+    {
+     "tx": "6BKGyvMs6krTdFc3NvQSyaFa4T3ohnzSBKDqAkRJaWNp",
+     "block": 28845374,
+     "index": 66,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 151828
+    },
+    {
+     "tx": "F9EvpgS4jjHHxXGB5W6sbuGwoEzT39tWMLLyZVqFtMzh",
+     "block": 28845374,
+     "index": 67,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 151924
+    },
+    {
+     "tx": "BxrhBaj4tdQtcbNeRyp9fpjQNBq2b2JimEZmkraPHDrt",
+     "block": 28845374,
+     "index": 68,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 151828
+    },
+    {
+     "tx": "24FHCLgKwwTF55KQjpmNp2GoQELAsBDcHzs7bi9TZFk1",
+     "block": 28845374,
+     "index": 69,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 151924
+    },
+    {
+     "tx": "B5sivJ6KMqWc3jpEByAwVJVo6c3gGmR6fbhDF2uaWRY1",
+     "block": 28845374,
+     "index": 70,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "FmTF56gXoNXMZLs8q6SGtLEeqBzsXoaLXDCkyJtZ6whZ",
+     "block": 28845374,
+     "index": 71,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "8ntiDtqo4oJsgP3HVmBc5Fjr2tHpWjnGEs4PHWUErJro",
+     "block": 28845374,
+     "index": 72,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 47033
+    },
+    {
+     "tx": "7tvznz1h4LXxwJw3zQyqzXKoL9LJ7ndSdbqcm6aRiFhN",
+     "block": 28845374,
+     "index": 73,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46671
+    },
+    {
+     "tx": "DrAu1JrrbGv2zoMnppY9rfhjQMtnADNr6Tui1ZnVm1x7",
+     "block": 28845374,
+     "index": 74,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46707
+    },
+    {
+     "tx": "FVfwXReQ2VciaqXZVA6q5dMxiq5ANUmKGq6FSBXCPuv8",
+     "block": 28845374,
+     "index": 75,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 93494
+    },
+    {
+     "tx": "2ZTHFJHxja8YYjHXg7hjuaMmYNUmjt3ViLr3H1Tqm1Rt",
+     "block": 28845374,
+     "index": 76,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46732
+    },
+    {
+     "tx": "35TSSmpvBHAKny8pVJS2CwRWp8U9zc1ZNKbB16wKT1iA",
+     "block": 28845374,
+     "index": 77,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176212
+    },
+    {
+     "tx": "8ddMhZR6NvxS893NbaxRw5gpAjwPAiTrvbT2oGvRsKPJ",
+     "block": 28845374,
+     "index": 78,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1694
+    },
+    {
+     "tx": "4NjAmCqpbyTuKJR7bGmHLMhStBZ5P3CPXY2dEj2ri8CH",
+     "block": 28845374,
+     "index": 79,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1363
+    },
+    {
+     "tx": "3yDmYUQfKZY6m78g2JD3gFEcupezswEeDGnet5Pex9oY",
+     "block": 28845374,
+     "index": 80,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1525
+    },
+    {
+     "tx": "8o3aUNodmrSMwPNsekNoygmppWTrKFz6Faij4Wp5LgNh",
+     "block": 28845374,
+     "index": 81,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1565
+    },
+    {
+     "tx": "3Q2mjmyAVQYc5ypczup75cn6P9g4LBfaqbL9e2xKhaAZ",
+     "block": 28845374,
+     "index": 82,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1323
+    },
+    {
+     "tx": "9u7eV48x1zCf5ofzPwPvb7UWvN31bQp4kMDJykwAe42D",
+     "block": 28845374,
+     "index": 83,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 9065
+    },
+    {
+     "tx": "9Pxyt1CtWdtJz6ng89264TpRhvWAUE95nomMhPsoYgxH",
+     "block": 28845374,
+     "index": 84,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 123
+    },
+    {
+     "tx": "7tpTtEs13ZPT426fkP31WCYbgBk6nES3HL1YP13SJSww",
+     "block": 28845374,
+     "index": 85,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 3374
+    },
+    {
+     "tx": "457LhhqBjxoqrmapCMvLvZ1DbDPyeidHJtVEsTgYdE2m",
+     "block": 28845374,
+     "index": 86,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2814
+    },
+    {
+     "tx": "4NmqArbekuQxFGAyBVmnPgPAtVp6jAPneVwdTegL3xw8",
+     "block": 28845374,
+     "index": 87,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "4STi64JvKKj46eamHwWQzSYsYBspCBW4vd4NBEZQ7wXc",
+     "block": 28845374,
+     "index": 88,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 3165
+    },
+    {
+     "tx": "9zcv3u8UdLgouyqLfxWpAmgfMrEDmhP1dAGpqdUFVjNk",
+     "block": 28845374,
+     "index": 89,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "5mi9gsXDzLuRSwtrsHPRfEW2qSh8A6pmstMm2SfktLRz",
+     "block": 28845374,
+     "index": 90,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "FvqbTSM1TKqEu3EG7ntaDPn2fRwRoxXv3whnFo919Kkc",
+     "block": 28845374,
+     "index": 91,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "4gaEcfYQBiNWMFdx3LKhwYec4DZQ4e7bipq9EsScNVMj",
+     "block": 28845374,
+     "index": 92,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "9himLphLoKytY41bjcwtcCRsG2GpWuD8wuZ7jger3KFE",
+     "block": 28845374,
+     "index": 93,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176212
+    },
+    {
+     "tx": "4y8v8fH97Bn33543KYfxYN2hw6d7hYvxfotd23PgetUP",
+     "block": 28845374,
+     "index": 94,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "56UAr32Bjqts984GyUbyu8YbF5mh3BeG7vpKyBrdzGH1",
+     "block": 28845374,
+     "index": 95,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "6iEJvkQ67VPDkFrXCbQFoTB1hWisJYaHjMRmKQbyyHXH",
+     "block": 28845374,
+     "index": 96,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "4z2uv4wnkQBi1wEYWcDKApywYtTZETTaSTXVA5Lsfcds",
+     "block": 28845374,
+     "index": 97,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "Gp3cxs3NKLo3hmukgX2mBwg4EBNpz2kZ5KG1vD7mmkJJ",
+     "block": 28845374,
+     "index": 98,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176184
+    },
+    {
+     "tx": "5WDgBG54Jt8Q7aHqwYPouwJwucRpfUrTn3yeijQdTgHu",
+     "block": 28845374,
+     "index": 99,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "BFfYcENKDSfdQagR11QoCPNPmkxU9xxHQfFmzmFLAjbQ",
+     "block": 28845374,
+     "index": 100,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "GE91tu8ei79yNvhX2yHn6EiPDqNybQfJ15WZqLGhGrbr",
+     "block": 28845374,
+     "index": 101,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "F1GubRj6veZDk3zfJtyxGgEx7PjvdJc1WGrW18RCFZ3M",
+     "block": 28845374,
+     "index": 102,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "9PMHCwHmA33suoT6X2yZeU7CGtHFAyazeSGuqxJ1u1Sy",
+     "block": 28845374,
+     "index": 103,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "5hGdwXrjpyP9Dsz3ELbgYCUpSEermH1SJWbqHELDcse2",
+     "block": 28845374,
+     "index": 104,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46983
+    },
+    {
+     "tx": "6SfehbqPYMKs2Z3YmM9rvct5UAMLR79jnectdr4omb3f",
+     "block": 28845374,
+     "index": 105,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 4094
+    },
+    {
+     "tx": "AmNJnmZ88oqGCcY6YJD6tFhDE15PC3sxqCKJTAX8msni",
+     "block": 28845374,
+     "index": 106,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "AXsj4EBbBb44hTH76FJoCAC37m7jf3Pqi562DVosk6zu",
+     "block": 28845374,
+     "index": 107,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "EzmjRgDLXKoJLtwMFKVeiVp8nzN3i7F6XhVyGX1eZKTN",
+     "block": 28845374,
+     "index": 108,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "Apd11TemqdkFwzTFgJ32JfiXw48szkAwy2S6cV3VcxCK",
+     "block": 28845374,
+     "index": 109,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "6XH5dombiumdUTceZhs3XA7nsexRGBJsL5XvW5kJEkcR",
+     "block": 28845374,
+     "index": 110,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176124
+    },
+    {
+     "tx": "7Rpc1T1tGZ7yxs1uk3EUmSsSMfwn6y3W9tghPHwMvhea",
+     "block": 28845374,
+     "index": 111,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176124
+    },
+    {
+     "tx": "7ngn9NL6zyzGhL4cjn54mqkK7vBD4MhFfY5Q8CrQ3B5G",
+     "block": 28845374,
+     "index": 112,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1247
+    },
+    {
+     "tx": "8D2GgG8jLbkBjU8JaFHnCvG1AV7dyrswtfoKmhYZeBNC",
+     "block": 28845374,
+     "index": 113,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176124
+    },
+    {
+     "tx": "9QmwaXocd8MCkfkgvXtsf7wYoauGmK6zBCQibAMqKfuk",
+     "block": 28845374,
+     "index": 114,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2737
+    },
+    {
+     "tx": "FEQkHgpmASmD1o1c684HKhX4q8af7jYv3j2QgicyGAuf",
+     "block": 28845374,
+     "index": 115,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2385
+    },
+    {
+     "tx": "Fb3bcsGdcumAapWhrQXRLtom3rrEEbJzMNJcvZkV39Vs",
+     "block": 28845374,
+     "index": 116,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 143
+    },
+    {
+     "tx": "8TcyCtQrFGofRw8GciBbUYu1cYGzddAY67zHKin9Yjwq",
+     "block": 28845374,
+     "index": 117,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 94
+    },
+    {
+     "tx": "EpsW38x4EwVfwy4cfZEkMamot2MDYfB7YQtG95Sz6pVq",
+     "block": 28845374,
+     "index": 118,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "GLhC4n9VVL5Fg9MzE6QmpzVK6Pb26JhDinu6cNjLnNY4",
+     "block": 28845374,
+     "index": 119,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "8cnfSMYNnzvo4x77Mn7t7TDkCfuRTrVxt6AdpDPFn6uF",
+     "block": 28845374,
+     "index": 120,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176124
+    },
+    {
+     "tx": "HAnD6eFgZsqkJMqQ5hGQEb49CkJwgnBJ5jDv6EudzWQV",
+     "block": 28845374,
+     "index": 121,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2689
+    },
+    {
+     "tx": "GQwjB3n1Ti1dePsFvGgX7XhNatHeZZfSJgM7ret5vrz5",
+     "block": 28845374,
+     "index": 122,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 123
+    },
+    {
+     "tx": "CQNGvYWZsWeTYNohjVZRDyoBpfS5fDhquHQ8qwu6mVKs",
+     "block": 28845374,
+     "index": 123,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 94
+    },
+    {
+     "tx": "9tTHvKm6gbUXoh3q1QoBwPxm4tEXsqZy3aDf81Z2Xmkw",
+     "block": 28845374,
+     "index": 124,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 3111
+    },
+    {
+     "tx": "A6YYJuN4xBSUa9ATgtJvE5aQ2JEPcvsuAEefT8j8gQTr",
+     "block": 28845374,
+     "index": 125,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "SUI-REPLAY-STACK-OVERFLOW",
+     "steps": 0
+    },
+    {
+     "tx": "FohTLr2cY2qAn4MtihGSShbzk27vBfMpuhNXTQvyG4pG",
+     "block": 28845374,
+     "index": 126,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 150314
+    },
+    {
+     "tx": "AdbzKKeEkuWzbedS4SBzHaVy1stV7dCuBm1wg5oinjwp",
+     "block": 28845374,
+     "index": 127,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 57185
+    },
+    {
+     "tx": "Bo5BmjbjXQAEkHYJ7TDimuTdNmwkWoiGsbFUR89GrVYm",
+     "block": 28845374,
+     "index": 128,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "AqBWvzRrYChFTqPqAxDyy5TApqy6pNZzyGA3F4dyAx8z",
+     "block": 28845374,
+     "index": 129,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176040
+    },
+    {
+     "tx": "Bp2S75rVZJmDBPAZ8DiepXNKuSQR79JSRSX8nL9zmCbH",
+     "block": 28845374,
+     "index": 130,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1
+    },
+    {
+     "tx": "DryNN4RdguTh6eUkjiU2FRGwu8ue6ydW1ai2T5XWuJte",
+     "block": 28845374,
+     "index": 131,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 151828
+    },
+    {
+     "tx": "DUM7KKyRcaxeJoR54kT68UWh3Qcwf8R9thZ1cLpL98kr",
+     "block": 28845374,
+     "index": 132,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 151828
+    },
+    {
+     "tx": "H8uceqsoiNwbNGX9TLHbCjcM7qnidkEefgvaETcu3dFd",
+     "block": 28845374,
+     "index": 133,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 151828
+    },
+    {
+     "tx": "DnNmDqxMYjZWvZSoS2mjNU176mwqDay2kbnkPPxwt75Y",
+     "block": 28845374,
+     "index": 134,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 151828
+    },
+    {
+     "tx": "ESqkjyaohqAuRyUBLefk87ujm8MBC4C7jKPwqixbiDah",
+     "block": 28845374,
+     "index": 135,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 167
+    },
+    {
+     "tx": "F77cfmtEfwDpD6ABuEKonspNf957q3FhJJE9SdEDHho7",
+     "block": 28845374,
+     "index": 136,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 8430
+    },
+    {
+     "tx": "GBMEGhU9reoFAAsNVAnMmnASfqyMKfdy91RACcXhsPfa",
+     "block": 28845374,
+     "index": 137,
+     "outcome": "refused",
+     "kind": "ProgrammableTransaction",
+     "refusal": "TRACE-TOO-LARGE",
+     "steps": 0
+    },
+    {
+     "tx": "GdyqKyX9GLKq7MXDmScXLsDiVq7RZEH43Xm1JNvnJh46",
+     "block": 28845374,
+     "index": 138,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 176124
+    }
+   ],
+   "protocolVersions": {
+    "28845373": 38,
+    "28845374": 38
+   },
+   "epochs": {
+    "28845373": 338,
+    "28845374": 338
+   },
+   "observable": 142,
+   "blocksBelowTip": 307542510,
+   "ledger": {
+    "replay": {
+     "at": "2026-10-21T06:21:27.666Z",
+     "attempted": 142,
+     "replayed": 140,
+     "divergent": 0,
+     "refused": 2,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "a6e676e3fbf17efc4581c1de0f92fd13e49d48ba"
+    }
+   }
+  },
+  {
+   "from": 150000000,
+   "to": 150000001,
+   "blocks": 2,
+   "transactions": 22,
+   "firstInBlock": 2,
+   "notFirstInBlock": 20,
+   "replayed": 22,
+   "divergent": 0,
+   "traced": 22,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "transactionsByBlock": {
+    "150000000": 10,
+    "150000001": 12
+   },
+   "rows": [
+    {
+     "tx": "sSwYaoKP1cTawhUgmynKgr5zkLhnqkhcfape8NdE55L",
+     "block": 150000000,
+     "index": 0,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "3Bpd2LPxqkMbnjeFZh2yeDcjj91gD24WqLke98EuLdMn",
+     "block": 150000000,
+     "index": 1,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 3146
+    },
+    {
+     "tx": "BnFvbfJreTTpff8kmVY4wR4vn2mFagGXAmbiTjJ1J8Un",
+     "block": 150000000,
+     "index": 2,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "CDC7qohgeQA7K4s8AL3T5c7kZhrmNgp6DCCfGG7etE7j",
+     "block": 150000000,
+     "index": 3,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 83
+    },
+    {
+     "tx": "6Q1zSbTSzznXrMfacbr19VxaTBfwSh7FWzHsdKoyddXg",
+     "block": 150000000,
+     "index": 4,
+     "outcome": "replayed",
+     "kind": "RandomnessStateUpdateTransaction",
+     "steps": 112
+    },
+    {
+     "tx": "5zDQrVsgp9hHUGe9HYUVPbyQKkfbXpPr8MW4wLhzxj2H",
+     "block": 150000000,
+     "index": 5,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "DWzbs1tJEQXMWojdCUCkYCad6meobqHSvCnQNGi43Df",
+     "block": 150000000,
+     "index": 6,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 1921
+    },
+    {
+     "tx": "FTDkjjDzkpNbn44ntKqasqGqpULepMvJCztLEfjhKSwG",
+     "block": 150000000,
+     "index": 7,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 235
+    },
+    {
+     "tx": "J58wASTPuS3KHCm7YH5MAczb74uBUHeLKvC2v3Xkjiwm",
+     "block": 150000000,
+     "index": 8,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 16457
+    },
+    {
+     "tx": "EpFzFp53AXU82Ccx4WtKTXmEZSJCJ3mBVLZMsuq9PAzT",
+     "block": 150000000,
+     "index": 9,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "Z7S2xhaYyWzRcRAZtYEnYxDnUMyMuA4mc1gQZo1sKus",
+     "block": 150000001,
+     "index": 0,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "2PZQMsUDS85i4HpcrQb5MpwxTF5EYK8BrDVS57V3ni2U",
+     "block": 150000001,
+     "index": 1,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2480
+    },
+    {
+     "tx": "Cdo9jWm1PELBoX5MHLVwVRkwWXFFxutPmVAR4j4izFEs",
+     "block": 150000001,
+     "index": 2,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 64131
+    },
+    {
+     "tx": "D5snnseEaD6v5hREjb9wrHmuaR6xqoazVsity1hd3Csm",
+     "block": 150000001,
+     "index": 3,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 6742
+    },
+    {
+     "tx": "F5PZpUvVPZLyaDDwNMBbUYHbeSXciPK1BpTJ9KT5Ysgp",
+     "block": 150000001,
+     "index": 4,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "4MxfvcRrfS72ADPpDLfegtmX1RcsuH66XGJpbNkGWhZp",
+     "block": 150000001,
+     "index": 5,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 4010
+    },
+    {
+     "tx": "4e67Ed5ajdTZc6T8aYDjVMBuahwZQogZdVDToQrTgqAD",
+     "block": 150000001,
+     "index": 6,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 9951
+    },
+    {
+     "tx": "7EurjQYTzhEmfjiYaQbLfvTqER6ow7P55SfmLKD87i76",
+     "block": 150000001,
+     "index": 7,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 69874
+    },
+    {
+     "tx": "4Z2ECwz4Cp5juUz3JzT5SgSVftphjqb69FNjaanheUd2",
+     "block": 150000001,
+     "index": 8,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "fmbTcUFcqFsvC1KAEEDG812UBSiicVuz6Ta77xPXAhk",
+     "block": 150000001,
+     "index": 9,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 235
+    },
+    {
+     "tx": "5g37646feoxTF8HHvjgUe7DnPkJ9mhHdsHEKoytwhJoA",
+     "block": 150000001,
+     "index": 10,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 3859
+    },
+    {
+     "tx": "6LU72f4n37C3AQv9Svo5Fr19S2JBTG2xyQV8Gvrt2UHr",
+     "block": 150000001,
+     "index": 11,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 3145
+    }
+   ],
+   "protocolVersions": {
+    "150000000": 82,
+    "150000001": 82
+   },
+   "epochs": {
+    "150000000": 775,
+    "150000001": 775
+   },
+   "observable": 22,
+   "blocksBelowTip": 186388956,
+   "ledger": {
+    "replay": {
+     "at": "2026-10-21T06:25:48.072Z",
+     "attempted": 22,
+     "replayed": 22,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "a6e676e3fbf17efc4581c1de0f92fd13e49d48ba"
+    }
+   }
+  },
+  {
+   "from": 263201232,
+   "to": 263201233,
+   "blocks": 2,
+   "transactions": 21,
+   "firstInBlock": 2,
+   "notFirstInBlock": 19,
+   "replayed": 21,
+   "divergent": 0,
+   "traced": 21,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "transactionsByBlock": {
+    "263201232": 1,
+    "263201233": 20
+   },
+   "rows": [
+    {
+     "tx": "H9a8qRfX4TgACVpZgNKwscPURDfj7vQGwdPYqQosr5qL",
+     "block": 263201232,
+     "index": 0,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "9KEB6bbLjUqBCLzuLUQzWrZDUGouovMdZ6TPzBLJeFji",
+     "block": 263201233,
+     "index": 0,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "1XH2v4tBJ4eQVRfcxQth3nVd5PB1WDg439tLYWQzax4",
+     "block": 263201233,
+     "index": 1,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 10621
+    },
+    {
+     "tx": "ARtMw68Rba4iwsGsRR1GWdyyPXXBAaefibF87pyA3ySS",
+     "block": 263201233,
+     "index": 2,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 15588
+    },
+    {
+     "tx": "E2rNDqtCebh8Vb3AsW1g3E8cmd9mBRLqXS4REd56eCif",
+     "block": 263201233,
+     "index": 3,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 56507
+    },
+    {
+     "tx": "ucpzMoshM6o97Hofs49eg22f8xnWirmieh65Pkenbis",
+     "block": 263201233,
+     "index": 4,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 29
+    },
+    {
+     "tx": "4qeX4cBFoti7xPXph9ygoSgSqB26gPt6MeoRJxKP5uzJ",
+     "block": 263201233,
+     "index": 5,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2838
+    },
+    {
+     "tx": "34L6zfX6itTxfsQGLc8bLzkkMMYHLxk1QsEuf7UadQzt",
+     "block": 263201233,
+     "index": 6,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2496
+    },
+    {
+     "tx": "D8Dm2amPLwCYbZ7eZbSHB34E7dExsDQDXH6nPryBCZAd",
+     "block": 263201233,
+     "index": 7,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 15894
+    },
+    {
+     "tx": "CtNixCa6F34nBDuQi3kmXPTXEZp7QnzAEC42fxQwpvdh",
+     "block": 263201233,
+     "index": 8,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2899
+    },
+    {
+     "tx": "HiWgyssyej42ezYzGPauQtss53pCPWXXTvXxgp9N8fzX",
+     "block": 263201233,
+     "index": 9,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 11828
+    },
+    {
+     "tx": "GNuYkFYWQbRu7HpYMBK418RCp4sX3GMCwMYJkbaU1PJu",
+     "block": 263201233,
+     "index": 10,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 11816
+    },
+    {
+     "tx": "GpKubxUgcJ9HeNdVE6kfwHzH1Wa8ZWF1Qe9xCJJnE5ao",
+     "block": 263201233,
+     "index": 11,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 11816
+    },
+    {
+     "tx": "qKnoqsd34TSQ5ac4nXywTsewww7kBwkiMacaVR8WnJA",
+     "block": 263201233,
+     "index": 12,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 52882
+    },
+    {
+     "tx": "6CB7nYTnYFDeNSsDVKq6b2ZUoSGBtyGQCQEDMgW44FvY",
+     "block": 263201233,
+     "index": 13,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 11816
+    },
+    {
+     "tx": "tpVDQPK3VonXww3ZyAN21tXxP2mB5syx8WuyrnrPTGo",
+     "block": 263201233,
+     "index": 14,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 10251
+    },
+    {
+     "tx": "7eWBXgCx6bKs5mXmnhfXTNudfmgoe35htrxN5mB3a9xu",
+     "block": 263201233,
+     "index": 15,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 46135
+    },
+    {
+     "tx": "9gZZKniFbLt9C1HbHJSVg9iNEJPSobZ3nLBsEPwruVoE",
+     "block": 263201233,
+     "index": 16,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 15188
+    },
+    {
+     "tx": "AvCW94MLk9GMLYN12DjHyYAmdWPLMnkmC3vT9qkbcS4j",
+     "block": 263201233,
+     "index": 17,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 3143
+    },
+    {
+     "tx": "BbkEbh4G1gJjSEYZHiEqGVdpjK3hA6LsnskbgjCpDkaJ",
+     "block": 263201233,
+     "index": 18,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 45702
+    },
+    {
+     "tx": "GakhwYVL1vNY76XmbvQS7ckxw5HkhbQkxBUj3hSpHFRg",
+     "block": 263201233,
+     "index": 19,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 45738
+    }
+   ],
+   "protocolVersions": {
+    "263201232": 120,
+    "263201233": 120
+   },
+   "epochs": {
+    "263201232": 1093,
+    "263201233": 1093
+   },
+   "observable": 21,
+   "blocksBelowTip": 73188339,
+   "ledger": {
+    "replay": {
+     "at": "2026-10-21T06:28:12.211Z",
+     "attempted": 21,
+     "replayed": 21,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "a6e676e3fbf17efc4581c1de0f92fd13e49d48ba"
+    }
+   }
+  },
+  {
+   "from": 336000000,
+   "to": 336000001,
+   "blocks": 2,
+   "transactions": 39,
+   "firstInBlock": 2,
+   "notFirstInBlock": 37,
+   "replayed": 39,
+   "divergent": 0,
+   "traced": 39,
+   "refused": 0,
+   "bodyUnavailable": 0,
+   "notAttempted": 0,
+   "transactionsByBlock": {
+    "336000000": 19,
+    "336000001": 20
+   },
+   "rows": [
+    {
+     "tx": "DqWu1wzghqZw9H7XjWmUK4GUs4g6SBXaJ3P9bEsJDsdJ",
+     "block": 336000000,
+     "index": 0,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "BaHogYPGd6eaMZ84Jh9r7tGsYsHUgSnLGEthaexTKNTh",
+     "block": 336000000,
+     "index": 1,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 82
+    },
+    {
+     "tx": "6yd8zk3yLLCF4giwNdc5A4L986dsAp4LnDsNdS9tW3eJ",
+     "block": 336000000,
+     "index": 2,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "7LzZF18kXtgefz1gpTQMRgMvVw3U5WsSDXwEP4uu2Ux2",
+     "block": 336000000,
+     "index": 3,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 27723
+    },
+    {
+     "tx": "2UKyHaEUNjDyXdBX6xmN234weh1kP9MkemVFStHvvJAG",
+     "block": 336000000,
+     "index": 4,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 82
+    },
+    {
+     "tx": "6Dv9ttLzRak4wv5ZdgSvbqopBkWKucMWNGgepmiXNVwa",
+     "block": 336000000,
+     "index": 5,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "7eWPwcm4qUXbk8WQPS5pagpYTqicR3jowSNvfHwi7M8L",
+     "block": 336000000,
+     "index": 6,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 2704
+    },
+    {
+     "tx": "MTDwvKKz7yVjumaiypjFMUbf5Ksi73QcksEkaCQA7xf",
+     "block": 336000000,
+     "index": 7,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 5347
+    },
+    {
+     "tx": "F74ViGUp2E5q9Rj36a1s15KE6ihvKWkZQcdah6jf8bJB",
+     "block": 336000000,
+     "index": 8,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 49575
+    },
+    {
+     "tx": "6Rhqyf6CqSpHdBzjikuWVhEEnf9zeAs3o5W7ox4FgFD4",
+     "block": 336000000,
+     "index": 9,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 9967
+    },
+    {
+     "tx": "9XxuxjgKDMPrr5tbnHqcameEorRorCq1Gu2kXBuGPxPg",
+     "block": 336000000,
+     "index": 10,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 5591
+    },
+    {
+     "tx": "ArPyVDkp7Q7npachuGZfu9zLhqYfu7rwUkn8APtLLEPg",
+     "block": 336000000,
+     "index": 11,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 84038
+    },
+    {
+     "tx": "6qX4PzP9AiR33ooU8dzWXmdxHbJdsvJY1Wca3CeY2Rpp",
+     "block": 336000000,
+     "index": 12,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 115
+    },
+    {
+     "tx": "21k8REcN92APu4fV5FyZUL7AgLbvXVbf62QNvo1NE5xP",
+     "block": 336000000,
+     "index": 13,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 82
+    },
+    {
+     "tx": "EUdf5DuV1VjfSybCsWsXoSZXq4y2eNwYCGKcdNvFKahj",
+     "block": 336000000,
+     "index": 14,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "qXYfaX99pGgZsMJ6GWEV5hAkMYGtgwL1fmU9paJdfsz",
+     "block": 336000000,
+     "index": 15,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 10291
+    },
+    {
+     "tx": "8JDpP9ULvtZzqYh92TJjQeARFSpPNt8k5RB4KiehF3w5",
+     "block": 336000000,
+     "index": 16,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 24395
+    },
+    {
+     "tx": "3EHyyL7rhn2BWB3Qw4ecJjKthdxsHt3uMgBtfpKKob8f",
+     "block": 336000000,
+     "index": 17,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 115
+    },
+    {
+     "tx": "4G1rAeX4p6VVm3EjJEUyzNWDeNvHKU4qMuaMQcvGqeSg",
+     "block": 336000000,
+     "index": 18,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 82
+    },
+    {
+     "tx": "HEpizByM2HaczsfnGfus6r2h81Nx2v1HNHvb27BMz7C8",
+     "block": 336000001,
+     "index": 0,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "7P2cJfepW84uCj2KBDMRtHMLnq2ZZC8wo76yKNz3mrCC",
+     "block": 336000001,
+     "index": 1,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 796
+    },
+    {
+     "tx": "8TPtoiWyK7NJAvJn8q8TPNR9G4MotBtv3UM3cCsk7Jjw",
+     "block": 336000001,
+     "index": 2,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 24762
+    },
+    {
+     "tx": "E4t6DA4tSzrMMDUxjL527E8o1dfFpVVZnovYx9Z9y43q",
+     "block": 336000001,
+     "index": 3,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 4790
+    },
+    {
+     "tx": "8fEaZVJDqss9bnb6Cc9UhALHHm7LM3Ph5kXnhyEyme3u",
+     "block": 336000001,
+     "index": 4,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 218
+    },
+    {
+     "tx": "8fSnP7YWmMqWyVVcNmk8i6mwaSifexuDXP66TyThxuSP",
+     "block": 336000001,
+     "index": 5,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 82
+    },
+    {
+     "tx": "GG3hLxMhGMyTFNPGYcydRHFFc5oxEe77VJgimhJoppAQ",
+     "block": 336000001,
+     "index": 6,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "7kNEFFsobc3oH824ZVH3LSg4UXwrdryugq4xDX69MxHH",
+     "block": 336000001,
+     "index": 7,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 39
+    },
+    {
+     "tx": "8GZk3j2ARQdZ9UjkN2gqhJbdQ2SmTZvtkt7ESfMc2Mit",
+     "block": 336000001,
+     "index": 8,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 5591
+    },
+    {
+     "tx": "2JvS6UmZ8UwPEiChpfEnqZBnStF9vumG8nnAuWEZJBV8",
+     "block": 336000001,
+     "index": 9,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 115
+    },
+    {
+     "tx": "4mhPD58xUE2T8DDCQttgye2fCHjHAZYKFvQ9ivZaZ6Sq",
+     "block": 336000001,
+     "index": 10,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 82
+    },
+    {
+     "tx": "E1PxqvHYdw5zP3Bee4Avt5hfSszHQEscbJUzo92ktzjh",
+     "block": 336000001,
+     "index": 11,
+     "outcome": "replayed",
+     "kind": "RandomnessStateUpdateTransaction",
+     "steps": 112
+    },
+    {
+     "tx": "2i4AH86yJfp8RG22ud1ARBptsoTTkgEYQfT4redtmc89",
+     "block": 336000001,
+     "index": 12,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 82
+    },
+    {
+     "tx": "47zRPKxx5mCD1jt1JSp1dsopASYGUxD9GVb2SpomTWzv",
+     "block": 336000001,
+     "index": 13,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "9oiUKpnpedmGr5WRHsEMptJjGsqsuzYjLpZjZjZqXyL4",
+     "block": 336000001,
+     "index": 14,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 184777
+    },
+    {
+     "tx": "9MySvizJyiYyUcetbs2nGgW5eXq6YWoKS5o5dJ64h42h",
+     "block": 336000001,
+     "index": 15,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 115
+    },
+    {
+     "tx": "AgwvHEtr4VbJ9mfyUVwBDyWbeRvi2feMjD1xybvtNtGq",
+     "block": 336000001,
+     "index": 16,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 82
+    },
+    {
+     "tx": "CSrjmXAogZRUQVibdRX95P92ww4zGaG5d2HwULFHam8b",
+     "block": 336000001,
+     "index": 17,
+     "outcome": "replayed",
+     "kind": "ConsensusCommitPrologueTransaction",
+     "steps": 13
+    },
+    {
+     "tx": "GdmmmeAF3ff1jaDkxp31Na8aegfgSb5NwnaH71VTfYBQ",
+     "block": 336000001,
+     "index": 18,
+     "outcome": "replayed",
+     "kind": "ProgrammableTransaction",
+     "steps": 7003
+    },
+    {
+     "tx": "HbvWEsoi7iPbbxZCC3knR3ShNz3hJ9L8oEMg2tYRTsFb",
+     "block": 336000001,
+     "index": 19,
+     "outcome": "replayed",
+     "kind": "ProgrammableSystemTransaction",
+     "steps": 82
+    }
+   ],
+   "protocolVersions": {
+    "336000000": 138,
+    "336000001": 138
+   },
+   "epochs": {
+    "336000000": 1286,
+    "336000001": 1286
+   },
+   "observable": 39,
+   "blocksBelowTip": 390588,
+   "ledger": {
+    "replay": {
+     "at": "2026-10-21T06:32:19.965Z",
+     "attempted": 39,
+     "replayed": 39,
+     "divergent": 0,
+     "refused": 0,
+     "notAttempted": 0,
+     "stoppedBy": null,
+     "runtimeCommit": "a6e676e3fbf17efc4581c1de0f92fd13e49d48ba"
+    }
+   }
+  }
+ ],
+ "totals": {
+  "transactions": 240,
+  "firstInBlock": 10,
+  "notFirstInBlock": 230,
+  "replayed": 222,
+  "divergent": 0,
+  "traced": 222,
+  "refused": 18,
+  "bodyUnavailable": 0,
+  "notAttempted": 0,
+  "observable": 240
+ },
+ "yield": {
+  "tracedOverAllTransactions": 92.5,
+  "tracedOverObservable": 92.5,
+  "replayedOverAllTransactions": 92.5
+ },
+ "mismatchedFields": {},
+ "eraAnalysis": {
+  "boundary": 28845373,
+  "boundaryWhat": "the first checkpoint at protocol 38, the first execution layer with trace hooks, as the capture measured it",
+  "endpointHorizon": {
+   "reading": "tools/chain/measurements/sui-endpoint-horizon.json",
+   "measuredAt": "2026-10-20T13:38:55.466Z",
+   "deepestServed": 1000000
+  },
+  "below": {
+   "transactions": 16,
+   "traced": 0,
+   "refused": 16,
+   "objectVersionsServed": true
+  },
+  "atOrAbove": {
+   "transactions": 224,
+   "replayed": 222,
+   "divergent": 0,
+   "tracedPercent": 99.1
+  },
+  "prediction": "endpoint-retention: yield near-total wherever the endpoint serves the consumed object versions, near-zero below its horizon (pinned.sui, the charter's declaration)",
+  "verdict": "REFUTED: below checkpoint 28845373 0 of 16 traced while the endpoint serves those object versions (deepest served 1000000); above it 99.1% traced. The edge is at the protocol boundary, not at an endpoint horizon — the dominant variable is era."
+ }
+}

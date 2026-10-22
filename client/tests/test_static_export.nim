@@ -450,7 +450,10 @@ suite "The home page claims only what the product can do":
     if subject.find(re(pattern, {reIgnoreCase, reDotAll}), m) >= 0: m[0] else: ""
 
   let heroLead = extract(r"<p class=""lead sub"">(.*?)</p>", homeHtml)
-  let metaDesc = extract(r"<meta name=""description"" content=""(.*?)""", homeHtml)
+  # Any other attributes the renderer writes (IsoNim's hydration keys) are
+  # allowed around the two that identify the element.
+  let metaDesc = extract(r"<meta\b[^>]*\bname=""description""[^>]*\bcontent=""(.*?)""",
+                         homeHtml)
   let flatOf = proc(s: string): string = s.replace(re"\s+", " ").toLowerAscii
 
   test "CONTROL: the hero and the meta description were both found, and both say what the product does":

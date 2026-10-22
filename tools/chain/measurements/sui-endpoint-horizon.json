@@ -1,0 +1,66 @@
+{
+ "format": "blocktracer/sui-endpoint-horizon@1",
+ "endpoint": "https://graphql.mainnet.sui.io/graphql",
+ "measuredAt": "2026-10-20T13:38:55.466Z",
+ "tip": 336133090,
+ "selfReported": {
+  "objectFirst": 0,
+  "transactionFirst": 0
+ },
+ "rungs": [
+  {
+   "name": "near-tip",
+   "checkpoint": 336132090,
+   "digest": "4V5BWxLYsdYp7ocoQFzqM3SACN8r5PRa5wQ9v3mKTc6o",
+   "inputs": [
+    "0x0000000000000000000000000000000000000000000000000000000000000006@998866980"
+   ],
+   "served": true
+  },
+  {
+   "name": "trace-floor",
+   "checkpoint": 28845400,
+   "digest": "By2qCUrN1DkWUU1Rx4DvDLFzVAQaLw7maRaUdQhdExKB",
+   "inputs": [
+    "0x04d8fe290b7f170faabed65daf5cb65e58a4d294a205b0e8e57f4eda7d25d1ec@77818579",
+    "0x17231954183537e14c32ef4c972d3e29efef2429ae86676d6cd427353e0af599@77818585",
+    "0x19ffc26e3026e7bd91767b8258e386c5fad881f264b2d3458a14c51fd38856ac@77818581"
+   ],
+   "served": true
+  },
+  {
+   "name": "prestate-trace-floor",
+   "checkpoint": 23900000,
+   "digest": "EkiBgox7MGeXnxsDh483VxrpvwZ7TigNYr6XmyQnGv4",
+   "inputs": [
+    "0x0a32de3f67ce94086c1f51f93f0c6051084f804e5f98c3d27bc6630eb7c6b203@62253637",
+    "0x4405b50d791fd3346754e8171aaab6bc2ed26c2c46efdd033c14b30ae507ac33@62253649",
+    "0x50bc5afa7e01bf33a68bf15d74f51e5c5889c2936741bf73fea999df831e5804@62253640"
+   ],
+   "served": true
+  },
+  {
+   "name": "june-2023",
+   "checkpoint": 5000000,
+   "digest": "EboMLGy59xpYGJwgmDPS9Ci9nYGSWHh8UAHsBZXJbSRy",
+   "inputs": [
+    "0x0000000000000000000000000000000000000000000000000000000000000006@5000000"
+   ],
+   "served": true
+  },
+  {
+   "name": "early-2023",
+   "checkpoint": 1000000,
+   "digest": "7hdSQGPDY45kyut1tNBFmt6vbYoCfcXK4W4wpH7Z3DNk",
+   "inputs": [
+    "0x0000000000000000000000000000000000000000000000000000000000000006@1000000"
+   ],
+   "served": true
+  }
+ ],
+ "deepestServed": 1000000,
+ "control": {
+  "asked": "0x6@9007199254740991",
+  "answeredNull": true
+ }
+}

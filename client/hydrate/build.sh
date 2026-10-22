@@ -143,8 +143,10 @@ pin_of() {
 pin_ct="$(pin_of CODETRACER_REF)"
 pin_isonim="$(pin_of ISONIM_REF)"
 pin_ne="$(pin_of NIM_EVERYWHERE_REF)"
-if [ -z "${pin_ct}" ] || [ -z "${pin_isonim}" ] || [ -z "${pin_ne}" ]; then
-	echo "hydrate/build.sh: could not read all three refs from ${pin_file}." >&2
+pin_tui="$(pin_of ISONIM_TUI_REF)"
+if [ -z "${pin_ct}" ] || [ -z "${pin_isonim}" ] || [ -z "${pin_ne}" ] ||
+	[ -z "${pin_tui}" ]; then
+	echo "hydrate/build.sh: could not read all four refs from ${pin_file}." >&2
 	echo "  That file is the one place naming the bytes this repository is built" >&2
 	echo "  against. Without it this script cannot say what it built, and a" >&2
 	echo "  verdict with no artefact identity beside it is unfalsifiable." >&2
@@ -166,6 +168,10 @@ fi
 
 isonim="$(find_src ISONIM_SRC isonim src/isonim/core/signals.nim)"
 neverywhere="$(find_src NIM_EVERYWHERE_SRC nim-everywhere src)"
+# The Embed SDK's editor core measures text with IsoNim-TUI's width tables
+# (`editor/selection.nim` imports `isonim_tui/text/width`), so the SDK's graph
+# needs it on the path as well.
+isonimtui="$(find_src ISONIM_TUI_SRC isonim-tui src/isonim_tui)"
 
 # Per source: how it was resolved, what revision it is, and whether that is the
 # pin. Reported for all three whatever the verdict, because the transcript has
@@ -217,6 +223,7 @@ echo "=== the hydration bundle ==="
 describe_and_check "Embed SDK" "${ct}" "${pin_ct}" CODETRACER_SRC
 describe_and_check "IsoNim" "${isonim}" "${pin_isonim}" ISONIM_SRC
 describe_and_check "nim-everywhere" "${neverywhere}" "${pin_ne}" NIM_EVERYWHERE_SRC
+describe_and_check "IsoNim-TUI" "${isonimtui}" "${pin_tui}" ISONIM_TUI_SRC
 
 if [ -n "${unpinned_reasons}" ]; then
 	if [ "${CODETRACER_ALLOW_UNPINNED:-0}" = "1" ]; then
@@ -252,7 +259,8 @@ if [ -n "${unpinned_reasons}" ]; then
 		echo "    git -C <codetracer>     worktree add /tmp/ct-pin --detach ${pin_ct}" >&2
 		echo "    git -C <isonim>         worktree add /tmp/isonim-pin --detach ${pin_isonim}" >&2
 		echo "    git -C <nim-everywhere> worktree add /tmp/ne-pin --detach ${pin_ne}" >&2
-		echo "    export CODETRACER_SRC=/tmp/ct-pin ISONIM_SRC=/tmp/isonim-pin NIM_EVERYWHERE_SRC=/tmp/ne-pin" >&2
+		echo "    git -C <isonim-tui>     worktree add /tmp/tui-pin --detach ${pin_tui}" >&2
+		echo "    export CODETRACER_SRC=/tmp/ct-pin ISONIM_SRC=/tmp/isonim-pin NIM_EVERYWHERE_SRC=/tmp/ne-pin ISONIM_TUI_SRC=/tmp/tui-pin" >&2
 		echo "" >&2
 		echo "  to build against something else ON PURPOSE (moving the pins forward):" >&2
 		echo "    CODETRACER_ALLOW_UNPINNED=1 ..." >&2
@@ -278,6 +286,7 @@ paths=(
 )
 [ -n "${isonim}" ] && paths+=("--path:${isonim}/src")
 [ -n "${neverywhere}" ] && paths+=("--path:${neverywhere}/src")
+[ -n "${isonimtui}" ] && paths+=("--path:${isonimtui}/src")
 
 # isonim's Tailwind bridge `staticRead`s a build/tailwind-styles.json that a
 # source-only checkout does not have. On the C target it guards that with a

@@ -28,6 +28,7 @@ manifest="${vendor_dir}/layout_model.vendor.json"
 
 model_rel="frontend/headless_app/layout_model.nim"
 pane_rel="common/contributed_pane_id.nim"
+layout_json_rel="frontend/headless_app/shared_default_layout.generated.json"
 model_up="src/frontend/headless_app/layout_model.nim"
 pane_up="src/common/contributed_pane_id.nim"
 
@@ -71,6 +72,7 @@ mirror() { # destination
 	mkdir -p "$1/$(dirname "${model_rel}")" "$1/$(dirname "${pane_rel}")"
 	cp "${vendor_dir}/${model_rel}" "$1/${model_rel}"
 	cp "${vendor_dir}/${pane_rel}" "$1/${pane_rel}"
+	cp "${vendor_dir}/${layout_json_rel}" "$1/${layout_json_rel}"
 	cp "${manifest}" "$1/layout_model.vendor.json"
 	chmod -R u+w "$1"
 }
@@ -129,7 +131,7 @@ PY
 LAYOUT_VENDOR_DIR="${work}/short" CODETRACER_SRC="${ct}" \
 	"${subject}" --require >"${work}/2c.log" 2>&1
 report "a manifest missing a file FAILS rather than checking one" 1 $?
-because "${work}/2c.log" "expected 2" "the short manifest failed for the wrong reason"
+because "${work}/2c.log" "expected 3" "the short manifest failed for the wrong reason"
 rm -rf "${work}/short"
 
 # ── 2d. A manifest naming a commit other than the Embed SDK pin is caught ──
@@ -156,6 +158,7 @@ fake() { # destination model_source
 	mkdir -p "$1/$(dirname "${model_up}")" "$1/$(dirname "${pane_up}")"
 	cp "$2" "$1/${model_up}"
 	cp "${ct}/${pane_up}" "$1/${pane_up}"
+	cp "${ct}/src/${layout_json_rel}" "$1/src/${layout_json_rel}"
 	chmod -R u+w "$1"
 }
 mkdir -p "${work}/fake-a/$(dirname "${model_up}")"
@@ -177,7 +180,7 @@ rm -rf "${work}/fake-a"
 # This is the divergence class that was invisible for as long as part B could
 # not compile the upstream file: the probe reported "the conformance probe
 # failed", which reads like a broken script rather than like a moved schema.
-sed 's/^  LayoutSchemaVersion\* = 3/  LayoutSchemaVersion* = 4/' \
+sed 's/^  LayoutSchemaVersion\* = 6/  LayoutSchemaVersion* = 7/' \
 	"${ct}/${model_up}" >"${work}/versioned.nim"
 if cmp -s "${ct}/${model_up}" "${work}/versioned.nim"; then
 	echo "  [FAILED] the version probe changed nothing — the sed no longer matches" >&2
@@ -199,6 +202,7 @@ rm -rf "${work}/fake-b"
 mkdir -p "${work}/fake-c/$(dirname "${model_up}")" \
 	"${work}/fake-c/$(dirname "${pane_up}")"
 cp "${ct}/${model_up}" "${work}/fake-c/${model_up}"
+cp "${ct}/src/${layout_json_rel}" "${work}/fake-c/src/${layout_json_rel}"
 sed "s/c in {'a' \.\. 'z'}/c in {'b' .. 'z'}/" "${ct}/${pane_up}" \
 	>"${work}/fake-c/${pane_up}"
 chmod -R u+w "${work}/fake-c"

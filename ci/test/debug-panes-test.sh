@@ -132,6 +132,9 @@ fi
 
 isonim="$(find_src ISONIM_SRC isonim src/isonim/core/signals.nim)"
 neverywhere="$(find_src NIM_EVERYWHERE_SRC nim-everywhere src)"
+# The Embed SDK's editor core reads IsoNim-TUI's width tables
+# (`editor/selection.nim`), so its graph needs that tree as well.
+isonimtui="$(find_src ISONIM_TUI_SRC isonim-tui src/isonim_tui)"
 
 echo "  Embed SDK:      ${ct}"
 echo "  IsoNim:         ${isonim:-<not found>}"
@@ -146,6 +149,7 @@ paths=(
 )
 [ -n "${isonim}" ] && paths+=("--path:${isonim}/src")
 [ -n "${neverywhere}" ] && paths+=("--path:${neverywhere}/src")
+[ -n "${isonimtui}" ] && paths+=("--path:${isonimtui}/src")
 
 # `-d:codetracerSrc` is the SAME `${ct}` the --path flags above are built from,
 # handed to the suite so it can read the Embed SDK's own captured

@@ -1,0 +1,53 @@
+{
+  "format": "blocktracer/sol-capture@1",
+  "tool": "tools/chain/capture-sol-window.mjs",
+  "capturedAt": "2026-10-20T14:26:11.940Z",
+  "wallSeconds": 49,
+  "window": {
+    "firstSlot": 459262600,
+    "lastSlot": 459262602,
+    "slots": 3
+  },
+  "providers": {
+    "blocks": "https://solana-rpc.publicnode.com",
+    "features": "https://api.mainnet-beta.solana.com",
+    "accounts": [
+      {
+        "url": "https://api.mainnet-beta.solana.com",
+        "perCall": 100,
+        "calls": 39,
+        "failed": 0
+      },
+      {
+        "url": "https://solana-rpc.publicnode.com",
+        "perCall": 10,
+        "calls": 0,
+        "failed": 0
+      }
+    ]
+  },
+  "prestateRoute": "forward-chained-capture",
+  "scope": [
+    "Tri3NG4HkZ6DddYPKoX2ehgkqFtDuej9Aspw5BmvSo4",
+    "tickUcsEQegChaAuo9VYQQztB4ZGApY6ZT4FkULWY6N",
+    "dijkbkCAKfFTCxQg3u1pg82gVU1jJGHBBRcteD11mBu"
+  ],
+  "counts": {
+    "slots": 40,
+    "skipped": 6,
+    "transactions": 43438,
+    "votes": 22258,
+    "sent": 2104,
+    "notExecuted": 1098,
+    "match": 1006,
+    "divergent": 0,
+    "unchecked": 0,
+    "evictions": 63
+  },
+  "packedFrom": {
+    "firstSlot": 459262590,
+    "lastSlot": 459262629,
+    "slots": 40
+  },
+  "packedBy": "tools/chain/sol-fixture.mjs"
+}

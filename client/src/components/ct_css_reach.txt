@@ -184,6 +184,13 @@ LIVE class lm_vertical
 LIVE class lm_stack
     A tabbed region. `renderStack` emits one per leaf of the arrangement.
 
+INERT class lm_column
+    Upstream's GoldenLayout marks a vertical split's container `lm_column`
+    (the `golden_layout.styl` re-vendored at the HSF-B1 pin styles the
+    splitter between its stacks). BlockTracer's `renderLayout` names a split
+    by its axis — `lm_horizontal` / `lm_vertical`, LIVE above — and writes no
+    column class, so the rule matches nothing here.
+
 LIVE class lm_header
 LIVE class lm_tabs
 LIVE class lm_tab
@@ -473,6 +480,7 @@ INERT class unified-diff-empty
 INERT class event-log-marker-empty
 INERT class filesystem-empty-overlay
 INERT class filesystem-loading-overlay
+INERT class filesystem-error-overlay
 INERT class fif-*
     `empty_states.styl`'s per-pane empty states. Upstream has an agent
     workspace, a frame viewer, a pixel-history view, a shader debugger, a
@@ -538,7 +546,6 @@ INERT class open
 INERT class hidden
 INERT class highlight
 INERT class hovered
-INERT class selector
 INERT class unselectable
 INERT class panel
 INERT class panel-width
