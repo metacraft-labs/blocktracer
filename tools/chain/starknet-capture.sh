@@ -30,7 +30,9 @@ while [ $# -gt 0 ]; do
     --recorder) recorder="$2"; shift 2 ;;
     --recorder-commit) commit="$2"; shift 2 ;;
     # Repeatable: one committed transcript per block. The FIRST is the one the floor
-    # probe runs on (one capture of a run must carry it).
+    # probe runs on (one capture of a run must carry it). `DIR@0xTX` records only that
+    # transaction of the block; the block is still replayed whole, and the others are
+    # published as replayed and not recorded.
     --transcript) transcripts+=("$2"); transcript="${transcripts[0]}"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
     --work) work="$2"; shift 2 ;;
@@ -49,7 +51,9 @@ done
 rm -rf "$work" "$out"
 mkdir -p "$work"
 captures=(); recorded_at=""; endpoint=""; i=0
-for tr in "${transcripts[@]}"; do
+for spec in "${transcripts[@]}"; do
+  tr="${spec%@*}"; only=""
+  [ "$tr" != "$spec" ] && only="${spec##*@}"
   read -r block at ep < <(node -e '
     const t = JSON.parse(require("fs").readFileSync(process.argv[1] + "/index.json", "utf8"));
     const k = Object.keys(t.answers).find((x) => x.startsWith("starknet_getBlockWithReceipts "));
@@ -67,7 +71,8 @@ for tr in "${transcripts[@]}"; do
   # recorder re-checks each against the class that ran before it uses one, and the
   # report says which were applied and which refused.
   "$recorder" trace-block "$block" --transcript-in "$tr" -o "$work/b$block" \
-    $([ "$i" -eq 0 ] && echo --probe-floor) ${sources:+--class-sources "$sources"}
+    $([ "$i" -eq 0 ] && echo --probe-floor) ${sources:+--class-sources "$sources"} \
+    ${only:+--tx "$only"}
   captures+=(--capture "$work/b$block"); i=$((i + 1))
 done
 node tools/chain/produce-starknet-snapshot.mjs "${captures[@]}" \

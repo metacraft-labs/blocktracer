@@ -440,6 +440,10 @@ export async function main(argv) {
         effectVisible: true,
         starknetType: body.type,
         ...(body.type === 'L1_HANDLER' ? { l1Message: l1MessageForRow({ body, receipt }) } : {}),
+        // A CLASS THIS TRANSACTION SET — an upgrade's `replace_class`, or a deployment —
+        // republished from the recorder's replay (`classChanges`), only where there is one.
+        // Consensus on the classes is the block's state diff, which the recorder matched.
+        ...((r.classChanges ?? []).length > 0 ? { classChanges: r.classChanges } : {}),
       };
       if (rec === null) {
         const refused = r.outcome === 'refused';
