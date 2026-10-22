@@ -19,7 +19,8 @@
       "transaction": "hex",
       "address": "hex"
     },
-    "vm": { "instructionSet": "example-isa/1" }
+    "vm": { "instructionSet": "example-isa/1" },
+    "reachReason": "history starts where this example capture began, not at any limit of a node"
   },
   "window": {
     "tip": 1002,

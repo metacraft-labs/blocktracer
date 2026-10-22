@@ -1120,6 +1120,17 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # declaration and the row it becomes cannot be understood two ways. That is
   # `identifierEncoding`'s arrangement above and for its reason.
   let declaredVm = parseVmIdentity(prov{"vm"})
+  # THE FLOOR'S REASON, WHEN THE PRODUCER STATES ONE. The reader's sentence below says what a
+  # replaying producer observed — the node served prestate from here and not below. A
+  # producer whose history is where its CAPTURE began (`forward-capture`) observed no such
+  # thing, and the reader's sentence would tell a visitor a node limit that does not exist.
+  # So a producer may state the reason in its own words, and this reader carries them
+  # verbatim, as it carries `vm`. Absent, the wrong shape and empty are one answer: none.
+  let declaredReachReason =
+    if prov != nil and prov.kind == JObject and prov{"reachReason"} != nil and
+        prov{"reachReason"}.kind == JString:
+      prov{"reachReason"}.getStr.strip
+    else: ""
 
   # ---- the artifact-resolution SIDECAR, if this capture has one -------------
   #
@@ -2978,8 +2989,10 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       # cause: what this capture observed is that the node served prestate from
       # here and not below, which is what a visitor meeting the refusal needs to
       # know. Why the node draws the line there is a fact about the node.
-      reason: "prestate was obtainable from " & $replayableFromAt &
-        " upward when this generation was captured, and not below it")
+      reason:
+        if declaredReachReason.len > 0: declaredReachReason
+        else: "prestate was obtainable from " & $replayableFromAt &
+          " upward when this generation was captured, and not below it")
   # ONE KIND, OR NOTHING IS DECLARED. A chain that published rows of two
   # ordering kinds has no single answer to "which quantity sequences this
   # chain", and declaring whichever was seen last would be exactly the inference
