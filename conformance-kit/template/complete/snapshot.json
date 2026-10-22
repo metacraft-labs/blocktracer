@@ -13,6 +13,7 @@
       "traceSchema": "example-trace/v1"
     },
     "prestateStrategy": "self-contained",
+    "ordering": "blockIndex",
     "identifierEncoding": {
       "block": "hex",
       "transaction": "hex",

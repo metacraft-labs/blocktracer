@@ -194,6 +194,10 @@
       "section": "§5.3",
       "statement": "`provenance.prestateStrategy` is drawn from a closed set, verbatim; a value outside it is refused naming the set, because a producer emitting an unlisted strategy is a gap in the table rather than a producer using a free-text field."
     },
+    "S5-ORDERING-CLOSED": {
+      "section": "§5.3",
+      "statement": "`provenance.ordering` is OPTIONAL and names the quantity that sequences this chain's transactions, from the closed set the reader can build from a snapshot: `blockIndex` (from `blocks[]`; also what an absent member means) and `checkpoint` (whose sequence number is each block's `number`). A value outside the set, or one that is not a string, is refused naming the set: building an unlisted ordering as a height would publish the silently-wrong ordering Static-Site-Architecture.md §2.3 makes ordering a union to prevent."
+    },
     "S5-COST-VECTOR": {
       "section": "§5.3",
       "statement": "A row's cost is a VECTOR the producer states, and every entry names itself and carries a figure; the reader supplies no name, unit or token, because a cost the reader named is a page that looks right and states the wrong cost. The vector carries at least one entry: a rule that ranges over entries is vacuously clean on zero of them, and an empty vector publishes a transaction page with no cost at all — indistinguishable from a producer that forgot, in the one seam this contract supplies no default for."
@@ -413,6 +417,8 @@
                      "holds": "who recorded this capture's executions, and in what trace schema — §5.3"},
         "prestateStrategy": {"required": true, "access": "optional", "enforcedBy": "S5-PRESTATE-STATED",
                              "holds": "how the producer obtained the state each execution ran against, from Chain-Support-Matrix.md §1.4's closed set — §5.3"},
+        "ordering": {"required": false, "access": "optional", "enforcedBy": "S5-ORDERING-CLOSED",
+                     "holds": "the quantity that sequences this chain's transactions, from the closed set `blockIndex` / `checkpoint`. Absent means `blockIndex`, which is what every tree published before the member existed was built as — §5.3"},
         "identifierEncoding": {"required": false, "access": "optional", "enforcedBy": "S5-IDENTIFIER-ENCODING-CLOSED",
                                "holds": "how this chain writes its identifiers, per kind — the one declaration the reader keys every sharded path from AND publishes onto the registry row. Absent means hex, which is what every tree published before the member existed was keyed under — §5.6"}
       }

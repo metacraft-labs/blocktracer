@@ -926,6 +926,37 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       " Add a row to Chain-Support-Matrix.md §1.4 saying what the strategy MEANS, " &
       "and the token to tools/chain/snapshot-contract.json beside it.")
 
+  # ---- what sequences this chain's transactions: DECLARED, never inferred -----
+  #
+  # Static-Site-Architecture.md §2.3 makes ordering a discriminated union because
+  # block height is not universal, and a producer for a chain that orders by
+  # something else had no way to say so: every row was built as `blockIndex`. The
+  # producer now states it, and the closed set is the kinds this reader can build
+  # from what a snapshot carries — `blockIndex` from `blocks[]`, and `checkpoint`,
+  # whose sequence number IS the `blocks[].number` a checkpoint-ordered producer
+  # writes. Absent means `blockIndex`, which is what every tree published before
+  # the member existed was built as, so no existing tree moves.
+  let orderingDecl = prov{"ordering"}
+  if orderingDecl != nil and orderingDecl.kind != JString:
+    raise newException(ValueError,
+      RuleOrderingClosed &
+      "the snapshot for chain '" & chain & "' at " & snapPath &
+      " states a `provenance.ordering` that is not a string. " &
+      ruleStatement("S5-ORDERING-CLOSED"))
+  let orderingKind =
+    if orderingDecl == nil: tokBlockIndex
+    else:
+      case orderingDecl.getStr
+      of $tokBlockIndex: tokBlockIndex
+      of $tokCheckpoint: tokCheckpoint
+      else:
+        raise newException(ValueError,
+          RuleOrderingClosed &
+          "the snapshot for chain '" & chain & "' at " & snapPath &
+          " states ordering '" & orderingDecl.getStr & "', which is not in the " &
+          "closed set (" & $tokBlockIndex & ", " & $tokCheckpoint & "). " &
+          ruleStatement("S5-ORDERING-CLOSED"))
+
   # ---- how this chain writes its identifiers: ONE decision, both uses --------
   #
   # Built here, at the top, because it is used twice and must not be decided
@@ -1918,8 +1949,11 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     let facts = TransactionFacts(
       chain: chain,
       id: TxId(kind: tikHash, hash: txHash),
-      order: TxOrder(kind: tokBlockIndex, obBlock: blockHash, obHeight: height,
-                     obIndex: idx),
+      order: (if orderingKind == tokCheckpoint:
+                TxOrder(kind: tokCheckpoint, cpSeq: $height)
+              else:
+                TxOrder(kind: tokBlockIndex, obBlock: blockHash, obHeight: height,
+                        obIndex: idx)),
       outcome: Outcome(overall: (if reverted: ooReverted else: ooSucceeded),
                        reason: "", parts: @[]),
       roles: roles, cost: costs,
