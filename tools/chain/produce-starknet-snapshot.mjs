@@ -63,6 +63,54 @@ import {
   RECORDER, costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
 } from './lib/starknet-producer-facts.mjs';
 
+// WHAT THE RECORDER PROVED ABOUT A CLASS'S SOURCE, republished. A class the recorder ran
+// with a `bind-class` binding (`trace-block --class-sources`) has a build of its published
+// source proved against the chain's own class: the Sierra program felt for felt, the entry
+// points, the class version and the ABI, with the class hash recomputed from the chain's
+// answer (Source-Resolution.md §4). That proves an ARTIFACT, so the row says `resolved`;
+// what the artifact gives this recording is NAMES — every Cairo function, type and
+// libfunc in the listing — and not lines, unless the build recorded statement locations,
+// which `codeLocations` states. `recording.sourceLevel` is not raised by a binding.
+export function artifactRow(k, r) {
+  const address = (r.frames.find((f) => f.classHash === k.classHash) ?? {}).contract ?? '';
+  const src = k.source ?? null;
+  if (src?.bound === true) {
+    const b = src.provenance?.build ?? {};
+    const what = [b.repository, b.tag ?? b.revision, b.contract].filter(Boolean).join(' ');
+    return {
+      address,
+      contractClassId: k.classHash,
+      resolved: true,
+      origin: `a build of ${what || 'the class\'s published source'}`
+        + (b.toolchain ? ` with ${b.toolchain}` : ''),
+      corroboration: 'the chain itself',
+      reason: 'A build of this class\'s published source was proved against the class the '
+        + 'chain serves — the same Sierra program felt for felt, the same entry points, '
+        + 'class version and ABI, and the class hash recomputed from the chain\'s answer — so '
+        + `its debug info names the program: ${src.functionsNamed} Cairo functions, and every `
+        + 'type and libfunc, are named in the listing. '
+        + (src.codeLocations
+          ? 'The build also records a Cairo file and line per Sierra statement.'
+          : 'Its compiler records no file and line per statement, so steps stay positioned '
+            + 'on CASM instructions, under those names.'),
+      sourceBinding: src.provenance ?? null,
+    };
+  }
+  return {
+    address,
+    contractClassId: k.classHash,
+    resolved: false,
+    origin: null,
+    corroboration: null,
+    reason: 'A declared class carries its Sierra program and ABI and no debug info that '
+      + 'maps a program counter to a Cairo source line, and no build of its source was '
+      + 'proved against it'
+      + (src?.bound === false ? ` (a binding was offered and refused: ${src.refused})` : '')
+      + ', so every step is positioned in a listing of the CASM the VM ran — compiled from '
+      + 'the Sierra class the node served, by the recorder.',
+  };
+}
+
 const HERE = 'tools/chain/produce-starknet-snapshot.mjs';
 
 /** The block report format `codetracer-cairo-onchain trace-block` writes. */
@@ -399,17 +447,7 @@ export async function main(argv) {
         instructions: `instructions/${r.txHash}.json`,
         positions: `positions/${r.txHash}.json`,
         callTrace: `calltrace/${r.txHash}.json`,
-        artifacts: r.classes.map((k) => ({
-          address: (r.frames.find((f) => f.classHash === k.classHash) ?? {}).contract ?? '',
-          contractClassId: k.classHash,
-          resolved: false,
-          origin: null,
-          corroboration: null,
-          reason: 'A declared class carries its Sierra program and ABI and no debug info that '
-            + 'maps a program counter to a Cairo source line, so no artifact is proved and '
-            + 'every step is positioned in a listing of the CASM the VM ran — compiled from '
-            + 'the Sierra class the node served, by the recorder.',
-        })),
+        artifacts: r.classes.map((k) => artifactRow(k, r)),
       });
       yielded.push({ txHash: r.txHash, outcome: reproduced ? 'replayed' : 'divergent' });
     }
@@ -498,7 +536,10 @@ export async function main(argv) {
         codeHash: L.classHash,
         files: { [L.publishedPath]: L.text },
         origin: 'CASM compiled by the recorder from the Sierra class starknet_getClass '
-          + `served at block ${row.preStateReadAt}`,
+          + `served at block ${row.preStateReadAt}`
+          + (row.artifacts.find((a) => a.contractClassId === L.classHash)?.resolved
+            ? ', labelled with the names of a build of its source proved against that class'
+            : ''),
         shape: 'disassembly',
         corroboration: 'single-distributor',
         agreeingDistributors: ['the chain itself'],
@@ -592,7 +633,12 @@ export async function main(argv) {
     format: 'blocktracer/artifact-resolution@1',
     chain: CHAIN_SLUG,
     measuredAt: capturedAt,
-    measuredBy: { tool: HERE, resolver: 'none yet — CASM listings only (CXP-CAIRO-4)',
+    // THE RESOLVER IS THE RECORDER'S `bind-class` CHECK, applied at trace time: a class is
+    // resolved when a build of its source was proved against it (see `artifactRow`).
+    // Counted over distinct classes, so a class two transactions entered counts once.
+    measuredBy: { tool: HERE,
+                  resolver: 'codetracer-cairo-onchain bind-class bindings, re-checked against '
+                    + 'the class that ran (trace-block --class-sources); names, not lines',
                   runtimeCommit: recorderCommit },
     endpoint: endpointLabel,
     counts: {
@@ -601,7 +647,8 @@ export async function main(argv) {
       stepsPositioned: rows.reduce((n, x) => n + (x.recording?.stepsPositioned ?? 0), 0),
       stepsTotal: rows.reduce((n, x) => n + (x.recording?.steps ?? 0), 0),
       contracts: new Set(rows.flatMap((x) => (x.artifacts ?? []).map((a) => a.contractClassId))).size,
-      resolved: 0,
+      resolved: new Set(rows.flatMap((x) => (x.artifacts ?? [])
+        .filter((a) => a.resolved === true).map((a) => a.contractClassId))).size,
     },
     transactions: rows.filter((x) => x.replayed === true).map((x) => ({
       txHash: x.txHash, blockNumber: x.blockNumber, artifacts: x.artifacts, positions: null,
