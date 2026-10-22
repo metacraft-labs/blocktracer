@@ -108,8 +108,17 @@ let
     doCheck = false;
   };
 
-  # The one window the committed inputs describe.
+  # The window the committed inputs describe, and the ONE slot of it the tree publishes.
+  #
+  # Every enumerated transaction becomes published objects (a page, its data and index
+  # entries), and a Solana slot carries ~400-1,250 of them, votes included, which the
+  # contract requires to be enumerated. Publishing all three slots put ~20,000 of the
+  # staging site's ~25,000 files under solana-mainnet, past Cloudflare Pages' 20,000-file
+  # cap (PR #78's preview deploy, 2026-10-22). So the tree publishes slot 459,262,601:
+  # 397 transactions, 13 of them traced and checked `match`. All 60 committed bundles are
+  # still replayed and verified against the live verdicts in every build.
   window = "459262600-459262602";
+  publishedSlot = "459262601";
   inputs = "fixtures/chain-inputs/solana-mainnet/${window}";
 
   captureSrc = lib.fileset.toSource {
@@ -131,7 +140,8 @@ let
         --recorder ${solanaRecorder}/bin/codetracer-solana-recorder \
         --recorder-commit ${recorderRev} \
         --ct-print ${ctPrint}/bin/ct-print \
-        --fixture ${inputs} --out $TMPDIR/tree --work $TMPDIR/work
+        --fixture ${inputs} --from ${publishedSlot} --to ${publishedSlot} \
+        --out $TMPDIR/tree --work $TMPDIR/work
       runHook postBuild
     '';
     installPhase = ''
