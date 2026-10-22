@@ -116,7 +116,7 @@
     codetracer = {
       # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
       # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=af70456c981ea8e3c8de2534cdee16eca5550efd&submodules=0";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/agents&rev=10cec229d780d9ca258ae6d404a4c80cfe13a5e5&submodules=0";
       flake = false;
     };
 

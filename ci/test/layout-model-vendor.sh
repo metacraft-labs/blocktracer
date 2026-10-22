@@ -77,6 +77,9 @@ manifest="${LAYOUT_VENDOR_MANIFEST:-${vendor_dir}/layout_model.vendor.json}"
 
 model_rel="frontend/headless_app/layout_model.nim"
 pane_rel="common/contributed_pane_id.nim"
+# The generated default layout `layout_model.nim` `staticRead`s beside itself
+# (`SharedDefaultLayoutJson`), vendored with it since the HSF-B1 pin.
+layout_json_rel="frontend/headless_app/shared_default_layout.generated.json"
 model_up="src/frontend/headless_app/layout_model.nim"
 pane_up="src/common/contributed_pane_id.nim"
 
@@ -111,11 +114,11 @@ echo "=== the vendored layout model ==="
 # lost an entry from passing by having nothing to compare.
 mapfile -t recorded < <(grep -oE '"sha256"[[:space:]]*:[[:space:]]*"[0-9a-f]{64}"' \
 	"${manifest}" | grep -oE '[0-9a-f]{64}')
-[ "${#recorded[@]}" -eq 2 ] ||
-	fail "the manifest records ${#recorded[@]} sha256 entries; expected 2 (${model_rel}, ${pane_rel})"
+[ "${#recorded[@]}" -eq 3 ] ||
+	fail "the manifest records ${#recorded[@]} sha256 entries; expected 3 (${model_rel}, ${pane_rel}, ${layout_json_rel})"
 
 i=0
-for rel in "${model_rel}" "${pane_rel}"; do
+for rel in "${model_rel}" "${pane_rel}" "${layout_json_rel}"; do
 	file="${vendor_dir}/${rel}"
 	[ -f "${file}" ] || fail "the vendored module is missing: ${file}"
 	actual="$(digest "${file}")"
@@ -189,6 +192,8 @@ cp "${vendor_dir}/${model_rel}" "${probe_dir}/vendored/${model_rel}"
 cp "${vendor_dir}/${pane_rel}" "${probe_dir}/vendored/${pane_rel}"
 cp "${ct}/${model_up}" "${probe_dir}/upstream/${model_rel}"
 cp "${ct}/${pane_up}" "${probe_dir}/upstream/${pane_rel}"
+cp "${vendor_dir}/${layout_json_rel}" "${probe_dir}/vendored/${layout_json_rel}"
+cp "${ct}/src/${layout_json_rel}" "${probe_dir}/upstream/${layout_json_rel}"
 
 cat >"${probe_dir}/conformance.nim" <<'EOF'
 ## Both copies, side by side. Every comparison is of a VALUE a consumer of

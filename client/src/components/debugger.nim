@@ -2021,7 +2021,7 @@ proc renderPhaseRail*(s: DebugSessionView): string =
       if s.engineCrossOrigin:
         span(class = "engineorigin"): text "Engine: " & s.engineBase
 
-func controlMark(a: DebugAction): string =
+proc controlMark(a: DebugAction): string =
   ## The action's mark. A total `case` over the enum and not a table, for the
   ## reason `toolbarActionId` is one: a control added to the toolbar has to be
   ## given a mark here or it does not compile, rather than rendering as an
@@ -2512,8 +2512,10 @@ proc paneBody(kind: PaneKind; s: DebugSessionView): string =
   of paneState: renderState(s.state)
   of paneEventLog: renderEventLog(s.eventLog)
   of paneDebugControls: renderControls(s.controls)
-  of paneFlow, paneTimeline, paneSearch, panePointList, paneScratchpad,
-     paneShell, paneFileTree, paneBuildOutput:
+  of paneFlow, paneSearch, panePointList, paneScratchpad,
+     paneShell, paneFileTree, paneBuildOutput, paneVcs, paneAgentActivity,
+     paneTerminalOutput, paneTestResults, paneConstraints, paneProblems,
+     paneRequests:
     # Not placed by `blockTracerReplayLayout`, so unreachable today. Rendered as
     # a named, empty pane rather than left to `else: discard`, because the point
     # of the model's closed enum is that an unplaced pane is visible.
@@ -2525,6 +2527,11 @@ proc paneBody(kind: PaneKind; s: DebugSessionView): string =
     # transaction and has neither a project nor a build, so neither is placed.
     # They are listed rather than swept into an `else` so that the NEXT pane
     # CodeTracer adds still stops a build here and gets a decision.
+    #
+    # The re-vendor at the HSF-B1 pin brought seven more (VCS, agent activity,
+    # terminal output, test results, constraints, problems, requests) and
+    # removed the Timeline (PLAT-51). All seven are desktop or live-session
+    # surfaces a recorded transaction does not have, so none is placed.
     paneNote("The " & $kind & " pane is not part of BlockTracer's session.")
 
 proc paneClass*(kind: PaneKind): string =

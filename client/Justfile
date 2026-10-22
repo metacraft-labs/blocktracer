@@ -122,7 +122,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-chain-reach test-capability-tour test-instruction-listing test-scrub-queue test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-searchboot
+test: test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-chain-reach test-capability-tour test-instruction-listing test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-searchboot
 
 # The browser's half of search, run without a browser: `nim js -r`, which is how
 # `searchboot.nim` can be tested at all. Its `importjs` boundary procs make the
@@ -189,14 +189,9 @@ test-ct-components-css:
 test-debug-route:
     nim c -r --mm:orc --hints:off tests/test_debug_route.nim
 
-# The scrubber's coalescing rule, as orderings rather than as a race.
-#
-# The one failure this rule has is a drag that ends where the visitor merely
-# dragged THROUGH, it shipped once, and a browser-level mutation arm aimed at it
-# SURVIVED — the window is a single microtask drain wide. `scrub_queue.nim` is
-# pure data so the ordering can be stated directly. See its header.
-test-scrub-queue:
-    nim c -r --mm:orc --hints:off tests/test_scrub_queue.nim
+# The scrubber's coalescing rule (`ScrubQueue`) is the Embed SDK's now
+# (`sdk/scrub_queue.nim`, Shared-DOM-Front-Ends D8); its orderings are tested
+# there, in `tests/unit/test_scrub_queue.nim`.
 
 # The selection panel's contents, as values.
 #

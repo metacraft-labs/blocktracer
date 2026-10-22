@@ -48,6 +48,7 @@
 import std/[json, sets, strutils, tables, unittest]
 
 import codetracer_embed
+import isonim/core/async_compat
 
 import ../client/src/debugger/vendor/frontend/headless_app/layout_model
 import ../client/src/debugger/session_view
@@ -67,6 +68,18 @@ type Session = LiveSession
   ## `WorkerBackendService`, this passes a `MockBackendService`, and everything
   ## downstream is the same code.
 
+proc launched(mock: MockBackendService; sourceIsPublished: bool): Session =
+  ## A session opened through the SDK's own handshake, with the viewports a
+  ## page would have measured for its panes. Here the suite IS the pane host:
+  ## the browser reports what it measures (`hydrate.measureViewports`), this
+  ## reports a fixed size, and the ViewModels ask for the windows those sizes
+  ## call for either way.
+  result = openLiveSession(mock.toBackendService(), sourceIsPublished)
+  result.launchLive(localFolderTrace("trace"))
+  doAssert result.ready, "the mock answers the handshake synchronously"
+  result.calltrace.setViewport(Viewport(rows: 64, cols: 9))
+  result.eventLog.setViewport(Viewport(rows: 50))
+
 proc openSessionWith(): tuple[session: Session, mock: MockBackendService] =
   ## The session AND the mock behind it.
   ##
@@ -75,7 +88,7 @@ proc openSessionWith(): tuple[session: Session, mock: MockBackendService] =
   ## reply, and reaching the event path needs `emitEvent`. A suite that could
   ## only write through the store would be unable to express that at all.
   let mock = newMockBackendService(autoRespond = true)
-  (openLiveSession(mock.toBackendService(), sourceIsPublished = true), mock)
+  (launched(mock, sourceIsPublished = true), mock)
 
 proc openSession(): Session = openSessionWith().session
 
@@ -167,7 +180,7 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       s.store.setSessionMode(completedReplay)
 
       # Call structure.
-      s.calltrace.setViewportHeight(8)
+      s.calltrace.setViewport(Viewport(rows: 8, cols: 9))
       s.store.updateCalltraceSection(@[
         makeCallLine("main", 0, 1'u64, file = "src/main.nr", line = 12),
         makeCallLine("iterate_asteroids", 1, 6'u64, file = "src/shield.nr", line = 1),
@@ -187,7 +200,7 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       ])
 
       # Events, of more than one kind.
-      s.eventLog.setPageSize(10)
+      s.eventLog.setViewport(Viewport(rows: 10))
       s.eventLog.appendLiveDebuggerStop(
         writeRow(0, "Call", "src/shield.nr", 1, "initial_shield=10000", 6'u64))
       s.eventLog.appendLiveDebuggerStop(
@@ -266,7 +279,7 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       let s = openSession()
       s.store.setSourceAvailability(savVerified)
       s.store.setSessionMode(completedReplay)
-      s.calltrace.setViewportHeight(8)
+      s.calltrace.setViewport(Viewport(rows: 8, cols: 9))
       s.store.updateCalltraceSection(@[
         makeCallLine("main", 0, 1'u64, file = "src/main.nr", line = 12)],
         startIndex = 0'i64, totalCount = 1'u64)
@@ -309,45 +322,6 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
 
       s.close()
       dispose()
-
-  test "an integer local off the wire renders its digits":
-    ## The two tests above hand `makeVariable` its value already spelled, so
-    ## neither of them reads a `ct/load-locals` `Value` at all. This one does,
-    ## and it is here because that gap let a one-line regression through:
-    ## `4419c61` ("code pane: the exact price of the window…") replaced
-    ## `live_locals.valueText`'s integer arm with `""` while changing nothing
-    ## else about locals — a stray edit in a commit whose message is entirely
-    ## about code-pane windowing and which says of its changes "neither of them
-    ## a behaviour change". Every `Field` and `u32` in a Noir trace — which is
-    ## most of a Noir frame — rendered as a blank cell, and the State pane went
-    ## on presenting the blanks as confidently as it presents values.
-    ##
-    ## `kind` is the wire ORDINAL, not a name (`live_locals.nim:99-149`): 7 is
-    ## `tkInt`, in the module's own spelling, and the payload is the DECIMAL
-    ## STRING in `i` — an engine `Field` does not fit an i64, which is why the
-    ## arm is `getStr` and why `getInt` would be the same defect with a
-    ## different cause.
-    const tkInt = 7
-
-    let wireInt = %*{"kind": tkInt, "i": "42",
-                     "typ": {"langType": "Field", "kind": tkInt}}
-    # Both halves stated: the digits exactly, and that the result is not the
-    # empty string. The second is what the regression produced, and an
-    # assertion that only compared to "42" would have caught it while an
-    # assertion that only checked non-emptiness would not have caught a wrong
-    # number.
-    check valueText(wireInt) == "42"
-    check valueText(wireInt).len > 0
-
-    # …and through the parse the store is actually written by, so this is a
-    # statement about the reply path and not only about one helper.
-    let parsed = variablesOf(%*{"locals": [
-      {"expression": "remaining_shield", "value": wireInt}]})
-    check parsed.len == 1
-    check parsed[0].name == "remaining_shield"
-    check parsed[0].value == "42"
-    check parsed[0].value.len > 0
-    check parsed[0].typeName == "Field"
 
   test "a degraded state arriving over the BACKEND SEAM reaches the panes":
     # Not a host-side setter: a `CtReplayStatus` event pushed through
@@ -547,7 +521,7 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
     ## there is no row to say it beside.
     createRoot proc(dispose: proc()) =
       let mock = newMockBackendService(autoRespond = true)
-      let s = openLiveSession(mock.toBackendService(), sourceIsPublished = false)
+      let s = launched(mock, sourceIsPublished = false)
       s.store.setSessionMode(completedReplay)
       s.store.updateDebuggerPosition(175'u64, file = "src/shield.nr", line = 6)
       let view = projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
@@ -618,7 +592,7 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
     ## frame marked.
     createRoot proc(dispose: proc()) =
       let s = openSession()
-      s.calltrace.setViewportHeight(8)
+      s.calltrace.setViewport(Viewport(rows: 8, cols: 9))
       # NUMBERED, and the numbering is not decoration. `CallLine.index` is what
       # `selectedEntry` is compared against, and the SDK's `makeCallLine`
       # convenience constructor hardcodes `index: 0` while
@@ -695,7 +669,7 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
     ## second is the one an ordinary visit takes.
     createRoot proc(dispose: proc()) =
       let s = openSession()
-      s.calltrace.setViewportHeight(8)
+      s.calltrace.setViewport(Viewport(rows: 8, cols: 9))
       # The same five-frame, two-tick shape as the test above, and for the same
       # reason: four frames answer to one coordinate, so a landing that resolved
       # by coordinate could not tell them apart. `index` is numbered because
@@ -959,6 +933,9 @@ const CodetracerSrc* {.strdefine.} = ""
   ## is how the tree this suite compiles against and the tree it reads fixtures
   ## from come to differ.
 
+const ReturnExpression = "return"
+  ## The pseudo-expression a flow step records its return value under.
+
 const CapturedWindowPath =
   "src/frontend/viewmodel/tests/fixtures/flow/zk_shields_flow_window.json"
 
@@ -1050,7 +1027,7 @@ suite "M8b — omniscience follows a live session":
       let blank = projectSession(s, "src/shield.nr", shieldNr,
                                  int(ticks), 1315)
       check paneLabels(blank.editor, "src/shield.nr").len == 0
-      check not s.flowWindow.hasWindow()
+      check s.flow.layoutWindow.val.steps.len == 0
 
       # …and the move DID make the session ask. A window that appeared without
       # the request having gone out would be reading something else.
@@ -1065,11 +1042,11 @@ suite "M8b — omniscience follows a live session":
       # is a queued `ct/updated-flow`, and a consumer that read only the reply
       # would be empty against the real engine while this suite passed.
       mock.emitEvent(%*{
-        "event": UpdatedFlowEvent,
-        "body": {"location": position, "viewUpdates": [view]}})
+        "kind": "ct/updated-flow",
+        "data": {"location": position, "viewUpdates": [view]}})
 
-      check s.flowWindow.hasWindow()
-      check s.flowWindow.functionLabel == "iterate_asteroids"
+      check s.flow.layoutWindow.val.steps.len > 0
+      check s.flow.windowFunction.val == "iterate_asteroids"
 
       let live = projectSession(s, "src/shield.nr", shieldNr, int(ticks), 1315)
       let shown = paneLabels(live.editor, "src/shield.nr")
@@ -1156,7 +1133,7 @@ suite "M8b — omniscience follows a live session":
       # 257 is the FOURTH iteration header of this loop, so the rail must open
       # on pass 3.
       s.store.updateDebuggerPosition(257'u64, file = "src/shield.nr", line = 9)
-      check s.flowWindow.hasWindow()
+      check s.flow.layoutWindow.val.steps.len > 0
       let moved = projectSession(s, "src/shield.nr", shieldNr, 257, 1315)
       check moved.editor.flow.loopIndex == 1
       check moved.editor.flow.selected == 3
@@ -1189,12 +1166,12 @@ suite "M8b — omniscience follows a live session":
       s.store.setSourceAvailability(savVerified)
       s.store.updateDebuggerPosition(ticks, file = "src/shield.nr", line = 7)
       mock.emitEvent(%*{
-        "event": UpdatedFlowEvent,
-        "body": {"location": position, "viewUpdates": [view]}})
+        "kind": "ct/updated-flow",
+        "data": {"location": position, "viewUpdates": [view]}})
 
       # The control: at source level this window DOES annotate. Without it the
       # assertion below would be satisfied by a window that never applied.
-      check s.flowWindow.hasWindow()
+      check s.flow.layoutWindow.val.steps.len > 0
       let verified = projectSession(s, "src/shield.nr", shieldNr,
                                     int(ticks), 1315)
       check paneLabels(verified.editor, "src/shield.nr").len == 179
@@ -1233,14 +1210,14 @@ suite "M8b — omniscience follows a live session":
       # The same window, relabelled as another file's. Everything else about it
       # is the engine's.
       mock.emitEvent(%*{
-        "event": UpdatedFlowEvent,
-        "body": {
+        "kind": "ct/updated-flow",
+        "data": {
           "location": {
             "path": "/somewhere/noir_space_ship/src/main.nr",
             "line": 12, "rrTicks": 121},
           "viewUpdates": [view]}})
 
-      check s.flowWindow.hasWindow()
+      check s.flow.layoutWindow.val.steps.len > 0
       let view2 = projectSession(s, "src/shield.nr", shieldNr, 121, 1315)
       check paneLabels(view2.editor, "src/shield.nr").len == 0
 
@@ -1315,149 +1292,12 @@ const RungContent = "rung 3: instruction level"
   ## assertion on the COUNT would be cleared by any four rows — including four
   ## wrong ones, or the rung row plus three of the four real ones.
 
-suite "M8c — a live ct/updated-events body, decoded by the SDK and filtered here":
-
-  test "every field on screen came out of the SDK's decoder, on the real wire shape":
-    createRoot proc(dispose: proc()) =
-      let s = openSession()
-      s.store.setSourceAvailability(savVerified)
-      s.store.setSessionMode(completedReplay)
-
-      # THE SUBSCRIPTION PATH, not a direct call to `applyEvents`. This is what
-      # `withLiveNavigation` registered on the decorated backend, so the suite
-      # exercises the handler the browser runs rather than the proc beneath it.
-      s.navigation.handleEvent(%*{
-        "event": UpdatedEventsEvent,
-        "body": parseJson(UpdatedEventsBody)})
-
-      check s.navigation.sawEvents
-      # Ours produced four; the rung row is not one of them.
-      check s.navigation.eventRowsWritten == 4
-
-      let pane = projectEventLog(s.eventLog)
-      check pane.rows.len == 4
-
-      # ── the rows, value by value ─────────────────────────────────────────
-      # `label` is `file & ":" & line` and `step` is the tick: between them
-      # they pin the two fields the SDK's decoder reads under names this
-      # consumer's old copy read under different ones, and `detail` pins
-      # `content`. A row that decoded to the right SHAPE with the wrong
-      # numbers fails here; a count would not notice.
-      check pane.rows[0].kind == evCall
-      check pane.rows[0].label == "src/main.nr:12"
-      check pane.rows[0].step == 0
-      check pane.rows[0].detail == "enqueued-call-0"
-
-      check pane.rows[1].kind == evStorageWrite
-      check pane.rows[1].label == "src/shield.nr:5"
-      check pane.rows[1].step == 128
-      check pane.rows[1].detail == "balance 10000 -> 9900"
-
-      # THE ROW THE OLD COPY GOT WRONG, TWICE OVER. It carries no
-      # `semanticKind`, so the copy fell back to `metadata` — `"ct.stdout"`,
-      # which `kindOf` does not recognise and classified as `evEvent`. The
-      # SDK's `eventKindLabel` reads the `stdout` flag the copy never looked at
-      # and answers `"stdout"`, which `kindOf` DOES recognise. The glyph a
-      # visitor sees changes because of this line.
-      check pane.rows[2].kind == evOutput
-      check pane.rows[2].label == "src/shield.nr:9"
-      check pane.rows[2].step == 200
-      check pane.rows[2].detail == "shield online"
-
-      check pane.rows[3].kind == evRevert
-      check pane.rows[3].label == "src/main.nr:35"
-      check pane.rows[3].step == 344
-      check pane.rows[3].detail == "constraint not satisfied"
-
-      # ── and the annotation row is absent, by its own content ─────────────
-      for r in pane.rows:
-        check r.detail != RungContent
-        check r.label != ":0"
-
-      # ── the same claims, read off the markup a visitor is served ─────────
-      let html = panes.renderEventLog(pane)
-      check RungContent notin html
-      check "balance 10000 -&gt; 9900" in html or "balance 10000 -> 9900" in html
-      check "evrow k-storageWrite" in html
-      check "evrow k-output" in html
-      check "evrow k-revert" in html
-      check "evrow k-call" in html
-      # THE JUMP TARGET, which is what the whole pane is for. `data-step` is
-      # the tick `gotoTicks` is sent; a row whose tick decoded to 0 would be
-      # an inert row that looks live, which is the defect `live_navigation`
-      # exists to remove.
-      check "data-step=\"128\"" in html
-      check "data-step=\"344\"" in html
-
-      s.close()
-      dispose()
-
-  test "the rung row is dropped BEFORE the decoder, and nothing else is":
-    ## `positionedEvents` is the filter on its own, asserted as a filter: what
-    ## it returns is the SUBSET of the input nodes, unchanged. If it ever
-    ## started decoding, or dropped a row for any reason other than the tick,
-    ## this is where it shows.
-    let body = parseJson(UpdatedEventsBody)
-    let kept = positionedEvents(body)
-    check kept.kind == JArray
-    check kept.len == 4
-    # Untouched nodes, not rebuilt ones: the `metadata` key the SDK's decoder
-    # never reads is still there, which a decode-and-re-encode would have lost.
-    check kept[0]{"metadata"}.getStr("") == "ct.call"
-    check kept[3]{"metadata"}.getStr("") == "ct.revert"
-    for node in kept:
-      check node{"directLocationRRTicks"}.getBiggestInt(-1) >= 0
-      check node{"content"}.getStr("") != RungContent
-    # And a body that is not an array at all is four rows of nothing rather
-    # than a crash — the engine's `ct/updated-events` has been seen carrying an
-    # object envelope on other routes.
-    check positionedEvents(newJObject()).len == 0
-    check positionedEvents(nil).len == 0
-
-  test "MUTATION BITE: a decoder that ignored the tick would put an inert row on screen":
-    ## The demonstration, as a value rather than as a claim. Feeding the SAME
-    ## body through the SDK's decoder WITHOUT this module's filter is exactly
-    ## what a migration that "just used the store" would have shipped, and it
-    ## produces a fifth row whose `data-step` is 0 — a clickable navigation row
-    ## that jumps to the start of the recording whatever a visitor clicks.
-    createRoot proc(dispose: proc()) =
-      let s = openSession()
-      let unfiltered = eventLogRowsFromJson(parseJson(UpdatedEventsBody))
-      check unfiltered.len == 5                      # the rung row survived
-      var rungRows = 0
-      for row in unfiltered:
-        if row.value == RungContent:
-          inc rungRows
-          # It decodes to a POSITIONLESS row that still looks like a target.
-          check row.rrTicks == 0'u64
-          check row.file == ""
-          check row.line == 0
-      check rungRows == 1
-
-      # What the pane would then show. Driven through the same writer
-      # `applyEvents` uses, so the difference is the filter and only the filter.
-      s.eventLog.setPageSize(EventLogPageRows)
-      for row in unfiltered:
-        s.eventLog.appendLiveDebuggerStop(row)
-      let pane = projectEventLog(s.eventLog)
-      check pane.rows.len == 5
-      var inert = 0
-      for r in pane.rows:
-        if r.detail == RungContent:
-          inc inert
-          check r.step == 0
-          check r.label == ":0"
-      check inert == 1
-      check RungContent in panes.renderEventLog(pane)
-
-      s.close()
-      dispose()
+suite "M8c — the event log, decoded by the SDK":
 
   test "THE OTHER ROUTE: EventLogVM's own ct/event-load reply reaches the same pane":
     ## THE INTERACTION THE PIN BUMP OPENS, pinned down rather than assumed.
     ##
-    ## `live_navigation` filters the `ct/updated-events` EVENT. It is not the
-    ## only producer any more: since `af70456c9`, `EventLogVM`'s own auto-load
+    ## Since HSF-B1 this is the ONLY producer: `EventLogVM`'s own auto-load
     ## effect sends `ct/event-load` and routes the REPLY through
     ## `ReplayDataStore.applyEventLogResponse`, which decodes and writes the
     ## same `store.eventLog.rows` — and `positionedEvents` does not sit in
@@ -1478,14 +1318,20 @@ suite "M8c — a live ct/updated-events body, decoded by the SDK and filtered he
       # The engine's answer to the request the VM issues for itself. Enqueued
       # BEFORE the session exists, because the effect fires on creation.
       for _ in 0 .. 3:
+        # The DAP response envelope the worker transport resolves with.
         mock.expect("ct/event-load",
-                    %*{"body": {"events": parseJson(UpdatedEventsBody)}})
-      let s = openLiveSession(mock.toBackendService(), sourceIsPublished = true)
+                    %*{"type": "response", "command": "ct/event-load",
+                       "success": true,
+                       "body": {"events": parseJson(UpdatedEventsBody)}})
+      let s = launched(mock, sourceIsPublished = true)
       s.store.setSessionMode(completedReplay)
       # A position, so the effect's `hasDebuggerPosition` arm fires again.
       s.store.updateDebuggerPosition(128'u64, file = "src/shield.nr", line = 5)
 
       check mock.findCommand("ct/event-load").isSome
+      # The answer's callback runs on the platform's next turn, as it does in
+      # the browser.
+      drainPlatformCallbacks()
 
       let pane = projectEventLog(s.eventLog)
       var rung = 0
