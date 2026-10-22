@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# NINETEEN suites — 98 + 19 + 24 + 24 + 57 + 238 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 9 + 41 + 26 + 6 = 1256 counted assertions —
+# TWENTY-ONE suites — 98 + 19 + 24 + 24 + 57 + 241 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 9 + 41 + 26 + 6 + 33 + 24 = 1316 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -468,6 +468,16 @@ chain-selftest:
     # token still outside §1.4's set. Traced rows need the recorder and are exercised
     # by `nix build .#sol-capture-tree`.
     node tools/chain/solana-producer-selftest.mjs
+    # Chain-Delivery DEL-7's two verification entries. Offline; both read the tree and
+    # `tools/chain/ingestion-classification.json` and change nothing.
+    #   test_every_abstraction_has_two_consumers — counts each export of
+    #   lib/producer-runtime.mjs by the producers' own import statements, and drives a
+    #   control that removes one consumer and watches the count fall below the floor. It
+    #   also runs all five producers with no arguments and reads their real exit codes.
+    node tools/chain/abstraction-consumers-selftest.mjs
+    #   test_the_classification_can_be_wrong — judges the classification against the code
+    #   in four directions, with a mis-classified component driven through each one.
+    node tools/chain/classification-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #

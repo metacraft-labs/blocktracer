@@ -54,6 +54,10 @@ import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-fo
 import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import {
+  CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
+  refuseOperation as refuse,
+} from './lib/producer-runtime.mjs';
+import {
   RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
   CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET, costVectorForRow, executionsForRow,
   rolesForRow,
@@ -63,20 +67,17 @@ const run = promisify(execFile);
 const HERE = 'tools/chain/produce-flow-snapshot.mjs';
 const CHAIN_SLUG = 'flow-mainnet';
 
-const ConfigRefusal = 'config';
-const SourceRefusal = 'source';
-const refuse = (kind, message) => Object.assign(new Error(message), { refusalKind: kind });
-const die = (e) => {
-  console.error(`${HERE}: ${e.message}`);
-  process.exit(e.refusalKind === ConfigRefusal ? 2 : 1);
-};
+// DEL-7: the operational refusal, its exit code and the CTFS container header come from
+// `lib/producer-runtime.mjs`, shared with the other four producers. The tokens' VALUES are
+// unchanged — `'config'` and `'source'`.
+const die = (e) => dieOperational(HERE, e);
 
 const argv = process.argv.slice(2);
 const flag = (name, dflt = undefined) => {
   const i = argv.indexOf(`--${name}`);
   if (i === -1) return dflt;
   const v = argv[i + 1];
-  if (v === undefined || v.startsWith('--')) throw refuse(ConfigRefusal, `--${name} takes a value`);
+  if (v === undefined || v.startsWith('--')) throw refuse(CONFIG_REFUSAL, `--${name} takes a value`);
   return v;
 };
 const many = (name) => argv.flatMap((a, i) => (a === `--${name}` ? [argv[i + 1]] : []));
@@ -90,23 +91,25 @@ function readTranscript(dir) {
   return JSON.parse(gunzipSync(readFileSync(join(dir, 'inputs.json.gz'))).toString('utf8'));
 }
 
-function ctPrintPath(explicit) {
-  const c = [explicit, process.env.CT_PRINT].filter(Boolean).find((p) => existsSync(p));
-  if (!c) {
-    throw refuse(ConfigRefusal, 'no container reader: pass --ct-print <path> or set $CT_PRINT '
-      + '(the `flow-ct-print` flake package, at the writer revision the recorder links)');
-  }
-  return c;
-}
-
-function containerVersion(file) {
-  const b = readFileSync(file).subarray(0, 8);
-  const magic = [0xc0, 0xde, 0x72, 0xac];
-  if (!magic.every((m, i) => b[i] === m)) {
-    throw refuse(SourceRefusal, `${file} does not begin with the CTFS magic`);
-  }
-  return b[5];
-}
+/**
+ * THE ONE FINDING THIS PRODUCER RECORDS AGAINST DEL-7'S CLASSIFICATION.
+ *
+ * Reader discovery was classified network-agnostic on the evidence of four copies in
+ * three texts, and this chain is why that classification carries a finding rather than a
+ * clean pass: Flow's reader is NOT the sibling `codetracer-trace-format-nim` checkout's
+ * `ct-print` that the other three fall back to. It is the `flow-ct-print` flake package at
+ * the writer revision this chain's recorder links, so the shared fallback would resolve to
+ * a binary that cannot open a Flow container — a wrong answer, not a missing one. So
+ * `fallbacks` is EMPTY here, deliberately, and the hint is this chain's own.
+ * `ingestion-classification.json`, finding
+ * `container-reader-fallbacks-are-network-specific`.
+ */
+const ctPrintPath = (explicit) => containerReaderPath({
+  explicit,
+  fallbacks: [],
+  hint: 'The reader is the `flow-ct-print` flake package, at the writer revision the '
+      + 'recorder links — NOT the sibling codetracer-trace-format-nim checkout.',
+});
 
 // DEL-7: the same reader `produce-eth-snapshot.mjs` has, kept separate on purpose.
 async function readContainer(ctPrint, file) {
@@ -115,7 +118,7 @@ async function readContainer(ctPrint, file) {
     const { stdout } = await run(ctPrint, ['--meta-json', file], { maxBuffer: 1 << 28 });
     meta = JSON.parse(stdout);
   } catch (e) {
-    throw refuse(SourceRefusal, `${ctPrint} would not open ${file}: `
+    throw refuse(SOURCE_REFUSAL, `${ctPrint} would not open ${file}: `
       + `${String(e.stderr ?? e.message).slice(0, 400)}`);
   }
   const { stdout: ev } = await run(ctPrint, ['--events', file], { maxBuffer: 1 << 28 });
@@ -143,7 +146,7 @@ async function main() {
   for (const [n, v] of [['block', blockPath], ['floor-probe', floorPath], ['inputs', inputsDir],
                         ['capture', captures[0]], ['recorder-commit', recorderCommit],
                         ['out', outDir]]) {
-    if (!v) throw refuse(ConfigRefusal, `--${n} is required`);
+    if (!v) throw refuse(CONFIG_REFUSAL, `--${n} is required`);
   }
   assertReadableSnapshotFormat(SNAPSHOT_FORMAT, HERE);
   assertRefusalsAreClosed();
@@ -151,11 +154,11 @@ async function main() {
   const block = readJson(blockPath);
   const floor = readJson(floorPath);
   if (floor.verdict === undefined || !String(floor.verdict).startsWith('floor:')) {
-    throw refuse(SourceRefusal, `the floor probe did not find a floor (${floor.verdict}); `
+    throw refuse(SOURCE_REFUSAL, `the floor probe did not find a floor (${floor.verdict}); `
       + 'a window with no measured lower bound would claim reach nobody checked');
   }
   if (block.height < floor.floor) {
-    throw refuse(SourceRefusal, `block ${block.height} is below the measured floor `
+    throw refuse(SOURCE_REFUSAL, `block ${block.height} is below the measured floor `
       + `${floor.floor} of ${floor.accessNode}`);
   }
 
@@ -165,18 +168,18 @@ async function main() {
     const verdict = readJson(join(dir, 'replay-verdict.json'));
     const id = String(verdict.transactionId).toLowerCase();
     if (verdict.blockHeight !== block.height) {
-      throw refuse(ConfigRefusal, `${dir} is a replay of block ${verdict.blockHeight}, `
+      throw refuse(CONFIG_REFUSAL, `${dir} is a replay of block ${verdict.blockHeight}, `
         + `and this tree is block ${block.height}`);
     }
-    if (recordings.has(id)) throw refuse(ConfigRefusal, `${id} is captured twice`);
+    if (recordings.has(id)) throw refuse(CONFIG_REFUSAL, `${id} is captured twice`);
     const cts = readdirSync(dir).filter((f) => f.endsWith('.ct'));
     if (cts.length !== 1) {
-      throw refuse(ConfigRefusal, `${dir} holds ${cts.length} container(s); one per capture`);
+      throw refuse(CONFIG_REFUSAL, `${dir} holds ${cts.length} container(s); one per capture`);
     }
     const ctFile = join(dir, cts[0]);
     const transcript = readTranscript(join(inputsDir, id));
     if (transcript.transactionId !== id || transcript.blockId !== block.id) {
-      throw refuse(SourceRefusal, `the transcript for ${id} is for transaction `
+      throw refuse(SOURCE_REFUSAL, `the transcript for ${id} is for transaction `
         + `${transcript.transactionId} in block ${transcript.blockId}`);
     }
     // eslint-disable-next-line no-await-in-loop
@@ -190,7 +193,7 @@ async function main() {
   const systemTxs = block.transactions.filter((t) => t.system);
   for (const id of recordings.keys()) {
     if (!userTxs.some((t) => t.id === id)) {
-      throw refuse(SourceRefusal, `${id} was replayed and is not a user transaction of `
+      throw refuse(SOURCE_REFUSAL, `${id} was replayed and is not a user transaction of `
         + `block ${block.height}; a container no row points at is not published`);
     }
   }
@@ -391,13 +394,13 @@ async function main() {
       const fact = byName.get(name);
       const file = join(dir, 'sources', name);
       if (!fact || !existsSync(file)) {
-        throw refuse(SourceRefusal, `${h}: the container interns ${p} and the capture has `
+        throw refuse(SOURCE_REFUSAL, `${h}: the container interns ${p} and the capture has `
           + 'no source by that name');
       }
       const text = readFileSync(file, 'utf8');
       const sha = createHash('sha256').update(text).digest('hex');
       if (sha !== fact.sha256) {
-        throw refuse(SourceRefusal, `${h}: ${name} hashes to ${sha} and the verdict `
+        throw refuse(SOURCE_REFUSAL, `${h}: ${name} hashes to ${sha} and the verdict `
           + `recorded ${fact.sha256} for the code that ran`);
       }
       return {
@@ -451,7 +454,7 @@ async function main() {
       });
     }
     if (frames.length !== row.recording.callsOpened + 1) {
-      throw refuse(SourceRefusal, `${h}: the container's counts.calls is `
+      throw refuse(SOURCE_REFUSAL, `${h}: the container's counts.calls is `
         + `${row.recording.callsOpened} and its call stream holds ${c.callEntries.length}`);
     }
     writeJson(`calltrace/${h}.json`, {

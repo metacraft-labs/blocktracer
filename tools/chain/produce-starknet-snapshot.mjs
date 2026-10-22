@@ -54,6 +54,10 @@ import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 import {
+  CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
+  parseProducerArgs, readJsonOrRefuse as readJson, refuseOperation as refuse,
+} from './lib/producer-runtime.mjs';
+import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, INSTRUCTION_SET,
   INSTRUCTION_STREAM_SCHEMA, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY,
   RECORDER, costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
@@ -64,64 +68,27 @@ const HERE = 'tools/chain/produce-starknet-snapshot.mjs';
 /** The block report format `codetracer-cairo-onchain trace-block` writes. */
 export const BLOCK_REPORT_FORMAT = 'codetracer-cairo-onchain/block-report@1';
 
-const ConfigRefusal = 'config';
-const SourceRefusal = 'source';
-const refuse = (kind, message) => Object.assign(new Error(message), { refusalKind: kind });
+// DEL-7: the operational refusal, its exit code, the argv grammar, the JSON reader, the
+// container reader's path and the CTFS container header come from
+// `lib/producer-runtime.mjs`, shared with the other four producers. The tokens' VALUES are
+// unchanged — `'config'` and `'source'` — which is what keeps this file's selftest arms
+// asserting on `e.refusalKind` valid across the move.
 
 const USAGE = `usage: produce-starknet-snapshot.mjs --capture DIR [--capture DIR]...
          --recorder-commit SHA --out DIR [--ct-print PATH] [--label TEXT]
          [--endpoint-label URL] [--captured-at ISO] [--dry-run]`;
 
-function parseArgs(argv) {
-  const many = new Map();
-  const flags = new Set();
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith('--')) throw refuse(ConfigRefusal, `unexpected argument '${a}'\n${USAGE}`);
-    const name = a.slice(2);
-    if (name === 'dry-run' || name === 'help') { flags.add(name); continue; }
-    const v = argv[++i];
-    if (v === undefined) throw refuse(ConfigRefusal, `--${name} needs a value\n${USAGE}`);
-    if (!many.has(name)) many.set(name, []);
-    many.get(name).push(v);
-  }
-  const one = (n, dflt) => {
-    const vs = many.get(n) ?? [];
-    if (vs.length > 1) throw refuse(ConfigRefusal, `--${n} given ${vs.length} times`);
-    return vs[0] ?? dflt;
-  };
-  return { one, all: (n) => many.get(n) ?? [], has: (n) => flags.has(n) };
-}
+const parseArgs = (argv) => parseProducerArgs(argv, { usage: USAGE });
 
-function readJson(path, what) {
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch (e) {
-    throw refuse(SourceRefusal, `${what} at ${path} is not readable JSON: ${e.message}`);
-  }
-}
+/** The reader this producer's containers are opened with: the sibling
+ *  `codetracer-trace-format-nim` checkout's `ct-print`, unless one is named. */
+const ctPrintPath = (explicit) => containerReaderPath({
+  explicit,
+  fallbacks: [resolve('..', 'codetracer-trace-format-nim', 'ct-print')],
+  hint: "The reader is codetracer-trace-format-nim's `ct-print`.",
+});
 
-function ctPrintPath(explicit) {
-  const cands = [explicit, process.env.CT_PRINT,
-                 resolve('..', 'codetracer-trace-format-nim', 'ct-print')].filter(Boolean);
-  for (const c of cands) if (existsSync(c)) return c;
-  throw refuse(ConfigRefusal,
-    `no container reader found. Pass --ct-print <path> or set $CT_PRINT. Tried: `
-    + `${cands.join(', ')}. The reader is codetracer-trace-format-nim's \`ct-print\`.`);
-}
-
-/** The container version byte, read from the CTFS header rather than assumed. */
-function containerVersion(file) {
-  const b = readFileSync(file).subarray(0, 8);
-  const magic = [0xc0, 0xde, 0x72, 0xac];
-  for (let i = 0; i < 4; i++) {
-    if (b[i] !== magic[i]) {
-      throw refuse(SourceRefusal, `${file} does not begin with the CTFS magic; a snapshot `
-        + `container holds what a recorder wrote.`);
-    }
-  }
-  return b[5];
-}
+const CTFS_NOTE = 'A snapshot container holds what a recorder wrote.';
 
 /** Run `ct-print` and hand each line of its stdout to `onLine`, without buffering it:
  *  a Starknet transaction can run a million VM steps, and one JSON line per step is more
@@ -134,7 +101,7 @@ function streamLines(cmd, args, onLine) {
     const rl = createInterface({ input: p.stdout, crlfDelay: Infinity });
     rl.on('line', (l) => { if (l.trim().length > 0) onLine(l); });
     p.on('close', (code) => (code === 0 ? ok()
-      : fail(refuse(SourceRefusal, `${cmd} ${args.join(' ')} exited ${code}: ${err.slice(0, 400)}`))));
+      : fail(refuse(SOURCE_REFUSAL, `${cmd} ${args.join(' ')} exited ${code}: ${err.slice(0, 400)}`))));
   });
 }
 
@@ -145,7 +112,7 @@ async function readContainer(ctPrint, file) {
   await streamLines(ctPrint, ['--meta-json', file], (l) => { metaText += `${l}\n`; });
   let meta;
   try { meta = JSON.parse(metaText); } catch (e) {
-    throw refuse(SourceRefusal, `${ctPrint} --meta-json ${file} did not answer JSON: ${e.message}`);
+    throw refuse(SOURCE_REFUSAL, `${ctPrint} --meta-json ${file} did not answer JSON: ${e.message}`);
   }
   const pathId = [];
   const line = [];
@@ -164,7 +131,7 @@ async function readContainer(ctPrint, file) {
     if (o.kind === 'io') ioEvents += 1;
   });
   return { counts: meta.counts, flags: meta.metadata.flags, paths, pathId, line, callEntries,
-           ioEvents, version: containerVersion(file) };
+           ioEvents, version: containerVersion(file, { note: CTFS_NOTE }) };
 }
 
 /** `0x<pc>  <instruction>` per line; label lines (no `0x` lead) are holes, kept as holes
@@ -205,12 +172,12 @@ export async function main(argv) {
   const captureDirs = args.all('capture');
   const recorderCommit = args.one('recorder-commit');
   const outDir = args.one('out');
-  if (captureDirs.length === 0) throw refuse(ConfigRefusal, `--capture is required\n${USAGE}`);
-  if (!recorderCommit) throw refuse(ConfigRefusal, `--recorder-commit is required\n${USAGE}`);
-  if (!outDir && !args.has('dry-run')) throw refuse(ConfigRefusal, `--out is required\n${USAGE}`);
+  if (captureDirs.length === 0) throw refuse(CONFIG_REFUSAL, `--capture is required\n${USAGE}`);
+  if (!recorderCommit) throw refuse(CONFIG_REFUSAL, `--recorder-commit is required\n${USAGE}`);
+  if (!outDir && !args.has('dry-run')) throw refuse(CONFIG_REFUSAL, `--out is required\n${USAGE}`);
   const capturedAtFlag = args.one('captured-at');
   if (capturedAtFlag && Number.isNaN(Date.parse(capturedAtFlag))) {
-    throw refuse(ConfigRefusal, `--captured-at must be a date Date.parse accepts`);
+    throw refuse(CONFIG_REFUSAL, `--captured-at must be a date Date.parse accepts`);
   }
   assertReadableSnapshotFormat(SNAPSHOT_FORMAT, HERE);
   assertRefusalsAreClosed();
@@ -219,11 +186,11 @@ export async function main(argv) {
   const caps = captureDirs.map((dir) => {
     const b = readJson(join(dir, 'block.json'), 'the block report');
     if (b.format !== BLOCK_REPORT_FORMAT) {
-      throw refuse(SourceRefusal, `${dir}/block.json is ${JSON.stringify(b.format)}, and this `
+      throw refuse(SOURCE_REFUSAL, `${dir}/block.json is ${JSON.stringify(b.format)}, and this `
         + `producer reads ${BLOCK_REPORT_FORMAT} only.`);
     }
     if (!b.chain?.header || !Array.isArray(b.chain?.transactions)) {
-      throw refuse(SourceRefusal, `${dir}/block.json carries no \`chain\` member — it was `
+      throw refuse(SOURCE_REFUSAL, `${dir}/block.json carries no \`chain\` member — it was `
         + `written by a recorder older than the one that records the chain's side of the `
         + `capture, and this producer will not ask the network for it.`);
     }
@@ -233,7 +200,7 @@ export async function main(argv) {
     const seen = new Set();
     for (const c of caps) {
       if (seen.has(c.b.blockNumber)) {
-        throw refuse(ConfigRefusal, `block ${c.b.blockNumber} is captured twice`);
+        throw refuse(CONFIG_REFUSAL, `block ${c.b.blockNumber} is captured twice`);
       }
       seen.add(c.b.blockNumber);
     }
@@ -246,7 +213,7 @@ export async function main(argv) {
   // must carry it.
   const probed = caps.filter((c) => c.b.floorProbe);
   if (probed.length === 0) {
-    throw refuse(SourceRefusal, `no capture carries a floor probe. Run one block of the set `
+    throw refuse(SOURCE_REFUSAL, `no capture carries a floor probe. Run one block of the set `
       + `with \`trace-block --probe-floor\`: \`window.replayableFrom\` is derived from it, `
       + `and a typed floor is the defect CPC-5 records.`);
   }
@@ -255,7 +222,7 @@ export async function main(argv) {
   const ns = floorProbe.nodeState;
   if (!(ex?.acceptedAtFloor === true && ex?.refusedBelow === true
         && ns?.positiveControlHeld === true && ns?.negativeControlHeld === true)) {
-    throw refuse(SourceRefusal, `the floor probe's controls did not all hold `
+    throw refuse(SOURCE_REFUSAL, `the floor probe's controls did not all hold `
       + `(${JSON.stringify({ acceptedAtFloor: ex?.acceptedAtFloor, refusedBelow: ex?.refusedBelow,
                              positive: ns?.positiveControlHeld, negative: ns?.negativeControlHeld })}); `
       + `a floor whose instrument did not discriminate is not a measurement.`);
@@ -266,7 +233,7 @@ export async function main(argv) {
   const finalized = Number(newest.chain.l1Accepted);
   const control = newest.chain.endpointControl;
   if (control?.classified === 'ok') {
-    throw refuse(SourceRefusal, `the endpoint answered \`thisMethodDoesNotExist\` with a `
+    throw refuse(SOURCE_REFUSAL, `the endpoint answered \`thisMethodDoesNotExist\` with a `
       + `result: it is a blind proxy and none of its answers discriminate.`);
   }
 
@@ -282,7 +249,7 @@ export async function main(argv) {
       const tdir = join(dir, r.txHash);
       const cts = readdirSync(tdir).filter((f) => f.endsWith('.ct'));
       if (cts.length !== 1) {
-        throw refuse(SourceRefusal, `${tdir} holds ${cts.length} container(s); a recorded `
+        throw refuse(SOURCE_REFUSAL, `${tdir} holds ${cts.length} container(s); a recorded `
           + `transaction has exactly one.`);
       }
       const src = join(tdir, cts[0]);
@@ -292,11 +259,11 @@ export async function main(argv) {
         // eslint-disable-next-line no-await-in-loop
         rec.c = await readContainer(ctPrint, src);
         if (rec.c.version !== 5) {
-          throw refuse(SourceRefusal, `${src} is container version ${rec.c.version}, and this `
+          throw refuse(SOURCE_REFUSAL, `${src} is container version ${rec.c.version}, and this `
             + `producer declares ${RECORDER.traceSchema}.`);
         }
         if (rec.c.counts.steps !== r.container.steps) {
-          throw refuse(SourceRefusal, `${src}: the reader counts ${rec.c.counts.steps} steps `
+          throw refuse(SOURCE_REFUSAL, `${src}: the reader counts ${rec.c.counts.steps} steps `
             + `and the recorder reported writing ${r.container.steps}. A recording the two `
             + `disagree about is not published.`);
         }
@@ -306,13 +273,13 @@ export async function main(argv) {
           const name = interned.split('/').pop();
           const m = /^(0x[0-9a-f]{1,64})\.casm$/.exec(name);
           if (!m) {
-            throw refuse(SourceRefusal, `${src} interns ${interned}, whose name is not `
+            throw refuse(SOURCE_REFUSAL, `${src} interns ${interned}, whose name is not `
               + `\`<class hash>.casm\`; the class a listing is of is the name the recorder `
               + `gave it.`);
           }
           const file = join(tdir, 'sources', name);
           if (!existsSync(file)) {
-            throw refuse(SourceRefusal, `${src} interns ${interned} and ${file} does not exist.`);
+            throw refuse(SOURCE_REFUSAL, `${src} interns ${interned} and ${file} does not exist.`);
           }
           const text = readFileSync(file, 'utf8');
           return { interned, publishedPath: name, classHash: m[1], text,
@@ -328,7 +295,7 @@ export async function main(argv) {
           if (bad.length > 5) break;
         }
         if (bad.length > 0) {
-          throw refuse(SourceRefusal, `${src}: step(s) ${bad.join(', ')} do not land inside a `
+          throw refuse(SOURCE_REFUSAL, `${src}: step(s) ${bad.join(', ')} do not land inside a `
             + `listing this capture holds.`);
         }
       }
@@ -344,7 +311,7 @@ export async function main(argv) {
     const byHash = new Map(b.chain.transactions.map((t) => [t.hash, t]));
     const header = b.chain.header;
     if (b.perTransaction.length !== b.chain.transactions.length) {
-      throw refuse(SourceRefusal, `block ${b.blockNumber}: ${b.perTransaction.length} report(s) `
+      throw refuse(SOURCE_REFUSAL, `block ${b.blockNumber}: ${b.perTransaction.length} report(s) `
         + `for ${b.chain.transactions.length} transaction(s).`);
     }
     blocks.push({
@@ -361,7 +328,7 @@ export async function main(argv) {
     for (const r of b.perTransaction) {
       const t = byHash.get(r.txHash);
       if (!t) {
-        throw refuse(SourceRefusal, `block ${b.blockNumber}: report for ${r.txHash}, which the `
+        throw refuse(SOURCE_REFUSAL, `block ${b.blockNumber}: report for ${r.txHash}, which the `
           + `block's transaction list does not hold.`);
       }
       const { body, receipt } = t;
@@ -600,7 +567,7 @@ export async function main(argv) {
     if (frames.length !== row.recording.callsOpened) {
       // `counts.calls` includes the container's own top-level call, which is the
       // synthetic frame here — so the two readings must agree exactly.
-      throw refuse(SourceRefusal, `${txHash}: the container counts ${row.recording.callsOpened} `
+      throw refuse(SOURCE_REFUSAL, `${txHash}: the container counts ${row.recording.callsOpened} `
         + `call(s) and its call stream yields ${frames.length} frame(s).`);
     }
     row.recording.callsOpened = frames.length - 1;
@@ -658,8 +625,5 @@ export async function main(argv) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  main(process.argv.slice(2)).catch((e) => {
-    console.error(`${HERE}: ${e.message}`);
-    process.exit(e.refusalKind === ConfigRefusal ? 2 : 1);
-  });
+  main(process.argv.slice(2)).catch((e) => dieOperational(HERE, e));
 }

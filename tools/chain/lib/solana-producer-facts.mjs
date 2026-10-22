@@ -54,9 +54,11 @@ export const INSTRUCTION_SET = 'sbf';
  * `transactions[].executions` — one entry; an untraced row states its reason on it.
  * A fresh array per call, for the reason the Ethereum module gives.
  */
-export const executionsForRow = (reason) => (reason
-  ? [{ selector: 'transaction', reason }]
-  : [{ selector: 'transaction' }]);
+// DEL-7: the one `*ForRow` helper all five chains had byte-identically (5 definitions,
+// 1 distinct text, against 5-in-5 for `costVectorForRow` and `rolesForRow`). The shared
+// implementation is `lib/producer-runtime.mjs`; the export keeps its contract name here,
+// so this module stays the one place a producer imports its row shapes from.
+export { oneExecutionPerTransaction as executionsForRow } from './producer-runtime.mjs';
 
 /**
  * `transactions[].cost` — the fee in lamports and the compute units consumed.

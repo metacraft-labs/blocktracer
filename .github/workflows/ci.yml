@@ -532,7 +532,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 238 assertions, and the reason it is offline is the reason it
+        # ING-3, 241 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -965,6 +965,34 @@ jobs:
         # so it goes red the day the row lands. Traced rows need the recorder and are
         # built by `nix build .#sol-capture-tree`.
         run: node tools/chain/solana-producer-selftest.mjs
+
+      - name: Is every abstraction DEL-7 extracted reached by two chains?
+        # 33 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # Chain-Delivery DEL-7's `test_every_abstraction_has_two_consumers`. Each export of
+        # `lib/producer-runtime.mjs` is counted by the producers' and facts modules' own
+        # import statements, with `solana` and `sol` folded to one chain so one network
+        # cannot supply two consumers. Four controls run in the same pass: one consumer's
+        # import is deleted and the same judgement is watched reporting the shortfall; the
+        # no-dispatch judgement is driven against a synthetic module that does dispatch;
+        # the shared exit path is driven with a source refusal and must answer 1 where a
+        # configuration refusal answers 2; and the classification file is mutated to claim
+        # a consumer the code does not have. It also runs all five producers with no
+        # arguments and reads their real exit codes.
+        run: node tools/chain/abstraction-consumers-selftest.mjs
+
+      - name: Can DEL-7's ingestion classification be shown to be wrong?
+        # 24 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # Chain-Delivery DEL-7's `test_the_classification_can_be_wrong`. Four ways a
+        # classification can be wrong, judged against the code rather than the document:
+        # a component called network-agnostic with nothing shared; one whose consumers pass
+        # behaviourally different arguments with no finding recorded, and the mirror of
+        # that; one called network-specific that two chains in fact share; and one called
+        # per-prestate-class whose consumers are not one class. Each prestate class is read
+        # from the chain's own `PRESTATE_STRATEGY`, so the document cannot decide its own
+        # test, and every judgement is re-run against a deliberately mis-classified copy.
+        run: node tools/chain/classification-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this

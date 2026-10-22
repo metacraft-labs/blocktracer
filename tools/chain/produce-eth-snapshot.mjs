@@ -168,6 +168,10 @@ import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-fo
 import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import {
+  CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
+  refuseOperation as refuse,
+} from './lib/producer-runtime.mjs';
+import {
   RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
   INSTRUCTION_STREAM_SCHEMA, CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET,
   costVectorForRow, executionsForRow, rolesForRow, payloadForRow,
@@ -208,15 +212,14 @@ const HEALTH_CHECKS_FILE = 'tools/chain/health-checks.json';
 // category the test counts — so the distinction travels as a field, which is not a type at
 // all, and the count does not move. Measured 2026-10-08: 7 classes in this tree's `.mjs`
 // before and 7 after.
-const ConfigRefusal = 'config';
-const SourceRefusal = 'source';
-const refuse = (kind, message) => Object.assign(new Error(message), { refusalKind: kind });
-
-const die = (e) => {
-  const code = e.refusalKind === ConfigRefusal ? 2 : 1;
-  console.error(`${HERE}: ${e.message}`);
-  process.exit(code);
-};
+//
+// DEL-7, 2026-10-22: THE ARGUMENT HELD AND IT IS NOW THE TREE'S ONE MECHANISM. Two later
+// producers (sol, sui) declared the two classes anyway, which took the `.mjs` class count
+// to 10 and is the delta DEL-5's entry recorded for this milestone to resolve. It is
+// resolved by moving this file's mechanism — the field — into
+// `lib/producer-runtime.mjs` and having all five producers import it, which removes four
+// classes instead of adding an abstraction. The tokens' values are unchanged.
+const die = (e) => dieOperational(HERE, e);
 
 // ---------------------------------------------------------------------------
 // CLI
@@ -232,7 +235,7 @@ const flag = (name, dflt = undefined) => {
   }
   const v = argv[i + 1];
   if (v === undefined || v.startsWith('--')) {
-    throw refuse(ConfigRefusal, `--${name} takes a value`);
+    throw refuse(CONFIG_REFUSAL, `--${name} takes a value`);
   }
   return v;
 };
@@ -268,7 +271,7 @@ const many = (name) => {
     if (argv[i] === `--${name}`) {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) {
-        throw refuse(ConfigRefusal, `--${name} takes a value`);
+        throw refuse(CONFIG_REFUSAL, `--${name} takes a value`);
       }
       out.push(v);
     } else if (argv[i].startsWith(`--${name}=`)) {
@@ -348,7 +351,7 @@ async function rpc(url, method, params, { retries = 12, backoffMs = 500 } = {}) 
     }
   }
   const { cls, answer } = last;
-  throw refuse(SourceRefusal, 
+  throw refuse(SOURCE_REFUSAL, 
     `${method} was refused by ${url} as ${cls.toUpperCase()}: `
     + `http ${answer.http} ${answer.text.slice(0, 200)}`);
 }
@@ -415,7 +418,7 @@ async function probeArchiveFloor(url, address, { parentBlock, finalized }) {
 
   const atParent = await proofAt(parentBlock);
   if (!proves(atParent)) {
-    throw refuse(SourceRefusal, 
+    throw refuse(SOURCE_REFUSAL, 
       `${url} will not prove account state for ${address} at the capture's own parent `
       + `block ${parentBlock} (answered ${atParent.cls}: `
       + `${atParent.answer.text.slice(0, 200)}). The boundary cannot be measured against `
@@ -467,37 +470,21 @@ async function probeArchiveFloor(url, address, { parentBlock, finalized }) {
 // ---------------------------------------------------------------------------
 
 /** `$CT_PRINT`, `--ct-print`, or a sibling checkout's built binary. */
-function ctPrintPath(explicit) {
-  const cands = [explicit, process.env.CT_PRINT,
-                 resolve('..', 'codetracer-trace-format-nim', 'ct-print')]
-    .filter(Boolean);
-  for (const c of cands) if (existsSync(c)) return c;
-  throw refuse(ConfigRefusal, 
-    `no container reader found. Pass --ct-print <path> or set $CT_PRINT. Tried: `
-    + `${cands.join(', ')}. The reader is codetracer-trace-format-nim's \`ct-print\` and `
-    + `is NOT a dependency of this repository.`);
-}
+const ctPrintPath = (explicit) => containerReaderPath({
+  explicit,
+  fallbacks: [resolve('..', 'codetracer-trace-format-nim', 'ct-print')],
+  hint: "The reader is codetracer-trace-format-nim's `ct-print` and is NOT a dependency "
+      + 'of this repository.',
+});
 
 /**
- * The container's own version byte, read from the header rather than from a constant.
- *
- * The CTFS magic is the first four bytes and the container version is the sixth. A file
- * whose magic does not match is refused here rather than at publish time, which is where
- * `S5-CONTAINER-NOT-PREENCODED` would otherwise catch it with less to say.
+ * The note this producer appends when a file does not begin with the CTFS magic. The
+ * check itself is `lib/producer-runtime.mjs`'s `containerVersion` — one copy for the five
+ * producers, since the magic and the offset are facts about the trace format and not
+ * about any chain. The sentence stays here because it is this file's own.
  */
-function containerVersion(file) {
-  const b = readFileSync(file).subarray(0, 8);
-  const magic = [0xc0, 0xde, 0x72, 0xac];
-  for (let i = 0; i < 4; i++) {
-    if (b[i] !== magic[i]) {
-      throw refuse(SourceRefusal, 
-        `${file} does not begin with the CTFS magic (got `
-        + `${[...b.subarray(0, 4)].map((x) => x.toString(16)).join(' ')}). A snapshot `
-        + `container holds what a RECORDER wrote; an already-encoded object is refused.`);
-    }
-  }
-  return b[5];
-}
+const CTFS_NOTE = 'A snapshot container holds what a RECORDER wrote; an already-encoded '
+                + 'object is refused.';
 
 async function readContainer(ctPrint, file) {
   let meta;
@@ -505,7 +492,7 @@ async function readContainer(ctPrint, file) {
     const { stdout } = await run(ctPrint, ['--meta-json', file], { maxBuffer: 1 << 28 });
     meta = JSON.parse(stdout);
   } catch (e) {
-    throw refuse(SourceRefusal, 
+    throw refuse(SOURCE_REFUSAL, 
       `${ctPrint} would not open ${file}: ${String(e.stderr ?? e.message).slice(0, 400)}`);
   }
   const { stdout: ev } = await run(ctPrint, ['--events', file], { maxBuffer: 1 << 28 });
@@ -522,7 +509,7 @@ async function readContainer(ctPrint, file) {
     steps,
     callEntries,
     ioEvents,
-    version: containerVersion(file),
+    version: containerVersion(file, { note: CTFS_NOTE }),
   };
 }
 
@@ -587,7 +574,7 @@ export function parseRecorderLog(text) {
   if (!shape) missing.push('captured N step(s), N call(s), N log(s)');
   if (!entry) missing.push('entry point');
   if (missing.length > 0) {
-    throw refuse(SourceRefusal, 
+    throw refuse(SOURCE_REFUSAL, 
       `the recorder log carries no ${missing.join(', no ')}. A traced row's \`effects\` is `
       + `a comparison against the replay's own answer, and this tool will not publish one `
       + `side of it as though both had been read.`);
@@ -707,7 +694,7 @@ async function main() {
   const endpointLabel = flag('endpoint-label', url);
   const capturedAtFlag = flag('captured-at');
   if (capturedAtFlag && Number.isNaN(Date.parse(capturedAtFlag))) {
-    throw refuse(ConfigRefusal,
+    throw refuse(CONFIG_REFUSAL,
       `--captured-at must be a date \`Date.parse\` accepts (got ${capturedAtFlag}). `
       + `\`provenance.capturedAt\` is republished verbatim into every row's \`capturedAt\`, `
       + `and a string no reader can parse is worse than the wall clock it replaced.`);
@@ -720,12 +707,12 @@ async function main() {
   for (const [n, v] of [['tx', txHashes[0]], ['rpc-url', url], ['capture', captures[0]],
                         ['recorder-log', recorderLogPaths[0]],
                         ['recorder-commit', recorderCommit], ['out', outDir]]) {
-    if (!v) throw refuse(ConfigRefusal, `--${n} is required`);
+    if (!v) throw refuse(CONFIG_REFUSAL, `--${n} is required`);
   }
   // THE THREE LISTS ARE ZIPPED BY POSITION, so a run that gave two captures and one log
   // is refused rather than silently publishing the first pair. See `many`.
   if (captures.length !== txHashes.length || recorderLogPaths.length !== txHashes.length) {
-    throw refuse(ConfigRefusal,
+    throw refuse(CONFIG_REFUSAL,
       `--tx was given ${txHashes.length} time(s), --capture ${captures.length} and `
       + `--recorder-log ${recorderLogPaths.length}. The three are ZIPPED BY POSITION — `
       + `one capture directory and one recorder log per traced transaction — and a run `
@@ -733,7 +720,7 @@ async function main() {
   }
   for (const txHash of txHashes) {
     if (!/^0x[0-9a-f]{64}$/.test(txHash)) {
-      throw refuse(ConfigRefusal,
+      throw refuse(CONFIG_REFUSAL,
         `--tx must be a 0x-prefixed 32-byte LOWERCASE hash (got ${txHash}). This chain's `
         + `identifier encoding is hex, whose key form is the lowercased payload, and a `
         + `producer that keys a published object under a mixed-case spelling publishes it `
@@ -741,18 +728,18 @@ async function main() {
     }
   }
   if (new Set(txHashes).size !== txHashes.length) {
-    throw refuse(ConfigRefusal,
+    throw refuse(CONFIG_REFUSAL,
       `--tx names the same transaction twice. Every sidecar in this tree is keyed by the `
       + `transaction hash, so a repeated hash would have one of its two recordings `
       + `overwrite the other's \`ct/\`, \`positions/\`, \`instructions/\` and `
       + `\`calltrace/\` objects while both were counted.`);
   }
   for (const capture of captures) {
-    if (!existsSync(capture)) throw refuse(ConfigRefusal, `no capture directory at ${capture}`);
+    if (!existsSync(capture)) throw refuse(CONFIG_REFUSAL, `no capture directory at ${capture}`);
   }
   for (const recorderLogPath of recorderLogPaths) {
     if (!existsSync(recorderLogPath)) {
-      throw refuse(ConfigRefusal, `no recorder log at ${recorderLogPath}`);
+      throw refuse(CONFIG_REFUSAL, `no recorder log at ${recorderLogPath}`);
     }
   }
   // ── THE ENUMERATED BLOCK WINDOW ──────────────────────────────────────────
@@ -766,7 +753,7 @@ async function main() {
   const fromFlag = flag('from');
   const toFlag = flag('to');
   if ((fromFlag === undefined) !== (toFlag === undefined)) {
-    throw refuse(ConfigRefusal,
+    throw refuse(CONFIG_REFUSAL,
       `--from and --to are given together or not at all (got from=${fromFlag} `
       + `to=${toFlag}). A half-stated window is not a narrower window; it is a window `
       + `whose other end this tool would have to invent.`);
@@ -776,7 +763,7 @@ async function main() {
   if (windowFrom !== null
       && (!Number.isInteger(windowFrom) || !Number.isInteger(windowTo)
           || windowFrom < 0 || windowTo < windowFrom)) {
-    throw refuse(ConfigRefusal,
+    throw refuse(CONFIG_REFUSAL,
       `--from ${fromFlag} --to ${toFlag} is not an ascending range of block heights.`);
   }
 
@@ -788,7 +775,7 @@ async function main() {
   const chainIdHex = await rpc(url, 'eth_chainId', []);
   const chainId = parseInt(chainIdHex, 16);
   if (chainId !== CHAIN_ID) {
-    throw refuse(ConfigRefusal, 
+    throw refuse(CONFIG_REFUSAL, 
       `${url} serves chain id ${chainId} and this producer is Ethereum mainnet `
       + `(${CHAIN_ID}). It is written for ONE chain on purpose: there is no dispatch here `
       + `to widen, and a second EVM instance is a second producer (Chain-Delivery DEL-6).`);
@@ -799,7 +786,7 @@ async function main() {
   // exist is a blind proxy and every other answer from it is uninterpretable.
   const control = await probe(url, 'thisMethodDoesNotExist', []);
   if (control.cls === 'ok') {
-    throw refuse(SourceRefusal, 
+    throw refuse(SOURCE_REFUSAL, 
       `${url} answered \`thisMethodDoesNotExist\` with a result. It is a blind proxy and `
       + `no answer from it discriminates anything.`);
   }
@@ -814,7 +801,7 @@ async function main() {
     const h = txHashes[k];
     // eslint-disable-next-line no-await-in-loop
     const tx = await rpc(url, 'eth_getTransactionByHash', [h]);
-    if (!tx) throw refuse(SourceRefusal, `${url} does not know transaction ${h}`);
+    if (!tx) throw refuse(SOURCE_REFUSAL, `${url} does not know transaction ${h}`);
     recordings.push({
       txHash: h,
       capture: captures[k],
@@ -837,7 +824,7 @@ async function main() {
     : [...new Set(recordings.map((r) => r.blockNumber))].sort((a, b) => a - b);
   for (const r of recordings) {
     if (!blockHeights.includes(r.blockNumber)) {
-      throw refuse(ConfigRefusal,
+      throw refuse(CONFIG_REFUSAL,
         `${r.txHash} is in block ${r.blockNumber}, which is outside the enumerated `
         + `window ${blockHeights[0]}..${blockHeights[blockHeights.length - 1]}. A traced `
         + `row whose block is not in \`blocks[]\` is a row the reader cannot place.`);
@@ -869,7 +856,7 @@ async function main() {
     // eslint-disable-next-line no-await-in-loop
     const block = await rpc(url, 'eth_getBlockByNumber', [hex, false]);
     if (!block) {
-      throw refuse(SourceRefusal,
+      throw refuse(SOURCE_REFUSAL,
         `${url} does not know block ${height}, which is inside the window this run was `
         + `asked to enumerate.`);
     }
@@ -887,7 +874,7 @@ async function main() {
       }
     }
     if (receipts.length !== blockTxs.length) {
-      throw refuse(SourceRefusal,
+      throw refuse(SOURCE_REFUSAL,
         `${url} answered ${receipts.length} receipt(s) for a block of ${blockTxs.length} `
         + `transaction(s). A row's \`revertCode\` and cost vector are the receipt's own `
         + `figures and this tool will not publish a row it has no receipt for.`);
@@ -924,7 +911,7 @@ async function main() {
     };
     walk(r.capture);
     if (containerFiles.length !== 1) {
-      throw refuse(ConfigRefusal,
+      throw refuse(CONFIG_REFUSAL,
         `${r.capture} holds ${containerFiles.length} container(s) and this producer `
         + `publishes one traced transaction per capture directory: `
         + `${containerFiles.join(', ')}`);
@@ -938,7 +925,7 @@ async function main() {
     r.census = parseListingCensus(logText);
 
     if (r.c.paths.length === 0) {
-      throw refuse(SourceRefusal,
+      throw refuse(SOURCE_REFUSAL,
         `the container interns no paths at all, so no step in it can be placed in a `
         + `listing and the position stream would be a column of nulls. The recorder `
         + `registers a disassembly for every address it enters; a container with none is `
@@ -998,7 +985,7 @@ async function main() {
       };
       walkFor(r.capture);
       if (listingCandidates.length !== 1) {
-        throw refuse(SourceRefusal,
+        throw refuse(SOURCE_REFUSAL,
           `the container interns ${internedPath} and ${r.capture} holds `
           + `${listingCandidates.length} file(s) named ${wantName}`
           + `${listingCandidates.length ? `: ${listingCandidates.join(', ')}` : ''}. The `
@@ -1019,7 +1006,7 @@ async function main() {
       // class the text is not of.
       const m = /^(0x[0-9a-f]{40})\.evmasm$/.exec(wantName.toLowerCase());
       if (!m) {
-        throw refuse(SourceRefusal,
+        throw refuse(SOURCE_REFUSAL,
           `the container interns ${internedPath}, whose name is not `
           + `\`0x<40 hex>.evmasm\`. The address a listing is of is the name the recorder `
           + `gave the file, and a name this tool cannot read is an address it would have `
@@ -1032,14 +1019,14 @@ async function main() {
       const entry = r.census.get(address);
       const declared = entry?.instructions;
       if (declared === undefined) {
-        throw refuse(SourceRefusal,
+        throw refuse(SOURCE_REFUSAL,
           `the container interns a listing for ${address} and ${r.recorderLogPath} `
           + `registers no disassembly for that address. The log's own ledger is `
           + `${[...r.census.keys()].join(', ') || '(empty)'}. The two have to agree about `
           + `which addresses this recording entered before either is published.`);
       }
       if (declared !== listing.length) {
-        throw refuse(SourceRefusal,
+        throw refuse(SOURCE_REFUSAL,
           `${r.recorderLogPath} says it registered a ${declared}-instruction listing for `
           + `${address} and ${listingCandidates[0]} holds ${listing.length} line(s). The `
           + `listing is joined to the container's steps BY LINE, so a listing that is not `
@@ -1119,7 +1106,7 @@ async function main() {
         }
       });
       if (bad.length > 0) {
-        throw refuse(SourceRefusal,
+        throw refuse(SOURCE_REFUSAL,
           `${bad.length} step(s) of ${r.txHash} do not land inside a listing this run `
           + `resolved: ${bad.slice(0, 5).join('; ')}`
           + `${bad.length > 5 ? `; …and ${bad.length - 5} more` : ''}. The instruction and `
@@ -1138,7 +1125,7 @@ async function main() {
     const versions = [...new Set(recordings.map((r) => r.c.version))];
     const flagSets = [...new Set(recordings.map((r) => JSON.stringify(r.c.flags)))];
     if (versions.length !== 1 || flagSets.length !== 1) {
-      throw refuse(SourceRefusal,
+      throw refuse(SOURCE_REFUSAL,
         `this run's containers are at container version(s) ${versions.join(', ')} with `
         + `${flagSets.length} distinct flag set(s) (${flagSets.join(' | ')}). `
         + `\`provenance.containerVersion\` and \`provenance.containerFlags\` are ONE value `
@@ -1165,7 +1152,7 @@ async function main() {
     (L) => L.address === r.replay.entryPoint.toLowerCase() && L.initcode !== null);
   const anchor = recordings.find((r) => !isInitcodeEntry(r));
   if (anchor === undefined) {
-    throw refuse(SourceRefusal,
+    throw refuse(SOURCE_REFUSAL,
       `every recording in this capture is a contract creation, so no entry point is an `
       + `account the archive floor can be probed at. Capture a window holding at least one `
       + `call.`);
@@ -1183,7 +1170,7 @@ async function main() {
       if (L.initcode !== null) {
         const k = String(L.initcode.keccak256 ?? '').toLowerCase();
         if (!/^0x[0-9a-f]{64}$/.test(k) || `0x${k.slice(-40)}` !== L.address) {
-          throw refuse(SourceRefusal,
+          throw refuse(SOURCE_REFUSAL,
             `the initcode record beside ${L.file} states keccak256 ${k || '(none)'}, whose `
             + `last 20 bytes are not the listing's address ${L.address}. The recorder keys an `
             + `initcode listing by exactly that, so the record and the listing disagree.`);
@@ -1199,7 +1186,7 @@ async function main() {
     r.entryListing = r.listings.find(
       (L) => L.address === r.replay.entryPoint.toLowerCase()) ?? null;
     if (r.entryListing === null) {
-      throw refuse(SourceRefusal,
+      throw refuse(SOURCE_REFUSAL,
         `the recorder reports ${r.replay.entryPoint} as the entry point of ${r.txHash} and `
         + `the container interns no listing for it (it interns `
         + `${r.listings.map((L) => L.address).join(', ')}). The call trace's top frame is `
@@ -1237,7 +1224,7 @@ async function main() {
     const r = receipts[i];
     const t = byHash.get(h);
     if (!r || r.transactionHash.toLowerCase() !== h) {
-      throw refuse(SourceRefusal,
+      throw refuse(SOURCE_REFUSAL,
         `receipt ${i} is for ${r?.transactionHash} and the block's index ${i} is ${h}; `
         + `the receipt list is not in block order and this tool will not pair them by `
         + `position when position is what is wrong.`);
@@ -1246,7 +1233,7 @@ async function main() {
     // The receipt's `status` is the chain's own answer and the only one; a transaction
     // with no status member at all is pre-Byzantium and is refused rather than guessed.
     if (r.status === undefined || r.status === null) {
-      throw refuse(SourceRefusal,
+      throw refuse(SOURCE_REFUSAL,
         `receipt for ${h} carries no \`status\`. That is a pre-Byzantium receipt, whose `
         + `success is not recoverable from the receipt alone, and a guessed `
         + `\`revertCode\` is a published number nobody measured.`);
@@ -1259,7 +1246,7 @@ async function main() {
     const rec = recordingByTx.get(h) ?? null;
     const noExec = noExecution.has(h.toLowerCase());
     if (noExec && rec !== null) {
-      throw refuse(ConfigRefusal,
+      throw refuse(CONFIG_REFUSAL,
         `${h} is given both as a recording and as --no-execution. A transaction the replay `
         + `executed no code for has no container to publish.`);
     }
@@ -1456,7 +1443,7 @@ async function main() {
     const tracedHashes = new Set(rows.filter((x) => x.replayed === true).map((x) => x.txHash));
     const missing = recordings.filter((x) => !tracedHashes.has(x.txHash));
     if (missing.length > 0) {
-      throw refuse(SourceRefusal,
+      throw refuse(SOURCE_REFUSAL,
         `${missing.length} recording(s) got no row: `
         + `${missing.map((x) => `${x.txHash} (said to be block ${x.blockNumber} index `
           + `${x.txIndex})`).join(', ')}. \`eth_getTransactionByHash\` placed each of them `
@@ -1737,7 +1724,7 @@ async function main() {
   // the stream is written. They disagreed in no run measured so far, which is the only
   // reason this is an assertion and not a repair.
   if (frames.length !== traced.recording.callsOpened + 1) {
-    throw refuse(SourceRefusal,
+    throw refuse(SOURCE_REFUSAL,
       `${txHash}: the container's \`counts.calls\` is ${traced.recording.callsOpened} and `
       + `its call stream holds ${c.callEntries.length} entr(ies). §5.4's `
       + `S5-CALLTRACE-AGREE requires the published frame count to be the first plus one and `

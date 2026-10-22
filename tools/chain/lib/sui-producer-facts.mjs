@@ -68,9 +68,11 @@ export const INSTRUCTION_SET = 'move';
  * partition rather than defaulting to the fine one, and the commands are recorded inside
  * the container as `MovePtbCommand` events either way.
  */
-export const executionsForRow = (reason) => (reason
-  ? [{ selector: 'transaction', reason }]
-  : [{ selector: 'transaction' }]);
+// DEL-7: the one `*ForRow` helper all five chains had byte-identically (5 definitions,
+// 1 distinct text, against 5-in-5 for `costVectorForRow` and `rolesForRow`). The shared
+// implementation is `lib/producer-runtime.mjs`; the export keeps its contract name here,
+// so this module stays the one place a producer imports its row shapes from.
+export { oneExecutionPerTransaction as executionsForRow } from './producer-runtime.mjs';
 
 /**
  * `cost[]` — Sui's gas summary is FOUR figures, not one, and the storage rebate is

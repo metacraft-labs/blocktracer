@@ -1489,6 +1489,11 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ['starknet-producer-selftest.mjs', /^const DECLARED = (\d+);/m],
     // The Solana producer's offline suite: no host configurations, so `BASE_ARMS` is its total.
     ['solana-producer-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // DEL-7's two verification entries, both in pattern five for the third suite's reason:
+    // no host configurations, so each `BASE_ARMS` is its total. `abstraction-consumers`
+    // spawns the five producers but needs nothing but node to do it.
+    ['abstraction-consumers-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    ['classification-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1500,21 +1505,41 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // The recipe's sentence, parsed as the arithmetic it is. `Justfile` is two directories
   // up from this file.
   const justfile = readFileSync(new URL('../../Justfile', import.meta.url), 'utf8');
-  const m = /# NINETEEN suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
+  // THE SUITE COUNT IS READ FROM THE HEADER RATHER THAN SPELLED IN THIS PATTERN.
+  //
+  // It used to be the literal `NINETEEN`, which made this regex a second place the number
+  // lived: adding a suite turned the arm into "header unparsed" rather than into "the
+  // header's terms disagree", and the diff pointed at this file instead of at the header.
+  // Changed deliberately 2026-10-22 when DEL-7 added two suites. The word is now captured
+  // and cross-checked against the number of terms below, so it still cannot go stale — a
+  // header reading `NINETEEN suites` with twenty-one terms is a red, which is the property
+  // the literal was there for.
+  const m = /# ([A-Z-]+) suites — ((?:\d+ \+ )+\d+) = (\d+) counted assertions/.exec(justfile);
   ck('the `chain-selftest` header states the total as arithmetic over per-suite terms',
      m !== null);
   if (m) {
-    const stated = m[1].split(' + ').map(Number);
-    const statedTotal = Number(m[2]);
+    const WORDS = ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT',
+                   'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN',
+                   'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN', 'TWENTY', 'TWENTY-ONE',
+                   'TWENTY-TWO', 'TWENTY-THREE', 'TWENTY-FOUR', 'TWENTY-FIVE'];
+    const statedWord = m[1];
+    const stated = m[2].split(' + ').map(Number);
+    const statedTotal = Number(m[3]);
+    // THE WORD IS A COUNT TOO, so it is checked against the terms rather than trusted:
+    // `NINETEEN suites` above twenty-one terms is the staleness this header exists to
+    // refuse, and it would otherwise be the one figure in the sentence nothing read.
+    ck(`the header's suite word matches its term count — \`${statedWord}\` for `
+       + `${stated.length} term(s)`, WORDS[stated.length] === statedWord);
     // ORDER MATTERS and is asserted, because the recipe runs the suites in that order and
     // a reader matches term to suite by position. A header whose terms are the right
     // multiset in the wrong order names the wrong suite in every diff.
-    ck(`the header's nineteen terms are the suites' own declarations, in recipe order — `
-       + `[${stated.join(', ')}] vs [${terms.join(', ')}]`,
+    ck(`the header's ${stated.length} terms are the suites' own declarations, in recipe `
+       + `order — [${stated.join(', ')}] vs [${terms.join(', ')}]`,
        stated.length === terms.length && stated.every((n, i) => n === terms[i]));
     ck(`…and the header's arithmetic closes — ${stated.join(' + ')} = ${statedTotal}`,
        stated.reduce((a, b) => a + b, 0) === statedTotal);
   } else {
+    ck('(header unparsed, so its suite word cannot be checked)', false);
     ck('(header unparsed, so its terms cannot be checked)', false);
     ck('(header unparsed, so its total cannot be checked)', false);
   }
@@ -1628,7 +1653,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   ck(`every suite has a ci.yml step whose comment states its count exactly once — `
      + `${ciProblems.length} problem(s)`, ciProblems.length === 0);
   if (ciProblems.length) console.error(`    ${ciProblems.join('\n    ')}`);
-  ck(`…and ci.yml's nineteen counts are the suites' own — [${ciTerms.join(', ')}] vs `
+  ck(`…and ci.yml's ${ciTerms.length} counts are the suites' own — [${ciTerms.join(', ')}] vs `
      + `[${terms.join(', ')}]`,
      ciTerms.length === terms.length && ciTerms.every((n, i) => n === terms[i]));
 }
@@ -1787,7 +1812,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a NINETEENTH suite joined `chain-selftest` — `solana-producer-selftest`, the
 //       Solana producer's facts and committed inputs (Recorder-Solana, 2026-10-20) — at the
 //       same single assertion.
-expectCount(238);
+expectCount(241);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

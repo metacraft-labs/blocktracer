@@ -56,6 +56,10 @@ import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-fo
 import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import {
+  CONFIG_REFUSAL, SOURCE_REFUSAL, containerVersion, dieOperational,
+  refuseOperation as refuse,
+} from './lib/producer-runtime.mjs';
+import {
   RECORDER, PRESTATE_STRATEGY, IDENTIFIER_ENCODING, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
   INSTRUCTION_STREAM_SCHEMA, CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET,
   executionsForRow, costVectorForRow, rolesForRow, payloadForRow,
@@ -64,9 +68,11 @@ import {
 const run = promisify(execFile);
 const HERE = 'tools/chain/produce-sol-snapshot.mjs';
 
-class ConfigRefusal extends Error {}
-class SourceRefusal extends Error {}
-const refuse = (Cls, msg) => new Cls(msg);
+// DEL-7: the operational refusal, its exit code and the CTFS container header come from
+// `lib/producer-runtime.mjs`, shared with the other four producers. This file used to
+// declare two `extends Error` classes for the same distinction; the field mechanism three
+// of the five already used is the one kept, so adopting the shared module REMOVED two
+// classes from this file rather than adding an abstraction over it.
 
 // ── arguments ─────────────────────────────────────────────────────────────────────────
 
@@ -78,7 +84,7 @@ const flag = (name) => {
 
 /** Reads the capture's JSON-lines file. */
 function readJsonl(path) {
-  if (!existsSync(path)) throw refuse(SourceRefusal, `${path} does not exist`);
+  if (!existsSync(path)) throw refuse(SOURCE_REFUSAL, `${path} does not exist`);
   return readFileSync(path, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
 }
 
@@ -88,17 +94,13 @@ async function readContainer(ctPrint, file) {
   const { stdout: ev } = await run(ctPrint, ['--events', file], { maxBuffer: 1 << 30 });
   const lines = ev.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
   const header = lines.find((l) => l.metadata) ?? {};
-  const b = readFileSync(file).subarray(0, 8);
-  if (b[0] !== 0xc0 || b[1] !== 0xde || b[2] !== 0x72 || b[3] !== 0xac) {
-    throw refuse(SourceRefusal, `${file} does not begin with the CTFS magic`);
-  }
   return {
     counts: meta.counts,
     flags: meta.metadata.flags,
     paths: header.paths ?? [],
     steps: lines.filter((l) => l.kind === 'step'),
     callEntries: lines.filter((l) => l.kind === 'call_entry'),
-    version: b[5],
+    version: containerVersion(file),
   };
 }
 
@@ -122,12 +124,12 @@ async function main() {
   const outDir = flag('out');
   const recorderCommit = flag('recorder-commit');
   if (!captureDir || !outDir || !recorderCommit) {
-    throw refuse(ConfigRefusal, '--capture, --out and --recorder-commit are required');
+    throw refuse(CONFIG_REFUSAL, '--capture, --out and --recorder-commit are required');
   }
   const chain = flag('chain') ?? 'solana-mainnet';
   const label = flag('label') ?? 'Real Solana mainnet data';
   const ctPrint = resolve(flag('ct-print') ?? '../codetracer-trace-format-nim/ct-print');
-  if (!existsSync(ctPrint)) throw refuse(ConfigRefusal, `ct-print not found at ${ctPrint}`);
+  if (!existsSync(ctPrint)) throw refuse(CONFIG_REFUSAL, `ct-print not found at ${ctPrint}`);
   assertReadableSnapshotFormat(SNAPSHOT_FORMAT, HERE);
 
   const capture = JSON.parse(readFileSync(join(captureDir, 'capture.json'), 'utf8'));
@@ -135,7 +137,7 @@ async function main() {
   const to = Number(flag('to') ?? capture.window.lastSlot);
   const slots = readJsonl(join(captureDir, 'blocks.jsonl'))
     .filter((b) => b.slot >= from && b.slot <= to);
-  if (slots.length === 0) throw refuse(ConfigRefusal, `no slot of ${from}..${to} is in the capture`);
+  if (slots.length === 0) throw refuse(CONFIG_REFUSAL, `no slot of ${from}..${to} is in the capture`);
   const results = new Map(readJsonl(join(captureDir, 'results.jsonl'))
     .filter((r) => r.signature).map((r) => [r.signature, r]));
   const scope = Array.isArray(capture.scope) ? capture.scope : null;
@@ -149,7 +151,7 @@ async function main() {
       const res = results.get(t.signature) ?? null;
       const verdict = res?.executed ? res.verdict : null;
       if (verdict && verdict.status === 'unchecked') {
-        throw refuse(SourceRefusal,
+        throw refuse(SOURCE_REFUSAL,
           `${t.signature}: the recorder's check returned \`unchecked\`. On Solana the check is `
           + 'mandatory and the snapshot contract cannot carry this verdict, so the tree is '
           + 'refused rather than written with an unverified trace or an invented refusal.');
@@ -403,7 +405,7 @@ async function main() {
         foldedBy: null, foldWhy: null, hiddenDescendants: 0, hiddenSteps: 0 });
     }
     if (frames.length !== row.recording.callsOpened + 1) {
-      throw refuse(SourceRefusal, `${sig}: counts.calls ${row.recording.callsOpened} but `
+      throw refuse(SOURCE_REFUSAL, `${sig}: counts.calls ${row.recording.callsOpened} but `
         + `${c.callEntries.length} call entries (S5-CALLTRACE-AGREE)`);
     }
     writeJson(`calltrace/${sig}.json`, {
@@ -424,7 +426,4 @@ async function main() {
   console.error(JSON.stringify({ chain, window: snapshot.window, counts: snapshot.counts }));
 }
 
-main().catch((e) => {
-  console.error(`${HERE}: ${e.message}`);
-  process.exit(e instanceof ConfigRefusal ? 2 : 1);
-});
+main().catch((e) => dieOperational(HERE, e));

@@ -1,0 +1,685 @@
+{
+  "format": "blocktracer/ingestion-classification@1",
+  "milestone": "Chain-Delivery DEL-7, carrying Chain-Ingestion ING-7's deliverable 1",
+  "measuredAt": "2026-10-22",
+  "normativeHome": "codetracer-specs/spec/BlockTracer/Chain-Data-Ingestion.md 3.3 and 4.5",
+  "whatThisFileIs": [
+    "The classification ING-7 asked for, DERIVED FROM THE CODE THAT EXISTS rather than",
+    "from design intent, plus the findings recorded against it. It is DATA, not prose:",
+    "`classification-selftest.mjs` re-derives every count below from the tree and reports a",
+    "component whose code no longer matches its placement, and",
+    "`abstraction-consumers-selftest.mjs` re-counts every abstraction's consumers from the",
+    "producers' own import statements. A figure here that the tree contradicts is a RED, not",
+    "a stale comment."
+  ],
+  "unitsAndWhyTheyAreStated": [
+    "Three different units appear below and a count without its unit cannot be read.",
+    "DEFINITION: one top-level declaration in one file. DISTINCT TEXT: one equivalence class",
+    "of definitions under comment-and-whitespace normalisation, so two definitions in one",
+    "text are a copy and two definitions in two texts are not. CONSUMER: one CHAIN that",
+    "reaches a shared implementation, counted from an import statement, never one file - the",
+    "two differ because a chain reaches `oneExecutionPerTransaction` through its facts module",
+    "and not from the producer directly."
+  ],
+  "prestateClassOfEachSubject": {
+    "reading": "narrowing-is-a-class, the operator's 2026-10-21 ruling; 7 classes over Chain-Support-Matrix 1.4's 7 rows",
+    "derivedFrom": "`PRESTATE_STRATEGY` in tools/chain/lib/<chain>-producer-facts.mjs, read from the code and re-derived by classification-selftest.mjs",
+    "byChain": {
+      "eth": "replay-preceding",
+      "starknet": "replay-preceding",
+      "sui": "version-addressed",
+      "sol": "forward-capture",
+      "flow": "replay-preceding",
+      "aztec": "hydrated-from-node"
+    },
+    "ledgerDisagreesOn": {
+      "flow": "undetermined"
+    },
+    "aztecPrivateHalf": "self-contained-circuit, emitted in code and in no committed snapshot (CXP-4's own asymmetry note); not derivable from a facts module, so it is not in `byChain`"
+  },
+  "concerns": [
+    {
+      "concern": "body acquisition",
+      "ingSevenName": "body acquisition",
+      "classification": "network-agnostic",
+      "unit": "module, counted by importer",
+      "evidence": "`lib/body-proxy.mjs` has 6 importers and `backfill-bodies.mjs` one store-outcome set; neither names a chain in a dispatch. Chain-Data-Ingestion 4.8 states the concern as separate from prestate for every chain.",
+      "limit": "Measured as a module-and-importer count. No non-Aztec chain drives `backfill-bodies.mjs` today, so the agnostic placement rests on the absence of chain literals in it rather than on two chains having used it."
+    },
+    {
+      "concern": "block enumeration",
+      "ingSevenName": "block enumeration",
+      "classification": "network-specific",
+      "unit": "tool",
+      "evidence": "Four separate enumerators exist and none is shared: `ingest-range.mjs` (Aztec), `capture-eth-range.mjs`, `capture-sol-window.mjs`, `capture-sui-range.mjs`. The window itself differs in kind - blocks, slots, checkpoints - so there is nothing for a shared enumerator to enumerate."
+    },
+    {
+      "concern": "finality and reorg",
+      "ingSevenName": "finality and reorg",
+      "classification": "network-specific",
+      "unit": "tool",
+      "evidence": "`follow-chain.mjs` (Aztec) and `follow-eth-chain.mjs` are two tools, 34,798 and 54,629 bytes, with no shared module between them."
+    },
+    {
+      "concern": "prestate acquisition",
+      "ingSevenName": "prestate acquisition",
+      "classification": "network-specific",
+      "unit": "implementing repository",
+      "evidence": "It is not in this repository at all: `check-prestate-ledger.pl` R6 counts files naming prestate per implementing repo and reports `built: some` for 4 of 10 charters, each in its own recorder repo. The one thing the chains share is the TOKEN they publish (`provenance.prestateStrategy`), which is a closed set and not an implementation."
+    },
+    {
+      "concern": "refusal reasons",
+      "ingSevenName": "refusal reasons",
+      "classification": "network-agnostic",
+      "unit": "module, counted by importer and by language",
+      "evidence": "`lib/refusal.mjs` has 15 importers including all five producers, its members live in `refusal-reasons.json` and `src/blocktracer/chain/refusal_reasons.nim` reads the same bytes with `staticRead`. One closed set across two languages and five chains - the strongest agnostic placement in this table, and the only one with five chains actually using it."
+    },
+    {
+      "concern": "mirroring",
+      "ingSevenName": "mirroring",
+      "classification": "network-agnostic",
+      "unit": "module",
+      "evidence": "The mirror is `lib/body-proxy.mjs` plus `backfill-bodies.mjs`'s store, keyed by block number and content hash, with no chain in the key.",
+      "limit": "One chain uses it. Classified agnostic on the absence of chain-specific code, which is weaker evidence than two consumers, and said so."
+    },
+    {
+      "concern": "scheduling",
+      "ingSevenName": "scheduling",
+      "classification": "network-specific",
+      "unit": "tool",
+      "evidence": "Only two files mention scheduling at all - `ingest-range.mjs` (Aztec's) and `lib/solana-producer-facts.mjs` (Solana's own scheduler notion, inside its facts module). There is no shared scheduler to classify, and the two mentions are about different things."
+    },
+    {
+      "concern": "container reading",
+      "ingSevenName": "not in ING-7's list; added because the measurement found it",
+      "classification": "network-agnostic",
+      "unit": "declaration",
+      "evidence": "The CTFS header check had 5 copies across the five producers (4 as a named function in 3 distinct texts, 1 inline in sol's `readContainer`) and every copy asserted the same four magic bytes and read the same offset. It is a fact about the trace format. Extracted as `containerVersion`, 5 consumers.",
+      "doesNotExtend": "The rest of `readContainer` is NOT agnostic: 5 definitions in 5 distinct texts, for measured reasons - sui streams because one mainnet transaction's event listing exceeds the longest string the engine can hold, starknet streams because a transaction can run a million steps, sol raises `maxBuffer` to 1<<30 instead. Classified network-specific and refused as an extraction."
+    },
+    {
+      "concern": "the published execution partition",
+      "ingSevenName": "not in ING-7's list; added because the measurement found it",
+      "classification": "network-agnostic over the chains that publish ONE execution environment per transaction",
+      "unit": "declaration",
+      "evidence": "`executionsForRow` had 5 definitions and 1 distinct text across the five per-chain facts modules, against 5-in-5 for `costVectorForRow`, 5-in-5 for `rolesForRow` and 4-in-4 for `payloadForRow`. Extracted as `oneExecutionPerTransaction`, 5 consumers.",
+      "andTheAxisIsNotTheClass": "The five chains that share this text span three of the seven prestate classes (replay-preceding x2, version-addressed, forward-capture) plus flow. Aztec's `lib/producer-facts.mjs` declares `() => [{ selector: 'public' }]` and is NOT a consumer. So the axis is the execution-environment COUNT, which is neither the chain nor the prestate class."
+    }
+  ],
+  "components": [
+    {
+      "component": "operational refusal and its exit code",
+      "declarations": [
+        "refuse",
+        "die",
+        "ConfigRefusal",
+        "SourceRefusal"
+      ],
+      "unit": "declaration",
+      "classification": "network-agnostic",
+      "before": {
+        "definitions": 5,
+        "distinctTexts": 3,
+        "behaviours": 2,
+        "groups": [
+          [
+            "eth",
+            "flow",
+            "starknet"
+          ],
+          [
+            "sol"
+          ],
+          [
+            "sui"
+          ]
+        ]
+      },
+      "evidence": "Three producers tagged an ordinary Error with a string field; two declared `class ConfigRefusal extends Error {}` and `class SourceRefusal extends Error {}`. Three texts, TWO behaviours - sol's `(Cls,msg)=>new Cls(msg)` and sui's `(Kind,msg)=>new Kind(msg)` differ only in a parameter name. All five printed `where: message` and exited 2 on a configuration refusal, 1 otherwise.",
+      "extractedAs": [
+        "refuseOperation",
+        "dieOperational",
+        "CONFIG_REFUSAL",
+        "SOURCE_REFUSAL"
+      ],
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ],
+      "sideEffect": "`.mjs` classes under tools/chain fell 10 -> 6. DEL-5's `test_no_abstraction_was_introduced` recorded the 7 -> 10 rise and left it 'for DEL-7, which is where a second producer's shapes are compared'."
+    },
+    {
+      "component": "the CTFS container header",
+      "declarations": [
+        "containerVersion"
+      ],
+      "unit": "declaration",
+      "classification": "network-agnostic",
+      "before": {
+        "definitions": 4,
+        "distinctTexts": 3,
+        "inlineCopies": 1,
+        "groups": [
+          [
+            "eth"
+          ],
+          [
+            "flow"
+          ],
+          [
+            "starknet",
+            "sui"
+          ]
+        ]
+      },
+      "evidence": "Same four magic bytes, same version offset, in all five. The three texts differed only in the prose of the refusal, which is why the prose is a parameter and the check is not.",
+      "extractedAs": [
+        "containerVersion"
+      ],
+      "parameterVariation": "prose-only",
+      "parameterVariationMeans": "Every consumer passes the same option KEY SET except for the `note` option, which carries each producer's own sentence about what a snapshot container holds. Prose, not behaviour: the check, the magic bytes and the offset are identical for all five. Re-derived from the call sites.",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ],
+      "parameterOf": "containerVersion"
+    },
+    {
+      "component": "container-reader discovery",
+      "declarations": [
+        "ctPrintPath"
+      ],
+      "unit": "declaration",
+      "classification": "network-agnostic",
+      "classificationIsQualified": true,
+      "before": {
+        "definitions": 4,
+        "distinctTexts": 3,
+        "groups": [
+          [
+            "eth"
+          ],
+          [
+            "flow"
+          ],
+          [
+            "starknet",
+            "sui"
+          ]
+        ]
+      },
+      "evidence": "The mechanism is one: explicit flag, then $CT_PRINT, then fallbacks, first that exists.",
+      "extractedAs": [
+        "containerReaderPath"
+      ],
+      "parameterVariation": "behavioural",
+      "parameterVariationMeans": "The consumers pass DIFFERENT VALUES for the `fallbacks` and `hint` options, and the difference changes which binary is resolved. A behavioural variation requires a recorded finding, which is why this entry's `findings` is not empty.",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sui"
+      ],
+      "notAConsumer": {
+        "sol": "resolves its reader from --ct-print with its own default. Not made a consumer here: adding a fifth consumer for the count's sake is the self-fulfilling move this milestone refuses."
+      },
+      "findings": [
+        "container-reader-fallbacks-are-network-specific"
+      ],
+      "parameterOf": "containerReaderPath"
+    },
+    {
+      "component": "the argv grammar",
+      "declarations": [
+        "parseArgs"
+      ],
+      "unit": "declaration",
+      "classification": "network-agnostic",
+      "before": {
+        "definitions": 2,
+        "distinctTexts": 1,
+        "groups": [
+          [
+            "starknet",
+            "sui"
+          ]
+        ]
+      },
+      "evidence": "The only EXACT pair among the producers' duplicated declarations: 2 definitions, 1 distinct text.",
+      "extractedAs": [
+        "parseProducerArgs"
+      ],
+      "parameterVariation": "uniform",
+      "parameterVariationMeans": "Both consumers pass exactly (argv, { usage: USAGE }). Declared uniform, and a second argument group appearing at either call site is a red.",
+      "consumers": [
+        "starknet",
+        "sui"
+      ],
+      "parameterOf": "parseProducerArgs"
+    },
+    {
+      "component": "JSON off disk with a named source refusal",
+      "declarations": [
+        "readJson"
+      ],
+      "unit": "declaration",
+      "classification": "network-agnostic",
+      "before": {
+        "definitions": 3,
+        "distinctTexts": 2,
+        "groups": [
+          [
+            "flow"
+          ],
+          [
+            "starknet",
+            "sui"
+          ]
+        ]
+      },
+      "evidence": "starknet's and sui's two definitions were one text. flow's `readJson` is a different function - a one-line `JSON.parse(readFileSync(...))` with no refusal and a different arity - and is NOT folded in.",
+      "extractedAs": [
+        "readJsonOrRefuse"
+      ],
+      "consumers": [
+        "starknet",
+        "sui"
+      ]
+    },
+    {
+      "component": "the published execution partition",
+      "declarations": [
+        "executionsForRow"
+      ],
+      "unit": "declaration",
+      "classification": "network-agnostic over one-execution-environment chains",
+      "before": {
+        "definitions": 5,
+        "distinctTexts": 1,
+        "groups": [
+          [
+            "eth",
+            "flow",
+            "starknet",
+            "solana",
+            "sui"
+          ]
+        ]
+      },
+      "evidence": "The one `*ForRow` helper that was identical in all five facts modules.",
+      "extractedAs": [
+        "oneExecutionPerTransaction"
+      ],
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ]
+    },
+    {
+      "component": "the cost vector",
+      "declarations": [
+        "costVectorForRow"
+      ],
+      "unit": "declaration",
+      "classification": "network-specific",
+      "measured": {
+        "definitions": 5,
+        "distinctTexts": 5
+      },
+      "evidence": "Five definitions, five distinct texts, and the DIMENSION COUNT differs: eth states gas and, on a blob transaction, blob gas; starknet three; sol fee plus compute units; sui two. A shared implementation would have to name a dimension count no chain has."
+    },
+    {
+      "component": "the role partition",
+      "declarations": [
+        "rolesForRow"
+      ],
+      "unit": "declaration",
+      "classification": "network-specific",
+      "measured": {
+        "definitions": 5,
+        "distinctTexts": 5
+      },
+      "evidence": "Five definitions, five distinct texts."
+    },
+    {
+      "component": "the published payload",
+      "declarations": [
+        "payloadForRow"
+      ],
+      "unit": "declaration",
+      "classification": "network-specific",
+      "measured": {
+        "definitions": 4,
+        "distinctTexts": 4
+      },
+      "evidence": "Four definitions, four distinct texts; flow declares none at all."
+    },
+    {
+      "component": "the container reader",
+      "declarations": [
+        "readContainer"
+      ],
+      "unit": "declaration",
+      "classification": "network-specific",
+      "measured": {
+        "definitions": 5,
+        "distinctTexts": 5
+      },
+      "evidence": "Five definitions, five distinct texts, each for a measured reason - sui and starknet stream because a buffered read fails on their sizes, sol raises maxBuffer instead, sui has a second reader path through `codetracer-move-recorder positions`. REFUSED as an extraction: one implementation would have to adopt the most expensive of the five for all of them."
+    },
+    {
+      "component": "the instruction-set token",
+      "declarations": [
+        "INSTRUCTION_SET"
+      ],
+      "unit": "declaration",
+      "classification": "network-specific",
+      "measured": {
+        "definitions": 5,
+        "distinctValues": 5,
+        "values": {
+          "eth": "evm",
+          "flow": "cadence-ast",
+          "starknet": "cairo",
+          "solana": "sbf",
+          "sui": "move"
+        },
+        "destinations": {
+          "provenance.vm.instructionSet": [
+            "flow"
+          ],
+          "instruction listing `isa`": [
+            "eth",
+            "starknet",
+            "sol"
+          ],
+          "nowhere": [
+            "sui"
+          ]
+        }
+      },
+      "evidence": "Five declarations, five distinct values, two destinations. There is nothing to extract: the VALUES are the network-specific part and the CONTRACT that a producer declares one already lives in `snapshot-contract.json` and `src/blocktracer/contract/chain_profile.nim`. REFUSED as an abstraction.",
+      "findings": [
+        "sui-instruction-set-is-exported-and-imported-by-nothing"
+      ]
+    }
+  ],
+  "abstractions": [
+    {
+      "export": "refuseOperation",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ]
+    },
+    {
+      "export": "dieOperational",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ]
+    },
+    {
+      "export": "CONFIG_REFUSAL",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ]
+    },
+    {
+      "export": "SOURCE_REFUSAL",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ]
+    },
+    {
+      "export": "containerVersion",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ]
+    },
+    {
+      "export": "containerReaderPath",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sui"
+      ]
+    },
+    {
+      "export": "parseProducerArgs",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "starknet",
+        "sui"
+      ]
+    },
+    {
+      "export": "readJsonOrRefuse",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "starknet",
+        "sui"
+      ]
+    },
+    {
+      "export": "oneExecutionPerTransaction",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ]
+    }
+  ],
+  "refused": [
+    {
+      "candidate": "flag",
+      "definitions": 3,
+      "distinctTexts": 3,
+      "consumersAvailable": [
+        "eth",
+        "flow",
+        "sol"
+      ],
+      "reason": "Three consumers and three BEHAVIOURS: eth accepts `--name=value`, flow refuses a missing value as a configuration refusal, sol returns undefined. One implementation would silently change two producers' CLI semantics. Two consumers is the floor this milestone enforces, not a licence - the copies also have to be copies."
+    },
+    {
+      "candidate": "readContainer",
+      "definitions": 5,
+      "distinctTexts": 5,
+      "consumersAvailable": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ],
+      "reason": "Five consumers and five implementations, each diverging for a measured reason about container size and reader speed. The shared part - the header check - was extracted; the rest was refused."
+    },
+    {
+      "candidate": "INSTRUCTION_SET as a registry",
+      "definitions": 5,
+      "distinctTexts": 5,
+      "consumersAvailable": [
+        "eth",
+        "flow",
+        "starknet",
+        "solana",
+        "sui"
+      ],
+      "reason": "Five values, no shared implementation to extract, and the contract already has a home in the snapshot contract and the Nim chain profile."
+    },
+    {
+      "candidate": "a per-prestate-class seam",
+      "definitions": 0,
+      "distinctTexts": 0,
+      "consumersAvailable": [],
+      "reason": "REFUSED FOR WANT OF EVIDENCE, not deferred. The prestate-class gate reports INCONCLUSIVE under both readings, and the duplication measured here does not separate by class: see `verdictOnTheHypothesis` below. ING-7 predicted a per-class seam; this milestone refuses to build one on a prediction."
+    },
+    {
+      "candidate": "making sol a consumer of containerReaderPath",
+      "definitions": 1,
+      "distinctTexts": 1,
+      "consumersAvailable": [
+        "sol"
+      ],
+      "reason": "sol resolves its reader differently and did not need the shared helper. Converting it to raise a consumer count from 4 to 5 would be writing the measurement's answer into the subject."
+    },
+    {
+      "candidate": "an interface over lib/producer-facts.mjs",
+      "definitions": 1,
+      "distinctTexts": 1,
+      "consumersAvailable": [
+        "aztec"
+      ],
+      "reason": "Its header states it is 'a data module for ONE producer, not an interface over producers. There is no registry, no dispatch and no second implementation.' Nothing measured here contradicts that, so it is left untouched. The one member it shares a NAME with the five - `executionsForRow` - has a different body (`[{ selector: 'public' }]`), so Aztec is not a consumer of the extracted shape."
+    }
+  ],
+  "findings": [
+    {
+      "id": "container-reader-fallbacks-are-network-specific",
+      "against": "container-reader discovery",
+      "classifiedAs": "network-agnostic",
+      "whatHappened": "A component this classification calls network-agnostic needed a network-specific change. `produce-flow-snapshot.mjs` reads a DIFFERENT BINARY - the `flow-ct-print` flake package at the writer revision its recorder links - so the sibling-checkout fallback the other three share is not merely absent for Flow, it is WRONG for it: it would resolve to a reader that cannot open a Flow container.",
+      "recordedRatherThanReclassified": "The mechanism stays classified network-agnostic and the candidate LIST is a parameter. The component is not quietly reclassified network-specific to keep the classification looking right, and it is not quietly made uniform to keep the code looking shared.",
+      "measuredHow": "4 definitions in 3 distinct texts before extraction; flow's text was the one that named no sibling checkout.",
+      "subjectKind": "component"
+    },
+    {
+      "id": "flow-strategy-disagrees-with-the-ledger",
+      "against": "the prestate class of flow, which this classification needs in order to compare same-class against cross-class duplication",
+      "classifiedAs": "replay-preceding, from the producer",
+      "whatHappened": "`lib/flow-producer-facts.mjs` declares `PRESTATE_STRATEGY = 'replay-preceding'`. The CXP-4 ledger row for `flow` carries `undetermined` / `charter-defers`, and `check-prestate-ledger.pl` derives that cell from the CHARTER's text and never from the producer's declaration. So a shipped chain publishes a 1.4 token its ledger row says it has not chosen.",
+      "notActedOn": "The ledger is NOT edited here. Its `strategy` cell is an input to CXP-4's verdict, and changing it is the operator's and DEL-8's business, not a classification's. Both readings are carried in `verdictOnTheHypothesis` below and neither moves the verdict, because the `shared` cells are 0 in either case.",
+      "measuredHow": "`grep '^export const PRESTATE_STRATEGY' tools/chain/lib/*-producer-facts.mjs` against the ledger table in Chain-Expansion.milestones.org, 2026-10-22.",
+      "subjectKind": "ledger"
+    },
+    {
+      "id": "sui-instruction-set-is-exported-and-imported-by-nothing",
+      "against": "the instruction-set token",
+      "classifiedAs": "network-specific",
+      "whatHappened": "`lib/sui-producer-facts.mjs` exports `INSTRUCTION_SET = 'move'` and the whole tree contains exactly ONE occurrence of the name in a Sui context - that declaration. No producer imports it, so no spelling of it can reach a published row. This is the same defect `flow-producer-facts-selftest.mjs`'s own arm was written for on 2026-10-21, on a different chain.",
+      "notActedOn": "Adding `vm: { instructionSet: INSTRUCTION_SET }` to Sui's provenance would CHANGE PUBLISHED OUTPUT and decide a question this milestone has no standing to decide - whether Sui declares its format on the registry row or carries it as an instruction listing's `isa`. Recorded, not fixed.",
+      "measuredHow": "`grep -rn INSTRUCTION_SET tools src client` returns 1 line for sui against 2 for flow, 2 for eth, 2 for starknet and 2 for sol, 2026-10-22.",
+      "subjectKind": "component"
+    },
+    {
+      "id": "the-measurement-tool-counts-names-not-code",
+      "against": "any reading of `measure-producer-duplication.mjs`'s `shared functions` column as duplication",
+      "classifiedAs": "n/a - this is a finding against an instrument",
+      "whatHappened": "The column lists names DECLARED by both subjects, where a subject is a producer concatenated with its facts module. Four of the names it reports as shared - `costVectorForRow`, `executionsForRow`, `rolesForRow`, `payloadForRow` - were per-chain declarations with 5, 1, 5 and 4 distinct texts respectively, so the column conflated one shared contract with five separate implementations. After this extraction `executionsForRow` DROPS OUT of the column although its implementation is now genuinely shared, because the facts modules re-export it rather than declaring it, which is the same confusion from the other side.",
+      "notActedOn": "The tool is not changed. Its own header already says line identity is 'a floor on duplication, not a ceiling'; the defect is in the FUNCTION column, which has no such caveat, and amending an instrument in the same run as the measurement it feeds is its own hazard. The split is recorded here instead.",
+      "measuredHow": "Declaration extraction by brace balance over the five producers and the five facts modules, grouping definitions by normalised text, 2026-10-22.",
+      "subjectKind": "instrument"
+    },
+    {
+      "id": "the-adapter-count-has-moved",
+      "against": "DEL-7's own 'Why it cannot come earlier' section",
+      "classifiedAs": "n/a - this is a finding against a milestone figure",
+      "whatHappened": "DEL-7 states the word `adapter` occurs ZERO times in `tools/chain/` and `src/` combined. Re-derived 2026-10-22: it occurs 3 times - twice as `idna_adapter` in a vendored `tools/chain/nix/evm-recorder.Cargo.lock` and once in a prose comment in `lib/sui-graphql.mjs` quoting Chain-Data-Ingestion 4.6. As a CODE CONSTRUCT it is still zero, which is the claim the section rests on, and this extraction does not change that: the new module has no registry, no dispatch and no chain in a conditional.",
+      "notActedOn": "The milestone's sentence is corrected in this file rather than rewritten in place, because the figure it quoted was true of the tree it was written against.",
+      "subjectKind": "milestone"
+    }
+  ],
+  "verdictOnTheHypothesis": {
+    "question": "ING-7: is the axis of variation the prestate class rather than the chain identity? If so, two chains in one class share more ingestion code than two execution environments on one chain.",
+    "answer": "UNSUPPORTED. Not confirmed, and the one comparison that can be made points the other way or not at all depending on the reading.",
+    "method": "`measure-producer-duplication.mjs`: multiset intersection of normalised code lines of 25 or more characters over each producer concatenated with its facts module, as a percentage of the smaller subject. Run before and after this extraction.",
+    "beforeExtraction": {
+      "allTenPairsPercentOfSmaller": {
+        "eth-flow": 26.8,
+        "eth-sol": 25.7,
+        "flow-sol": 23.7,
+        "flow-sui": 20.7,
+        "sol-sui": 19.7,
+        "flow-starknet": 18.4,
+        "starknet-sol": 16.9,
+        "starknet-sui": 16.9,
+        "eth-starknet": 16.4,
+        "eth-sui": 15.7
+      },
+      "underTheLedgersFlowRow": {
+        "sameClassPairs": {
+          "eth-starknet": 16.4
+        },
+        "sameClassMeanPercent": 16.4,
+        "crossClassMeanPercent": 18.98,
+        "note": "The one same-class pair ranks 9th of 10 by share. The highest-sharing pair, eth-flow at 26.8, involves the chain the ledger says joins NO class."
+      }
+    },
+    "afterExtraction": {
+      "allTenPairsPercentOfSmaller": {
+        "eth-flow": 25.5,
+        "eth-sol": 25.4,
+        "flow-sol": 23.4,
+        "flow-sui": 20,
+        "sol-sui": 18,
+        "starknet-sol": 15.6,
+        "flow-starknet": 15.5,
+        "eth-sui": 14.6,
+        "eth-starknet": 13.7,
+        "starknet-sui": 11.4
+      },
+      "underTheLedgersFlowRow": {
+        "sameClassPairs": {
+          "eth-starknet": 13.7
+        },
+        "sameClassMeanPercent": 13.7,
+        "crossClassMeanPercent": 17,
+        "sameClassMeanAbsoluteLines": 48,
+        "crossClassMeanAbsoluteLines": 47.8
+      },
+      "underTheProducersFlowDeclaration": {
+        "sameClassPairs": {
+          "eth-starknet": 13.7,
+          "eth-flow": 25.5,
+          "flow-starknet": 15.5
+        },
+        "sameClassMeanPercent": 18.2,
+        "crossClassMeanPercent": 18.3,
+        "sameClassMeanAbsoluteLines": 55.7,
+        "crossClassMeanAbsoluteLines": 50.6
+      }
+    },
+    "whatTheTwoReadingsAgreeOn": "Neither separates. Under the ledger's flow row the single same-class pair shares LESS than the cross-class mean by percentage and the same by absolute line count; under the producer's declaration the two means are 18.2 against 18.3, which is no difference at all. A prediction that one figure exceeds another is not supported by two figures that match.",
+    "whyThisIsNotARefutation": "n=1 same-class pair under the authoritative reading, and n=3 under the other. One pair cannot refute a prediction about a population, and the percentage metric is confounded by file size - eth is 1,045 code lines and sol 359, so every eth pair's percentage is taken against a different denominator. The honest verdict is UNSUPPORTED with the direction recorded.",
+    "whatTheExtractionItselfSays": "The strongest evidence AGAINST the prediction is not the pair ranking but what was extractable: every one of the six abstractions is reached by chains spanning MORE THAN ONE prestate class, and the identical-across-all-five component (`oneExecutionPerTransaction`) is shared by chains in three different classes while the chain in a fourth class (Aztec, hydrated-from-node) is the one that does NOT share it. If the axis were the prestate class, the shared set would have come out partitioned by class. It came out partitioned by execution-environment count and by trace-format facts instead.",
+    "whatWasNotTouched": "The CXP-4 ledger's `shared` cells, which are the verdict's inputs. They count ACQUISITION parts shared within a prestate class. Nothing extracted here is acquisition - it is container reading, CLI plumbing and a row shape - and it is shared ACROSS class boundaries, so raising a `shared` cell on the strength of it would feed the verdict a figure that does not answer its question. The verdict is unchanged at INCONCLUSIVE and this milestone did not move it."
+  }
+}
