@@ -107,31 +107,37 @@ let
     proxyVendor = true;
     vendorHash = "sha256-GRCucoCX20ujvkfXrCUvTrZcaoaB+R5tUhQ0BzUyqbY=";
     env.GOTOOLCHAIN = "local";
-    # BLST WITHOUT ADX, because not every runner in the fleet has it.
+    # PORTABLE BLST, BECAUSE THE DEPLOY POOL IS MIXED.
     #
-    # `onflow/crypto` links blst, and blst's default build emits ADX
-    # multiply-accumulate instructions. On a host whose CPU does not implement
-    # them the helper dies the moment the library initialises — not with an
-    # error it can report, but with SIGILL, which arrives here as
+    # `onflow/crypto`'s cgo init traps with SIGILL when the CPU lacks an
+    # instruction its BLST build assumed (ADX/BMI2), and the message says to
+    # rebuild with this flag:
     #
     #     replay helper '…/cadence-replay-helper' exited with status 132:
     #     Caught SIGILL in flow_crypto_cgo_init, the BLST library (used by
     #     onflow/crypto) requires ADX support, build with
     #     CGO_CFLAGS="-O2 -D__BLST_PORTABLE__" to disable ADX code.
     #
-    # Measured on run 39699235392, `deploy / Deploy (blocktracer-dev)`, runner
-    # `mcl-004`: `flow-mainnet-capture` failed there, which failed
-    # `produced-captures`, which failed `site-staging` — so EVERY dev and
-    # staging deploy was blocked by one CPU feature. `live` builds `default`
-    # and does not copy produced captures in, which is the only reason
-    # production was not blocked with them.
+    # THE POOL IS THE POINT, and it is what rules out a simply-broken build:
+    # PR #78's preview deploy (run 39699235392, runner `mcl-004`) died in
+    # `flow_crypto_cgo_init`, while #77 built the SAME derivation successfully
+    # on 2026-10-20. Same bytes, different machine, different outcome.
+    # Portable BLST picks its code path at run time, so it runs on either.
     #
-    # The flag is the one the library's own message asks for. It costs
-    # throughput in the big-integer path and buys a binary that runs on every
-    # machine the fleet schedules onto, which is the right trade for a capture
-    # that runs once per build. It is a BUILD-time flag, not a runtime switch:
-    # the crash is in `flow_crypto_cgo_init`, before any of this helper's own
-    # code runs, so nothing downstream can detect or route around it.
+    # WHAT IT WAS BLOCKING, since the symptom is three derivations away from
+    # the cause: the capture failing fails `produced-captures`, which fails
+    # `site-staging` — the flake target EVERY deploy but `live` builds. `live`
+    # builds `default`, and `site-staging` is `default` with produced captures
+    # copied in, which is the only reason production was reachable while dev
+    # and staging were not.
+    #
+    # It has to be a BUILD-time flag: the crash is inside
+    # `flow_crypto_cgo_init`, before any of this helper's own code runs, so
+    # nothing downstream can detect it or route around it.
+    #
+    # (Two branches wrote this fix independently and the merge kept one
+    # declaration with both readings — the mixed-pool evidence came from
+    # `agents`, the derivation chain from this branch.)
     env.CGO_CFLAGS = "-O2 -D__BLST_PORTABLE__";
     postInstall = ''
       mv $out/bin/go-replay-helper $out/bin/cadence-replay-helper
