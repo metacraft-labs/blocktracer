@@ -2443,27 +2443,31 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     strategy:
       fail-fast: false
-      # ONE SHARD AT A TIME, down from two.
+      # TWO SHARDS AT A TIME. This was briefly set to 1, and the reason it is
+      # back is arithmetic that was not done first.
       #
-      # On run 39400689697 four of the eight shards lost their browser between
-      # `chromium.launch()` and the first `newPage` of Arm I. Shards 2 and 5
-      # passed the same commit on the same runner, so it is a condition of the
-      # host at that moment and not of the tree, and the shape of it — a
-      # browser that answers once and is gone a moment later — is what a host
-      # reclaiming memory from a neighbouring job looks like. Two shards of
-      # this suite are two chromiums plus two copies of a 17.8 MB wasm engine
-      # on a machine already serving the rest of the matrix.
+      # On run 39400689697 four of eight shards lost their browser between
+      # `chromium.launch()` and the first `newPage`, and memory pressure from a
+      # sibling shard was the reading that fit. Serialising is the one thing
+      # that removes that mechanism, so it was set to 1 as a test of the
+      # reading rather than as a dressing.
       #
-      # This is a TEST OF THAT READING and not a dressing: memory pressure from
-      # a sibling shard is the one mechanism serialising removes. If the deaths
-      # continue at `max-parallel: 1` the reading was wrong, and the refusal
-      # that `probe.mjs`'s liveness check now raises will say so in one line
-      # per shard instead of nine NEVER RANs that blame the arms.
+      # THEN AN ARM WAS TIMED. Run 39777105820, shard 2: a single arm took
+      # 570s, because every arm rebuilds the tree three times — before,
+      # mutated, after. Nine arms is ~86 minutes a shard, so eight shards
+      # serially is ELEVEN HOURS against under six at two. A gate nobody can
+      # get a verdict from inside a working day is the state `ci.yml`'s own
+      # concurrency comment describes as "no commit is gated in useful time",
+      # and it is not worth a hypothesis.
       #
-      # The cost is wall clock on a job that already runs after `journeys`, and
-      # it buys a verdict where there was none: four shards of this sweep have
-      # been reporting nothing at all.
-      max-parallel: 1
+      # WHAT IS KEPT IS THE DIAGNOSTIC, which is the half that was not
+      # speculative: `probe.mjs` now proves the browser is alive at
+      # `openBrowser` and raises a classified REFUSAL — exit 2, DID NOT RUN —
+      # when it is not. So the next occurrence arrives as one line per shard
+      # naming the host, instead of nine NEVER RANs that blame the arms. If it
+      # recurs often enough to matter, the next move is a bigger runner or a
+      # cheaper arm, not a longer queue.
+      max-parallel: 2
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
