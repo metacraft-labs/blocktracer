@@ -107,6 +107,12 @@ let
     proxyVendor = true;
     vendorHash = "sha256-GRCucoCX20ujvkfXrCUvTrZcaoaB+R5tUhQ0BzUyqbY=";
     env.GOTOOLCHAIN = "local";
+    # PORTABLE BLST. onflow/crypto's cgo init traps with SIGILL when the CPU lacks an
+    # instruction its BLST build assumed (ADX/BMI2), and says to rebuild with this flag.
+    # The deploy runners are a mixed pool: PR #78's preview deploy (run 39699235392,
+    # runner mcl-004) died in `flow_crypto_cgo_init` with exit 132 while #77 built the same
+    # derivation on 2026-10-20. Portable BLST selects its code path at run time.
+    env.CGO_CFLAGS = "-O2 -D__BLST_PORTABLE__";
     postInstall = ''
       mv $out/bin/go-replay-helper $out/bin/cadence-replay-helper
     '';
