@@ -107,6 +107,32 @@ let
     proxyVendor = true;
     vendorHash = "sha256-GRCucoCX20ujvkfXrCUvTrZcaoaB+R5tUhQ0BzUyqbY=";
     env.GOTOOLCHAIN = "local";
+    # BLST WITHOUT ADX, because not every runner in the fleet has it.
+    #
+    # `onflow/crypto` links blst, and blst's default build emits ADX
+    # multiply-accumulate instructions. On a host whose CPU does not implement
+    # them the helper dies the moment the library initialises — not with an
+    # error it can report, but with SIGILL, which arrives here as
+    #
+    #     replay helper '…/cadence-replay-helper' exited with status 132:
+    #     Caught SIGILL in flow_crypto_cgo_init, the BLST library (used by
+    #     onflow/crypto) requires ADX support, build with
+    #     CGO_CFLAGS="-O2 -D__BLST_PORTABLE__" to disable ADX code.
+    #
+    # Measured on run 39699235392, `deploy / Deploy (blocktracer-dev)`, runner
+    # `mcl-004`: `flow-mainnet-capture` failed there, which failed
+    # `produced-captures`, which failed `site-staging` — so EVERY dev and
+    # staging deploy was blocked by one CPU feature. `live` builds `default`
+    # and does not copy produced captures in, which is the only reason
+    # production was not blocked with them.
+    #
+    # The flag is the one the library's own message asks for. It costs
+    # throughput in the big-integer path and buys a binary that runs on every
+    # machine the fleet schedules onto, which is the right trade for a capture
+    # that runs once per build. It is a BUILD-time flag, not a runtime switch:
+    # the crash is in `flow_crypto_cgo_init`, before any of this helper's own
+    # code runs, so nothing downstream can detect or route around it.
+    env.CGO_CFLAGS = "-O2 -D__BLST_PORTABLE__";
     postInstall = ''
       mv $out/bin/go-replay-helper $out/bin/cadence-replay-helper
     '';
