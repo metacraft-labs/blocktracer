@@ -495,7 +495,7 @@ has drifted.
 | `--bt-density-data-size` | bkToken | `{type.fontSize.sm}` | — |
 | `--bt-density-line` | bkLiteral | `1.6` | [D-01](#d-01) |
 | **`register.debugger`** | | | |
-| `--bt-density-body-size` | bkToken | `{type.fontSize.sm}` | — |
+| `--bt-density-body-size` | bkToken | `{type.fontSize.md}` | — |
 | `--bt-density-card-pad` | bkToken | `{scale.450}` | — |
 | `--bt-density-cell-x` | bkToken | `{scale.350}` | — |
 | `--bt-density-cell-y` | bkToken | `{scale.250}` | — |

@@ -403,7 +403,7 @@
         "control-x": { "$type": "dimension", "$value": "{scale.450}" },
         "card-pad": { "$type": "dimension", "$value": "{scale.450}" },
         "line": { "$type": "number", "$value": "1.35", "$extensions": { "bt.divergence": "D-01" } },
-        "body-size": { "$type": "dimension", "$value": "{type.fontSize.sm}" },
+        "body-size": { "$type": "dimension", "$description": "16px, NOT the 14px this was. It sets the ROOT font size on `<html data-register=\"debugger\">`, and every dimension of the vendored CodeTracer window chrome is an `em` or `rem` off it: tab height (1.5rem), tab padding (0.5em), corner radius (0.36em), the active tab's shadow bridge (0.48em), its connector curves (1.625em / 0.625em), the strip gap (0.25em) and the panel inset. At 14px every one of them rendered at 87.5% of the product's \u2014 a 21px tab against CodeTracer's 24px, a 12.25px label against its 14px \u2014 so BlockTracer drew CodeTracer's window at seven-eighths scale. Measured against noirstudio.dev in replay mode, whose root is 16px. The debugger stays denser than the explorer through `cell-y`, `cell-x`, `control-*`, `card-pad` and `line`, which is where register density belongs; shrinking the root instead silently rescaled rules this repo does not own.", "$value": "{type.fontSize.md}" },
         "data-size": { "$type": "dimension", "$value": "{type.fontSize.xs}" }
       }
     }
