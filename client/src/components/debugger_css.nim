@@ -469,11 +469,7 @@ a.lm_title{display:block;line-height:inherit}
    pitch: L3 measured the last fully-inside-the-box line at 2.19-2.22:1 against
    the floor, so the ramp stays at `lg` rather than lengthening, and the next
    move is a different treatment rather than a different number. */
-.lm_content{flex:1 1 0;min-height:0;overflow:auto;
-  -webkit-mask-image:linear-gradient(to bottom,currentColor
-    calc(100% - var(--bt-space-lg)),transparent);
-  mask-image:linear-gradient(to bottom,currentColor
-    calc(100% - var(--bt-space-lg)),transparent)}
+.lm_content{flex:1 1 0;min-height:0;overflow:auto}
 
 /* ── a note INSIDE a panel, which is not an empty panel ─────────────────── */
 /* NO CODETRACER COUNTERPART, and upstream says so itself. `empty_states.styl`
@@ -733,8 +729,22 @@ a.lm_title{display:block;line-height:inherit}
    surface rather than a colour of its own, so it is not a shadow in the visual
    sense at all: it is a soft mask that fades the text approaching the chip
    instead of clipping it, and it is invisible when the tab is in its natural
-   position with nothing underneath to fade. Same idiom as the code pane's
-   right-edge fade — one overflow treatment on this page, and it is the fade. */
+   position with nothing underneath to fade.
+
+   IT IS NOW THE ONLY MASK OF ITS KIND ON THE PAGE. This used to read "same
+   idiom as the code pane's right-edge fade"; that fade, and the five other
+   `mask-image` fades this repository carried, were removed because
+   CodeTracer's own chrome spends no gradients and the operator's report was
+   that they are what BlockTracer does and the product does not. So the
+   sentence naming a sibling was left pointing at a rule that no longer
+   exists. All six that went were `mask-image`; the `box-shadow` below was
+   never one of them, which is why it is still here to be explained.
+
+   IT SURVIVES ON DIFFERENT GROUNDS from the ones that went. Those were
+   decoration over a scroll edge. This is the occlusion a sticky chip needs in
+   order not to cut the tab passing beneath it mid-glyph. If that need goes
+   away — a tab strip that cannot overflow, or a pin that is not sticky — this
+   goes with it rather than becoming a house style. */
 .srctab.on{position:sticky;left:0;right:0;z-index:1;
   background:var(--bt-surface-sunken);
   box-shadow:0 0 var(--bt-space-xs) var(--bt-space-3xs) var(--bt-surface-sunken);
@@ -906,12 +916,19 @@ a.lm_title{display:block;line-height:inherit}
   font-size:var(--bt-type-code-size);line-height:var(--bt-type-code-line);
   color:var(--bt-text-code);background:var(--bt-surface-raised);
   padding:var(--bt-space-2xs) 0;min-width:0;flex:1 1 0;overflow:auto}
-.src,.mdsec pre.raw{
-  -webkit-mask-image:linear-gradient(to right,currentColor
-    calc(100% - var(--bt-space-2xl)),transparent);
-  mask-image:linear-gradient(to right,currentColor
-    calc(100% - var(--bt-space-2xl)),transparent);
-  -webkit-mask-clip:padding-box;mask-clip:padding-box}
+/* ── NO SCROLL-EDGE FADE: CODETRACER HAS NO GRADIENT ANYWHERE ─────────────
+   Measured across all eight vendored CodeTracer component stylesheets:
+   ZERO occurrences of `gradient` of any kind. This repository had six, and
+   all six were this one idea — a `mask-image` dissolving the last
+   `--bt-space-2xl` (or `lg`) of a scroller to say "the content continues".
+   It is a real affordance and it is not upstream's; a reader with both
+   products open sees BlockTracer's panes dissolve at an edge where
+   CodeTracer's end on a hard line, and the fade is the most visible of the
+   differences because it is in motion whenever anything scrolls.
+
+   Removed rather than tokenised. What replaces it is the browser's own
+   scrollbar and the hard edge upstream uses, which is the whole of
+   CodeTracer's answer to the same question. */
 /* `min-width:max-content` stops a row being narrower than its own text, so a
    long line is not wrapped or squeezed by the pane it scrolls inside.
 

@@ -494,11 +494,20 @@ body:has(> .foot){min-height:100%;display:flex;flex-direction:column}
    moves — `border` is already in this element's box model, so this changes
    what is painted and not what is laid out. */
 .tablewrap{overflow-x:auto;border:var(--bt-stroke-hairline) solid var(--bt-border-default);border-radius:var(--bt-radius-md);background:var(--bt-surface-raised);
-  -webkit-mask-image:linear-gradient(to right,currentColor
-    calc(100% - var(--bt-space-2xl)),transparent);
-  mask-image:linear-gradient(to right,currentColor
-    calc(100% - var(--bt-space-2xl)),transparent);
-  -webkit-mask-clip:border-box;mask-clip:border-box}
+}
+/* ── NO SCROLL-EDGE FADE: CODETRACER HAS NO GRADIENT ANYWHERE ─────────────
+   Measured across all eight vendored CodeTracer component stylesheets:
+   ZERO occurrences of `gradient` of any kind. This repository had six, and
+   all six were this one idea — a `mask-image` dissolving the last
+   `--bt-space-2xl` (or `lg`) of a scroller to say "the content continues".
+   It is a real affordance and it is not upstream's; a reader with both
+   products open sees BlockTracer's panes dissolve at an edge where
+   CodeTracer's end on a hard line, and the fade is the most visible of the
+   differences because it is in motion whenever anything scrolls.
+
+   Removed rather than tokenised. What replaces it is the browser's own
+   scrollbar and the hard edge upstream uses, which is the whole of
+   CodeTracer's answer to the same question. */
 /* The gutter the fade lands on when there is nothing to scroll. Applied to the
    last column in BOTH rows so the header label and its values keep sharing an
    edge — `th.num`/`td.num` are right-aligned, so a gutter on one and not the
