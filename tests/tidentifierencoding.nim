@@ -2235,7 +2235,13 @@ suite "the boundary: who knows about each half of the seam":
     # corrupting it. The sweep asks who NAMES the member, so both belong — but
     # only the first kind is a consumer, and a future reviewer counting
     # "consumers" from this number would over-count by one.
-    ck expectedLen("declaration", "tools") == 3
+    #
+    # EIGHT AND NOT THREE: from 2026-10-20 the PRODUCERS that declare the member
+    # joined, a third kind beside readers and exempters — the Sui producer and its
+    # selftest (base58 digests), then Starknet's producer and selftest and Solana's
+    # producer. This suite runs in no CI job, which is how the figure stayed at three
+    # while the census and its JavaScript twin moved.
+    ck expectedLen("declaration", "tools") == 8
     ck expectedLen("caseRule", "src") == 6
     ck expectedLen("caseRule", "client") == 3
     ck expectedLen("caseRule", "tools") == 1
