@@ -109,6 +109,32 @@ const DIALOG = "#dbg-shortcuts";
  * A predicate, never a sleep — journey 03's rule, for its reason: a chord that
  * moves nothing must be a timeout with all three reported, rather than a race
  * this suite happened to lose.
+ *
+ * `FIRST` IS NOT `ALL`, AND THIS LOST A DAY TO THE DIFFERENCE. The loop below
+ * breaks on the FIRST of the three to move, and the three do not land
+ * together: a step writes `data-step` and repaints the mark, and the URL is
+ * written separately. Breaking on `step` and then asserting on `urlQuery` is
+ * reading a state before the event that produces it, which is this suite's
+ * oldest mistake and the one it has the most comments about.
+ *
+ * It surfaced as a chord that had plainly WORKED being reported as a chord
+ * that never reached the engine:
+ *
+ *     [FAILED] CONTROL: the keystroke reached the engine … t=1 -> t=1
+ *     [OK]     the chord advanced the step the session reports — 1 -> 2
+ *     [OK]     the chord moved the marked line — marked line 1 -> 2
+ *
+ * — three assertions about one keystroke, disagreeing with each other. Driven
+ * by hand against the same build, the URL does advance (t=1 -> 2 -> 3 on
+ * clicks, 3 -> 4 -> 5 on `n`), so the product was never the thing at fault.
+ *
+ * So the wait is now in two parts, and they are different questions. The first
+ * is "did the chord land at all", which ANY of the three answers. The second
+ * is `settleUrlQuery`, asked only of the control that is about the URL: once
+ * something has moved, give the URL its own budget to catch up. A chord that
+ * moves the step and never writes the URL is still a failure, and now it is
+ * one after four seconds of asking rather than inside the same millisecond the
+ * step arrived.
  */
 async function chordOnce(page, key, before) {
   await page.keyboard.press(key);
@@ -125,6 +151,25 @@ async function chordOnce(page, key, before) {
     await page.waitForTimeout(200);
   }
   return after;
+}
+
+/**
+ * The facts again, once the URL has had its own chance to move.
+ *
+ * Returns the LAST reading either way, so a URL that never moves is reported
+ * with everything else that did — which is what makes the control's failure
+ * message a diagnosis rather than a bare mismatch.
+ */
+async function settleUrlQuery(page, before, after) {
+  if (after.urlQuery !== before.urlQuery) return after;
+  const deadline = Date.now() + 4000;
+  let latest = after;
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(200);
+    latest = await readFacts(page);
+    if (latest.urlQuery !== before.urlQuery) break;
+  }
+  return latest;
 }
 
 /** What the shortcuts surface says about itself, read out of the rendered DOM. */
@@ -256,7 +301,7 @@ export async function run({ browser, site, j }) {
     // the correct outcome for a journey that claims a visitor can step from
     // the keyboard.
     const before = live.facts;
-    const after = await chordOnce(page, "n", before);
+    const after = await settleUrlQuery(page, before, await chordOnce(page, "n", before));
 
     j.expect(
       after.urlQuery !== before.urlQuery,
