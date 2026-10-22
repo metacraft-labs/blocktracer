@@ -20,7 +20,8 @@
       "address": "hex"
     },
     "vm": { "instructionSet": "example-isa/1" },
-    "reachReason": "history starts where this example capture began, not at any limit of a node"
+    "reachReason": "history starts where this example capture began, not at any limit of a node",
+    "verification": "each example trace is compared with the outcome the example chain recorded, and one that cannot be compared is refused"
   },
   "window": {
     "tip": 1002,

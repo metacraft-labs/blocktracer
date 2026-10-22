@@ -1190,6 +1190,12 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # thing, and the reader's sentence would tell a visitor a node limit that does not exist.
   # So a producer may state the reason in its own words, and this reader carries them
   # verbatim, as it carries `vm`. Absent, the wrong shape and empty are one answer: none.
+  # …AND HOW ITS TRACES ARE CHECKED, in the same words-of-the-producer form. Only the
+  # producer knows what it compared each trace against and what it did with one it could
+  # not check, so the reader carries the sentence and composes none of it.
+  let declaredVerification =
+    if prov != nil and prov.kind == JObject: parseVerification(prov{"verification"})
+    else: ""
   let declaredReachReason =
     if prov != nil and prov.kind == JObject and prov{"reachReason"} != nil and
         prov{"reachReason"}.kind == JString:
@@ -3055,7 +3061,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # inputs publishes a row short of the member, and a consumer built before the
   # member existed reads a row carrying it and answers identically.
   var profile = ChainProfile(reach: reachFromWindow(hasBoundary,
-                                                    replayableFromAt, finalizedAt))
+                                                    replayableFromAt, finalizedAt),
+                             verification: declaredVerification)
   if hasBoundary:
     profile.floor = ChainHistoryFloor(stated: true, height: replayableFromAt,
       # The producer's own words, and they state the MEASUREMENT rather than a

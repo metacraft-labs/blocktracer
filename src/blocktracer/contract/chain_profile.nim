@@ -151,12 +151,18 @@ type
     floor*: ChainHistoryFloor
     ordering*: ChainOrdering
     vm*: ChainVmIdentity
+    verification*: string
+      ## The producer's own sentence for how each trace on this chain is checked,
+      ## and what happens to one that cannot be — verbatim, or empty when it said
+      ## nothing. Like `historyFloor.reason` it is a QUOTATION: the reader composes
+      ## no part of it, because only the producer knows what it compared.
 
 const
   ReachMember* = "reach"
   FloorMember* = "historyFloor"
   OrderingMember* = "ordering"
   VmMember* = "vm"
+  VerificationMember* = "verification"
   InstructionSetMember* = "instructionSet"
   KindMember* = "kind"
   HeightMember* = "height"
@@ -289,6 +295,13 @@ func parseVmIdentity*(n: JsonNode): ChainVmIdentity =
     return ChainVmIdentity()
   ChainVmIdentity(stated: true, instructionSet: isa.getStr)
 
+func parseVerification*(n: JsonNode): string =
+  ## The `verification` sentence. Absent, the wrong shape and blank are one
+  ## answer, nothing was said, for `vm`'s reason: a consumer cannot act on the
+  ## difference, and a page must not quote an empty pair of marks.
+  if n == nil or n.kind != JString: return ""
+  n.getStr.strip
+
 func parseChainProfile*(row: JsonNode): ChainProfile =
   ## The whole profile out of one registry row. An absent row is an absent
   ## profile, which is the compatibility case and not an error: published data
@@ -299,7 +312,8 @@ func parseChainProfile*(row: JsonNode): ChainProfile =
     reach: parseReach(row{ReachMember}),
     floor: parseHistoryFloor(row{FloorMember}),
     ordering: parseOrdering(row{OrderingMember}),
-    vm: parseVmIdentity(row{VmMember}))
+    vm: parseVmIdentity(row{VmMember}),
+    verification: parseVerification(row{VerificationMember}))
 
 func refusals*(p: ChainProfile): seq[string] =
   ## Every sentence this row earned, in a fixed order so two runs over one tree
@@ -389,6 +403,8 @@ func chainProfileNode*(p: ChainProfile): JsonNode =
     result[OrderingMember] = %*{KindMember: $p.ordering.kind}
   if p.vm.stated:
     result[VmMember] = %*{InstructionSetMember: p.vm.instructionSet}
+  if p.verification.len > 0:
+    result[VerificationMember] = %p.verification
 
 proc mergeChainProfile*(row: JsonNode; p: ChainProfile) =
   ## Write `p`'s stated members onto a registry row, in place.

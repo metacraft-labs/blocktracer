@@ -75,6 +75,10 @@ type
       ## reader is entitled to see which is which.
     isa*: string
       ## The instruction-set sentence, or empty when the row declares none.
+    verification*: string
+      ## The producer's own sentence for how each trace is checked, verbatim, or
+      ## empty. A QUOTATION for `note`'s reason. Unlike `note` it is carried
+      ## whatever the reach, because it is about the traces and not the boundary.
 
 const
   ReachHeading* = "How far back this chain can be debugged"
@@ -222,7 +226,8 @@ func reachStatement*(p: ChainProfile): ReachStatement =
          p.vm.instructionSet & " instruction set. Where a contract's source " &
          "cannot be resolved, that is the granularity a step is reported at — " &
          "each transaction's page states which of the two it got."
-       else: ""))
+       else: ""),
+    verification: p.verification)
 
 func transactionsPhrase(n: int): string =
   if n == 1: "1 transaction" else: $n & " transactions"
@@ -276,3 +281,8 @@ proc reachSection*(p: ChainProfile, tracesPublished = -1,
           text "”"
       if st.isa.len > 0:
         p(class = "muted measure"): text st.isa
+      if st.verification.len > 0:
+        p(class = "muted measure"):
+          text "How each trace on this chain is checked, in the pipeline's own words: “"
+          text st.verification
+          text "”"
