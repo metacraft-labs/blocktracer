@@ -71,6 +71,13 @@ import {
 // what the artifact gives this recording is NAMES — every Cairo function, type and
 // libfunc in the listing — and not lines, unless the build recorded statement locations,
 // which `codeLocations` states. `recording.sourceLevel` is not raised by a binding.
+/** The Cairo files of `rec` that class `classHash`'s own steps were shown in. */
+function cairoFilesOf(rec, classHash) {
+  const row = (rec.report.classes ?? []).find((k) => k.classHash === classHash);
+  const want = new Set(row?.cairoSources ?? []);
+  return rec.listings.filter((L) => L.classHash === null && want.has(L.interned));
+}
+
 export function artifactRow(k, r) {
   const address = (r.frames.find((f) => f.classHash === k.classHash) ?? {}).contract ?? '';
   const src = k.source ?? null;
@@ -89,10 +96,16 @@ export function artifactRow(k, r) {
         + 'class version and ABI, and the class hash recomputed from the chain\'s answer — so '
         + `its debug info names the program: ${src.functionsNamed} Cairo functions, and every `
         + 'type and libfunc, are named in the listing. '
-        + (src.codeLocations
-          ? 'The build also records a Cairo file and line per Sierra statement.'
-          : 'Its compiler records no file and line per statement, so steps stay positioned '
-            + 'on CASM instructions, under those names.'),
+        + (!src.codeLocations
+          ? 'Its compiler records no file and line per statement, so steps stay positioned '
+            + 'on CASM instructions, under those names.'
+          : (k.cairoSources ?? []).length > 0
+            ? 'The build also records a Cairo file and line per Sierra statement, and its '
+              + `sources are republished, so this class's steps are shown at those lines, in `
+              + `${k.cairoSources.length} file(s); a step whose statement has no location `
+              + 'stays on its CASM instruction.'
+            : 'The build records a Cairo file and line per Sierra statement, but its sources '
+              + 'are not republished here, so steps stay positioned on CASM instructions.'),
       sourceBinding: src.provenance ?? null,
     };
   }
@@ -318,6 +331,24 @@ export async function main(argv) {
         // ONE LISTING PER INTERNED PATH, located by the name the recorder gave it inside
         // THIS transaction's own capture, never by arithmetic on the interned string.
         rec.listings = rec.c.paths.map((interned) => {
+          // A CAIRO SOURCE FILE, interned by the recorder for a class bound to a proved
+          // build that embeds its sources (`./sources/cairo/<package@version or root>/…`).
+          // It is published under `cairo/<…>`, a trailing suffix of the interned path, and
+          // carries no instruction listing: a step there is placed at a source line.
+          const cm = /^\.\/sources\/(cairo\/.+\.cairo)$/.exec(interned);
+          if (cm) {
+            if (cm[1].split('/').includes('..')) {
+              throw refuse(SOURCE_REFUSAL, `${src} interns ${interned}, which climbs out of `
+                + 'its capture directory.');
+            }
+            const file = join(tdir, 'sources', cm[1]);
+            if (!existsSync(file)) {
+              throw refuse(SOURCE_REFUSAL, `${src} interns ${interned} and ${file} does not exist.`);
+            }
+            const text = readFileSync(file, 'utf8');
+            return { interned, publishedPath: cm[1], classHash: null, text, listing: null,
+                     lines: text.split('\n').length };
+          }
           const name = interned.split('/').pop();
           const m = /^(0x[0-9a-f]{1,64})\.casm$/.exec(name);
           if (!m) {
@@ -330,8 +361,9 @@ export async function main(argv) {
             throw refuse(SOURCE_REFUSAL, `${src} interns ${interned} and ${file} does not exist.`);
           }
           const text = readFileSync(file, 'utf8');
-          return { interned, publishedPath: name, classHash: m[1], text,
-                   listing: parseListing(text) };
+          const listing = parseListing(text);
+          return { interned, publishedPath: name, classHash: m[1], text, listing,
+                   lines: listing.length };
         });
         // Every step lands inside its own listing, or nothing is published: an
         // out-of-range (path, line) would place a step at an instruction it did not run.
@@ -339,7 +371,7 @@ export async function main(argv) {
         for (let i = 0; i < rec.c.pathId.length; i++) {
           const L = rec.listings[rec.c.pathId[i]];
           const ln = rec.c.line[i];
-          if (!L || ln < 1 || ln > L.listing.length) bad.push(i);
+          if (!L || ln < 1 || ln > L.lines) bad.push(i);
           if (bad.length > 5) break;
         }
         if (bad.length > 0) {
@@ -417,6 +449,13 @@ export async function main(argv) {
       const c = rec.c;
       const steps = c ? c.counts.steps : r.container.steps;
       const positioned = c ? c.pathId.filter((p, i) => p !== null && c.line[i] > 0).length : 0;
+      // MEASURED, never declared: source level means EVERY step sits on a Cairo source line
+      // (a class bound to a proved build whose sources are republished). One step on a CASM
+      // listing — any class with no such build, or a statement its build did not locate —
+      // makes it false, which is the AND Data-Contract §5.2b defines.
+      const onSource = c ? c.pathId.filter((p) => rec.listings[p]?.classHash === null).length : 0;
+      rec.sourceLevel = c ? steps > 0 && onSource === steps : false;
+      rec.stepsOnSource = onSource;
       rows.push({
         ...base,
         outcome: reproduced ? 'replayed' : 'divergent',
@@ -434,9 +473,9 @@ export async function main(argv) {
           steps,
           callsOpened: c ? c.counts.calls : r.container.entryPointFrames + r.container.internalCalls,
           logEvents: c ? c.counts.io_events : r.container.eventsWritten,
-          // `false`, measured: every position points into a CASM listing, because a
-          // declared class carries no debug info mapping a pc to a Cairo line.
-          sourceLevel: false,
+          sourceLevel: rec.sourceLevel,
+          // How many steps are on a Cairo source line rather than a CASM listing line.
+          stepsOnSource: rec.stepsOnSource,
           stepsPositioned: positioned,
           stepsUnpositioned: steps - positioned,
           contexts: rec.listings ? rec.listings.length : r.classes.length,
@@ -530,23 +569,36 @@ export async function main(argv) {
     // `./sources/<class hash>.casm`, which is how the source island matches them.
     writeJson(`sources/${txHash}.json`, {
       txHash,
-      sourceLevel: false,
-      bundles: listings.map((L) => ({
+      sourceLevel: rec.sourceLevel,
+      // A class bound to a proved build that embeds its sources ALSO carries the Cairo
+      // files its own steps were shown in (the recorder's `classes[].cairoSources`), in
+      // the same bundle: the reader keys bundles by class. Its language is then `cairo`.
+      bundles: listings.filter((L) => L.classHash !== null).map((L) => {
+        const cairo = cairoFilesOf(rec, L.classHash);
+        return {
         address: row.artifacts.find((a) => a.contractClassId === L.classHash)?.address ?? '',
         codeHash: L.classHash,
-        files: { [L.publishedPath]: L.text },
+        files: { [L.publishedPath]: L.text,
+                 ...Object.fromEntries(cairo.map((F) => [F.publishedPath, F.text])) },
         origin: 'CASM compiled by the recorder from the Sierra class starknet_getClass '
           + `served at block ${row.preStateReadAt}`
           + (row.artifacts.find((a) => a.contractClassId === L.classHash)?.resolved
             ? ', labelled with the names of a build of its source proved against that class'
+            : '')
+          + (cairo.length
+            ? `; and ${cairo.length} Cairo source file(s) of that build, read by it, which `
+              + 'the steps of this class are shown in where the build located them'
             : ''),
-        shape: 'disassembly',
+        shape: cairo.length ? 'source' : 'disassembly',
         corroboration: 'single-distributor',
         agreeingDistributors: ['the chain itself'],
-        language: POSITION_LANGUAGE,
-      })),
+        language: cairo.length ? 'cairo' : POSITION_LANGUAGE,
+        };
+      }),
     });
-    const at = (i) => listings[c.pathId[i]]?.listing[c.line[i] - 1] ?? null;
+    // A step on a Cairo source line has no instruction listing behind it, so its pc
+    // and opcode are not stated (null), never guessed.
+    const at = (i) => listings[c.pathId[i]]?.listing?.[c.line[i] - 1] ?? null;
     const pc = new Array(c.pathId.length);
     const op = new Array(c.pathId.length);
     let counters = 0;

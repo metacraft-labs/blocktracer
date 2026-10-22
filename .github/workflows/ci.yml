@@ -945,7 +945,7 @@ jobs:
         run: node tools/chain/sui-producer-selftest.mjs
 
       - name: Does the Starknet producer state its chain's facts and refuse what it cannot publish?
-        # 29 assertions, host-independent: every arm is offline and needs only node.
+        # 31 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Starknet producer's three-dimension cost vector and fee, the roles each
         # transaction type has (none for an L1 handler), the multicall payload, and the
@@ -953,7 +953,8 @@ jobs:
         # and refusals for a missing or uncontrolled floor probe, a foreign report
         # format, a report missing a row and a recorded row with no container; and a
         # class's artifact row from the recorder's source binding (resolved when bound,
-        # not when the binding was refused). Traced rows need a container and are run
+        # not when the binding was refused; shown at Cairo lines only when its sources
+        # are republished). Traced rows need a container and are run
         # by `just starknet-capture`.
         run: node tools/chain/starknet-producer-selftest.mjs
 

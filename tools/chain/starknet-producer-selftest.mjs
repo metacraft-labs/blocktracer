@@ -43,7 +43,7 @@ const ck = (label, cond) => {
   if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`);
 };
 const test = (name) => console.error(`\n${name}`);
-const DECLARED = 29;
+const DECLARED = 31;
 
 const SENDER = '0x48ddc53f41523d2a6b40c3dff7f69f4bbac799cd8b2e3fc50d3de1d4119441f';
 const TARGET = '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
@@ -269,6 +269,15 @@ test('§2 the producer end to end, over captures with no container in them');
   ck('a binding the recorder REFUSED leaves the class unresolved, and the row says it was refused',
      refused.resolved === false && refused.origin === null
      && /a binding was offered and refused: the binding is for Sierra program/.test(refused.reason));
+  const shown = artifactRow({ classHash: C, cairoSources: ['./sources/cairo/a.cairo', './sources/cairo/b.cairo'],
+    source: { bound: true, functionsNamed: 178, codeLocations: true, provenance: { build: {} } } }, r);
+  ck('a bound build whose sources are republished says its steps are shown at Cairo lines, in how many files',
+     shown.resolved === true && /shown at those lines, in 2 file\(s\)/.test(shown.reason));
+  const located = artifactRow({ classHash: C, cairoSources: [],
+    source: { bound: true, functionsNamed: 208, codeLocations: true, provenance: { build: {} } } }, r);
+  ck('CONTROL: one that locates statements but republishes no source says steps stay on CASM',
+     located.resolved === true && /not republished here, so steps stay positioned on CASM/.test(located.reason)
+     && !/shown at those lines/.test(located.reason));
   const none = artifactRow({ classHash: C, source: null }, r);
   ck('CONTROL: a class with no binding is unresolved and claims no refusal',
      none.resolved === false && !/refused/.test(none.reason));
