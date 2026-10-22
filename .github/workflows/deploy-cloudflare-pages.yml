@@ -219,6 +219,27 @@ jobs:
           bash client/hydrate/fetch-engine.sh site/replay-engine "$ENGINE_BASE" \
             .deploy/engine-fetch.json
 
+      - name: Verify the publish dir fits Cloudflare Pages' file budget, per chain
+        # Pages refuses a deployment of more than 20,000 files, and the budget is SHARED by
+        # every chain the staging site carries. It was found the expensive way: PR #78's
+        # preview built everything and then failed at upload with "Pages only supports up
+        # to 20,000 files in a deployment" at 24,972 files, ~20,000 of them one chain's three
+        # slots. That message names no chain. This prints the count per top-level directory
+        # (each chain's routes live under its slug), so the chain spending the budget is
+        # named, and fails here, before the upload, when the total is over.
+        run: |
+          set -euo pipefail
+          limit=20000
+          total=$(find site -type f | wc -l)
+          echo "publish dir: ${total} files of a ${limit}-file Pages budget ($((limit - total)) left)"
+          find site -mindepth 1 -maxdepth 1 -type d | while read -r d; do
+            printf '%8d  %s\n' "$(find "$d" -type f | wc -l)" "${d#site/}"
+          done | sort -rn | head -20
+          if [ "$total" -gt "$limit" ]; then
+            echo "::error::the publish dir holds ${total} files and Pages accepts ${limit}; the largest directories are listed above" >&2
+            exit 1
+          fi
+
       - name: Verify the published site can actually start an engine
         # The deploy that caused this whole investigation was green. A green
         # build that publishes a site whose worker 404s must not be able to
