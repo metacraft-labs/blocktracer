@@ -119,3 +119,31 @@ That is a real cost and the trade is deliberate: 579 KB of repository, once, in 
 a capture that runs in 9 seconds offline instead of 3 minutes against a public endpoint, in
 CI, in a hermetic `nix build`, and in two years when somebody needs to know whether a change
 to the producers moved the result.
+
+## `sui-mainnet/<checkpoint>/`
+
+A `tools/chain/sui-graphql-transcript.mjs` transcript: the **entire** GraphQL conversation
+a Sui capture of one whole checkpoint has with `graphql.mainnet.sui.io` — the capture's own
+reads (the checkpoint, its transactions and effects, the tip, the epochs the tracing-floor
+search walks) and every read `sui replay --trace` makes for each transaction (the
+transaction, and each object at the exact version it consumed). One file per distinct
+request, keyed by query and variables, plus a `manifest.json` pinning each file's sha256
+and marking the requests that ask about the tip.
+
+```
+manifest.json                       format, upstream, and one row per call with its sha256
+calls/<operation>.<field>.<key>.json  {request, http, tipDependent, response}
+```
+
+`336000001/` is checkpoint 336,000,001 (20 transactions, all traced). Produce its tree with
+no network at all — the capture serves the transcript on loopback and fails on any request
+it does not hold:
+
+```sh
+just sui-capture <recorder-binary> <recorder-commit>
+```
+
+Re-record against the live service (the one command here that needs the network): run
+`node tools/chain/sui-graphql-transcript.mjs record --dir <dir> --upstream
+https://graphql.mainnet.sui.io/graphql`, point `just sui-range … --node <its url>` at it,
+and stop it with SIGTERM to write the manifest.

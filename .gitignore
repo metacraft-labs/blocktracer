@@ -232,6 +232,7 @@ fixtures/chain-health/readable-container/ct/*.ct
 # containers the `.ct` ban refuses. Unlike the EVM recorder, the Move recorder interns
 # paths relative to the replay directory, so the location is not load-bearing.
 /.sui-range/
+/.sui-capture/
 
 # `just eth-publish-proof`'s work directory: the ingested publish tree, three local object
 # stores, the strace logs the write-order arm reads, and one log per publishing cycle. All

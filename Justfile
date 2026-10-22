@@ -157,7 +157,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# NINETEEN suites — 98 + 19 + 24 + 24 + 57 + 238 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 6 + 36 + 26 + 6 = 1248 counted assertions —
+# NINETEEN suites — 98 + 19 + 24 + 24 + 57 + 238 + 33 + 162 + 53 + 118 + 221 + 83 + 6 + 30 + 8 + 6 + 41 + 26 + 6 = 1253 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -1717,6 +1717,19 @@ starknet-capture RECORDER COMMIT TRANSCRIPT="../codetracer-cairo-recorder/onchai
 sui-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-sui-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
+
+# The same capture with NO network: checkpoint 336,000,001 from its committed GraphQL
+# transcript (fixtures/chain-inputs/sui-mainnet/336000001), served on loopback. The
+# recording ids are derived and the clock readings pinned, so the tree is byte-identical
+# run to run. Needs the recorder and a `sui` with the `tracing` feature.
+sui-capture RECORDER COMMIT OUT=".sui-capture/tree" *ARGS:
+    node tools/chain/capture-sui-range.mjs \
+      --transcript fixtures/chain-inputs/sui-mainnet/336000001 \
+      --from 336000001 --to 336000001 --max 1000 \
+      --fixed-time 2026-10-22T00:00:00.000Z \
+      --work .sui-capture/work --out {{OUT}} \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --positions-reader {{RECORDER}} {{ARGS}}
 
 # Is the Sui endpoint still serving the object versions it served when the
 # committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed

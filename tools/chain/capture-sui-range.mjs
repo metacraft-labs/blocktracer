@@ -33,6 +33,7 @@ import {
   checkpointWithTransactions, firstEpochAtProtocol, graphql, graphqlUrlFor, latestCheckpoint,
 } from './lib/sui-graphql.mjs';
 import { MIN_TRACED_PROTOCOL } from './lib/sui-producer-facts.mjs';
+import { startTranscriptServer } from './sui-graphql-transcript.mjs';
 import {
   ACQUISITION_FORMAT, NO_TRACE_EVENTS, SUI_REPLAY_STACK_OVERFLOW, TRACE_TOO_LARGE,
 } from './produce-sui-snapshot.mjs';
@@ -46,7 +47,7 @@ const USAGE = `usage: capture-sui-range.mjs --recorder PATH --recorder-commit SH
          [--node mainnet|testnet|devnet|URL] [--sui PATH]
          [--from N --to M | --depth D [--checkpoints K]] [--max N]
          [--work DIR] [--out DIR] [--ct-print PATH] [--positions-reader PATH]
-         [--fresh] [--plan]`;
+         [--fixed-time ISO] [--transcript DIR] [--fresh] [--plan]`;
 
 function parse(argv) {
   const v = new Map();
@@ -90,14 +91,31 @@ async function main(argv) {
   const recorderCommit = a.get('recorder-commit');
   if (!recorder || !recorderCommit) throw new Error(`--recorder and --recorder-commit are required\n${USAGE}`);
   if (!existsSync(recorder)) throw new Error(`--recorder ${recorder} does not exist`);
-  const node = a.get('node', 'mainnet');
+  // `--transcript DIR` runs the whole capture against a committed GraphQL transcript
+  // (sui-graphql-transcript.mjs, replay mode) on loopback: no network, and a request the
+  // transcript does not hold fails the run instead of silently reaching out.
+  const transcriptDir = a.get('transcript');
+  const transcript = transcriptDir
+    ? await startTranscriptServer({ mode: 'replay', dir: resolve(transcriptDir) })
+    : null;
+  const node = transcript ? transcript.url : a.get('node', 'mainnet');
   const url = graphqlUrlFor(node);
   const work = resolve(a.get('work', '.sui-range/work'));
   const out = resolve(a.get('out', '.sui-range/tree'));
   const max = int(a.get('max', '6'), 'max');
+  // A build that must reproduce its output pins the two clock readings the acquisition
+  // would otherwise take (`fetchedAt`, `tracedFloor.measuredAt`); they reach snapshot.json.
+  const fixedTime = a.get('fixed-time');
+  if (fixedTime !== undefined && Number.isNaN(Date.parse(fixedTime))) {
+    throw new Error(`--fixed-time must be an ISO instant, got '${fixedTime}'`);
+  }
   // `sui replay` is run by the recorder as `sui` on PATH; --sui puts a specific build first.
   const sui = a.get('sui');
-  const env = { ...process.env };
+  // `sui replay` caches what it fetches under $SUI_DATA_STORE (falling back to $HOME), and
+  // a cache hit is a read the transcript never sees. A store inside the work directory
+  // keeps a recording complete and a replay hermetic.
+  const env = { ...process.env, SUI_DATA_STORE: join(resolve(a.get('work', '.sui-range/work')),
+                                                     'sui-data-store') };
   if (sui) {
     if (!existsSync(sui)) throw new Error(`--sui ${sui} does not exist`);
     env.PATH = `${dirname(resolve(sui))}${delimiter}${env.PATH}`;
@@ -130,7 +148,7 @@ async function main(argv) {
     minProtocol: MIN_TRACED_PROTOCOL,
     method: 'binary search over epochs for the first protocol version at or above '
       + 'minProtocol; the floor is that epoch\'s first checkpoint',
-    measuredAt: new Date().toISOString(),
+    measuredAt: fixedTime ?? new Date().toISOString(),
   };
 
   const checkpoints = [];
@@ -140,10 +158,16 @@ async function main(argv) {
     checkpoints.push(cp);
   }
   const all = checkpoints.flatMap((cp) => cp.transactions.map((tx) => tx.digest));
+  // Each transaction's checkpoint time, for the recorder's derived recording id: the
+  // container's only per-run bytes, made a function of the transaction so the same
+  // inputs produce the same container (codetracer-move-recorder `--recording-id derive`).
+  const timeOf = new Map(checkpoints.flatMap((cp) => cp.transactions
+    .map((tx) => [tx.digest, Date.parse(cp.timestamp)])));
   const planned = all.slice(0, max);
   if (a.has('plan')) {
     console.log(JSON.stringify({ node, window: `${lo}..${hi}`, tip, tracedFloor,
       transactions: all.length, planned }, null, 1));
+    if (transcript) await transcript.close();
     return;
   }
 
@@ -159,8 +183,12 @@ async function main(argv) {
   writeFileSync(acquisitionPath, `${JSON.stringify({
     format: ACQUISITION_FORMAT,
     node,
-    endpoint: url,
-    fetchedAt: new Date().toISOString(),
+    // From a transcript, the endpoint the data came from is the one it was RECORDED
+    // against; the loopback port it was served on is incidental and changes every run.
+    endpoint: transcript
+      ? `${JSON.parse(readFileSync(join(resolve(transcriptDir), 'manifest.json'), 'utf8')).upstream} (transcript)`
+      : url,
+    fetchedAt: fixedTime ?? new Date().toISOString(),
     replayRuntime,
     tip: tipCp,
     tracedFloor,
@@ -194,7 +222,9 @@ async function main(argv) {
       rmSync(replayed, { recursive: true, force: true });
     }
     const code = await runLogged(recorder, ['replay', '--digest', digest, '--node', node,
-      '--replay-dir', join(work, 'replay'), '-o', capture], logPath, env);
+      '--replay-dir', join(work, 'replay'), '-o', capture,
+      '--recording-id', 'derive', '--recording-time-ms', String(timeOf.get(digest))],
+    logPath, env);
     const log = readFileSync(logPath, 'utf8');
     const cts = existsSync(capture) ? readdirSync(capture).filter((x) => x.endsWith('.ct')) : [];
     let done;
@@ -234,6 +264,13 @@ async function main(argv) {
     ...recDirs.flatMap((d) => ['--rec', d])];
   const code = await runLogged(process.execPath, produce, join(work, 'produce.log'), env);
   process.stdout.write(readFileSync(join(work, 'produce.log'), 'utf8'));
+  if (transcript) {
+    const { misses } = await transcript.close();
+    if (misses > 0) {
+      throw new Error(`${misses} GraphQL request(s) missed the transcript at ${transcriptDir}; `
+        + 'the capture asked for something it was not recorded with');
+    }
+  }
   if (code !== 0) process.exit(code);
 }
 

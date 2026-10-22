@@ -928,7 +928,7 @@ jobs:
         run: node tools/chain/flow-producer-facts-selftest.mjs
 
       - name: Does the Sui producer state its chain's facts and refuse a broken window?
-        # 36 assertions, host-independent: every arm is offline and needs only node.
+        # 41 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Sui producer's roles (sponsored, self-paid, system), its signed
         # storage-rebate cost entry, the seven-fact effects comparison a traced

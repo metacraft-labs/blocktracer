@@ -1,0 +1,1 @@
+{"request":{"query":"{ epoch { epochId } }","variables":{}},"http":200,"tipDependent":true,"response":{"data":{"epoch":{"epochId":1288}}}}

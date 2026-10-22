@@ -19,6 +19,8 @@
 //       refused rather than published around
 //   §5  the endpoint-horizon probe's verdict: a rung that stops being served fails it,
 //       and so does a control the endpoint answered
+//   §6  the GraphQL transcript: request keys, the tip mark, and a replay that serves what
+//       it holds and misses — loudly — what it does not
 //
 // Every arm that asserts a refusal or a distinction has a control beside it that takes
 // the other branch, so the arm measures the rule and not the fixture
@@ -35,6 +37,7 @@ import {
 } from './lib/sui-producer-facts.mjs';
 import { ACQUISITION_FORMAT, effectsFacts, main as produce } from './produce-sui-snapshot.mjs';
 import { compareReadings } from './sui-horizon-probe.mjs';
+import { isTipDependent, requestKey, startTranscriptServer } from './sui-graphql-transcript.mjs';
 
 let asserted = 0;
 let failed = 0;
@@ -283,10 +286,42 @@ test('§5 the endpoint-horizon verdict');
      compareReadings(reading(true), reading(true, false)).length === 1);
 }
 
+test('§6 the GraphQL transcript');
+{
+  const q = 'query($seq: UInt53!) { checkpoint(sequenceNumber: $seq) { digest } }';
+  const a = requestKey({ query: q, variables: { seq: 5, after: null } });
+  const b = requestKey({ query: `  ${q.replace(/ /g, '   ')} `, variables: { after: null, seq: 5 } });
+  ck('a key ignores whitespace and variable order', a.key === b.key);
+  ck('CONTROL: a different variable is a different key',
+     a.key !== requestKey({ query: q, variables: { seq: 6, after: null } }).key);
+  ck('a query about the tip is marked, a sequenced one is not',
+     isTipDependent({ query: '{ checkpoint { sequenceNumber } }' }) && !isTipDependent({ query: q }));
+
+  const dir = mkdtempSync(join(tmpdir(), 'sui-transcript-selftest-'));
+  const answer = { data: { checkpoint: { digest: 'CP5' } } };
+  const upstream = async () => ({ status: 200, text: async () => JSON.stringify(answer) });
+  const rec = await startTranscriptServer({ mode: 'record', dir, upstream: 'http://up.invalid',
+                                            fetchImpl: upstream });
+  const ask = async (url, variables) => (await fetch(url, { method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ query: q, variables }) })).json();
+  await ask(rec.url, { seq: 5 });
+  await rec.close();
+  const rep = await startTranscriptServer({ mode: 'replay', dir });
+  const hit = await ask(rep.url, { seq: 5 });
+  const miss = await ask(rep.url, { seq: 6 });
+  const { misses } = await rep.close();
+  ck('replay serves the recorded answer verbatim, with no upstream',
+     JSON.stringify(hit) === JSON.stringify(answer));
+  ck('CONTROL: an unrecorded request is a MISS, answered with an error and counted',
+     misses === 1 && /transcript MISS/.test(miss.errors?.[0]?.message ?? ''));
+  rmSync(dir, { recursive: true, force: true });
+}
+
 // The count is a LITERAL because `refusal-selftest.mjs` reads it out of this line and
 // cross-checks it against the Justfile header and ci.yml.
-if (asserted !== 36) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 36 — a case was added, removed or skipped.`);
+if (asserted !== 41) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 41 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);
