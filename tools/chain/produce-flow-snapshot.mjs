@@ -62,8 +62,8 @@ import {
 } from './lib/producer-runtime.mjs';
 import {
   RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
-  CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET, costVectorForRow, executionsForRow,
-  rolesForRow,
+  CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET, VERIFICATION, costVectorForRow, executionsForRow,
+  reachReasonFor, rolesForRow,
 } from './lib/flow-producer-facts.mjs';
 
 const run = promisify(execFile);
@@ -317,6 +317,8 @@ async function main() {
       endpoint: anyTranscript.accessNode,
       recorder: { ...RECORDER },
       prestateStrategy: PRESTATE_STRATEGY,
+      reachReason: reachReasonFor(floor),
+      verification: VERIFICATION,
       // THE EXECUTABLE FORMAT THIS CAPTURE'S RECORDINGS ARE WRITTEN AGAINST, declared
       // rather than carried inside an instruction listing — this chain publishes none,
       // because Cadence is executed from its AST and a step IS a statement. The reader

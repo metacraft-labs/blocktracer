@@ -920,15 +920,17 @@ jobs:
         run: node tools/chain/eth-regen-check-selftest.mjs
 
       - name: Are a Flow transaction's three roles and fee vector published as the chain states them?
-        # 9 assertions, offline and needing only node: the committed block listing and
+        # 11 assertions, offline and needing only node: the committed block listing and
         # transcript under fixtures/chain-inputs/flow-mainnet/ are read off disk. Each
         # arm runs beside its control -- distinct payer, proposer and authorizers against
         # one account in every role, a FeesDeducted event against none -- so a function
-        # that returned a constant fails one side. The last three are the DECLARED
+        # that returned a constant fails one side. The next three are the DECLARED
         # executable format (Chain-Delivery DEL-6): the token names the format and not the
         # executor, the convention is derived from the four chains that already declare
         # one, and the producer is shown to spell the member through its facts module --
         # each beside a planted defect, including the token this module used to export.
+        # The two after them are the landing page's sentences: the floor named as the
+        # probed node's retention, and both published through the module.
         run: node tools/chain/flow-producer-facts-selftest.mjs
 
       - name: Does the Flow conformance fixture hold the four cases it lists?

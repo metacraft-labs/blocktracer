@@ -12,11 +12,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 
-import { INSTRUCTION_SET, costVectorForRow, rolesForRow } from './lib/flow-producer-facts.mjs';
+import {
+  INSTRUCTION_SET, VERIFICATION, costVectorForRow, reachReasonFor, rolesForRow,
+} from './lib/flow-producer-facts.mjs';
 
 // The assertion count this suite declares, which `refusal-selftest.mjs` cross-checks
 // against the `chain-selftest` header. No host configurations, so the base is the total.
-const BASE_ARMS = 9;
+const BASE_ARMS = 11;
 
 let passed = 0;
 const arm = (name, fn) => {
@@ -196,6 +198,36 @@ arm('the producer SPELLS the member, through the module rather than as a literal
             'with the token inlined, the no-literal check above is false');
 });
 
+
+// ── the landing page's two sentences (Recorder-Flow CXP-FLOW-6) ──────────────────────
+// The committed floor probe is the input a real capture hands `reachReasonFor`.
+const probe = JSON.parse(readFileSync(
+  new URL('../../fixtures/chain-inputs/flow-mainnet/168391034/floor-probe.json', import.meta.url)));
+
+arm('reachReason names the floor as the probed node\'s retention, not the chain\'s start', () => {
+  const s = reachReasonFor(probe);
+  assert.ok(s.includes(probe.accessNode) && s.includes(String(probe.floor)));
+  assert.match(s, /retention, an operational limit/);
+  assert.match(s, /not where the chain's history begins/);
+  // CONTROL: another node's probe gives another sentence, so it is computed, not constant.
+  const other = reachReasonFor({ ...probe, accessNode: 'access-001.mainnet27.nodes.onflow.org:9000',
+                                 floor: 130290659 });
+  assert.notEqual(other, s);
+  assert.ok(other.includes('130290659'));
+});
+
+arm('the producer publishes both sentences through the module', () => {
+  const src = read('./produce-flow-snapshot.mjs');
+  assert.match(src, /\breachReason: reachReasonFor\(floor\),/);
+  assert.match(src, /\bverification: VERIFICATION,/);
+  assert.ok(VERIFICATION.length > 0 && !src.includes(VERIFICATION.slice(0, 40)),
+            'the sentence is not restated in the producer');
+  // CONTROL: the same two patterns are false on the producer with the members removed.
+  const without = src.replace(/\n\s*reachReason: reachReasonFor\(floor\),/, '')
+    .replace(/\n\s*verification: VERIFICATION,/, '');
+  assert.ok(!/\breachReason: reachReasonFor\(floor\),/.test(without));
+  assert.ok(!/\bverification: VERIFICATION,/.test(without));
+});
 if (passed !== BASE_ARMS) {
   console.error(`flow-producer-facts-selftest: ${passed} arm(s) ran and ${BASE_ARMS} are declared`);
   process.exit(1);
