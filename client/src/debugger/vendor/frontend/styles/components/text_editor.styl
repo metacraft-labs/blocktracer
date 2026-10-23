@@ -1,0 +1,1398 @@
+// Styles named monaco override the original editor's styles
+
+// THE GUTTER IS A ROW OF LANES, AND EACH ONE HAS EXACTLY ONE OWNER.
+//
+// Written down because a third control is being added to this strip and it
+// already carries six things: the current-line highlight, the line number, a
+// VCS slot, a tracepoint marker, a breakpoint marker, and — immediately to the
+// right of all of them, owned by Monaco rather than by us — the folding
+// chevron.  Reading from the left edge of `.gutter`:
+//
+//   pointer lane   --ct-gutter-pointer-lane   the current-line highlight, and
+//                                             — ON HOVER ONLY — the run-test
+//                                             control (.gutter-runtest)
+//   line number    the remainder              .gutter-line
+//   VCS lane       --ct-gutter-vcs-lane       the per-line change indicator
+//                                             (.diff-line)
+//   (split)        --ct-gutter-vcs-split      nothing; keeps the VCS band off
+//                                             the breakpoint's hit area
+//   marker lane    --ct-gutter-marker-lane    breakpoint, then tracepoint
+//   (gap)          --ct-gutter-marker-gap     nothing; keeps us off the chevron
+//   folding lane   --ct-gutter-folding-lane   MONACO'S.  `.gutter` subtracts
+//                                             this from its own width so the
+//                                             chevron is never under us.
+//
+// The same order, with the concern each band answers to rather than the
+// element, is declared once in `viewmodel/viewmodels/editor_gutter_lanes.nim`
+// and asserted against the PAINTED boxes by `ci/test/web-renderer-mounts.sh`.
+// Two statements of a layout is one too many; the reason there are two is that
+// Stylus cannot be read by a Nim test and a Nim constant cannot be read by
+// Stylus, so they are instead made to fail apart.
+//
+// THE VCS LANE IS NEW AND IT REPLACES A HOLE, not a working indicator.  What
+// was here was `<div class="diff-line">` and it measured, on `cloud` 402c1d35
+// at `/noir`:
+//
+//     .gutter      left 293  right 366  width 73
+//     .diff-line   left 293  right 366  width 73  HEIGHT 0
+//
+// — a box spanning the entire strip, lying across the line number by 29px, the
+// breakpoint by 9px and the tracepoint by 10px, with no height and therefore
+// no hit area and nothing drawn.  It was a slot in name only, and the fourth
+// concern this gutter has to hold had nowhere to be.  It now has 0.35em of its
+// own between the line number and the markers, reserved on every line so the
+// numbers do not jitter when a file becomes a working copy, and
+// `monacoLineDecorationsWidth` grows by the same amount so the reservation is
+// paid for out of the margin rather than out of the line number.
+//
+// THE FOLDING LANE IS ONE OF TWO REASONS A GUTTER CLICK DOES NOT FOLD, and
+// this paragraph used to claim it was the only one.  A reported "clicking the
+// gutter to place a breakpoint also collapses the function" does not reproduce
+// on the deployed build or on `cloud`: measured in a real tab, a click anywhere
+// in `.gutter` toggles the breakpoint and leaves the fold alone (22 rendered
+// lines before and after), and a click on the chevron folds (22 -> 20) and
+// leaves breakpoints alone.
+//
+// Two independent things hold that apart, and only one of them is here:
+//
+//   * THE LANE.  `.gutter` subtracts `--ct-gutter-folding-lane` from its own
+//     width, so the chevron is never underneath us.  Setting it to 0 is a
+//     mutation arm and produces the reported symptom's family in reverse:
+//     `.gutter` covers the chevron and clicking the chevron toggles a
+//     breakpoint instead of folding.
+//
+//   * THE `onmousedown='event.stopPropagation()'` GUARDS on every node
+//     `ui/trace.editorLineNumber` emits, and these turn out to be the load-
+//     bearing half.  Stripped, the SAME CLICK AT THE SAME COORDINATES both
+//     toggles the breakpoint and folds the function — measured — because
+//     Monaco then classifies the press as `GUTTER_LINE_DECORATIONS`, which is
+//     the band its own folding contribution owns.  Geometry does not enter
+//     into it: the classification is by band, not by which element was hit.
+//
+// `ci/test/menu-and-context-menu-in-browser.sh` asserts both directions of the
+// gesture AND reads back Monaco's own `MouseTargetType` for each press, because
+// a test that checked each control merely WORKS would have passed on the defect
+// as it was reported, and one that checked only the geometry would have gone on
+// passing if the guards were deleted.
+//
+// WITHIN the marker lane the two markers used to OVERLAP.  Their right offsets
+// were tuned independently — 1.05em and 0.6em against widths of 1.1ch and
+// 1.2ch — which put the breakpoint at x = 354..363 and the tracepoint at
+// x = 359..369, and the tracepoint's `z-index: 9` over the breakpoint's `8`.
+// So `elementFromPoint` at the CENTRE OF THE BREAKPOINT DOT returned the
+// tracepoint element: the breakpoint marker had no hit area of its own.  It did
+// no visible harm only because both markers currently route to the same
+// `lineActionClick`; the first handler to tell them apart would have fired the
+// wrong one, and that is precisely what adding a third control to this strip
+// requires.  The breakpoint offset is now DERIVED from the tracepoint lane, so
+// the two cannot overlap however the sizes are retuned.
+// THE RUN-TEST CONTROL TAKES NO LANE, and that is a deliberate reading of the
+// rule above rather than an exception to it. Every lane here is RESERVED on
+// every line of every file — the widths are subtracted from `.gutter-line`
+// unconditionally, because a lane that appeared only on some lines would make
+// the line numbers jitter as a reader scrolled. Declaring one for a control
+// that exists on the few lines carrying a `#[test]` would cost that width in
+// every file, in every language, permanently.
+//
+// So it OVERLAYS the pointer lane, whose only other occupant is the current-line
+// arrow, which is on exactly one line at a time; and it is invisible until the
+// pointer is over its row. Nothing moves and nothing is reserved. It is nowhere
+// near the marker lane or the chevron, so the disjoint hit areas established
+// above are untouched — which is what made a third control possible at all.
+//
+// WHEN BOTH WANT THE LANE the run control wins, and only while hovered. A
+// reader whose pointer is on the current line is pointing AT something; the
+// arrow is a position they already know and the control is the action they are
+// reaching for.
+.monaco-editor
+  --ct-gutter-breakpoint-size: 1.1ch
+  --ct-gutter-trace-size: 1.2ch
+  --ct-gutter-highlight-left: 0.15em
+  --ct-gutter-pointer-lane: 0.75em
+  // 1.9em before the markers were separated; the extra 0.15em is the room the
+  // breakpoint dot moved left into, and the gate asserts the line number still
+  // fits what is left.
+  --ct-gutter-marker-lane: 2.05em
+  // The VCS change indicator's own band.  Narrow, because what goes here is a
+  // BAR and not a glyph — the same shape every editor draws for "this line
+  // differs from the index" — but not narrower than a pointer can hit.
+  --ct-gutter-vcs-lane: 0.35em
+  // The clear space between the VCS band and the marker lane, and it is the
+  // same sentence as `--ct-gutter-marker-split` one band over: two hit areas
+  // that merely touch are one hit area to a rounding error.  Measured with
+  // this at zero, the VCS band resolved to [337,342] against a breakpoint at
+  // [341,350] and `elementFromPoint` at the VCS band's own centre returned the
+  // BREAKPOINT.  The marker lane's left edge and the breakpoint's left edge
+  // coincide, so anything flush against the lane is flush against the marker.
+  --ct-gutter-vcs-split: 0.25em
+  --ct-gutter-folding-lane: 0.85em
+  --ct-gutter-marker-gap: 0.45em
+  --ct-gutter-line-gap: 0.15em
+  --ct-gutter-highlight-size: 0.8em
+  --ct-gutter-trace-right: 0.6em
+  // The clear space between the two markers.  Small, but it must not be zero:
+  // two hit areas that merely touch are one hit area to a rounding error.
+  --ct-gutter-marker-split: 0.15em
+  // DERIVED, never a literal.  This is what makes the two lanes disjoint by
+  // construction rather than by two numbers that happened to agree.
+  --ct-gutter-breakpoint-right: calc(var(--ct-gutter-trace-right) + var(--ct-gutter-trace-size) + var(--ct-gutter-marker-split))
+  margin-left: 0
+  border-bottom-left-radius: 0.375em
+
+.margin-view-overlays
+  height: 100%
+
+  div
+    background-color: colors-ui-surface-base-panel
+
+.monaco-editor .margin .margin-view-overlays .folding
+  padding-left: 0 !important
+  width: var(--ct-gutter-folding-lane) !important
+  display: flex !important
+  align-items: center
+  justify-content: center
+  overflow: visible !important
+  position: relative
+  z-index: 5
+  color: LINE_NUMBERS_TEXT_COLOR !important
+
+.monaco-editor .margin .margin-view-overlays .folding .codicon,
+.monaco-editor .margin .margin-view-overlays .folding:before,
+.monaco-editor .margin .margin-view-overlays .folding [class*="codicon"]
+  color: LINE_NUMBERS_TEXT_COLOR !important
+  opacity: 1 !important
+  position: relative
+  z-index: 6
+
+.monaco-editor .margin-view-overlays .codicon.codicon-folding-expanded,
+.monaco-editor .margin-view-overlays .codicon.codicon-folding-collapsed,
+.monaco-editor .margin-view-overlays .codicon.codicon-folding-manual-expanded,
+.monaco-editor .margin-view-overlays .codicon.codicon-folding-manual-collapsed,
+.monaco-editor .margin-view-overlays .codicon.alwaysShowFoldIcons
+  font-size: 0.8em !important
+  color: LINE_NUMBERS_TEXT_COLOR !important
+  opacity: 1 !important
+  display: inline-flex !important
+  align-items: center
+  justify-content: center
+  transform: translateX(15%)
+  width: 100%
+  position: relative
+  z-index: 7
+  background-color: transparent
+
+.monaco-editor .lines-content .core-guide.core-guide-indent.vertical,
+.monaco-editor .lines-content .core-guide.bracket-indent-guide.vertical
+  transform: translateX(0.18em) !important
+
+.monaco-editor .lines-content .core-guide.core-guide-indent.vertical
+  box-shadow: 0.0625em 0 0 0 colors-ui-border-primary inset !important
+
+.monaco-editor .lines-content .core-guide.core-guide-indent.vertical.indent-active
+  box-shadow: 0.0625em 0 0 0 colors-ui-surface-primary-tertiary inset !important
+
+.sticky-widget
+  width: 100% !important
+
+.diff-view-zone
+  width: -moz-available !important
+  width: -webkit-fill-available !important
+  width: stretch !important
+
+  .monaco-editor-background
+    background-color: colors-ui-surface-base-canvas !important
+
+  .margin
+    background-color: colors-ui-surface-base-canvas !important
+
+  .margin-view-overlays
+    div
+      background-color: colors-ui-surface-base-canvas !important
+
+  [class^="mtk"]
+    color: colors-ui-text-error-primary !important
+
+  .line-numbers
+    border-right: 0.0625em solid colors-ui-text-error-primary !important
+
+  .diff-deleted-gutter
+    color: colors-ui-text-error-primary !important
+
+  .current-line
+    background-color: transparent !important
+
+.diff-added-gutter
+  color: colors-ui-text-success-primary
+
+.line-numbers
+  &:has(.diff-added-gutter)
+    border-right: 0.0625em solid colors-ui-text-success-primary !important
+
+// .monaco-editor
+//   .slider
+//     border-radius: 6.25em !important
+//     background-color: colors-ui-surface-primary-secondary !important
+
+//     &:active
+//       background-color: colors-ui-surface-primary-secondary !important
+
+  .minimap
+    right: 0.5em !important
+    left: unset !important
+
+  .decorationsOverviewRuler
+    // background-color: colors-ui-surface-primary-secondary !important
+    z-index: 10 !important
+    pointer-events: none
+    // width: 0.5em !important
+    margin-right: 0.125em !important
+
+  // .visible.scrollbar.horizontal
+  //   .slider
+  //     height: 0.5em !important
+
+  // .visible.scrollbar.vertical
+  //   width: 0.5em !important
+  //   margin-right: 0.125em !important
+
+  //   .slider
+  //     width: 0.5em !important
+
+.monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input, .monaco-editor .margin, .monaco-editor .sticky-line-content, .monaco-editor .sticky-line-number
+  background-color: transparent !important
+  z-index: 2
+
+  .monaco-scrollable-element
+    z-index: 1
+
+    .visible
+      z-index: 9 !important
+
+// TODO: Keep this in!
+.monaco-editor
+  .decorationsOverviewRuler
+    width: 0.875rem !important
+  .monaco-scrollable-element > .scrollbar.vertical
+    width: 0.875rem !important
+    .slider
+      width: 0.875rem !important
+
+  .monaco-scrollable-element > .scrollbar.horizontal
+    height: 0.875rem !important
+    .slider
+      height: 0.875rem !important
+  .monaco-editor-background
+    overflow: visible !important
+    // background-color: inherit !important
+    contain: unset !important
+
+  .sticky-line-content
+    font-family "SpaceMono" !important
+    font-weight: 400
+    color: colors-ui-text-primary-body !important
+    background-color: colors-ui-surface-base-panel !important
+
+.view-zones
+  .value-expanded
+    position: relative
+    z-index: 1
+    background-color: colors-ui-surface-base-panel;
+    // border-radius: 1rem
+    border: 0.0625em solid gray
+    // width: fit-content !important
+    padding-right: 0.625em
+    height: 1.5625em !important
+    margin-top: 0
+
+.code-editor
+  width: 31.25em
+  overflow: hidden !important
+
+.expansion // unspecified or >= 4
+  .monaco-editor, .marginm
+    background-color: #bbb
+
+// Right click context menu in the code editor
+#context-menu-container
+  width: fit-content
+  display: none
+  flex-direction: column
+  // border: 0.0625em solid grey
+  position: fixed
+  dropdown-surface()
+  font-family: "SpaceGrotesk"
+  font-size: 0.875em
+  z-index: 1000
+
+.context-menu-item-container
+  &:first-child .context-menu-item
+    border-radius: DROPDOWN_RADIUS DROPDOWN_RADIUS 0 0
+
+  &:last-child .context-menu-item
+    border-bottom: none
+    border-radius: 0 0 DROPDOWN_RADIUS DROPDOWN_RADIUS
+
+  // When the non-interactive hint row follows, THAT row is the last thing in
+  // the surface, so the bottom rounding belongs to it and the command above it
+  // must go square again.  Without this the menu paints a rounded row with a
+  // square strip below it.
+  &:has(+ .context-menu-hint) .context-menu-item
+    border-bottom: none
+    border-radius: 0
+
+.context-menu-item
+  // No per-item border-radius or margins — items flow flush like the main menu
+
+// A LABEL, NOT A COMMAND — the row naming the browser's own context-menu
+// gesture (`viewmodel/views/context_menu_hint.nim`).
+//
+// Every declaration here is about it not reading as selectable.  It carries
+// none of `.ct-menu-item`'s hover, background or pointer cursor; it is not
+// focusable (no `tabindex`, set in `renderer.appendContextMenuBrowserHint`);
+// and `pointer-events: none` means a click at its coordinates lands on the
+// menu surface behind it rather than on the row, so it cannot be the target of
+// one even by accident.  A row that looks selectable and does nothing is the
+// dead-affordance defect this product is already tracking three instances of,
+// and this row exists to fix a menu, not to add a fourth.
+.context-menu-hint
+  pointer-events: none
+  cursor: default
+  user-select: none
+  padding: 0.375rem 0.75rem
+  font-size: 0.6875rem
+  line-height: 1.4
+  white-space: nowrap
+  // `colors-ui-text-primary-body-subtle`, dimmed further, rather than
+  // `colors-ui-text-default-placeholder`: that token does not resolve in this
+  // theme (grep the compiled CSS — `components/input.styl:34` emits it
+  // verbatim today), and a hint row painted in the browser's default colour
+  // would be the most conspicuous thing in the menu.
+  color: colors-ui-text-primary-body-subtle
+  opacity: 0.72
+  border-top: 0.0625rem solid colors-ui-border-tertiary
+  border-radius: 0 0 DROPDOWN_RADIUS DROPDOWN_RADIUS
+
+.expansion-1
+  .monaco-editor, .margin
+    background-color: #eee !important
+
+.expansion-2
+  .monaco-editor, .margin
+    background-color: #ddd !important
+
+.expansion-3
+  .monaco-editor, .margin
+    background-color: #ccc !important
+
+.monaco-inputbox
+  border-radius: 1.5625em
+
+.code-editor
+  // background-color: colors-ui-surface-base-panel
+  height: 100% //100vh
+  overflow: scroll
+  flex-basis: 100%
+  border-radius: 0.375em
+
+  &:focus
+    outline: 0em
+
+  //.editor
+  //height: 100vh
+
+  .line
+    height: 1.5em
+    white-space: pre
+    display: flex
+    opacity: 0.8
+
+    > .raw
+      width: 80%
+      display: flex
+
+
+  .hit-overlay
+    height: 1.25em
+    width: 1.25em
+
+  .overlay > .hit-overlay
+    background-color: inherit
+
+  .overlay
+    background-color: OVERLAY_COLOR_BG
+    margin-left: auto
+
+    .low-level-overlay
+      display: flex
+      flex-direction: column
+
+      .low-level-child
+        background-color: OVERLAY_COLOR_BG
+        color: OVERLAY_COLOR_FG
+        height: 1.5em
+
+    .hit-overlay
+      margin-right: 3.125em
+      width: 9.375em
+      height: 1.5em
+
+
+  // .gutter-default
+  //   background-color: GUTTER_COLOR_BG
+
+  // .gutter-flow
+  //   background-color: GUTTER_FLOW_COLOR_BG
+
+
+  // .raw
+  //   padding-left 4.5em
+  // /*width: 170%*/
+
+  .raw-info
+    width: 80%
+
+  .flow-content-widget
+    position: relative
+    z-index: 5
+    display: flex !important
+    align-items: center
+
+  .flow-loop
+    position: relative
+    overflow: visible !important
+    font-size: 0.9em
+    height: 1.25em
+    width: 100%
+
+  .flow-line-buffer
+    position: relative
+
+  .flow-parallel
+    position: fixed
+    overflow: visible !important
+    font-size: 0.9em
+    display: inline-flex
+    transform: translateY(0.125em)
+
+  .flow-multiline-value-container
+    position: absolute
+    // background-color: FLOW_PARALLEL_BACKGROUND_COLOR
+    height: 1.25em
+    width: fit-content
+    // min-width: 1.25em
+    // max-width: 15.625em
+    z-index:1
+    display: flex
+    align-items: center
+
+  // button
+  //   background-color: colors-ui-surface-primary-tertiary
+  //   padding-left: 0.625em
+  //   color: colors-ui-text-primary-body
+  //   padding-right: 0.625em
+  //   // height: 100%
+  //   // font-size: 0.8125em
+  //   font-family: "SpaceMono"
+  //   margin: 0.0625em !important
+  //   margin-left: 0.125em !important
+  //   display: flex
+  //   align-items: center
+  //   border-radius: 0.25em !important
+  //   cursor: pointer !important
+  //   background-position: center
+  //   background-repeat: no-repeat
+  //   background-size: 1ch
+
+  //   &:hover
+  //     background-color: colors-ui-surface-input-default
+
+  //   &:disabled
+  //     opacity: 0.5 !important
+  //     cursor: default !important
+
+  //     &:hover
+  //       background-color: colors-ui-surface-primary-tertiary
+
+  .flow-parallel-value
+    display: inline-flex
+    padding-right: 0
+    align-items: center
+    margin-right: 0.625em
+
+  .flow-parallel-value-name
+    // font-size: 0.8125em
+    font-family: "SpaceMono"
+    background: colors-ui-surface-primary-secondary-hover
+    // box-shadow: 0.0625em 0.0625em 0.0625em colors-ui-surface-input-default
+    color: colors-ui-text-primary-body
+    padding-left: 0.3125em
+    padding-right: 0.3125em
+    padding-top: 0
+    padding-bottom: 0
+    // height: 1.0625em
+    // line-height: 1.0625em
+    display: flex
+    border-radius: 0.125em
+    box-sizing: border-box
+    white-space: nowrap
+
+  .ct-omniscience-loop
+    display: flex
+    padding: 0em 0.25em
+    margin-left: 0.5em
+    margin-right: 0.5em
+    justify-content: center
+    align-items: center
+    border-radius: 0.25rem
+    border: 0.12em solid colors-editor-surface-tertiary
+    background: colors-editor-surface-primary
+    white-space: nowrap
+
+  .flow-loop-value-name
+    // font-size: 0.8125em
+    font-family: "SpaceMono"
+    background: colors-ui-surface-primary-tertiary
+    box-shadow: 0.0625em 0.0625em 0.0625em colors-ui-surface-input-default
+    color: colors-ui-text-primary-body
+    padding-left: 0.3125em
+    padding-right: 0.3125em
+    padding-top: 0
+    padding-bottom: 0
+    margin-right: 0em !important
+    // height: 1.0625em
+    // line-height: 1.0625em
+    display: flex
+    border-radius: 0.125em
+    box-sizing: border-box
+    white-space: nowrap
+
+  .flow-loop-textarea
+    height: 100%
+    background-color: colors-ui-surface-primary-secondary-hover
+    font-family: "SpaceGrotesk"
+    border: 0
+    padding: 0
+    padding-right: 0.1875em
+    overflow: hidden
+    resize: none
+    color: colors-ui-text-primary-body
+    outline: none
+    cursor: text
+    opacity: 0.7
+
+    &:focus
+      opacity: 1
+
+    &::placeholder
+      color: colors-ui-text-primary-body
+
+  .flow-parallel-loop-iteration-end
+    padding-left: 0.1875em
+    // border-left: 0.0625em solid colors-ui-surface-base-panel
+
+  .flow-parallel-loop-iteration-start
+    padding-right: 0.3125em
+    // border-right: 0.0625em solid colors-ui-surface-base-panel
+
+  .flow-multiline-value-pointer
+    width: 0.0625em
+    border: 0.03125em grey dashed
+    position: absolute
+
+  .flow-multiline-value-box
+    // margin-left: 0.3125em
+    height: 1.0625em
+    width: 100%
+    display: inline-block
+    padding-left: 0.125em
+    padding-right: 0.125em
+    padding-top: 0
+    padding-bottom: 0.1875em
+    line-height: 1.0625em
+    box-sizing: border-box
+    font-size: 0.75em
+    // min-width: 1.25em
+    // max-width: 6.25em // 1.9375em // it seems we need a ~12.5em max or no max? (old: all width should be ~4.375em for two int values)
+    overflow: hidden
+    text-align: center
+    border-radius: 0.125em
+    text-overflow: ellipsis
+    font-family: monospace
+    // margin-top: 0.09375em
+    // position: absolute
+    z-index: 2
+
+  .flow-multiline-value-before-only
+    // border: 0.0625em FLOW_PARALLEL_BEFORE_VALUE_BORDER_COLOR solid
+    background-color: FLOW_MULTILINE_BEFORE_ONLY_VALUE_BACKGROUND_COLOR
+    color: FLOW_MULTILINE_BEFORE_ONLY_VALUE_COLOR
+    box-shadow: 0.0625em 0.0625em 0.0625em FLOW_MULTILINE_VALUE_BOX_SHADOW_COLOR
+    // box-shadow: -0.0625em -0.0625em FLOW_PARALLEL_BEFORE_VALUE_BACKGROUND_COLOR
+    width: fit-content
+
+  .flow-loop-container
+    overflow-x: clip
+    overflow-y: visible
+    position: absolute
+    height: 100%
+    display: inline-flex
+    // transition-property: left // TODO: transition
+    // transition-duration: 1s
+
+    .flow-loop-step-splitter
+      position: relative
+      width: 0.0625em
+      background-color: FLOW_PARALLEL_BACKGROUND_BORDER_COLOR
+      z-index: 5
+      min-width: 0.0625em
+
+  .flow-nested-loop-container
+    position: absolute
+    height: 100%
+    display: inline-flex
+  // transition-property: left // TODO: transition
+  // transition-duration: 1s
+
+  .flow-loop-empty-cell
+    position: relative
+    height: 100%
+    // margin-left: 0.3125em
+    margin-right: 0.625em
+    width: 1.5em
+  // max-width: 16.875em
+  // transition-property: left // TODO: transition
+  // transition-duration: 1s
+
+  .flow-loop-container > .flow-loop-empty-cell
+    margin-right: 0
+
+  .flow-loop-step-container
+    position: absolute
+    height: 100%
+    // margin-left: 0.3125em
+    margin-right: 0.625em
+    // border-right: 0.0625em red solid
+    width: 3.125em
+    // max-width: 16.875em
+    // transition-property: left // TODO: transition
+    // transition-duration: 1s
+    z-index: 2
+
+    &.active-flow-step
+      .flow-multiline-value-before-only
+        background-color: FLOW_MULTILINE_ACTIVE_LOOP_ITERATION_BACKGROUND_COLOR
+        color: black
+
+      .flow-inline-value-box
+        background-color: FLOW_INLINE_ACTIVE_LOOP_ITERATION_BACKGROUND_COLOR
+        color: black
+
+      .flow-parallel-value-box
+        background-color: FLOW_PARALLEL_ACTIVE_LOOP_ITERATION_BACKGROUND_COLOR
+        color: black
+
+    &.shrinked
+      background-color: colors-ui-surface-base-panel
+      border-radius: 0.15625em
+
+      &.active
+        .flow-loop-shrinked-iteration
+          background-color: FLOW_MULTILINE_ACTIVE_LOOP_ITERATION_BACKGROUND_COLOR
+
+    &.continuous
+      margin-right: 0
+
+      &.active
+        .flow-loop-continuous-iteration
+          background-color: FLOW_MULTILINE_ACTIVE_LOOP_ITERATION_BACKGROUND_COLOR
+
+    .flow-multiline-value-before-only
+      // border: 0.0625em FLOW_PARALLEL_BEFORE_VALUE_BORDER_COLOR solid
+      background-color: FLOW_MULTILINE_LOOP_VALUE_BACKGROUND_COLOR
+      color: colors-ui-text-primary-label
+      box-shadow: 0.0625em 0.0625em 0.0625em FLOW_MULTILINE_VALUE_BOX_SHADOW_COLOR
+    // box-shadow: -0.0625em -0.0625em FLOW_PARALLEL_BEFORE_VALUE_BACKGROUND_COLOR
+
+    .flow-multiline-value
+      position:absolute
+      width: 100%
+
+  .zfuture-expression::after
+    background-color: #0ff
+
+  .previous-expression::after
+    background-color: #00f
+
+  .future
+    background-color: FUTURE_COLOR_BG
+    > .raw
+      color: FUTURE_COLOR_FG
+
+      > .token-label
+        color: FUTURE_COLOR_FG
+
+      > .token-symbol
+        color: FUTURE_COLOR_FG
+
+  .tra
+    background-color: TRACE_COLOR_BG
+
+    > .raw
+      color: TRACE_COLOR_FG
+
+      > .token-label
+        color: TRACE_COLOR_FG
+
+      > .token-symbol
+        color: TRACE_COLOR_FG
+
+  .instantiations-menu
+    cursor: pointer
+    background-color: INSTANTIATIONS_MENU_COLOR_BG
+    color: INSTANTIATIONS_MENU_COLOR_FG
+
+    .menu-header
+      font-size: 1.0625em
+
+    .instantiation-location
+      height: 1.25em
+      font-size: 0.9375em
+      cursor: pointer
+      background-color: INSTANTIATIONS_MENU_COLOR_BG
+      color: INSTANTIATIONS_MENU_COLOR_FG
+      opacity: 0.7
+
+.high-level-line
+  color: colors-ui-text-primary-body
+
+.jump-back-button
+  white-space: nowrap
+
+.unknown-location
+  padding: 3ex
+  display: flex
+  flex-direction: column
+
+  .unknown-border
+    border-bottom: solid 0.0625em
+    border-color: CALLGRAP_TOOLTIP_BORDER_COLOR
+    padding-top: 0.625em
+
+  .unknown-location-header
+    font-weight: 700
+
+  .unknown-location-buttons
+    margin: 2ex;
+    display: flex
+    justify-content: space-between
+    height: 2.5em
+
+  .unknown-location-asm
+    white-space: pre
+    font-family: monospace
+    overflow-y: scroll
+    overflow-x: auto
+
+    .asm-code .asm-highlight
+      color: red
+
+.context-menu
+  position: fixed
+  z-index: 10000
+  width: fit-content
+  background-color: colors-ui-surface-base-panel
+  border-radius: 0.3125em
+  display: none
+
+  &:focus
+    outline: 0 !important
+    border: 0.0625em solid colors-ui-text-primary-body !important
+
+  &.visible
+    display: block
+
+.context-menu-option
+  // Layout overrides on top of .ct-menu-item base styles
+  border-radius: 0.3125em
+  font-size: 0.875em
+
+.context-menu-option-text
+  width: 100%
+
+.gutter
+  width: calc(100% - var(--ct-gutter-folding-lane) - var(--ct-gutter-marker-gap))
+  height: 100%
+  position: relative
+  box-sizing: border-box
+  display: block
+  overflow: hidden
+  cursor: pointer
+  // &:hover
+  // TODO relative to font size margin top/width/height
+  .gutter-trace
+    width: var(--ct-gutter-trace-size)
+    background: colors-ui-border-action
+    height: var(--ct-gutter-trace-size)
+    border-radius: 50%
+    top: 0
+    margin-top: 0.57ch
+    position: absolute
+    right: var(--ct-gutter-trace-right)
+    z-index: 9
+    outline: 0.125em solid colors-ui-surface-base-panel
+
+  .gutter-disabled-trace
+    width: var(--ct-gutter-trace-size) !important
+    background: colors-ui-surface-primary-tertiary
+    height: var(--ct-gutter-trace-size)
+    border-radius: 50%
+    top: 0
+    margin-top: 0.57ch
+    position: absolute
+    right: var(--ct-gutter-trace-right)
+    z-index: 9
+    outline: 0.125em solid colors-ui-surface-base-panel
+
+  .gutter-breakpoint-enabled
+    width: var(--ct-gutter-breakpoint-size)
+    background: colors-ui-text-error-primary
+    height: var(--ct-gutter-breakpoint-size)
+    border-radius: 50%
+    top: 0
+    margin-top: 0.63ch
+    position: absolute
+    right: var(--ct-gutter-breakpoint-right)
+    z-index: 8
+
+  .gutter-breakpoint-error
+    width: var(--ct-gutter-breakpoint-size)
+    background: red
+    height: var(--ct-gutter-breakpoint-size)
+    border-radius: 50%
+    top: 0
+    margin-top: 0.25em
+    position: absolute
+    right: var(--ct-gutter-breakpoint-right)
+
+  .gutter-breakpoint-disabled
+    width: var(--ct-gutter-breakpoint-size)
+    background: colors-ui-surface-primary-tertiary
+    height: var(--ct-gutter-breakpoint-size)
+    border-radius: 50%
+    top: 0
+    margin-top: 0.63ch
+    position: absolute
+    right: var(--ct-gutter-breakpoint-right)
+    z-index: 8
+
+  .gutter-no-breakpoint
+    width: var(--ct-gutter-breakpoint-size)
+    height: var(--ct-gutter-breakpoint-size)
+    background: transparent
+    top: 0
+    position: absolute
+    margin-top: 0.63ch
+    right: var(--ct-gutter-breakpoint-right)
+    z-index: 8
+
+  .gutter-no-trace
+    width: var(--ct-gutter-trace-size)
+    height: var(--ct-gutter-trace-size)
+    background: transparent
+    top: 0
+    position: absolute
+    margin-top: 0.57ch
+    right: var(--ct-gutter-trace-right)
+    z-index: 9
+
+  &:hover > .gutter-no-breakpoint
+    background: colors-ui-text-error-primary
+    border-radius: 50%
+    margin-top: 0.63ch
+    opacity: 0.3
+
+  .gutter-no-highlight
+    display: none
+
+
+  // THE VCS CHANGE INDICATOR'S BAND.
+  //
+  // Between the line number and the markers, so it is disjoint from all three
+  // of the other concerns this strip carries: the run control is at the far
+  // left, the markers at the far right, and the number is what this band is
+  // subtracted from.
+  //
+  // ALWAYS LAID OUT, NEVER ALWAYS PAINTED.  The box exists on every line —
+  // `.diff-line` is emitted by `ui/trace.editorLineNumber` unconditionally —
+  // and the colour is what a container class turns on (`.diff-added-gutter` /
+  // `.diff-deleted-gutter`).  A band that appeared only on changed lines would
+  // shift the line numbers sideways the moment a file was edited, which is the
+  // one thing every band in this strip is reserved to prevent.
+  .diff-line
+    position: absolute
+    top: 0
+    height: 100%
+    width: var(--ct-gutter-vcs-lane)
+    right: calc(var(--ct-gutter-marker-lane) + var(--ct-gutter-vcs-split))
+    box-sizing: border-box
+    // Under the markers and over nothing.  It cannot reach them — the bands do
+    // not touch — but a stacking order stated here is one that survives the
+    // next band someone adds.
+    z-index: 4
+
+  .diff-line:before
+    content: ""
+    display: block
+    height: 100%
+    // The bar itself is narrower than its band, so the band's hit area is
+    // comfortable while the mark stays the thin rule a reader expects.
+    width: 0.15em
+    margin: 0 auto
+    background: transparent
+
+  // AND THE BAND IS NOW AN INDICATOR, which is the half a reserved width does
+  // not give you.  `.diff-added-gutter` and `.diff-deleted-gutter` are set on
+  // `.gutter` itself by `ui/trace.editorLineNumber`; until now the only thing
+  // either did was recolour the line NUMBER, which is a signal that competes
+  // with the number's own meaning and disappears entirely on the active line
+  // (`.active-line-number` overrides the colour).  The bar does not.
+  &.diff-added-gutter .diff-line:before
+    background: colors-ui-text-success-primary
+
+  &.diff-deleted-gutter .diff-line:before
+    background: colors-ui-text-error-primary
+
+  .gutter-line
+    width: calc(100% - var(--ct-gutter-pointer-lane) - var(--ct-gutter-vcs-lane) - var(--ct-gutter-vcs-split) - var(--ct-gutter-marker-lane) - (var(--ct-gutter-line-gap) * 2))
+    height: 100%
+    display: block
+    box-sizing: border-box
+    margin-left: calc(var(--ct-gutter-pointer-lane) + var(--ct-gutter-line-gap))
+    margin-right: calc(var(--ct-gutter-line-gap) + var(--ct-gutter-vcs-lane) + var(--ct-gutter-vcs-split))
+    padding-left: 0
+    padding-right: 0.15em
+    text-align: right
+    white-space: nowrap
+    opacity: 0.5
+    // overflow: hidden
+    cursor: default
+//font-weight: bold
+
+// The type treatment of a Monaco line number: face, size, weight, and the
+// sub-pixel nudge that settles it on the line box.
+//
+// APPEARANCE ONLY, and shared for that reason — the unified diff calls it too
+// (components/unified_diff.styl), so the two editors cannot drift into
+// different-looking gutters again.  What is deliberately NOT here is layout:
+// the width of the lane and what the number aligns against differ by editor,
+// and it was exactly a layout property leaking across that stretched the
+// diff's labels over its `+`/`-` markers.
+line-number-type()
+  font-family: "SpaceMono"
+  font-weight: 300
+  line-height: inherit
+  font-size: 0.875rem !important
+  padding-top: 0.0625em !important
+
+// The line the cursor is on.
+//
+// Monaco marks it with `.active-line-number`, and both gutters already change
+// COLOUR for it rather than opacity — #858585 to #C6C6C6.  Two problems with
+// that: neither value is one of ours (they are Monaco's built-in vs-dark
+// defaults, see the note in ui/editor.nim's theme file), and both were then
+// halved by the resting `opacity: 0.5`, so the active number landed at an
+// effective rgb(119,119,119) — barely a step up from its neighbours.
+//
+// Here it is a design token at full strength: `text/primary/label`, the role
+// the UI uses for a label that is currently the subject.  The dimming is lifted
+// for this one row, which is what makes it read as selected at all.
+//
+// Applies to both gutters, so it is deliberately NOT inside the `:not()` below:
+// the editor nests its number one level deeper, in `.gutter-line`, so that box
+// has to be undimmed too or the wrapper's full opacity is undone by the child.
+.line-numbers.active-line-number
+  color: colors-ui-text-primary-label !important
+  opacity: 1
+
+  .gutter-line
+    color: colors-ui-text-primary-label !important
+    opacity: 1
+
+// Scoped away from the unified diff on purpose.
+//
+// `width: 100% !important` beats the `width` Monaco writes inline, which is how
+// every other editor here gets its line numbers pushed right, up against the
+// code.  That works where the gutter holds nothing else.
+//
+// The unified diff's gutter does hold something else: Monaco splits it into a
+// line-number lane and a decorations lane (the `+` / `-` markers in
+// components/unified_diff.styl), and `100%` is the width of BOTH.  Stretching
+// the label across the pair right-aligned it to the code edge, which left the
+// slack on the left of the gutter and covered the markers completely — they
+// were rendering, with `.line-numbers` painted over them.
+//
+// There is no way to give Monaco's inline width back from another rule, so the
+// fix is for this one not to match.
+.line-numbers:not(.unified-diff-editor *)
+  // border-right: 0.0625em solid colors-ui-border-primary
+  line-number-type()
+  width: 100% !important
+  display: block !important
+  box-sizing: border-box
+  margin-left: 0 !important
+  text-align: right !important
+  margin-top: 0em !important
+  padding-right: 0 !important
+  // color: LINE_NUMBERS_TEXT_COLOR !important
+
+.on
+  background-color: ON_BG_COLOR
+  position: relative
+  z-index: -2
+
+// --- the run-test control -------------------------------------------------
+//
+// Sized to the pointer lane and the full line height, so the hit area is the
+// whole of the lane rather than the glyph. A control a reader has to hit
+// precisely is one they will miss and set a breakpoint with — which is the
+// failure the lane separation above exists to prevent, one lane over.
+.gutter-runtest
+  position: absolute
+  top: 0
+  left: 0
+  width: var(--ct-gutter-pointer-lane)
+  height: 100%
+  display: flex
+  align-items: center
+  justify-content: center
+  cursor: pointer
+  // INVISIBLE, NOT ABSENT. `visibility` rather than `display: none` so the
+  // element keeps its box and its hit area is stable the instant it appears —
+  // a control that is laid out only on hover moves under the pointer that
+  // revealed it.
+  opacity: 0
+  z-index: 2
+  transition: opacity 90ms ease
+
+  &:before
+    content: "\25b6"
+    font-size: 0.6em
+    line-height: 1
+    color: colors-ui-text-primary-label-subtle
+
+  &:hover:before
+    color: colors-ui-text-primary-active
+
+.gutter:hover .gutter-runtest
+  opacity: 1
+
+// AND THE ARROW YIELDS, but only while the row is hovered. Outside that the
+// current line keeps its marker exactly as before, so this control changes
+// nothing about how a reader finds where execution is.
+.gutter:hover .gutter-highlight-active:before
+  opacity: 0
+
+// RUNNING is visible without a hover, because at this point the slot is a
+// STATUS rather than an affordance — and a status a reader has to hover to see
+// is not one. This is also what the settle path clears: the class comes from
+// `trace.gutterRunningTest`, so a repaint is what removes it, and
+// `restoreEditorTestButton` is what causes the repaint.
+.gutter-runtest.running
+  opacity: 1
+  cursor: default
+
+  &:before
+    content: "\25cf"
+    color: colors-ui-text-primary-active
+    animation: ct-gutter-runtest-pulse 1s ease-in-out infinite
+
+@keyframes ct-gutter-runtest-pulse
+  0%, 100%
+    opacity: 0.35
+  50%
+    opacity: 1
+
+.gutter-highlight-active:before
+  content: ""
+  display: block
+  position: absolute
+  top: 50%
+  left: var(--ct-gutter-highlight-left)
+  width: var(--ct-gutter-highlight-size)
+  height: var(--ct-gutter-highlight-size)
+  background-image: HIGHLIGHT_LINE_ARROW
+  background-repeat: no-repeat
+  background-position: center
+  background-size: 0.47em
+  transform: translate(-40%, -40%)
+  z-index: 0
+
+.inline-expanded-value-view
+  width: 100%
+  background-color: INLINE_EXPANDED_COLOR
+
+.trace-button
+  margin-left: 40%
+  cursor: pointer
+
+// M6 — Column-Aware Replay Navigation: column-anchored breakpoint
+// marker emitted by ``EditorViewComponent.applyColumnBreakpointDecorations``
+// in ``ui/editor.nim``.  The Monaco inline decoration spans the
+// single character at ``(line, column)`` so the red underline /
+// dot anchors visually to the bound column and tracks editor
+// scroll / resize automatically.
+.ct-column-breakpoint-marker
+  border-bottom: 0.125em solid colors-ui-text-error-primary
+  background-color: rgba(255, 0, 0, 0.18)
+  border-radius: 0.1em
+  cursor: pointer
+
+.breakpoint-program-select
+  width: 2em
+  background-color: BREAKPOINT_MENU_0
+
+.breakpoint-frame-select
+  width: 2em
+  background-color: BREAKPOINT_MENU_1
+
+.limited-expanded
+  font-size: 1em
+  overflow-y: scroll
+  height: 50vh
+
+.breakpoint-menu
+  width: 4.5em
+
+#trace-nav
+  width: 100%
+
+.container
+  top: 3.125em
+  position: absolute
+
+#editor-menu
+  font-size: 1.125em
+
+.editor-menu-trace
+  cursor: pointer
+  margin-right: 1.25em
+  color: EDITOR_MENU_TRACE_COLOR
+
+.editor-menu-close
+  cursor: pointer
+  color: red
+
+.expand-inline
+  // A link: cyan on the dark ground, the information text token on the light
+  // one (`by-mode`, defaults.styl).
+  color: by-mode(#0ff, colors-ui-text-information-primary)
+
+.expand-trace:hover
+  opacity: 1
+
+.path
+  width: 100
+
+.name
+  width: 100%
+
+.break
+  color: BREAK_COLOR
+
+#tabs
+  width: 72%
+  float: left
+
+.tab
+  float: left
+  overflow: auto
+  display: flex
+  flex-basis: 100%
+
+if IS_EXTENSION
+  .state-component
+    overflow-x: hidden
+    width: 100%
+else
+  #values
+    overflow-x: scroll
+#right
+  width: 24%
+  float: left
+  height: 62.5em
+  overflow-y: scroll
+
+.invisible
+  display: none
+
+.jump
+  color: JUMP_COLOR
+  width: 100%
+  font-size: 1.125em
+  cursor: pointer
+
+.expansion
+  left: -4.375em !important
+  z-index: 1
+  width: 100% !important
+  height: 12.5em
+  overflow: scroll
+  position: absolute
+
+.active-tab
+  display: flex
+
+.tab
+  width: 100%
+
+#active-tab
+  display: flex
+
+.inactive-tab
+  display: none
+
+.flow-multiline-value-container
+  position: absolute
+  // background-color: FLOW_PARALLEL_BACKGROUND_COLOR
+  height: 1.25em
+  width: fit-content
+  // min-width: 1.25em
+  // max-width: 15.625em
+  z-index:1
+  display: flex
+  align-items: center
+
+// button
+//   background-color: colors-ui-surface-primary-tertiary
+//   padding-left: 0.625em
+//   color: colors-ui-text-primary-body
+//   padding-right: 0.625em
+//   // height: 100%
+//   // font-size: 0.8125em
+//   font-family: "SpaceMono"
+//   margin: 0.0625em !important
+//   margin-left: 0.125em !important
+//   display: flex
+//   align-items: center
+//   border-radius: 0.25em !important
+//   cursor: pointer !important
+//   background-position: center
+//   background-repeat: no-repeat
+//   if IS_EXTENSION
+//     background-size: 0.5em
+//   else
+//     background-size: 1ch
+
+//   &:hover
+//     background-color: colors-ui-surface-input-default
+
+//   &:disabled
+//     opacity: 0.5 !important
+//     cursor: default !important
+
+//     &:hover
+//       background-color: colors-ui-surface-primary-tertiary
+
+//   &.backward
+//     background-image: url('../../public/resources/shared/omniscience_backward_dark.svg')
+
+//   &.forward
+//     background-image: url('../../public/resources/shared/omniscience_forward_dark.svg')
+
+.flow-parallel-value
+  display: inline-flex
+  padding-right: 0
+  align-items: center
+  margin-right: 0.625em
+
+.flow-parallel-value-name
+  // font-size: 0.8125em
+  font-family: "SpaceMono"
+  background: colors-ui-surface-primary-secondary-hover
+  // box-shadow: 0.0625em 0.0625em 0.0625em colors-ui-surface-input-default
+  color: colors-ui-text-primary-body
+  padding-left: 0.3125em
+  padding-right: 0.3125em
+  padding-top: 0
+  padding-bottom: 0
+  // height: 1.0625em
+  // line-height: 1.0625em
+  display: flex
+  border-radius: 0.125em
+  box-sizing: border-box
+  white-space: nowrap
+
+.flow-loop.value
+  font-size: inherit
+
+  span
+    font-size: inherit
+
+.flow-loop-value-name
+  // font-size: 0.8125em
+  font-family: "SpaceMono"
+  background: colors-ui-surface-primary-tertiary
+  box-shadow: 0.0625em 0.0625em 0.0625em colors-ui-surface-input-default
+  color: colors-ui-text-primary-body
+  padding-left: 0.3125em
+  padding-right: 0.3125em
+  padding-top: 0
+  padding-bottom: 0
+  margin-right: 0em !important
+  // height: 1.0625em
+  // line-height: 1.0625em
+  display: flex
+  border-radius: 0.125em
+  box-sizing: border-box
+  white-space: nowrap
+
+.flow-loop-textarea
+  height: 100%
+  background-color: colors-ui-surface-primary-secondary-hover
+  font-family: "SpaceGrotesk"
+  border: 0
+  padding: 0
+  padding-right: 0.1875em
+  overflow: hidden
+  resize: none
+  color: colors-ui-text-primary-body
+  outline: none
+  cursor: text
+  opacity: 0.7
+
+  &:focus
+    opacity: 1
+
+  &::placeholder
+    color: colors-ui-text-primary-body
+
+// ---------------------------------------------------------------------------
+// Diff line highlighting in DeepReview mode
+// ---------------------------------------------------------------------------
+//
+// Applied by ``ui/editor.nim``'s ``deepReviewDiffStyleLines`` (via the
+// existing ``styleLines`` / ``deltaDecorations`` pattern) when a source file
+// is opened while a review is active and the review data carries hunks for
+// it — DeepReview-GUI.md §5.1, "Full Files Mode ... diff highlights applied
+// to the modified lines".  Added lines in a pure-addition hunk are green,
+// added lines in a hunk that also removes are yellow.
+//
+// Same green/yellow palette as the unified diff tab
+// (``components/unified_diff.styl``) so the two representations of one
+// changeset read alike.  Moved here from the deleted
+// ``components/deepreview.styl`` (DR-R8); the editor is their only consumer.
+
+.line-diff-added
+  background-color: rgba(63, 185, 80, 0.18)
+  // The gutter stripes are graphics that carry the change kind: in the light
+  // theme the success / warning icon tokens, as the dark theme's GitHub-dark
+  // greens and ambers are 2.3:1 there (`by-mode`, defaults.styl).
+  border-left: 0.1875em solid by-mode(#3fb950, colors-ui-icon-success-primary)
+
+.line-diff-modified
+  background-color: rgba(210, 153, 34, 0.18)
+  border-left: 0.1875em solid by-mode(#d29922, colors-ui-icon-warning-primary)
+
+.line-diff-removed
+  background-color: rgba(248, 81, 73, 0.18)
+  border-left: 0.1875em solid #f85149

@@ -1,0 +1,839 @@
+.local-calltrace-view
+  flex-grow: 1
+  overflow: auto
+  padding-top: 0.5em
+  // 8px between the search field and the list under it (Nikolay,
+  // 2026-10-16): the scroll area — and the scrubber track drawn over its
+  // right edge, which is placed from it — no longer touches the field.
+  margin-top: 0.5rem
+
+// A 2px hairline along the pane's top edge, not a headline across its middle.
+//
+// This used to be `left: 15ch; top: 50%; font-size: 3ch` — the word
+// "Loading..." rendered three times the body size in the centre of the panel,
+// which is what the user asked to have redesigned: "which really needs to be
+// redesigned to be more discreet". The element is now empty (see
+// `views/isonim_calltrace_view.nim`); all of its appearance is here.
+//
+// `display` is still toggled between `none` and `block` by the `isLoading`
+// binding and by the two imperative writes in `ui/calltrace.nim`, so this
+// rule only has to describe the visible case.
+.calltrace-loading
+  position: absolute
+  left: 0
+  top: 0
+  width: 100%
+  height: 2px
+  pointer-events: none
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    colors-ui-text-primary-label 50%,
+    transparent 100%)
+  opacity: 0.45
+  animation: calltrace-loading-sweep 1.4s ease-in-out infinite
+
+@keyframes calltrace-loading-sweep
+  0%
+    opacity: 0.12
+  50%
+    opacity: 0.5
+  100%
+    opacity: 0.12
+
+@media (prefers-reduced-motion: reduce)
+  .calltrace-loading
+    animation: none
+    opacity: 0.35
+
+.calltrace-view
+
+  width: 100%
+  display: flex
+  flex-direction: column
+  // overflow: auto // scroll
+
+  .calltrace-lines
+    display: flex
+    flex-direction: column
+    position: relative
+
+  .calltrace-child
+    white-space: nowrap
+    width: 100%
+    float: left
+    display: inline
+
+  .calltrace-call-line
+    position: relative
+
+  .calltrace-svg-line
+    // background-color: black
+    position: absolute
+    overflow: visible
+    z-index: 1
+    pointer-events: none
+
+  line
+    stroke: CALLTRACE_TRACE_LINE_COLOR
+
+  // parent : overflow: scroll
+
+  .call-offsets
+    display: inline-flex
+
+  .empty-offset
+    width: 0.625em
+    margin: 0
+
+    &-bottom-border
+      border-bottom: 0.0625em solid CALLTRACE_TRACE_LINE_COLOR
+
+    &-top-border
+      border-top: 0.0625em solid CALLTRACE_TRACE_LINE_COLOR
+
+    &-right-border
+      width: 0.6875em
+      border-right: 0.0625em solid CALLTRACE_TRACE_LINE_COLOR
+
+  .offset-top-border
+    width: 0.625em
+    border-top: 0.0625em solid CALLTRACE_TRACE_LINE_COLOR
+
+  .offset-top-and-bottom-border
+    width: 0.625em
+    border-top: 0.0625em solid CALLTRACE_TRACE_LINE_COLOR
+    border-bottom: 0.0625em solid CALLTRACE_TRACE_LINE_COLOR
+
+  .call-offset
+    background-size: 1.25em
+    white-space: pre
+    float: left
+    background-image: linear-gradient(to right, rgba(0, 0, 0, 0.2), 0.0625em, transparent 0.0625em, transparent)
+    //border-left: 0.09375em solid #3A4049
+    width: 0.625em
+    height: 1.625em
+
+  .call-offset-icon
+    background-color: colors-ui-surface-base-panel
+    width: 0.625em
+    height: 1.625em
+    position: relative
+
+
+  .call-offset-icon-1
+    width: 0.3125em
+    height: 0.3125em
+    position: absolute
+    background-color: CALLTRACE_TRACE_LINE_COLOR
+    content: ""
+    left: 0.1875em
+    top: 0.625em
+    border-radius: 0.09375em
+
+
+  .call-offset-icon-2
+    width: 0.0625em
+    height: 100%
+    position: absolute
+    background-color: CALLTRACE_TRACE_LINE_COLOR
+    content: ""
+    left: 0
+    top: 0
+
+
+  .call-offset-icon-3
+    width: 0.125em
+    height: 0.0625em
+    position: absolute
+    background-color: CALLTRACE_TRACE_LINE_COLOR
+    content: ""
+    left: 0.0625em
+    top: 0.75em
+
+  .call-offset-icon-4
+    width: 0.3125em
+    height: 0.625em
+    position: absolute
+    background-color: CALLTRACE_NEXT_CALL_POINTER_COLOR
+    border-radius: 0.125em
+    content: ""
+    left: -0.125em
+    top: 0
+
+  .call-offset-icon-5
+    width: 0.3125em
+    height: 0.3125em
+    position: absolute
+    background-color: CALLTRACE_NEXT_CALL_POINTER_COLOR
+    border-radius: 0.09375em
+    content: ""
+    left: 0.1875em
+    top: 0.625em
+
+  .call-offset-icon-6
+    width: 0.0625em
+    height: 50%
+    position: absolute
+    background-color: CALLTRACE_TRACE_LINE_COLOR
+    content: ""
+    left: 0
+    top: 0
+
+  .calltrace-filter
+    margin-bottom: 0.625em
+    color: colors-ui-text-primary-body
+
+  .calltrace-row
+    padding-left: 0.3125em
+    min-height: 1.55em
+    line-height: 1.55em
+
+  .calltrace-row
+  .call-name
+    cursor: pointer
+    display: inline-flex
+    //padding: 0.125em
+    // font-size: 1em
+    color: colors-ui-text-primary-body
+    float: left
+    // background-color: colors-ui-surface-base-panel
+
+    // The list hover (LIST_HOVER_BG, button.styl); was a literal #2e2e2e.
+    &:hover
+      background-color: LIST_HOVER_BG
+
+  .call-text
+    padding-left: 0.125em
+    display: inline
+    z-index: 2
+
+  .end-of-program-text
+    color: CALLTRACE_END_OF_PROGRAM_TEXT
+
+  .end-of-program-error
+    color: colors-ui-text-error-primary
+
+  .call-current
+    color: colors-ui-text-primary-body
+    font-weight: BOLD_WEIGHT
+    // font-size: 1em
+
+  .call-expanded-value
+    width: 100%
+    display: flex
+    overflow: visible
+    position: relative
+    background-color: colors-ui-surface-input-default
+    border-radius: 0.625em
+    padding-left: 0.9375em
+    padding-bottom: 0.15625em
+    padding-right: 0.3125em
+    margin-left: 0.625em
+    margin-right: 0.625em
+    margin-bottom: 0.1875em
+
+    .view-active
+      border-radius: 0.625em
+      padding-left: 0
+      position: relative
+
+      .value-expanded-text
+        background-color: colors-ui-surface-base-panel !important
+
+      .value-expanded-default
+        background-color: colors-ui-surface-base-panel !important
+
+    // A return value's name: orange for the dark ground; the editor's
+    // parameter colour, its orange, on the light one (`by-mode`, defaults.styl).
+    &.return-value .value-expanded-name-text
+      color: by-mode(#e48e59, colors-editor-syntax-parameter)
+
+  .value-expanded-name
+    color: CALLTRACE_ARGS_COLOR
+
+  .value-expanded-view
+    background-color: colors-ui-surface-input-default !important
+    font-size: 1em
+
+  .value-expanded-text
+    background-color: colors-ui-surface-input-default !important
+
+  // .value-expanded-default
+  //   background-color: colors-ui-surface-input-default !important
+
+  .remove-expanded-value
+    padding-right: 0.3125em
+    font-size: 1em
+    font-weight: bold
+    color: colors-ui-text-primary-body
+    cursor: pointer
+
+  .call-previous
+    color: colors-ui-text-primary-body // CALLTRACE_COLOR_PREVIOUS
+  // background-color: #fff
+
+  .call-next
+    color: colors-ui-text-primary-body // CALLTRACE_COLOR_NEXT
+  // background-color: #fff
+  // border: 0.0625em solid colors-ui-text-primary-body
+
+  .macro-expansion
+    color: green
+
+  .call-tooltip
+    display: block
+    padding-left: 0.3125em
+    padding-right: 0.625em
+    padding-top: 0.3125em
+    padding-bottom: 0.3125em
+    width: fit-content
+    border-radius: 0.375em
+    background-color: colors-ui-surface-input-default
+    position: fixed
+    z-index: 3
+    font-weight: 400
+
+    .value-expand-button
+      display: none
+
+    .toggle-value-history
+      display: none
+
+  .call-args
+    // font-size: 1em
+    color: CALLTRACE_ARGS_COLOR
+    position: relative
+    display: inline
+    margin-left: 0.3125em
+    margin-right: 0.3125em
+    // z-index: 2
+
+    // &:hover .call-tooltip
+    //   display: inline
+
+    &-list
+      list-style: none
+      padding: 0.3125em
+      margin: 0
+
+  .call-arg
+    display: inline-flex
+    flex-direction: column
+    color: CALLTRACE_ARGS_COLOR
+
+    .call-arg-header
+      display: flex
+
+    &-tooltip-value
+      word-wrap: break-word
+      white-space: break-spaces
+      color: colors-ui-text-primary-body
+
+
+  .call-arg-text
+    text-overflow: ellipsis
+    overflow: hidden
+    // for now commented out so
+    // it's easier to show to the designer
+    // also otherwise we don't see the value? without clicking?
+    // max-width: 6.25em
+
+  .return
+    z-index: 2
+
+  .return-arrow
+    color: CALLTRACE_RETURN_COLOR
+
+
+  .return-text
+    color: CALLTRACE_RETURN_COLOR
+
+  .hidden-calls-button
+    background-color: colors-ui-surface-input-default
+    border-radius: 0.625em
+    padding-left: 0.625em
+    padding-right: 0.625em
+
+  .expanded-call-args
+    display: flex
+
+  .summary-graph
+    background-color: CALLTRACE_SUMMARY_BG
+
+
+  .expand-callstack, .expand-summary
+    color: colors-ui-text-primary-body
+    font-size: 0.75em
+    text-decoration: underline
+    margin-left: 1.25em
+
+
+  .collapse-callstack
+    color: colors-ui-text-primary-body
+
+  .call-child-box
+    display: flex
+    align-items: center
+    z-index: 2
+    min-width: max-content
+
+  .collapse-call
+    z-index: 2
+    background-color: CALLTRACE_COLLAPSED_CALL
+    padding-left: 0.3125em
+    padding-right: 0.3125em
+    font-size: 0.875em
+    line-height: 1.125em
+    padding-top: 0.125em
+    border-radius: 0.25em
+
+  .toggle-call
+    // keep it a bit in left, so we can actually see the function name for same depth
+    // on the same level for both no-collapse button and collapse button lines
+    width: 0.875em
+    height: 1.5625em
+    display: block
+    margin-right: 0.25em
+    z-index: 2
+
+    .collapse-call-img
+      width: 0.875em
+      height: 0.875em
+      background-image: url(CALLTRACE_COLLAPSE_IMG);
+      background-size: cover;
+      background-position: center;
+      display: inline-block;
+      position: relative
+      top: 0.25em
+      left: -0.125em
+      cursor: pointer
+
+      &.active
+        background-image: url(CALLTRACE_ACTIVE_COLLAPSE_IMG) !important
+
+    .expand-call-img
+      width: 0.875em
+      height: 0.875em
+      background-image: url(CALLTRACE_EXPAND_IMG);
+      background-size: cover;
+      background-position: center;
+      display: inline-block;
+      position: relative
+      top: 0.25em
+      left: -0.125em
+      cursor: pointer
+
+      &.active
+        background-image: url(CALLTRACE_ACTIVE_EXPAND_IMG) !important
+
+    .dot-call-img
+      width: 0.25em
+      height: 0.25em
+      background-image: url(CALLTRACE_DOT_IMG);
+      background-size: cover;
+      background-position: center;
+      display: block;
+      position: relative
+      bottom: -0.625em
+      left: 0.1875em
+
+      &.active
+        background-image: url(CALLTRACE_ACTIVE_DOT_IMG) !important
+
+    .end-of-program-img
+      width: 0.25em
+      height: 0.25em
+      background-image: url(CALLTRACE_EOP_IMG);
+      background-size: cover;
+      background-position: center;
+      display: block;
+      position: relative
+      bottom: -0.625em
+      left: 0.2em
+
+    .end-of-program-error
+      background-image: url(CALLTRACE_EOP_ERROR_IMG);
+
+  .call-space
+    width: 0.125em
+    float: left
+
+  .collapsed-callstack
+    color: CALLTRACE_COLOR_PREVIOUS
+    cursor: pointer
+
+  .duration
+    margin-left: 1.25em
+    padding-left: 0.25em
+    padding-right: 0.125em
+    padding-top: 0.125em
+    font-size: 0.75em
+    height: 1em
+
+  .code-duration
+    display: inline-flex
+
+.calltrace-view
+  // font-size: 0.875em
+  height: 100%
+  color: colors-ui-text-primary-body
+  // if !IS_EXTENSION
+  //   padding-left: 0.25em
+  // background-color: colors-ui-surface-base-panel
+
+// .local-calltrace
+//   background-color: colors-ui-surface-base-panel
+//   color: colors-ui-text-primary-body
+//   margin-left: 0.25em
+//   padding-right: 0.5em
+//   overflow: visible
+//   max-width: -webkit-fill-available
+//   min-width: fit-content
+
+.step-list
+  background-color: colors-ui-surface-base-panel
+  color: colors-ui-text-primary-body
+  font-family: "SpaceMono", monospace
+  font-size: 13px
+  line-height: 1.5em
+  overflow: auto
+  height: 100%
+
+  .step-list-lines-box,
+  .step-lines
+    min-height: 100%
+
+  .step-line-pre
+    display: inline
+    margin: 0
+    font: inherit
+    white-space: pre
+    background-color: transparent
+
+  .active-step-line-pre
+    background-color: transparent
+    color: colors-ui-text-primary-body !important
+
+  .inactive-step-line-pre
+    background-color: transparent
+    color: colors-ui-text-primary-body
+
+  .step-line
+    display: grid
+    grid-template-columns: 3em 13em minmax(18em, 1fr) minmax(14em, 24em)
+    align-items: center
+    column-gap: 0.75em
+    margin-left: 0
+    min-height: 1.625em
+    width: 100%
+    box-sizing: border-box
+    border-top: 0.0625em solid colors-ui-border-secondary
+    padding: 0 0.75em
+    cursor: pointer
+
+    &:hover
+      background-color: colors-ui-surface-primary-secondary-hover
+
+  .active-step-line
+    background-color: colors-ui-surface-primary-secondary-hover
+    color: colors-ui-text-primary-body !important
+
+  .step-line-column
+    display: block
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+  .step-line-delta
+    width: auto
+    color: colors-ui-text-primary-body
+
+  .step-line-location
+    width: auto
+    color: by-mode(#9cdcfe, colors-ui-text-information-primary)
+
+  .step-line-source-code
+    width: auto
+
+  .step-line-call
+    grid-template-columns: minmax(0, 1fr) minmax(14em, 24em)
+    background-color: rgba(210, 153, 34, 0.12)
+    color: colors-ui-text-primary-body
+
+  .step-line-return
+    grid-template-columns: minmax(0, 1fr) minmax(14em, 24em)
+    background-color: rgba(251, 146, 60, 0.16)
+    color: colors-ui-text-primary-body
+
+  .step-line-description
+    display: block
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+    width: auto
+
+  .step-line-args,.step-line-return-value
+    display: block
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+    width: auto
+    color: colors-ui-text-primary-body
+
+  .step-line-flow-values
+    width: auto
+    background-color: transparent
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+    .step-line-flow-value
+      margin-left: 0.625em
+
+      &:first-child
+        margin-left: 0
+
+    .step-line-flow-value-repr
+      margin-left: 0.3125em
+      color: colors-ui-text-warning-primary
+      background-color: transparent
+
+.excerpt-code
+  color: colors-ui-text-primary-body
+
+.code-state-line
+  font-family: "SpaceMono", monospace
+  text-overflow: ellipsis
+  overflow: hidden
+  white-space: nowrap
+
+  &:hover .code-tooltip
+    display: block
+    transition-delay: TOOLTIP_DELAY_TIMER
+    opacity: 1
+    visibility: visible
+
+
+.active-trace2, .active-history, .active-dialog
+  display: block
+  height: 100%
+  width: 100%
+  background-color: colors-ui-surface-base-canvas
+  color: colors-ui-text-primary-body
+  overflow-y: scroll
+
+.inactive-trace, .inactive-dialog
+  display: none
+
+.active-state
+  display: flex
+  flex-direction: column
+
+  .select-kind-button-container
+    position: absolute
+    margin-left: 0.625em
+
+#dialog
+  display: flex
+  flex-direction: column
+  background-color: DIALOG_COLOR_BG
+  color: DIALOG_COLOR_FG
+
+.expandable-value
+  text-align: center
+  font-size: 1.25em
+
+.expandable-child
+  width: 100%
+  float: left
+  font-size: 1.25em
+  margin-left: 0.625em
+
+.border-value-0
+  border: 0 // 0 colors-ui-text-primary-body solid
+// margin-left: 0.625em
+
+.expanded
+  for i in 0..100
+    &-{i}
+      float: left
+      width: 99%
+      margin-left: 0.625em * i
+      display: inline-flex
+
+.value-expanded-atom
+  position: relative
+  display: flex
+  padding-left: 0.625em
+// &.atom-even
+
+
+
+.value-expanded-atom-parent
+  display: flex
+  flex-direction: row
+  align-items: center
+  width: fit-content
+
+.value-expanded-compound-parent
+  display: flex
+  flex-direction: column
+
+.value-expanded-compound
+  display: flex
+  flex-direction: column
+
+.value-expanded
+  if IS_EXTENSION
+    width: calc(100% - 0.625em)
+  else
+    width: 100%
+  display: flex
+  flex-direction: column
+  overflow: visible /*hidden*/
+  position: relative
+  // margin-top: 0.15625em
+
+
+.atom-even
+  // background-color: colors-ui-surface-base-panel
+  color: colors-ui-text-primary-body
+
+.atom-odd
+  // background-color: colors-ui-surface-base-panel
+  color: colors-ui-text-primary-body
+
+.chevron
+  color: colors-ui-text-primary-body
+  cursor: pointer
+  position: absolute
+
+  &::before
+    border-style: solid
+    border-width: 0.1em 0.1em 0 0
+    content: ''
+    display: inline-block
+    height: 0.45em
+    left: -0.3125em
+    position: absolute
+    top: 0.15em
+    transform: rotate(135deg)
+    vertical-align: top
+    width: 0.45em
+
+#chevron-container
+  margin-bottom: 0.625em
+  margin-left: 0.625em
+  margin-right: 0.625em
+  position: relative
+
+
+//   &.bottom:before
+//     top: 0
+//     transform: rotate(135deg)
+
+// TODO: Fix it later on!
+.value-components-container
+  // overflow-y: scroll
+  position: relative
+  height: 100%
+  overflow: auto
+  margin-top: 0.25em
+  // if !IS_EXTENSION
+  //   margin-left: 0.125em
+  // margin: 0.3125em
+  // margin-right: -0.3125em
+
+  .line-chart
+    height: 12.5em
+
+.value-expanded-text, .value-expand
+  color: colors-ui-text-warning-primary
+  cursor: pointer
+  display: contents
+  position: absolute
+  width: 95%
+  overflow: hidden
+  white-space: nowrap
+  text-overflow: ellipsis
+
+.list-name
+  width: 50%
+  float: left
+
+.calltrace-editor-call
+  border: 0.0625em solid colors-ui-text-primary-body
+  height: 7.5em
+  color: colors-ui-text-primary-body
+
+  .code-editor
+    height: 6.25em
+
+.local-calltrace-view
+  .event-selected
+    padding-right: 0.5em
+
+// TODO: Fix event-selected
+//
+// The selected row's ground is the design system's selection surface,
+// `colors-editor-surface-select` — the token whose Dark value is the #3E3E3B
+// this rule used to spell as a literal. As a literal it stayed dark in the
+// light theme, a dark bar under the light theme's dark text.
+.event-selected
+  background: colors-editor-surface-select !important
+
+.code-state-line
+  color:colors-ui-text-primary-body
+  // margin-left: 1.5em
+  margin-bottom: .5em
+
+.call-search-results
+  max-height: 5.5em
+  overflow: scroll
+  background-color: colors-ui-surface-input-default
+  margin-left: 0
+  margin-bottom: 0.25em
+
+.call-search-results, .search-result
+  color: colors-ui-text-primary-body !important
+  cursor: pointer
+  text-decoration: none
+  padding-left: 0.5em
+  line-height: 1.45em
+
+// Search results are a clickable list with no hover of their own before; the
+// list hover (LIST_HOVER_BG, button.styl).
+.call-search-results .search-result:hover
+  background-color: LIST_HOVER_BG
+
+.empty-search-result
+  color: red
+  text-align: center
+  white-space: break-spaces
+
+.active-call-location
+  width: 0.25em
+  height: 0.25em
+  background-image: url(CALLTRACE_ACTIVE_DOT_IMG) !important
+  background-size: cover;
+  background-position: center;
+  display: block;
+  position: relative
+  bottom: -0.625em
+  left: 0.1875em
+  top: 1.125em
+
+.isonim-calltrace
+  // 0.5em left padding on the search bar so its left edge aligns with the
+  // collapse/expand toggle on depth-0 rows.  Right padding kept smaller so
+  // the input extends close to the panel edge.
+  .calltrace-search
+    padding-left: 0.25em
+    padding-right: 0.25em
+
+  // Row-level padding so the selection highlight spans the full panel
+  // width while the collapse/expand toggle is inset by 0.5em — matching
+  // the left edge of the search input above.
+  .local-calltrace-view .calltrace-call-line
+    padding-left: 0.5em

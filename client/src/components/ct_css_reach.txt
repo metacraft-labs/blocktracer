@@ -3,7 +3,7 @@
 #
 # ── WHY THIS FILE EXISTS ──────────────────────────────────────────────────
 #
-# `ct_components_css.nim` compiles eight vendored CodeTracer stylesheets into
+# `ct_components_css.nim` compiles the vendored CodeTracer stylesheets into
 # the CSS this site serves. `Dropped` in that module records the rules the port
 # does not emit, each with a reason, and a test asserts every dropped rule is
 # dropped on purpose. THE CONVERSE HAD NO CHECK AT ALL: nothing asserted that a
@@ -244,6 +244,134 @@ LIVE element input
     The two bare element selectors upstream's `button.styl` and `input.styl`
     carry. Both are the reason every port selector is register-scoped in the
     first place: unscoped they would restyle the whole explorer.
+
+# ── the live panes: the shared views the hydrated build mounts ───────────
+
+LIVE class local-calltrace-view bundle
+LIVE class calltrace-loading bundle
+LIVE class calltrace-view bundle
+LIVE class calltrace-lines bundle
+LIVE class calltrace-child bundle
+LIVE class calltrace-call-line bundle
+LIVE class calltrace-svg-line bundle
+LIVE class calltrace-row bundle
+LIVE class call-text bundle
+LIVE class call-current bundle
+LIVE class call-args bundle
+LIVE class call-args-list bundle
+LIVE class call-arg bundle
+LIVE class call-arg-header bundle
+LIVE class call-arg-text bundle
+LIVE class return bundle
+LIVE class return-arrow bundle
+LIVE class return-text bundle
+LIVE class call-child-box bundle
+LIVE class toggle-call bundle
+LIVE class collapse-call-img bundle
+LIVE class expand-call-img bundle
+LIVE class dot-call-img bundle
+LIVE class call-search-results bundle
+LIVE class search-result bundle
+LIVE class isonim-calltrace bundle
+LIVE class calltrace-search bundle
+    THE SHARED CALL TRACE VIEW, MOUNTED BY THE LIVE BUILD (Shared-DOM-Front-
+    Ends Q6). `hydrate.mountSharedPanes` renders CodeTracer's
+    `renderCalltracePanel` into the call-order view once the session has
+    frames, and these are the classes that view writes on its panel, rows,
+    toggles, arguments and search — in `views/isonim_calltrace_view.nim`,
+    compiled into `hydrate.js` and nowhere in `client/`, which is what the
+    `bundle` evidence says. The static export keeps drawing BlockTracer's own
+    rows (`components/debugger.renderCallTrace`), so no exported page carries
+    them.
+
+LIVE class value-expanded-text bundle
+LIVE class value-expanded-name bundle
+LIVE class value-expand-button bundle
+LIVE class code-state-line bundle
+LIVE class active-state bundle
+LIVE class value-expanded-atom-parent bundle
+LIVE class value-expanded-compound-parent bundle
+LIVE class value-expanded bundle
+LIVE class value-components-container bundle
+LIVE class state-component bundle
+LIVE class isonim-state bundle
+LIVE id gdb-evaluate bundle
+LIVE class state-tabs bundle
+LIVE class loading-indicator bundle
+LIVE class value-view bundle
+LIVE class code-state-arrow bundle
+LIVE class code-state-number bundle
+LIVE class code-state-separator bundle
+LIVE class code-state-source bundle
+LIVE class no-code bundle
+LIVE class value-name bundle
+LIVE class value-type bundle
+LIVE class value-name-container bundle
+LIVE class caret-collapse bundle
+LIVE class caret-expand bundle
+LIVE class ct-history-inline-container bundle
+LIVE class ct-history-inline-row bundle
+LIVE class history-location bundle
+LIVE class history-value bundle
+LIVE class value-changed bundle
+LIVE class border-value-* bundle
+    THE SHARED STATE VIEW, MOUNTED BY THE LIVE BUILD, for the reason the call
+    trace rows above give: `renderStatePanel` from `views/isonim_state_view.
+    nim`, in `hydrate.js` only. `border-value-*` is a pattern because the view
+    writes `"border-value-" & depth`; the bundle carries the prefix, and the
+    port emits the depths `state.styl` draws.
+
+LIVE class eventLog bundle
+LIVE class ct-flex bundle
+LIVE class eventLog-index bundle
+LIVE class eventLog-event bundle
+LIVE class row-expander bundle
+LIVE class eventLog-text bundle
+LIVE class eventLog-fullpath bundle
+LIVE class eventLog-cell bundle
+LIVE class eventLog-column-header bundle
+LIVE class eventLog-column-label bundle
+LIVE class eventLog-dense-table bundle
+LIVE class eventLog-scroll-body bundle
+LIVE class eventLog-scroll-space bundle
+LIVE class eventLog-rows bundle
+LIVE class eventLog-row bundle
+LIVE class event-selected bundle
+LIVE class selected bundle
+LIVE class eventLog-expanded bundle
+LIVE class row-expander-none bundle
+LIVE class eventLog-columns-button bundle
+LIVE class eventLog-columns-menu bundle
+LIVE class eventLog-column-option bundle
+LIVE class eventLog-column-check bundle
+LIVE class eventLog-column-title bundle
+LIVE class eventLog-column-left bundle
+LIVE class eventLog-column-right bundle
+    THE SHARED EVENT LOG VIEW, MOUNTED BY THE LIVE BUILD, for the same
+    reason: `renderEventLogPanel` from `views/isonim_event_log_view.nim`, in
+    `hydrate.js` only.
+
+LIVE class ct-scrubbed bundle
+LIVE class ct-list-scrubber bundle
+LIVE class ct-list-scrubber-thumb bundle
+LIVE class ct-list-scrubber-mark bundle
+    The list scrubber the shared Call Trace and Event Log views attach to
+    their scroll areas (`views/list_scrubber_dom.attachListScrubber`,
+    Scrollbar-Scrubbers.md): it writes these classes on the pane at runtime.
+
+LIVE class ct-menu-item bundle
+LIVE class ct-menu-item-label bundle
+LIVE class ct-menu-item-sublabel bundle
+LIVE class ct-menu-item--disabled bundle
+LIVE id context-menu-container bundle
+LIVE class context-menu-item-container bundle
+LIVE class context-menu-item bundle
+LIVE class context-menu-hint bundle
+    The right-click menu the shared views open (`views/context_menu_bridge.
+    showContextMenu`): the rows it builds, and the container it draws into,
+    which `hydrate.ensureContextMenuHost` adds to the page when the first view
+    mounts. The rules are `menu_item.styl`'s and the four `text_editor.styl`
+    rules `emitOnly` names.
 
 # ══ INERT ═════════════════════════════════════════════════════════════════
 #
@@ -595,3 +723,186 @@ INERT classpart ct-button-image-xl-
     away: emitting `ct-button-text-sm-primary` on one control would move two
     of these rows to LIVE, which is the shape of change this register is meant
     to make visible.
+
+# ── the live panes: rules for parts the mounted views do not draw ─────────
+
+INERT class call-offsets
+INERT class empty-offset
+INERT class empty-offset-bottom-border
+INERT class empty-offset-top-border
+INERT class empty-offset-right-border
+INERT class offset-top-border
+INERT class offset-top-and-bottom-border
+INERT class call-offset
+INERT class call-offset-icon
+INERT class call-offset-icon-1
+INERT class call-offset-icon-2
+INERT class call-offset-icon-3
+INERT class call-offset-icon-4
+INERT class call-offset-icon-5
+INERT class call-offset-icon-6
+INERT class calltrace-filter
+INERT class call-name
+INERT class end-of-program-text
+INERT class end-of-program-error
+INERT class call-expanded-value
+INERT class view-active
+INERT class return-value
+INERT class remove-expanded-value
+INERT class call-previous
+INERT class call-next
+INERT class macro-expansion
+INERT class call-tooltip
+INERT class toggle-value-history
+INERT class call-arg-tooltip-value
+INERT class hidden-calls-button
+INERT class expanded-call-args
+INERT class summary-graph
+INERT class expand-callstack
+INERT class expand-summary
+INERT class collapse-callstack
+INERT class collapse-call
+INERT class end-of-program-img
+INERT class call-space
+INERT class collapsed-callstack
+INERT class duration
+INERT class code-duration
+INERT class list-name
+INERT class calltrace-editor-call
+INERT class empty-search-result
+INERT class active-call-location
+    Parts of the desktop Call Trace the shared view does not render in this
+    build: call offsets, the filter, the summary graph and its toggles, the
+    end-of-program rows, macro expansions, the per-value expansion and the
+    tooltips. They would come back with a mounted view that renders them.
+
+INERT class ct-checkmark
+INERT class ct-checkmark-field
+INERT class ct-checkmark-input
+INERT class ct-checkmark-label
+INERT class eventLogComponent-columns
+INERT class eventLog-switch
+INERT class eventLog-categories
+INERT id eventLog-category-filter
+INERT id eventLog-category-onlytrace
+INERT id eventLog-category-only-recorded-event
+INERT class hamburger-dropdown-container
+INERT class fa-bars
+INERT class dropdown-container
+INERT class dataTable
+INERT class dropdown-list-row
+INERT class dropdown-kind-items
+INERT class toggle-buttons
+INERT class toggle-enabled-wrapper
+INERT class eventLog-detailed-table
+INERT class eventLog-columns
+INERT class eventLog-button
+INERT class eventLog-lowlevellocation
+INERT class eventLog-events
+INERT class dropdown
+INERT class eventLog-normal-color-button
+INERT class eventLog-selected-kind
+INERT class eventLog-selected-category
+INERT class eventLog-header
+INERT class eventLog-detailed-index
+INERT class eventLog-detailed-event
+INERT class eventLog-detailed-location
+INERT class eventLog-detailed-text
+INERT class dropdown-list-tag
+INERT class dropdown-list-kind
+INERT class paging-menu
+INERT class paging-page
+INERT class paging-active-page
+INERT class paging-content
+INERT class paging-child
+INERT class paging-view
+INERT class paging-expand
+INERT class paging-collapse
+INERT class select-kind-button-container
+INERT class events-bottom
+    Parts of the desktop Event Log that the shared view does not render here:
+    the category filter and its dropdown (a separate view,
+    `isonim_event_log_filter_dropdown_view`, not mounted), the detailed table,
+    the paging menu and the button strip. They would come back with a mounted
+    view that renders them.
+
+INERT class value-expanded-default
+INERT class value-expanded-name-text
+INERT class value-expanded-view
+INERT class step-list
+INERT class step-list-lines-box
+INERT class step-lines
+INERT class step-line-pre
+INERT class active-step-line-pre
+INERT class inactive-step-line-pre
+INERT class step-line
+INERT class active-step-line
+INERT class step-line-column
+INERT class step-line-delta
+INERT class step-line-location
+INERT class step-line-source-code
+INERT class step-line-call
+INERT class step-line-return
+INERT class step-line-description
+INERT class step-line-args
+INERT class step-line-return-value
+INERT class step-line-flow-values
+INERT class step-line-flow-value
+INERT class step-line-flow-value-repr
+INERT class active-trace2
+INERT class active-history
+INERT class active-dialog
+INERT class inactive-trace
+INERT class inactive-dialog
+INERT class expandable-value
+INERT class expandable-child
+INERT class 100-
+INERT class value-expanded-atom
+INERT class atom-even
+INERT class atom-odd
+INERT class chevron
+INERT id chevron-container
+INERT class line-chart
+INERT class value-expand
+INERT class value-expanded-type
+INERT class value-non-expanded
+INERT class value-error
+INERT class value-watch
+INERT class value-selected
+INERT class value-annotation
+INERT class value-line-view-text
+INERT class value-expanded-view-text
+INERT class value-expanded-name-text-content
+INERT class right-value
+INERT class simple-value
+    Parts of the desktop State pane and its neighbours that the shared State
+    view does not render here: the step list, the value-history chart and
+    chevrons, watches, errors and annotations, and the non-expanded value
+    forms. They would come back with a mounted view that renders them.
+
+INERT class ct-menu-item-icon
+INERT class ct-menu-item-trailing
+INERT class ct-menu-item--active
+    Two menu-row decorations and a state the shared views' right-click menu
+    never writes in this build: rows carry no icon or trailing slot, and
+    `ct-menu-item--active` is the keyboard highlight that only the desktop's
+    key router drives (`context_menu_bridge.contextMenuOperation`), which this
+    page does not bind. They would come back with a menu that draws icons, or
+    with this page routing the menu's keys.
+
+INERT class ct-hscrubbed
+INERT class ct-hscrubber
+INERT class ct-hscrubber-thumb
+    The horizontal overflow scrubber (`list_scrubber_dom.
+    attachHorizontalScrubber`, Horizontal-Overflow.md §4). The shared views
+    this build mounts do not attach it, so the code is not in the bundle. It
+    would come back with a mounted view that does.
+
+INERT element label
+INERT id dialog
+INERT class expanded
+INERT class edit
+    Names the port's rules use that the mounted views do not write as these
+    selectors: no bare `label` element, no `#dialog`, and no `.expanded` or
+    `.edit` class (the bundle carries the words, as text, which is not class
+    evidence). They belong to desktop panes this page does not mount.
