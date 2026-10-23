@@ -1,0 +1,1271 @@
+{
+ "format": "blocktracer/eth-source-recompile@1",
+ "_comment": [
+  "LEVEL B, MEASURED: each of eth-source-census.json's B-candidates recompiled by",
+  "codetracer-evm-recorder 43d55ad through Sourcify with its verified solc release, and",
+  "graded by the recorder's own outcome line. B = mapped with a source map, an AST and a",
+  "storage layout, all from a recompile that describes the deployed code."
+ ],
+ "measuredAt": "2026-10-23T04:19:43.778Z",
+ "recorder": "metacraft-labs/codetracer-evm-recorder 43d55ad",
+ "census": "tools/chain/measurements/eth-source-census.json",
+ "runs": 195,
+ "candidates": 246,
+ "byOutcome": {
+  "B": 204,
+  "mapped-without-storage-layout": 40,
+  "mapped-without-ast": 0,
+  "mismatch": 1,
+  "failed": 1,
+  "not-verified": 0,
+  "not-looked-up": 0,
+  "other": 0,
+  "not-in-any-run": 0
+ },
+ "measuredBOfCandidates": 82.9,
+ "transactionRollups": {
+  "tracedTransactionsWithACodeContract": 1417,
+  "entryContractB": {
+   "count": 126,
+   "ofTracedWithContract": 8.9
+  },
+  "everyContractB": {
+   "count": 94,
+   "ofTracedWithContract": 6.6
+  }
+ },
+ "perContract": {
+  "0x219218f117dc9348b358b8471c55a073e5e0da0b": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x0f7e68ce244a40a1c98cafedf6a23ba61b15bd2ec2e2c5e96cdbee68f56b7ca1",
+   "compiler": "solc 0.4.16+commit.d7661dd9"
+  },
+  "0xef68e7c694f40c8202821edf525de3782458639f": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x18448c2c7713e8d3176d7e115bf6bb8e0d9cd521dea3677804340049d0321ec5",
+   "compiler": "solc 0.4.13+commit.fb4cb1a"
+  },
+  "0x86fa049857e0209aa7d9e616f7eb3b3b78ecfdb0": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x484a3d879d21bb4649b97468c6631f8d8f6b2713ccb4f004e0f88b1cb6509987",
+   "compiler": "solc 0.4.11+commit.68ef5810"
+  },
+  "0xe41d2489571d322189246dafa5ebde1f4699f498": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xa8ada714a6faef55d6793b34782151df074833c9773eb43fac80240ac1011968",
+   "compiler": "solc 0.4.11+commit.68ef5810"
+  },
+  "0xe8ff5c9c75deb346acac493c463c8950be03dfba": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xf2ebe0dce19b1b91d0a6752ccb1910a2de88c329cd3b7b2165683db43d38ad10",
+   "compiler": "solc 0.4.13+commit.0fb4cb1a"
+  },
+  "0xdd9b54d1dd185f9302e24dd3ae9e652453f74705": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xeaa1d6c025954c88611d8386847750c4c7028a0a1fd23f045e15499d387675e7",
+   "compiler": "solc 0.4.17+commit.bdeb9e52"
+  },
+  "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x0c6e38b73e4551da54b49c3d4af839580b26e133e02738d708c7148a13741931",
+   "compiler": "solc 0.4.19+commit.c4cbbb05"
+  },
+  "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x0ec174496fb50fbbbbb48e7a05537d778342fd5a26ca76940ccb5b4f687dca14",
+   "compiler": "solc 0.5.0+commit.1d4f565a"
+  },
+  "0xa206d322829e04fb5acd36f289ed5367ac3e73e4": {
+   "outcome": "B",
+   "tx": "0x0ec174496fb50fbbbbb48e7a05537d778342fd5a26ca76940ccb5b4f687dca14",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x3f5dd1a1538a4f9f82e543098f01f22480b0a3a8": {
+   "outcome": "B",
+   "tx": "0x0ec174496fb50fbbbbb48e7a05537d778342fd5a26ca76940ccb5b4f687dca14",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xdac17f958d2ee523a2206206994597c13d831ec7": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x1cf6c3b6a04489f4a998d878f9084ba03a34242289d241f8d8271ad644e09a62",
+   "compiler": "solc 0.4.18+commit.9cf6e910"
+  },
+  "0x059ffafdc6ef594230de44f824e2bd0a51ca5ded": {
+   "outcome": "B",
+   "tx": "0xfb8200a08420389cb8ba79dcf63097ad390e4f0e5b1e3824013a0638be6a49b0",
+   "compiler": "solc 0.7.5+commit.eb77ed08"
+  },
+  "0x910524678c0b1b23ffb9285a81f99c29c11cbaed": {
+   "outcome": "B",
+   "tx": "0x20851165c66991342b6993c11901244861b055be51b52e2d72b1bc4f6d88847e",
+   "compiler": "solc 0.7.4+commit.3f05b770"
+  },
+  "0x6b175474e89094c44da98b954eedeac495271d0f": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x3c3288a419b6d3143e37f1751bd822547e6d2499982e7e411a89ecd93a5ab9b5",
+   "compiler": "solc 0.5.12+commit.7709ece9"
+  },
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x21c4464905cf1437f6b772795a0fe338d864f5438f60e27ef79a7cab4fd65046",
+   "compiler": "solc 0.4.24+commit.e67f0147"
+  },
+  "0x89b78cfa322f6c5de0abceecab66aee45393cc5a": {
+   "outcome": "B",
+   "tx": "0x3c3288a419b6d3143e37f1751bd822547e6d2499982e7e411a89ecd93a5ab9b5",
+   "compiler": "solc 0.6.7+commit.b8d736ae"
+  },
+  "0x0a59649758aa4d66e25f08dd01271e891fe52199": {
+   "outcome": "B",
+   "tx": "0x3c3288a419b6d3143e37f1751bd822547e6d2499982e7e411a89ecd93a5ab9b5",
+   "compiler": "solc 0.6.7+commit.b8d736ae"
+  },
+  "0x35d1b3f3d7966a1dfe207aa4514c12a259a0492b": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x3c3288a419b6d3143e37f1751bd822547e6d2499982e7e411a89ecd93a5ab9b5",
+   "compiler": "solc 0.5.12+commit.7709ece9"
+  },
+  "0x9759a6ac90977b93b58547b4a71c78317f391a28": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x3c3288a419b6d3143e37f1751bd822547e6d2499982e7e411a89ecd93a5ab9b5",
+   "compiler": "solc 0.5.12+commit.7709ece9"
+  },
+  "0x0000000000b3f879cb30fe243b4dfee438691c04": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xcc82a9f5eb675554b511ce75e49858aee3ab7eeb227451260e9fa9ec43dc4287",
+   "compiler": "solc 0.4.16+commit.d7661dd9"
+  },
+  "0x283af0b28c62c092c9727f1ee09c02ca627eb7f5": {
+   "outcome": "B",
+   "tx": "0x46fdcb0b494406c0ae05ba589c8548103b6f66626e34d47e998ccdf594d5bf15",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85": {
+   "outcome": "B",
+   "tx": "0x46fdcb0b494406c0ae05ba589c8548103b6f66626e34d47e998ccdf594d5bf15",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0x63faf46dadc9676745836289404b39136622b821": {
+   "outcome": "B",
+   "tx": "0x46fdcb0b494406c0ae05ba589c8548103b6f66626e34d47e998ccdf594d5bf15",
+   "compiler": "solc 0.5.17+commit.d19bba13"
+  },
+  "0x00000000000c2e074ec69a0dfb2997ba6c7d2e1e": {
+   "outcome": "B",
+   "tx": "0x46fdcb0b494406c0ae05ba589c8548103b6f66626e34d47e998ccdf594d5bf15",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0x4976fb03c32e5b8cfe2b6ccb31c09ba78ebaba41": {
+   "outcome": "B",
+   "tx": "0x46fdcb0b494406c0ae05ba589c8548103b6f66626e34d47e998ccdf594d5bf15",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0xcda72070e455bb31c7690a170224ce43623d0b6f": {
+   "outcome": "B",
+   "tx": "0xc3a4f88f585f97f0099aa136d88228d21a2612449974596399afb0a36d78ae66",
+   "compiler": "solc 0.6.8+commit.0bbfe453"
+  },
+  "0x668c50b1c7f46effbe3f242687071d7908aab00a": {
+   "outcome": "B",
+   "tx": "0xcc9d0108ce173a8c11bcdcc3cd84adef4c832c94e5af4a8a8b9e5fcd8b50b7e0",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da": {
+   "outcome": "B",
+   "tx": "0x610bb4913b9de04ae49e4491410415484cb04c35017714b8ee6ce19fccf0d948",
+   "compiler": "solc 0.6.2+commit.bacdbe57"
+  },
+  "0xa2b4c0af19cc16a6cfacce81f192b024d625817d": {
+   "outcome": "B",
+   "tx": "0x67912fefbeeafdf2d0f11d0da986cc99565c2410e1436ffc2f05a642e385162f",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xa0c68c638235ee32657e8f720a23cec1bfc77c77": {
+   "outcome": "B",
+   "tx": "0x6c5ff863387ceadb32ef67962685012dcb016197538d2f8a95c7735bf01de9c5",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf": {
+   "outcome": "B",
+   "tx": "0x6c5ff863387ceadb32ef67962685012dcb016197538d2f8a95c7735bf01de9c5",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0xc4d586ef7be9ebe80bd5ee4fbd228fe2db5f2c4e": {
+   "outcome": "B",
+   "tx": "0x6d3465422b08609c9d9d015b9ca17f0904178b18ab28d54623eb3029e947aca9",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x989aeb4d175e16225e39e87d0d97a3360524ad80": {
+   "outcome": "B",
+   "tx": "0x75537c02c5fb5e3b5231895dbc281fc9a7e3553304c5b8831e3b4b7fe49fc6d4",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xb5f54ac4466f5ce7e0d8a5cb9fe7b8c0f35b7ba8": {
+   "outcome": "B",
+   "tx": "0x7b92344173f4f3258a18527c1cafa40bd693c6713d80c89fef8f1dc2934c91c0",
+   "compiler": "solc 0.6.8+commit.0bbfe453"
+  },
+  "0x07bac35846e5ed502aa91adf6a9e7aa210f2dcbe": {
+   "outcome": "B",
+   "tx": "0x7b92344173f4f3258a18527c1cafa40bd693c6713d80c89fef8f1dc2934c91c0",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0x084b1c3c81545d370f3634392de611caabff8148": {
+   "outcome": "B",
+   "tx": "0x9222b5ebd60ef11808a29745508628f2d8db936dc1d5729d778642f6540dd139",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0xa2c122be93b0074270ebee7f6b7292c7deb45047": {
+   "outcome": "B",
+   "tx": "0x9222b5ebd60ef11808a29745508628f2d8db936dc1d5729d778642f6540dd139",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0xbc93d1aba134cc81f431de04f2d9f46fc5d6d6bc": {
+   "outcome": "B",
+   "tx": "0x9b97136e3e9696fd2b1e931d80499e5f7930c3ffb7764a9d8178d7971b00b8f9",
+   "compiler": "solc 0.7.1+commit.f4a555be"
+  },
+  "0xa3e059c0b01f07f211c85bf7b4f1d907afb011df": {
+   "outcome": "B",
+   "tx": "0x9b97136e3e9696fd2b1e931d80499e5f7930c3ffb7764a9d8178d7971b00b8f9",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x2b7184f2cba49bf7093297951598aea0f546f0be": {
+   "outcome": "B",
+   "tx": "0x9ba6cc0471a418c62f862daeefa1dc3f008b7d12dde285ae243c6fb490366920",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x239dc02a28a0774738463e06245544a72745d5c5": {
+   "outcome": "B",
+   "tx": "0xa279744e514162b1a2c8bae5142d51d4608982c9f69f028d363c30b9f65f84f1",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x5d9972dd3ba5602574abea6bf9e1713568d49903": {
+   "outcome": "B",
+   "tx": "0xbcef2c26c1308b55e6cac0fa08447db8b642dca0b24103343c4dfdec7b01b3d3",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x67c597624b17b16fb77959217360b7cd18284253": {
+   "outcome": "B",
+   "tx": "0xbcef2c26c1308b55e6cac0fa08447db8b642dca0b24103343c4dfdec7b01b3d3",
+   "compiler": "solc 0.5.17+commit.d19bba13"
+  },
+  "0x3b3ee1931dc30c1957379fac9aba94d1c48a5405": {
+   "outcome": "B",
+   "tx": "0xc3a4f88f585f97f0099aa136d88228d21a2612449974596399afb0a36d78ae66",
+   "compiler": "solc 0.6.8+commit.0bbfe453"
+  },
+  "0x42cb0c23289705a8dfb29708b966ee55fdada091": {
+   "outcome": "B",
+   "tx": "0xcc9d0108ce173a8c11bcdcc3cd84adef4c832c94e5af4a8a8b9e5fcd8b50b7e0",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x8484ef722627bf18ca5ae6bcf031c23e6e922b30": {
+   "outcome": "B",
+   "tx": "0xd412b86b6daa0fa24f499903a55e1273a134a99a2165051e2c7726256eca912a",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0x990f341946a3fdb507ae7e52d17851b87168017c": {
+   "outcome": "B",
+   "tx": "0xeb7c267f5435235a0510368788bcc002734994fda487891b22959d3274b24f64",
+   "compiler": "solc 0.7.0+commit.9e61f92b"
+  },
+  "0x278cdd6847ef830c23cac61c17eab837fea1c29a": {
+   "outcome": "B",
+   "tx": "0xfe08de0306c2e8eb3326cb3ce0c5dad0efe7e089eb2b2296c84d002c8b81c53a",
+   "compiler": "solc 0.6.4+commit.1dca32f3"
+  },
+  "0xb8b493600a5b200ca2c58ffa9dced00694fb3e38": {
+   "outcome": "B",
+   "tx": "0xfe08de0306c2e8eb3326cb3ce0c5dad0efe7e089eb2b2296c84d002c8b81c53a",
+   "compiler": "solc 0.6.4+commit.1dca32f3"
+  },
+  "0x5b8df3131d65beb140a2700f06b78f99d0918697": {
+   "outcome": "B",
+   "tx": "0x170c74401b70d937c645a8a95d9b5e6f95d17e80e30086e70cdd407bbd9310f8",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0x0f4676178b5c53ae0a655f1b19a96387e4b8b5f2": {
+   "outcome": "B",
+   "tx": "0x170c74401b70d937c645a8a95d9b5e6f95d17e80e30086e70cdd407bbd9310f8",
+   "compiler": "solc 0.6.8+commit.0bbfe453"
+  },
+  "0xe0e05c43c097b0982db6c9d626c4eb9e95c3b9ce": {
+   "outcome": "B",
+   "tx": "0x1f694ed6b7932458e258da47db4f345b71c892ceb9bf2cebb1168ac25becd1d3",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0xc52c326331e9ce41f04484d3b5e5648158028804": {
+   "outcome": "B",
+   "tx": "0x225151c941a0ecd9f7688deb8fc6650796f2475c44b8e8cd280a0014115d955d",
+   "compiler": "solc 0.6.8+commit.0bbfe453"
+  },
+  "0x50d44bcfc10bc0a752388f173f482faab87b3445": {
+   "outcome": "B",
+   "tx": "0x225151c941a0ecd9f7688deb8fc6650796f2475c44b8e8cd280a0014115d955d",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x037a54aab062628c9bbae1fdb1583c195585fe41": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x23924a9789445eb2fc2ff37cd2d471b824481dd35442db5d6c7f2862fcaae764",
+   "compiler": "solc 0.5.4+commit.9549d8ff"
+  },
+  "0x43789e8aeef0d30cffb57fc0870a5c785b7b93a1": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x29325480fe3ec79e0e70131897d4f311b97231d819754f49242960bbfe2325b9",
+   "compiler": "solc 0.5.12+commit.7709ece9"
+  },
+  "0x3301ee63fb29f863f2333bd4466acb46cd8323e6": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x2e9f4e40afecf4154f9423909e4db7ad1ab35142cd7fa0062fce037fa239162e",
+   "compiler": "solc 0.5.0+commit.1d4f565a"
+  },
+  "0x9b26214bec078e68a394aaebfbfff406ce14893f": {
+   "outcome": "B",
+   "tx": "0x2fc4a7f8dbe03cfb961af4620739f041378d6fcf11c398f175bb95424c860680",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xcbefe27fda986c7c62243543e30f7eae5b5b799c": {
+   "outcome": "B",
+   "tx": "0x51a8b1a07dd8f0653449f251427ee4d576bc442ad1bca6a1ee86ec00644e62e7",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xfab1a410fe287c31ce03a6717015db6f65f36996": {
+   "outcome": "B",
+   "tx": "0x51a8b1a07dd8f0653449f251427ee4d576bc442ad1bca6a1ee86ec00644e62e7",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xd46ba6d942050d489dbd938a2c909a5d5039a161": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x593091d4e56f6f3fbe561cef6977d94caa0230e837526d3bc732a0415ef2c35a",
+   "compiler": "solc 0.5.3+commit.10d17f24"
+  },
+  "0x0ace32f6e87ac1457a5385f8eb0208f37263b415": {
+   "outcome": "B",
+   "tx": "0x66b4ca3a68653834ff53765f7bfb800c1efdfadc0721373f2d785b3dbda0f2af",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x0bc529c00c6401aef6d220be8c6ea1667f6ad93e": {
+   "outcome": "B",
+   "tx": "0x727a3d04e0ca3be11f5d51b8c84fed1ab1dbdbbc32813acad1f666f0e20a4783",
+   "compiler": "solc 0.5.17+commit.d19bba13"
+  },
+  "0xdc9ac3c20d1ed0b540df9b1fedc10039df13f99c": {
+   "outcome": "B",
+   "tx": "0x786a676718ce9ba01da364fc06930c3050da53046faa9cacf18bbf5eb477116b",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xe4cfe9eaa8cdb0942a80b7bc68fd8ab0f6d44903": {
+   "outcome": "B",
+   "tx": "0x7da97c0fde8bf2e7e5a41fcffd2fb9c9981b5529c6d1274b67ef41c2bfd5c51e",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0xb6dae651468e9593e4581705a09c10a76ac1e0c8": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x80438c6cb0e8a9bc50687e69439a1efbb89badcd51b819d6e9b8e05bada79ece",
+   "compiler": "solc 0.5.3+commit.10d17f24"
+  },
+  "0xc47ca18a6f4eb8d3d7cbefe8aceac493c09a5f64": {
+   "outcome": "B",
+   "tx": "0x8ee48cf015d6abff543cafc26a424134a7d5b18f5404e61f6613112b2439e07d",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x408e41876cccdc0f92210600ef50372656052a38": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xb0c4f3b842bbdd8b9c508e017d87a0e440f8c1931234de9d558ecda80e2a5f9d",
+   "compiler": "solc 0.4.19+commit.c4cbbb05"
+  },
+  "0x375ea781c49eafedde07afe6196f885761f166ae": {
+   "outcome": "B",
+   "tx": "0xc70c449e679f79b7d7dd78a24c6960c9fa07e26ee091f3bdaac8a103d98e0524",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0x5ef30b9986345249bc32d8928b7ee64de9435e39": {
+   "outcome": "mismatch",
+   "tx": "0xcc82a9f5eb675554b511ce75e49858aee3ab7eeb227451260e9fa9ec43dc4287",
+   "detail": "RECOMPILE DOES NOT DESCRIBE THE DEPLOYED CODE (common prefix 15102 B; recompiled 15145 B, deployed 15197 B) — dropped; registered a 6840-instruction disassembly listing, so its opcodes are navigable",
+   "compiler": "solc 0.5.12+commit.7709ece9"
+  },
+  "0x65c79fcb50ca1594b025960e539ed7a9a6d434a3": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xcc82a9f5eb675554b511ce75e49858aee3ab7eeb227451260e9fa9ec43dc4287",
+   "compiler": "solc 0.5.12+commit.7709ece9"
+  },
+  "0xb7b3742a254716366d6f3b3f76f821ad7a9842dd": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xcc82a9f5eb675554b511ce75e49858aee3ab7eeb227451260e9fa9ec43dc4287",
+   "compiler": "solc 0.4.25+commit.59dbf8f1"
+  },
+  "0x19c0976f590d67707e62397c87829d896dc0f1f1": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xcc82a9f5eb675554b511ce75e49858aee3ab7eeb227451260e9fa9ec43dc4287",
+   "compiler": "solc 0.5.12+commit.7709ece9"
+  },
+  "0x1b14e8d511c9a4395425314f849bd737baf8208f": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xcc82a9f5eb675554b511ce75e49858aee3ab7eeb227451260e9fa9ec43dc4287",
+   "compiler": "solc 0.5.1+commit.c8a2cb62"
+  },
+  "0x2f0b23f53734252bda2277357e97e1517d6b042a": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xcc82a9f5eb675554b511ce75e49858aee3ab7eeb227451260e9fa9ec43dc4287",
+   "compiler": "solc 0.5.12+commit.7709ece9"
+  },
+  "0x382f0160c24f5c515a19f155bac14d479433a407": {
+   "outcome": "B",
+   "tx": "0xde2359e51b51ab996c06b1bf73fb1b206f13a7dcbea4e908f91903a5852ad1a9",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x5218e472cfcfe0b64a064f055b43b4cdc9efd3a6": {
+   "outcome": "B",
+   "tx": "0xe6af15c1f3f5e02cb8653fa98f09c48788d8f22354cd1e30e4b1c506787ef638",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x9af15d7b8776fa296019979e70a5be53c714a7ec": {
+   "outcome": "B",
+   "tx": "0xed0e45b846779a9894945f2ad84050fa74e696b2e62d1e2b652917df276d0222",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0x82da74c438256d11d6eb7b833ccc122c6ff45264": {
+   "outcome": "B",
+   "tx": "0xed0e45b846779a9894945f2ad84050fa74e696b2e62d1e2b652917df276d0222",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0x1d36d59e5a22cb51b30bb6fa73b62d73f4a11745": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x3f6229966c02b78cc892a13ed9dd9ff71560d6aaa86faccc56f73704f77f947b",
+   "compiler": "solc 0.5.12+commit.7709ece9"
+  },
+  "0xef9c21e3ba31a74910fc7e7cb3fc814ad842ad6e": {
+   "outcome": "B",
+   "tx": "0xea44509c6a26f5702b2e0f15396fb4938881ce8e88633797d4de0a2d567a2450",
+   "compiler": "solc 0.8.0+commit.c7dfd78e"
+  },
+  "0x0b0b186841c55d8a09d53db48dc8cab9dbf4dbd6": {
+   "outcome": "B",
+   "tx": "0x03f7056d3cc51eb1e994e12c1d74a6f7c24c0577f4b856e759dbbbe4012c4523",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0xee8ba81d3aab92ff5592652f32028078f919af8a": {
+   "outcome": "B",
+   "tx": "0x045926bb4d32997d68ea506bafdb2865e44484adf5252cc3e687d4d4f6e9c67c",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0x529bcdd9dd315be4bd19e5ac0a82652cdf28ff83": {
+   "outcome": "B",
+   "tx": "0x549e25bc87fec967089bc65766eb6435df6ef084989bf4fb5cc507ef5e9602d3",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0xdfc628a33c18e856cd1c59583cb5ace8db706f14": {
+   "outcome": "B",
+   "tx": "0x549e25bc87fec967089bc65766eb6435df6ef084989bf4fb5cc507ef5e9602d3",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0x3506424f91fd33084466f402d5d97f05f8e3b4af": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x07101f11fa2c28f79cc3b9b57c5727f3e6b26b9dedc919db91ac679430040dee",
+   "compiler": "solc 0.4.24+commit.e67f0147"
+  },
+  "0x4a220e6096b25eadb88358cb44068a3248254675": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x16b3a567ce7fc7eeeb62918bc796728d29402988fe8fe4b1ea9a93237c437d23",
+   "compiler": "solc 0.4.21+commit.dfe3193c"
+  },
+  "0xfc7a4c74bed0d761b9dc648f8730738d1449333a": {
+   "outcome": "B",
+   "tx": "0x1796a8a7bf819204d5d2626470e683d7736bf8328b6a99d9357725d64605cb57",
+   "compiler": "solc 0.6.11+commit.5ef660b1"
+  },
+  "0xa1d6df714f91debf4e0802a542e13067f31b8262": {
+   "outcome": "B",
+   "tx": "0x29bb8a26499832d9b20ac926f4b8b1198df709a7bb9c96ce0666f827f22bf772",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0x8b3192f5eebd8579568a2ed41e6feb402f93f73f": {
+   "outcome": "B",
+   "tx": "0x1dac5df6d5ba53cce89208e7086474fa55fce2d2ded5fcb0204db5ed1455117c",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xd448e6cca10ff5d1ce52ddc6b6fc4bfcb796d8eb": {
+   "outcome": "B",
+   "tx": "0x2539c46be9c0ea6c2b0b1e18c456c29c0d7dc8322340a1febb6dd0a290050621",
+   "compiler": "solc 0.8.6+commit.11564f7e"
+  },
+  "0x1b40183efb4dd766f11bda7a7c3ad8982e998421": {
+   "outcome": "B",
+   "tx": "0x25beb4978e89a0b09db8eec38b447b08e0e4413cd85fb1f72016dc19b58dc465",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x7f1f2d3dfa99678675ece1c243d3f7bc3746db5d": {
+   "outcome": "B",
+   "tx": "0x287757b9d1188f0822594d4fb923a2b871b28ea7e259301fdab3b678689d039d",
+   "compiler": "solc 0.6.2+commit.bacdbe57"
+  },
+  "0x0000000000003f5e74c1ba8a66b48e6f3d71ae82": {
+   "outcome": "B",
+   "tx": "0x29bb8a26499832d9b20ac926f4b8b1198df709a7bb9c96ce0666f827f22bf772",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0x212dd60d4bf0da8372fe8116474602d429e5735f": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x2d5961da9f9da964acddbe149b658cb3dc6fb9b3b51a1b0c6f6ac89478fc5371",
+   "compiler": "solc 0.4.25+commit.59dbf8f1"
+  },
+  "0x1796ae0b0fa4862485106a0de9b654efe301d0b2": {
+   "outcome": "B",
+   "tx": "0x2df039490f19b776ebb111b3c10e00658ebc397e97c673fc9baaf89f0db20683",
+   "compiler": "solc 0.8.0+commit.c7dfd78e"
+  },
+  "0x374cb8c27130e2c9e04f44303f3c8351b9de61c1": {
+   "outcome": "B",
+   "tx": "0x2e8a1e67d295798a8fef599124c7935e85bd03a618fd853db16527083bb1adfb",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xf79f9020560963422ecc9c0c04d3a21190bbf045": {
+   "outcome": "B",
+   "tx": "0x346753fe40c3c9dae85e3fedba8c5511cbe4b5d4a9d6d23ee43d6cd2c0464dad",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x6468e79a80c0eab0f9a2b574c8d5bc374af59414": {
+   "outcome": "B",
+   "tx": "0x388f7bc8b1c806328c4cf0696b6501d50b2504fa3ae936000bf483e7eacb1d67",
+   "compiler": "solc 0.6.8+commit.0bbfe453"
+  },
+  "0x719e22985111302110942ad3503e3fa104922a7b": {
+   "outcome": "B",
+   "tx": "0x42883074178b10e4b719897223167ff2441d587e99efde382a42d41b1425153d",
+   "compiler": "solc 0.7.3+commit.9bfce1f6"
+  },
+  "0x495f947276749ce646f68ac8c248420045cb7b5e": {
+   "outcome": "B",
+   "tx": "0x45f09b93712af60589277b57e4be7035c3de25df36315d416c86d126b98376b1",
+   "compiler": "solc 0.5.17+commit.d19bba13"
+  },
+  "0x772c9181b0596229ce5ba898772ce45188284379": {
+   "outcome": "B",
+   "tx": "0x4ee81799fcea6835c5b6ec7fba827ce66f2f862eaa6a498f958b523ff9d9aca7",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0x1190074795dad0e61b61270de48e108427f8f817": {
+   "outcome": "B",
+   "tx": "0x549e25bc87fec967089bc65766eb6435df6ef084989bf4fb5cc507ef5e9602d3",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0xbe9375c6a420d2eeb258962efb95551a5b722803": {
+   "outcome": "B",
+   "tx": "0x58df36906b32b69dda5ef4c373cc4c85d9eae1e98fec8e5d28a7d34467e0df7b",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0x53bd789f2cdb846b227d8ffc7b46ed4263231fdf": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x69c09497de98fb8a9619f1d0ade11eb0f5469d928463f42a05a9cbddb8bfa201",
+   "compiler": "solc 0.5.11+commit.c082d0b4"
+  },
+  "0x0ba45a8b5d5575935b8158a88c631e9f9c95a2e5": {
+   "outcome": "failed",
+   "tx": "0x6a14866fae14ade76ce5f29f83e6749d4218782bb05ad64509f12e5336402046",
+   "detail": "source unavailable (solc `/storage/chain-data/evm/solc/bin/solc-0.5.8`): recompile with `/storage/chain-data/evm/solc/bin/solc-0.5.8` failed (contract was verified with `0.5.8+commit.23d335f2`; a version-specific binary was found): deployed bytecode of `TellorMaster.sol:TellorMaster` is not hex (an ",
+   "compiler": "solc 0.5.8+commit.23d335f2"
+  },
+  "0x31f3bba9b71cb1d5e96cd62f0ba3958c034b55e9": {
+   "outcome": "B",
+   "tx": "0x7ba49fe5d990079ecfa6bfabf5a1b87fd380bd0e793bb9ce380a9a163cf54135",
+   "compiler": "solc 0.8.5+commit.a4f2e591"
+  },
+  "0xa47c8bf37f92abed4a126bda807a7b7498661acd": {
+   "outcome": "B",
+   "tx": "0x8cd4cf59cc53ac9909f2532a167d70958c545862ad452ae5fa84095b64720915",
+   "compiler": "solc 0.6.2+commit.bacdbe57"
+  },
+  "0x09a3ecafa817268f77be1283176b946c4ff2e608": {
+   "outcome": "B",
+   "tx": "0x8cd4cf59cc53ac9909f2532a167d70958c545862ad452ae5fa84095b64720915",
+   "compiler": "solc 0.6.2+commit.bacdbe57"
+  },
+  "0x24ec2ca132abf8f6f8a6e24a1b97943e31f256a7": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x8dcea69efe123ee4312a4091f0d827e299c3b6f04ab858f368088ac3c6312600",
+   "compiler": "solc 0.5.8+commit.23d335f2"
+  },
+  "0x6d05064fe99e40f1c3464e7310a23ffaded56e20": {
+   "outcome": "B",
+   "tx": "0xb420aad9d5ae18c7dcae4deb02c0234cd5e07dd7f397ec45fa4f3a0700a4eba9",
+   "compiler": "solc 0.8.6+commit.11564f7e"
+  },
+  "0xf34960d9d60be18cc1d5afc1a6f012a723a28811": {
+   "outcome": "B",
+   "tx": "0xbed8796e5a2b22dbbf5fe8b1748f9a17037b69fb841fef1105f28886e1a2fb94",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xf59ae934f6fe444afc309586cc60a84a0f89aaea": {
+   "outcome": "B",
+   "tx": "0xc1a8a72a6f7828213d6ac51f4df68c063839d51fd4d210f98d338d11405cb424",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x0d4ea61e08224b63fa056448dbb8336f30e653e0": {
+   "outcome": "B",
+   "tx": "0xc39f92fdfc59a407c9e399026fc9ca18c54b52596fdab0e153d4ecbb6e63bbab",
+   "compiler": "solc 0.6.6+commit.6c089d02"
+  },
+  "0x67df244584b67e8c51b10ad610aaffa9a402fdb6": {
+   "outcome": "B",
+   "tx": "0xc3a4f88f585f97f0099aa136d88228d21a2612449974596399afb0a36d78ae66",
+   "compiler": "solc 0.6.8+commit.0bbfe453"
+  },
+  "0x5e34dacda29837f2f220d3d1aeaaabd1edca5bd1": {
+   "outcome": "B",
+   "tx": "0xd1a43e375161a658d74396f88b23d8e1dd0d77efc6e72d6e8b173c7cc28dc572",
+   "compiler": "solc 0.8.0+commit.c7dfd78e"
+  },
+  "0x4e0fca55a6c3a94720ded91153a27f60e26b9aa8": {
+   "outcome": "B",
+   "tx": "0xdd1d2aa69182dc8ac905ba03fa2e7849a409241c576766ef874db2744715b9e4",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x995020804986274763df9deb0296b754f2659ca1": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xde2320dc0de68b370267d40c7337d0c68ae63d62a05731fa5fa3ca302dff9e11",
+   "compiler": "solc 0.4.18+commit.9cf6e910"
+  },
+  "0xfad45e47083e4607302aa43c65fb3106f1cd7607": {
+   "outcome": "B",
+   "tx": "0xe43de70970df66641f87f55e2c43ad88863a51635a85589069d80dd2c3a02127",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xa80f2c8f61c56546001f5fc2eb8d6e4e72c45d4c": {
+   "outcome": "B",
+   "tx": "0xe91bf9c0b54384d803fb1f8adef21fae41df50a682c6bd6b020c02c89d0a5fce",
+   "compiler": "solc 0.8.3+commit.8d00100c"
+  },
+  "0xadb2437e6f65682b85f814fbc12fec0508a7b1d0": {
+   "outcome": "B",
+   "tx": "0xed1e7a37d06c87b013c6e1ca33eee30b7d6d17c6a5b335715b0b7a0935190298",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xd152f549545093347a162dce210e7293f1452150": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xf3ce800b08538bbd54d2ebc9664f38049a88c6ec98f8eb9a5551b4487e63ebbb",
+   "compiler": "solc 0.4.25+commit.59dbf8f1"
+  },
+  "0xd567b5f02b9073ad3a982a099a23bf019ff11d1c": {
+   "outcome": "B",
+   "tx": "0xf3ce800b08538bbd54d2ebc9664f38049a88c6ec98f8eb9a5551b4487e63ebbb",
+   "compiler": "solc 0.8.0+commit.c7dfd78e"
+  },
+  "0x8943c7bac1914c9a7aba750bf2b6b09fd21037e0": {
+   "outcome": "B",
+   "tx": "0xf4a33107882027d1e9afd0e782106fcd669a5f978df5e6a659af5e50eb8392b4",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0xf4b5470523ccd314c6b9da041076e7d79e0df267": {
+   "outcome": "B",
+   "tx": "0xf68b82465d68e541843b11fc6cf1c44720d6b005b3cc6487305bd6760ecdd078",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0xe8f063c4dc60b2f6c2c900d870ddcdae7daab7f6": {
+   "outcome": "B",
+   "tx": "0xf69fb54ee58e33dfe554293f615a7de73945383970f72245dd9792a0ec9a1e2e",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0x105e66f0bfd5b3b1e386d0dc6ec00f3342ef3ff6": {
+   "outcome": "B",
+   "tx": "0xf6b8c3b432abd7633ea351c75912c20e342496136a859761b50a3fddcff50c16",
+   "compiler": "solc 0.7.4+commit.3f05b770"
+  },
+  "0xffa397285ce46fb78c588a9e993286aac68c37cd": {
+   "outcome": "B",
+   "tx": "0xfb8200a08420389cb8ba79dcf63097ad390e4f0e5b1e3824013a0638be6a49b0",
+   "compiler": "solc 0.7.5+commit.eb77ed08"
+  },
+  "0x4f9254c83eb525f9fcf346490bbb3ed28a81c667": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x03b477937ce1ed9d7937ef50ea0542733b2cdf74681cf99b5e8fc54a03f9bf71",
+   "compiler": "solc 0.4.24+commit.e67f0147"
+  },
+  "0x4a527d8fc13c5203ab24ba0944f4cb14658d1db6": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0x0767b3600204ac60e1952127c77524536f421fd4f3729a6ca85def6f93f54942",
+   "compiler": "solc 0.4.19+commit.c4cbbb05"
+  },
+  "0x51cb253744189f11241becb29bedd3f1b5384fdb": {
+   "outcome": "B",
+   "tx": "0x272747a52071e4a79e99a052af1dabbf6efc2c48357879648b050a612712500d",
+   "compiler": "solc 0.8.6+commit.11564f7e"
+  },
+  "0xa23c1194d421f252b4e6d5edcc3205f7650a4ebe": {
+   "outcome": "B",
+   "tx": "0x4835a0d9eadeb121cf6a84dd0c6ea02ef1d0678ecbed46c0ee7d35ef6a9d4e8b",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0x28ce223853d123b52c74439b10b43366d73fd3b5": {
+   "outcome": "B",
+   "tx": "0x5d6a09ca43adf44cca6a53961bf43ef174cf56cc94ce75d2a87763c71ead9465",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0xf411903cbc70a74d22900a5de66a2dda66507255": {
+   "outcome": "B",
+   "tx": "0x73074baffcb422b5f94129abc4d72c82d82d6ac2412754452ed4edda26c5760b",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x11613b1f840bb5a40f8866d857e24da126b79d73": {
+   "outcome": "B",
+   "tx": "0x90b80b0e7663cd8c879c3ee4dbdee1fb59925c7416e8b2bb9e8b624cf35d8094",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x8c088775e4139af116ac1fa6f281bbf71e8c1c73": {
+   "outcome": "B",
+   "tx": "0xa107b832b77125d2f7cf8fa816fc7208fa782fa1693fc485ce7d7d3c41065176",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0x16cda4028e9e872a38acb903176719299beaed87": {
+   "outcome": "B",
+   "tx": "0xaa8e0e1e903e0c5669ef841c19a1f2843bc5429853859698095377d6172771d4",
+   "compiler": "solc 0.8.2+commit.661d1103"
+  },
+  "0x814b20646223d6a5d520d1050e9d63a6eb39caf1": {
+   "outcome": "B",
+   "tx": "0xbb4947ffa00d72d5211f955993e57b3b83d861b057d29dc0a05cc0f42391a901",
+   "compiler": "solc 0.8.14+commit.80d49f37"
+  },
+  "0x3820e79deb5e60f6f488fa2a62c8e190cc69bb47": {
+   "outcome": "B",
+   "tx": "0x4d237618bb6c2279cc398cd139c5254b977a66bd142efea61fc2ef1822cd84a4",
+   "compiler": "solc 0.8.14+commit.80d49f37"
+  },
+  "0x5888641e3e6cbea6d84ba81edb217bd691d3be38": {
+   "outcome": "B",
+   "tx": "0xbc351bf6abd847f24110a271b004164eefa9606daa58f4f5354b85abc9db19e5",
+   "compiler": "solc 0.8.16+commit.07a7930e"
+  },
+  "0x9e976f211daea0d652912ab99b0dc21a7fd728e4": {
+   "outcome": "B",
+   "tx": "0xc19685f5e03cb0eb025bb00fa65c60d6f5534603a3661f428ae521874f7dabcb",
+   "compiler": "solc 0.5.17+commit.d19bba13"
+  },
+  "0x8bc9224253e37cd221c7f510acc42cb6e734db57": {
+   "outcome": "B",
+   "tx": "0xd41023b2c070f159b287998222b68ce13499c25ba62b1a8c36d1d1978fd80251",
+   "compiler": "solc 0.8.17+commit.8df45f5f"
+  },
+  "0xd5930c307d7395ff807f2921f12c5eb82131a789": {
+   "outcome": "B",
+   "tx": "0xe69e62090bef7ea11a425415f0599d87b92c8fe01766f11b801b701804422f71",
+   "compiler": "solc 0.5.17+commit.d19bba13"
+  },
+  "0x7b4328c127b85369d9f82ca0503b000d09cf9180": {
+   "outcome": "B",
+   "tx": "0xebf5bb0f95dabaa9fe57e6a9103da2a945caf174b1cda6d776ac65f2281fb5ff",
+   "compiler": "solc 0.8.6+commit.11564f7e"
+  },
+  "0x3f2ca0782aa8bbbbfe3f5fe664a8e119896db213": {
+   "outcome": "B",
+   "tx": "0xf25645dc74acd67fea9370b491d7e118ade826991772dee1ecae0360539c43b3",
+   "compiler": "solc 0.8.9+commit.e5eed63a"
+  },
+  "0x6c5ba91642f10282b576d91922ae6448c9d52f4e": {
+   "outcome": "B",
+   "tx": "0xf97fb3a87f146fdf61fbfb34e8855e11d674db8acaa928db83ae8eb8164e36e2",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0xd3d9ddd0cf0a5f0bfb8f7fceae075df687eaebab": {
+   "outcome": "B",
+   "tx": "0x0868b2c4626e7a4d2ee6e306ea462c8a58a51612d068a8cee051626f3f7538a5",
+   "compiler": "solc 0.8.16+commit.07a7930e"
+  },
+  "0x9d675f6ba43a4c7031a3d81e4418f89e014cb3c7": {
+   "outcome": "B",
+   "tx": "0x2095212feb1f7d569e832fa3e94e6511879d992f012282516edb5f28661e81b1",
+   "compiler": "solc 0.8.17+commit.8df45f5f"
+  },
+  "0x5d8c79e0b8c2fc3cc30fd9171ac8d274ebf7548a": {
+   "outcome": "B",
+   "tx": "0x4d237618bb6c2279cc398cd139c5254b977a66bd142efea61fc2ef1822cd84a4",
+   "compiler": "solc 0.8.14+commit.80d49f37"
+  },
+  "0xccb8d5367c10bcbf1005329c6167f968f7d0a62c": {
+   "outcome": "B",
+   "tx": "0x54df8d6b45869fbe24e496f283275c3507698f3eb941e6d03ad0a7437f760498",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0xd9db270c1b5e3bd161e8c8503c55ceabee709552": {
+   "outcome": "B",
+   "tx": "0x05573cb1a4a5ab2bcc663da79cabb949631dfd40fbec232a5ec261868eca424d",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x8ee325ae3e54e83956ef2d5952d3c8bc1fa6ec27": {
+   "outcome": "B",
+   "tx": "0xbe29c587c01b6a067285a928e10af2debc187ec7e0701677c0cc31ad72900739",
+   "compiler": "solc 0.8.16+commit.07a7930e"
+  },
+  "0xe785e82358879f061bc3dcac6f0444462d4b5330": {
+   "outcome": "B",
+   "tx": "0xc1fdc92def88b50f04f471d8345fe821ae65ab0c5d9a71291a45f9d1812f686b",
+   "compiler": "solc 0.8.0+commit.c7dfd78e"
+  },
+  "0x490b9e771cfde4f6c48debcb5e1973ba6b1d8902": {
+   "outcome": "B",
+   "tx": "0xe9211c0021db7121b9e87e19e5a0bff151c33d3ceba8fc7c3ad8a00f4bbca540",
+   "compiler": "solc 0.8.9+commit.e5eed63a"
+  },
+  "0x0d685869cf9ce4a6bda2380ca76f504dd18eab8c": {
+   "outcome": "B",
+   "tx": "0x07c984b0f9b69521fd9570e6b66e63ee281ccbbe4b21af18f6a8506eaa471ffb",
+   "compiler": "solc 0.8.9+commit.e5eed63a"
+  },
+  "0xb584d4be1a5470ca1a8778e9b86c81e165204599": {
+   "outcome": "B",
+   "tx": "0x0d04e77743da70ffa53464adde066e64567d280df20830ca23dd1d71bd24d5cf",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0xf326e4de8f66a0bdc0970b79e0924e33c79f1915": {
+   "outcome": "B",
+   "tx": "0x334fc880ffa0ea1b578d8ffc6e301a3ce1da9cc9c87950945924c047bf297821",
+   "compiler": "solc 0.5.14+commit.01f1aaa4"
+  },
+  "0x9dcaf532dba85e565bf6b425f07377ec2bb6f46a": {
+   "outcome": "B",
+   "tx": "0x14b561dbf2167ca024cce8e77b12f7d1c60a5e8e665c51a16e6afbdc3858ff7e",
+   "compiler": "solc 0.8.17+commit.8df45f5f"
+  },
+  "0x2f3d0d2317802a65faac6e4cd94067c37b4d4804": {
+   "outcome": "B",
+   "tx": "0x14f7e1e7458458b53e54240da1fc6d4a72d9405b3e830c2910978974acc9404e",
+   "compiler": "solc 0.8.18+commit.87f61d96"
+  },
+  "0xfd6ab62e6884708dbbd5358daffe4724d095fe3d": {
+   "outcome": "B",
+   "tx": "0x1c4f8f28df8bd4f867397c1c1ddfe19c1735a2c31692510a6f942b60cced367d",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x594daad7d77592a2b97b725a7ad59d7e188b5bfa": {
+   "outcome": "B",
+   "tx": "0x296fc29b8bb4b132619cce40590f4958df8a1716d31644e23103fd9745025fa5",
+   "compiler": "solc 0.8.24+commit.e11b9ed9"
+  },
+  "0xe6b738da243e8fa2a0ed5915645789add5de5152": {
+   "outcome": "B",
+   "tx": "0x2d47ceabe03f6bbcf3dc93c73bdd3fdba561bb0a60ab6fa6ddf3f5143f1be056",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x8fa3b4570b4c96f8036c13b64971ba65867eeb48": {
+   "outcome": "B",
+   "tx": "0x2e9228fa0f3a4c97088e44e2d129d06823a6f0d0b88dc141aa75c55a09e852c9",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0xa9e8acf069c58aec8825542845fd754e41a9489a": {
+   "outcome": "B",
+   "tx": "0x58dcb396a184921c7a3967f080971ef30e345f4ac07fd6cb2854e5a4a52e3c61",
+   "compiler": "solc 0.8.18+commit.87f61d96"
+  },
+  "0x31acaaea0529894e7c3a5c70d3f9ee6d7804684f": {
+   "outcome": "B",
+   "tx": "0x4a9cdd28f2960dd796cd539ad32cf48c836b9eba04fa53c25a3d1f8fb897be05",
+   "compiler": "solc 0.7.3+commit.9bfce1f6"
+  },
+  "0xe94953e9231bf93ced466bdbbf445604696cbf9c": {
+   "outcome": "B",
+   "tx": "0x4afe5e3eec9afd174383181415c44a01c176c781a720f533397c52032c40c745",
+   "compiler": "solc 0.8.24+commit.e11b9ed9"
+  },
+  "0x25722cd432d02895d9be45f5deb60fc479c8781e": {
+   "outcome": "B",
+   "tx": "0x4b5cad985a8de7fef9645aabfad42b52038dc8e40eba4d22f2f294664a42ff18",
+   "compiler": "solc 0.8.18+commit.87f61d96"
+  },
+  "0xa6b816010ab51e088c4f19c71aba87e54b422e14": {
+   "outcome": "B",
+   "tx": "0x58dcb396a184921c7a3967f080971ef30e345f4ac07fd6cb2854e5a4a52e3c61",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x44971abf0251958492fee97da3e5c5ada88b9185": {
+   "outcome": "B",
+   "tx": "0x58dcb396a184921c7a3967f080971ef30e345f4ac07fd6cb2854e5a4a52e3c61",
+   "compiler": "solc 0.8.18+commit.87f61d96"
+  },
+  "0x6a7eff1e2c355ad6eb91bebb5ded49257f3fed98": {
+   "outcome": "B",
+   "tx": "0x5b289bc19ab78952b1dab226819c4c4a3d5f773c5d60a77be07f8d16e6be21e5",
+   "compiler": "solc 0.8.23+commit.f704f362"
+  },
+  "0x284309509557a28f4370dcb9969de4e0999297d2": {
+   "outcome": "B",
+   "tx": "0x6499c7a20633f0be15bbc224c510d75c1cf1f1fef3672bae00f5a399cfc0e35c",
+   "compiler": "solc 0.8.24+commit.e11b9ed9"
+  },
+  "0x1258d60b224c0c5cd888d37bbf31aa5fcfb7e870": {
+   "outcome": "B",
+   "tx": "0x6702e0ad2a6cd0475402c502ec4b398cc9c8a4a92e3cce9ae62a6a8a132173a0",
+   "compiler": "solc 0.8.19+commit.7dd6d404"
+  },
+  "0xc01154b4ccb518232d6bbfc9b9e6c5068b766f82": {
+   "outcome": "B",
+   "tx": "0x672bb7ea718ea10eb8224099fa97d5085427769de141eddb1372efeba92a016a",
+   "compiler": "solc 0.8.12+commit.f00d7308"
+  },
+  "0x8e76a33f1aff7eb15de832810506814af4789536": {
+   "outcome": "B",
+   "tx": "0x6b84e7458b3a9a29cfb5d7cc52d925ffdf1d8f871a05cb13403b8ad2ae2ce74f",
+   "compiler": "solc 0.8.10+commit.fc410830"
+  },
+  "0xd5b7680f95c5a6caecdbbeb1dee580960c4f891b": {
+   "outcome": "B",
+   "tx": "0x6b84e7458b3a9a29cfb5d7cc52d925ffdf1d8f871a05cb13403b8ad2ae2ce74f",
+   "compiler": "solc 0.8.10+commit.fc410830"
+  },
+  "0xc4aed615614f26c8df4eaaf4a1caea9184aeb3de": {
+   "outcome": "B",
+   "tx": "0x6b84e7458b3a9a29cfb5d7cc52d925ffdf1d8f871a05cb13403b8ad2ae2ce74f",
+   "compiler": "solc 0.8.10+commit.fc410830"
+  },
+  "0x706d7f8b3445d8dfc790c524e3990ef014e7c578": {
+   "outcome": "B",
+   "tx": "0x70b622c7719e41fc49a0615330e1a67f0476abb3faae9d9a9e473613fbd31e83",
+   "compiler": "solc 0.6.10+commit.00c0fcaf"
+  },
+  "0x5397d0869aba0d55e96d5716d383f6e1d8695ed7": {
+   "outcome": "B",
+   "tx": "0x64f6b73de1fcf12879121eb694bf82034380d1af5c04073933fbe2fcc5291772",
+   "compiler": "solc 0.8.10+commit.fc410830"
+  },
+  "0xe5dcdc13b628c2df813db1080367e929c1507ca0": {
+   "outcome": "B",
+   "tx": "0x64f6b73de1fcf12879121eb694bf82034380d1af5c04073933fbe2fcc5291772",
+   "compiler": "solc 0.8.10+commit.fc410830"
+  },
+  "0x0bcc509282a5fb44c32c59e2fa1ce613f51c86a2": {
+   "outcome": "B",
+   "tx": "0x7640b874d5ed53370e5df6d4854220e98591e9657b806803ada0801d9cb7346b",
+   "compiler": "solc 0.8.18+commit.87f61d96"
+  },
+  "0x74eb87fc36286b17371370940798b7068ae7ae36": {
+   "outcome": "B",
+   "tx": "0x7994b8416022b304914f39e11edc3707b2120b61903ab1bc8553b7e7bab0b66a",
+   "compiler": "solc 0.8.10+commit.fc410830"
+  },
+  "0x85d19fb57ca7da715695fcf347ca2169144523a7": {
+   "outcome": "B",
+   "tx": "0x7ebfabda329fe59527af6d9d07700b2dae19fb891947a23daa191fe4a4f65433",
+   "compiler": "solc 0.8.20+commit.a1b79de6"
+  },
+  "0xe8e847cf573fc8ed75621660a36affd18c543d7e": {
+   "outcome": "B",
+   "tx": "0x85dc776a68f25320ce92b8e92b6d43a72a4637e4b25601809d67da31f54e2100",
+   "compiler": "solc 0.7.5+commit.eb77ed08"
+  },
+  "0xdd66781d0e9a08d4fbb5ec7bac80b691be27f21d": {
+   "outcome": "B",
+   "tx": "0x86807d2b610b0b3bfe01dfbe466629bbde79995350092e2527b132e3c62653c5",
+   "compiler": "solc 0.8.7+commit.e28d00a7"
+  },
+  "0x6bf609583cd3cfa2393c535ca8c3f49fd23e00b3": {
+   "outcome": "B",
+   "tx": "0x87784b8f365a929a66d65a328fa22826428a84f0f363e937b820bb39b04ab8a4",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x5cac718a3ae330d361e39244bf9e67ab17514ce8": {
+   "outcome": "B",
+   "tx": "0x87ab561a44b7657d3202c3c909c6a498680e50ddbb38fde8a413590253c745b4",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0xf21661d0d1d76d3ecb8e1b9f1c923dbfffae4097": {
+   "outcome": "B",
+   "tx": "0x957a56896fb3f1722c4206550dfe7b86f36f256fc676e7f630e73dd6b7a44ed9",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xf393d008077c97f2632fa04a910969ac58f88e3c": {
+   "outcome": "B",
+   "tx": "0x9dc0d84a1af75ff050b1bc81e9b569a438c1aec5abe988f7e4b27b728cb80487",
+   "compiler": "solc 0.8.6+commit.11564f7e"
+  },
+  "0xde67d97b8770dc98c746a3fc0093c538666eb493": {
+   "outcome": "B",
+   "tx": "0xa4a1f19cf212004243fc9c487361ffc25e24bcff5d25cdea4b5a1e624bb60523",
+   "compiler": "solc 0.8.19+commit.7dd6d404"
+  },
+  "0x67a37e939a46effd65a91949ec7c8587bd82aaa7": {
+   "outcome": "B",
+   "tx": "0xbe9caf2be4f3ecb83f370a62e9b2bacb72059f04355d5fded4514eebe60869aa",
+   "compiler": "solc 0.8.20+commit.a1b79de6"
+  },
+  "0xf629cbd94d3791c9250152bd8dfbdf380e2a3b9c": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xc2af73b10a2a74d318b7b8df02abac77e0cc2c3c5ee0ca4927dd869e3e887615",
+   "compiler": "solc 0.4.15+commit.bbb8e64f"
+  },
+  "0xd5b0f341cb6db2a8022e1e1c13dc4404870a510c": {
+   "outcome": "B",
+   "tx": "0xd166aa65a847529da2cbcf83a71b86ef89fd415c5612e351c2da2c5a922e7747",
+   "compiler": "solc 0.5.17+commit.d19bba13"
+  },
+  "0x8b3870df408ff4d7c3a26df852d41034eda11d81": {
+   "outcome": "B",
+   "tx": "0xdc8f04a78c7aff44596db1e78a4cdc2d0947242cae5a81184d09fba5859f4998",
+   "compiler": "solc 0.6.0+commit.26b70077"
+  },
+  "0x391fb9429d8685d5d0f14a185fc0820c6ac2817e": {
+   "outcome": "B",
+   "tx": "0xe38d6710b235c5d036c1bbe13d61d22bbf858c9546d5d7b476075952aafdda16",
+   "compiler": "solc 0.8.24+commit.e11b9ed9"
+  },
+  "0x8a0a9b663693a22235b896f70a229c4a22597623": {
+   "outcome": "B",
+   "tx": "0xeb25ecb279ef2ad976e8ba358743b9bdc409710a1b6f921ee7460c207a47247e",
+   "compiler": "solc 0.8.10+commit.fc410830"
+  },
+  "0xe96edd48cf0c6e930ce55f171a721017b28e0f08": {
+   "outcome": "B",
+   "tx": "0xf9032cae59306651afb029423d0cd4c63fe9506f35cc2b666313913c76260507",
+   "compiler": "solc 0.8.24+commit.e11b9ed9"
+  },
+  "0xfe5e5d361b2ad62c541bab87c45a0b9b018389a2": {
+   "outcome": "B",
+   "tx": "0xfe15450c14aada1250bb819378eb2ec15c3677e2ac85fae4715f6ff13e6212df",
+   "compiler": "solc 0.7.3+commit.9bfce1f6"
+  },
+  "0x7ae0f19d2ae2f490e710579284a58000d4e8c85f": {
+   "outcome": "B",
+   "tx": "0x03a5f557a8fbd5bb99543873d08c8982c2fc76d198167e5e3f3980c7672d43c5",
+   "compiler": "solc 0.8.0+commit.c7dfd78e"
+  },
+  "0x7a493be5c2ce014cd049bf178a1ac0db1b434744": {
+   "outcome": "B",
+   "tx": "0x21c4464905cf1437f6b772795a0fe338d864f5438f60e27ef79a7cab4fd65046",
+   "compiler": "solc 0.8.23+commit.f704f362"
+  },
+  "0x06a01a4d579479dd5d884ebf61a31727a3d8d442": {
+   "outcome": "B",
+   "tx": "0x26157037e6dd0878b98d66459fb351909d0e459a92e2c8ffd17ddb511c4c26ff",
+   "compiler": "solc 0.5.16+commit.9c3226ce"
+  },
+  "0xd1e64bcc904cfdc19d0faba155a9edc69b4bcdae": {
+   "outcome": "B",
+   "tx": "0xc428788539a0abed7eb9a7087fccc1703a4084fe0920fbb3804ce80a96ac9222",
+   "compiler": "solc 0.8.21+commit.d9974bed"
+  },
+  "0xd1d1d4e36117ab794ec5d4c78cbd3a8904e691d0": {
+   "outcome": "B",
+   "tx": "0x289d9234f137e2999e81aaee11971c20dd9e292a1f7041567b8c6e1876b3b6e8",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x5a3e6a77ba2f983ec0d371ea3b475f8bc0811ad5": {
+   "outcome": "B",
+   "tx": "0x38b3edf9125873b896892fa02243e74c1414124f37c18f12f3e0c781cb620d4c",
+   "compiler": "solc 0.8.17+commit.8df45f5f"
+  },
+  "0xdbdef48f7546e279cf9253b6559f0573ea392e36": {
+   "outcome": "B",
+   "tx": "0x5b48289c53b181107b6e8249cd5c6b40d4c9db91e0211d66aa3af5db4ba79e53",
+   "compiler": "solc 0.8.0+commit.c7dfd78e"
+  },
+  "0x60a1b168ce980ef69250362a66e40f8a7050ce2f": {
+   "outcome": "B",
+   "tx": "0x5bd1643f94177ecefc9de0fb962518eeca7e990e63f6d3b472ea527c20b291e7",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xdc8af07a7861bedd104b8093ae3e9376fc8596d2": {
+   "outcome": "B",
+   "tx": "0x8106f115af33a6988b078bae5e8a8095d55f8f3c8c19b80e07985f7d9e694bf2",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x78132543d8e20d2417d8a07d9ae199d458a0d581": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xac44f2c1b5a60aed45a20e294ccfe01933935a4f45637e80e5bda0cdfea4e6cf",
+   "compiler": "solc 0.5.0+commit.1d4f565a"
+  },
+  "0x7420b4b9a0110cdc71fb720908340c03f9bc03ec": {
+   "outcome": "B",
+   "tx": "0xac7dd054b75d94ec6623632c30a02c9479c672282ae9706662c113b2e6d90a34",
+   "compiler": "solc 0.5.15+commit.6a57276f"
+  },
+  "0x73b708e84837ffccde2933e3a1531fe61d5e80ef": {
+   "outcome": "B",
+   "tx": "0xb105d7948ac618fc4d9032abcefe50302c2a153e2b8ea7c56b2c97a264a55a80",
+   "compiler": "solc 0.8.4+commit.c7e474f2"
+  },
+  "0xae921fbb478dccb1e699f16a6b98e55af494880a": {
+   "outcome": "B",
+   "tx": "0xb1a8916c9a7752489478d729b6d0732cf38b028824c09744551d63567b87337c",
+   "compiler": "solc 0.8.24+commit.e11b9ed9"
+  },
+  "0x8290333cef9e6d528dd5618fb97a76f268f3edd4": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xbee81ea81dab4d39b48c3f48a103b336b7242142eb20aae70078463dc10ae62a",
+   "compiler": "solc 0.4.26+commit.4563c3fc"
+  },
+  "0xe0286cf1ebfad558ebaef9cf8ec5899c340040fe": {
+   "outcome": "B",
+   "tx": "0xc428788539a0abed7eb9a7087fccc1703a4084fe0920fbb3804ce80a96ac9222",
+   "compiler": "solc 0.8.20+commit.a1b79de6"
+  },
+  "0x6de037ef9ad2725eb40118bb1702ebb27e4aeb24": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xc6b0e33e403590c11cc360de16255db9eb556b804c71f99d3b4aee5b9a89711a",
+   "compiler": "solc 0.4.24+commit.e67f0147"
+  },
+  "0x1a1fdf27c5e6784d1cebf256a8a5cc0877e73af0": {
+   "outcome": "mapped-without-storage-layout",
+   "tx": "0xc6b0e33e403590c11cc360de16255db9eb556b804c71f99d3b4aee5b9a89711a",
+   "compiler": "solc 0.4.24+commit.e67f0147"
+  },
+  "0x486d95c40feba650c38e98cd9d7979d9cd88cea0": {
+   "outcome": "B",
+   "tx": "0xc9e2111b1ea3134876f2baf05fb8de057008aaa257c0e183ed06cdfc37d89f3d",
+   "compiler": "solc 0.8.21+commit.d9974bed"
+  },
+  "0xddfecd15f89e174e9f01a5ece6c7fe6e811ccd33": {
+   "outcome": "B",
+   "tx": "0xd5d488a1da68bfd6c237283dd2596d8d543f0f044325c5ed3043a793839fdeb5",
+   "compiler": "solc 0.8.0+commit.c7dfd78e"
+  },
+  "0x305dcaea67a9d4152e54e68060c89db05fd67a7b": {
+   "outcome": "B",
+   "tx": "0x05573cb1a4a5ab2bcc663da79cabb949631dfd40fbec232a5ec261868eca424d",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x53f7c6d7020c30fb2ff741f3b7a23c9224cb946d": {
+   "outcome": "B",
+   "tx": "0x0c6e38b73e4551da54b49c3d4af839580b26e133e02738d708c7148a13741931",
+   "compiler": "solc 0.8.23+commit.f704f362"
+  },
+  "0x2291323cf23d1553c6f79dc30b4a8865c03a90cf": {
+   "outcome": "B",
+   "tx": "0x117880826ec490722ca9f5d0a7154d7afd6ee54e79c184395a29da41d91f7fc2",
+   "compiler": "solc 0.8.11+commit.d7f03943"
+  },
+  "0xd4ab706a1d3343a0e92909c35351f9997010ea3d": {
+   "outcome": "B",
+   "tx": "0x149f1d526be3f9cfeba2a43845eec90c3ccdb711d60a99cf85e51348033da64c",
+   "compiler": "solc 0.8.26+commit.8a97fa7a"
+  },
+  "0xcecc034c1d028e38dd609eea2fbe82b9c814c13b": {
+   "outcome": "B",
+   "tx": "0x229e7bb0a2f913693f28fc656eb75bc7bdaf52b8a13d69b31bf2b1a30851a8b4",
+   "compiler": "solc 0.8.28+commit.7893614a"
+  },
+  "0xd663ce0c9f55968b42837954348eafeb5b9e5d82": {
+   "outcome": "B",
+   "tx": "0x2b540609a1a7f0ac4a3a35ed75f41279473fac8fa263d55a0bf87a8121b8d188",
+   "compiler": "solc 0.8.23+commit.f704f362"
+  },
+  "0xa89b8a1fd3f72f3e85b9791f3e7ff42bd2d4e669": {
+   "outcome": "B",
+   "tx": "0x2f2c2cf6d7e5d65d3864a3b63ac21f712a25e450889442729a352a38d2038724",
+   "compiler": "solc 0.8.23+commit.f704f362"
+  },
+  "0xc9ffee806a0c2627a761daa7cfce516158d3d0a3": {
+   "outcome": "B",
+   "tx": "0x3b5f28c126e718b1a7d276d1e19c9052a847824a1263615d8eaedff5c2ce5366",
+   "compiler": "solc 0.8.23+commit.f704f362"
+  },
+  "0xa9b1eb5908cfc3cdf91f9b8b3a74108598009096": {
+   "outcome": "B",
+   "tx": "0x649e9e60954b0e4ee59c3aec5d76621aa89ebe1f5e23550b8189f8045798916c",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0x0f81001ef0a83ecce5ccebf63eb302c70a39a654": {
+   "outcome": "B",
+   "tx": "0x6bb5b8a40cf14056e639e20b8e241ff368253963da208b369582e94951ae4ab7",
+   "compiler": "solc 0.8.9+commit.e5eed63a"
+  },
+  "0xd6b2f415bbe91255167da2c96b7412b15b18e761": {
+   "outcome": "B",
+   "tx": "0x7356cab360f4c01c53bbc5285b7bebd918dbb20346861b79edba2ef3917c3c77",
+   "compiler": "solc 0.8.20+commit.a1b79de6"
+  },
+  "0x04fa0d235c4abf4bcf4787af4cf447de572ef828": {
+   "outcome": "B",
+   "tx": "0x7630be3b70fc1d6519e4663ef852f4afa163c77ee08bf10215c47fbe367fd83f",
+   "compiler": "solc 0.5.13+commit.5b0b510c"
+  },
+  "0x61e24ce4efe61eb2efd6ac804445df65f8032955": {
+   "outcome": "B",
+   "tx": "0x8332c3a95f1e9332359aa8025579446920549e413929c99139de2784ad93fff5",
+   "compiler": "solc 0.8.21+commit.d9974bed"
+  },
+  "0xade5f7f7a3f8db0a9256567e55ff793e3c9bbf14": {
+   "outcome": "B",
+   "tx": "0x8332c3a95f1e9332359aa8025579446920549e413929c99139de2784ad93fff5",
+   "compiler": "solc 0.8.20+commit.a1b79de6"
+  },
+  "0xe28b3b32b6c345a34ff64674606124dd5aceca30": {
+   "outcome": "B",
+   "tx": "0x9fd53930b48bea735e3b5fede9a981f8efbf9c9f39ac910ff71ca7128eefe430",
+   "compiler": "solc 0.6.12+commit.27d51765"
+  },
+  "0xfb1bffc9d739b8d520daf37df666da4c687191ea": {
+   "outcome": "B",
+   "tx": "0xb71a95f1a14b52abe9ac97d354bdc9bbb81477e33c29da7fb51e6a086efa6185",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x09d0d9c869e3f8d23e962d6f12513a433b27d9fa": {
+   "outcome": "B",
+   "tx": "0xc3ad5c09d5f930013c1a4bccc30ecc7b23b8661cee2b4054dfad6f6bc82cdae5",
+   "compiler": "solc 0.8.26+commit.8a97fa7a"
+  },
+  "0xcf078da6e85389de507ceede0e3d217e457b9d49": {
+   "outcome": "B",
+   "tx": "0xc6d6d55911b368b457b42fbfa00bd2c6019ab66d88f6cc4c0d2a5fcc5209b9e5",
+   "compiler": "solc 0.8.19+commit.7dd6d404"
+  },
+  "0x42069f39c71816cea208451598425b492dd2b380": {
+   "outcome": "B",
+   "tx": "0xecccd032d1fcafe35cd8abf349e31564f03786c657fdb8b110eeb52cff0c0a01",
+   "compiler": "solc 0.8.26+commit.8a97fa7a"
+  },
+  "0xadd39272e83895e7d3f244f696b7a25635f34234": {
+   "outcome": "B",
+   "tx": "0xf335ddc95f78f1a3077436e7d479ea4afddcaeb934aa9d94cb79e1e09d9b63a5",
+   "compiler": "solc 0.8.9+commit.e5eed63a"
+  },
+  "0x7d5121505149065b562c789a0145ed750e6e8cdd": {
+   "outcome": "B",
+   "tx": "0x1cf6c3b6a04489f4a998d878f9084ba03a34242289d241f8d8271ad644e09a62",
+   "compiler": "solc 0.6.8+commit.0bbfe453"
+  },
+  "0x70fdce29e4f20e3ecb1c58577b07f2321c39614c": {
+   "outcome": "B",
+   "tx": "0x38d46cc7292e17bfbcd0a8cecd7c23b8d21317ea2d1a90d43581565d901fc4cc",
+   "compiler": "solc 0.8.23+commit.f704f362"
+  },
+  "0x30cbdfdaab4bc15e26caf11e1a4703323d77cd3e": {
+   "outcome": "B",
+   "tx": "0x38d46cc7292e17bfbcd0a8cecd7c23b8d21317ea2d1a90d43581565d901fc4cc",
+   "compiler": "solc 0.8.28+commit.7893614a"
+  },
+  "0x29ef46035e9fa3d570c598d3266424ca11413b0c": {
+   "outcome": "B",
+   "tx": "0x64f6b73de1fcf12879121eb694bf82034380d1af5c04073933fbe2fcc5291772",
+   "compiler": "solc 0.8.10+commit.fc410830"
+  },
+  "0x26e550ac11b26f78a04489d5f20f24e3559f7dd9": {
+   "outcome": "B",
+   "tx": "0x7c983749120267c99d643801990f7a35009a09f347f4346a6172ee194b248432",
+   "compiler": "solc 0.8.23+commit.f704f362"
+  },
+  "0x1979407141633569b05d644ad1c94a7c646d1410": {
+   "outcome": "B",
+   "tx": "0x84a31c64604bb0af5b238932c15309f76a1cd8a047e4e3a4829f94bd01aa2e25",
+   "compiler": "solc 0.8.26+commit.8a97fa7a"
+  },
+  "0x0602ebefef0b2f784384f6cfc42f81ebacd0183c": {
+   "outcome": "B",
+   "tx": "0x867b7c4d42dc0321efcc2a3b71e3ec575e0e6f45907cf759b8fd6bee2fa9e469",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0x41675c099f32341bf84bfc5382af534df5c7461a": {
+   "outcome": "B",
+   "tx": "0x867b7c4d42dc0321efcc2a3b71e3ec575e0e6f45907cf759b8fd6bee2fa9e469",
+   "compiler": "solc 0.7.6+commit.7338295f"
+  },
+  "0xe73d53e3a982ab2750a0b76f9012e18b256cc243": {
+   "outcome": "B",
+   "tx": "0xa55a9aaa9860fd99325a6d768bc246f03f7bca5e0553289f3099f85dac8f5199",
+   "compiler": "solc 0.8.14+commit.80d49f37"
+  },
+  "0xa4ca34e769aa71c6ef38f7d0d1efe9ab9547b84e": {
+   "outcome": "B",
+   "tx": "0xae6260456c0ed0dadcb5684aed57ff78e3ea14a0131e2f780dcad3a38cbd92d1",
+   "compiler": "solc 0.8.28+commit.7893614a"
+  }
+ }
+}
