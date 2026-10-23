@@ -21,6 +21,8 @@
 //       and so does a control the endpoint answered
 //   §6  the GraphQL transcript: request keys, the tip mark, and a replay that serves what
 //       it holds and misses — loudly — what it does not
+//   §7  the floor's reason names the execution layer, not the state, and the
+//       verification sentence names what a mismatch becomes
 //
 // Every arm that asserts a refusal or a distinction has a control beside it that takes
 // the other branch, so the arm measures the rule and not the fixture
@@ -32,8 +34,7 @@ import { join } from 'node:path';
 
 import { graphqlUrlFor, inputVersionsOf } from './lib/sui-graphql.mjs';
 import {
-  CHAIN_SLUG, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL, PRESTATE_STRATEGY, RECORDER,
-  costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
+  CHAIN_SLUG, costVectorForRow, executionsForRow, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL, payloadForRow, PRESTATE_STRATEGY, reachReasonFor, RECORDER, rolesForRow, VERIFICATION,
 } from './lib/sui-producer-facts.mjs';
 import { ACQUISITION_FORMAT, effectsFacts, main as produce } from './produce-sui-snapshot.mjs';
 import { compareReadings } from './sui-horizon-probe.mjs';
@@ -318,10 +319,23 @@ test('§6 the GraphQL transcript');
   rmSync(dir, { recursive: true, force: true });
 }
 
+test('§7 the producer\'s own reach and verification sentences');
+{
+  const r = reachReasonFor(28845373, 1000000);
+  ck('the reason names the floor checkpoint and the traced protocol, and the measured horizon',
+     r.includes('checkpoint 28845373') && r.includes(`protocol version ${MIN_TRACED_PROTOCOL}`)
+     && r.includes('checkpoint 1000000'));
+  ck('CONTROL: with no horizon reading it states no depth, and never the generic prestate cause',
+     !/\d{5,}/.test(reachReasonFor(28845373, null).split('GraphQL service')[1])
+     && !/prestate was obtainable/.test(r));
+  ck('verification names the compared effects and what a mismatch becomes',
+     /events digest/.test(VERIFICATION) && /published as divergent/.test(VERIFICATION));
+}
+
 // The count is a LITERAL because `refusal-selftest.mjs` reads it out of this line and
 // cross-checks it against the Justfile header and ci.yml.
-if (asserted !== 41) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 41 — a case was added, removed or skipped.`);
+if (asserted !== 44) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 44 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

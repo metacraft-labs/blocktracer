@@ -138,3 +138,29 @@ export const payloadForRow = (tx) => {
   if (first) return { raw: '', selector: Object.keys(first)[0] ?? '', target: '' };
   return { raw: '', selector: tx?.kind ?? '', target: '' };
 };
+
+/**
+ * `provenance.reachReason` — why history starts at `replayableFrom`. On Sui the floor is the
+ * first checkpoint at protocol MIN_TRACED_PROTOCOL, an EXECUTION-LAYER limit: below it a
+ * transaction replays but writes no trace. It is not a state limit — prestate is
+ * version-addressed and the endpoint serves object contents much further down — so the
+ * reader's generic "prestate was obtainable from …" sentence would state the wrong cause.
+ * `deepestServed` is the committed endpoint-horizon reading's deepest served checkpoint
+ * (`measurements/sui-endpoint-horizon.json`), or null when it states none.
+ */
+export const reachReasonFor = (floorCheckpoint, deepestServed) =>
+  `checkpoint ${floorCheckpoint} is the first at protocol version ${MIN_TRACED_PROTOCOL}, the `
+  + 'first Sui execution layer with trace hooks; a transaction below it still replays but '
+  + 'writes no trace. The chain\'s state is not the limit: each transaction names the exact '
+  + 'object versions it consumed, and the GraphQL service '
+  + (deepestServed === null
+    ? 'serves their contents below this checkpoint as well'
+    : `served their contents down to checkpoint ${deepestServed} when last measured`);
+
+/** `provenance.verification` — what each trace is compared against, and the refusal. */
+export const VERIFICATION = 'each transaction is re-executed by `sui replay` from the exact '
+  + 'object versions it consumed and compared with the effects the chain recorded (status, '
+  + 'the four gas components, the events digest and the Lamport version); one that does not '
+  + 'match is published as divergent, never as a trace of the chain, and one that cannot be '
+  + 'traced is refused with its reason. The source shown is the bytecode disassembly of the '
+  + 'packages that ran, read from chain state';
