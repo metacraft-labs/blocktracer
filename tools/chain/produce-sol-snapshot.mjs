@@ -62,7 +62,7 @@ import {
 import {
   RECORDER, PRESTATE_STRATEGY, IDENTIFIER_ENCODING, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
   INSTRUCTION_STREAM_SCHEMA, CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET,
-  executionsForRow, costVectorForRow, rolesForRow, payloadForRow, reachReasonFor, VERIFICATION,
+  executionsForRow, costVectorForRow, rolesForRow, payloadForRow, reachReasonFor, VERIFICATION, addressHistoryFor,
 } from './lib/solana-producer-facts.mjs';
 
 const run = promisify(execFile);
@@ -337,6 +337,16 @@ async function main() {
   };
   snapshot.counts = recountSnapshot(snapshot);
   assertRefusalsAreClosed(snapshot.transactions, HERE);
+
+  // Spine need (f): the chain's own history for each paged address, below the window.
+  const historyPath = join(captureDir, 'history', `${from}-${to}.json`);
+  if (existsSync(historyPath)) {
+    const paged = new Set(rows.flatMap((r) => [...(r.roles ?? []).map((x) => x.address), r.payload?.target].filter(Boolean)));
+    try {
+      snapshot.addressHistory = addressHistoryFor(JSON.parse(readFileSync(historyPath, 'utf8')),
+        new Set(rows.map((r) => r.txHash)), paged, from);
+    } catch (e) { dieOperational(HERE, e); }
+  }
 
   // ── the tree ────────────────────────────────────────────────────────────────────
   const out = resolve(outDir);

@@ -48,6 +48,30 @@ export const reachReasonFor = (captureStart, fromSlot) => {
 /** `provenance.verification` — what the mandatory divergence oracle compares, and the refusal. */
 export const VERIFICATION = 'each trace is compared with what the chain recorded for its transaction (error, compute units, fee, logs, balances, token amounts, inner instructions and return data), and a transaction that cannot be compared is refused, never guessed';
 
+/**
+ * `addressHistory` — spine need (f). Each paged address's chain history below the
+ * published window, from a committed `sol-address-history.mjs` answer. Refuses rather
+ * than repairs: an entry at or above `fromSlot` would be a transaction the window
+ * already publishes or one it skipped, an entry that IS a row is a duplicate, and an
+ * out-of-order list would make "older" a lie. Only addresses that already have a page
+ * (`paged`) are kept, so history never creates a page of its own.
+ */
+export function addressHistoryFor(answer, rowHashes, paged, fromSlot) {
+  const out = {};
+  for (const address of Object.keys(answer.addresses).sort()) {
+    if (!paged.has(address)) continue;
+    const a = answer.addresses[address];
+    for (let i = 0; i < a.entries.length; i++) {
+      const e = a.entries[i];
+      if (!(e.blockNumber < fromSlot)) throw new Error(`addressHistory ${address}: ${e.txHash} is at slot ${e.blockNumber}, not below ${fromSlot}`);
+      if (rowHashes.has(e.txHash)) throw new Error(`addressHistory ${address}: ${e.txHash} is already a published row`);
+      if (i > 0 && e.blockNumber > a.entries[i - 1].blockNumber) throw new Error(`addressHistory ${address}: entries are not newest first at ${i}`);
+    }
+    if (a.entries.length > 0) out[address] = { before: a.before, limit: a.limit, complete: a.complete, entries: a.entries };
+  }
+  return out;
+}
+
 /** `provenance.identifierEncoding` — every identifier kind this chain publishes. */
 export const IDENTIFIER_ENCODING = Object.freeze({ transaction: 'base58', address: 'base58', block: 'base58' });
 

@@ -15,12 +15,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  PRESTATE_STRATEGY, VERIFICATION, costVectorForRow, executionsForRow, payloadForRow, reachReasonFor, rolesForRow,
+  PRESTATE_STRATEGY, VERIFICATION, addressHistoryFor, costVectorForRow, executionsForRow, payloadForRow, reachReasonFor, rolesForRow,
 } from './lib/solana-producer-facts.mjs';
 
 // The assertion count this suite declares, which `refusal-selftest.mjs` cross-checks
 // against the `chain-selftest` header. No host configurations, so the base is the total.
-const BASE_ARMS = 7;
+const BASE_ARMS = 8;
 
 let passed = 0;
 const arm = (name, fn) => {
@@ -115,6 +115,25 @@ arm('the floor reason names the capture start, and the verification sentence nam
   const slice = reachReasonFor(459262600, 459262601);
   assert.match(slice, /publishes from slot 459262601\b.*began reading account state at slot 459262600\b/);
   assert.match(VERIFICATION, /refused, never guessed/);
+});
+
+arm('address history is the committed answer below the window, refusing what would misstate it', () => {
+  // Spine need (f). The committed answer must pass as it stands, and each refusal bites.
+  const answer = JSON.parse(readFileSync(join(FIXTURE, 'history', '459262601-459262601.json'), 'utf8'));
+  const rowHashes = new Set(JSON.parse(readFileSync(join(FIXTURE, 'blocks', '459262601.json'), 'utf8'))
+    .transactions.map((r) => r.signature));
+  const paged = new Set(Object.keys(answer.addresses));
+  const kept = addressHistoryFor(answer, rowHashes, paged, 459262601);
+  assert.equal(Object.keys(kept).length, paged.size);
+  assert.ok(Object.values(kept).every((a) => a.entries.every((e) => e.blockNumber < 459262601)));
+  const [addr] = [...paged];
+  const one = (entries) => ({ addresses: { [addr]: { ...answer.addresses[addr], entries } } });
+  const e0 = answer.addresses[addr].entries[0];
+  assert.throws(() => addressHistoryFor(one([{ ...e0, blockNumber: 459262601 }]), rowHashes, paged, 459262601), /not below/);
+  assert.throws(() => addressHistoryFor(one([{ ...e0, txHash: [...rowHashes][0] }]), rowHashes, paged, 459262601), /already a published row/);
+  assert.throws(() => addressHistoryFor(one([{ ...e0, blockNumber: 5 }, e0]), rowHashes, paged, 459262601), /newest first/);
+  // An address without a page gets no history: history never creates a page.
+  assert.deepEqual(addressHistoryFor(one([e0]), rowHashes, new Set(), 459262601), {});
 });
 
 if (passed !== BASE_ARMS) {

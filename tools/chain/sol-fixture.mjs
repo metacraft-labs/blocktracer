@@ -94,6 +94,14 @@ if (cmd === 'pack') {
   writeFileSync(join(out, 'blocks.jsonl'), blocks.map((b) => JSON.stringify(b)).join('\n') + '\n');
   writeFileSync(join(out, 'results.jsonl'), readFileSync(join(fx, 'results.jsonl')));
   writeFileSync(join(out, 'capture.json'), readFileSync(join(fx, 'capture.json')));
+  // Address history (sol-address-history.mjs) is fetched after packing and committed
+  // beside the window; it passes through unchanged when present.
+  if (existsSync(join(fx, 'history'))) {
+    mkdirSync(join(out, 'history'), { recursive: true });
+    for (const f of readdirSync(join(fx, 'history'))) {
+      writeFileSync(join(out, 'history', f), readFileSync(join(fx, 'history', f)));
+    }
+  }
 } else {
   die('usage: sol-fixture.mjs pack|unpack …');
 }
