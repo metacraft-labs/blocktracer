@@ -247,6 +247,36 @@ LIVE element input
 
 # ── the live panes: the shared views the hydrated build mounts ───────────
 
+LIVE class past bundle
+LIVE class future bundle
+LIVE class custom-tooltip bundle
+LIVE class ct-input-* bundle
+LIVE element line bundle
+LIVE id category-image bundle
+LIVE class event-log-marker-empty bundle
+LIVE class rr-ticks-* bundle
+LIVE class direct-location-rr-ticks bundle
+LIVE class event-rr-ticks-line bundle
+LIVE class active bundle
+LIVE class hidden bundle
+LIVE class ct-button-no-border bundle
+LIVE classpart ct-button-sm-secondary bundle
+    WERE INERT, AND THE MOUNTED VIEWS WRITE THEM NOW. Each row stood under a
+    reason that said no markup here carries it, which stopped being true when
+    the live build began mounting the shared views: the Event Log writes its
+    rows' `past` / `active` / `future` and its `rr-ticks-*` tick column and
+    marker empty state, `#category-image` and the small secondary buttons;
+    the Call Trace writes its search input (`ct-input-*`), hides its search
+    results with `hidden` and draws its guides as SVG `line`s; the State pane
+    writes `custom-tooltip`. Moved rather than left, because an INERT row
+    whose subject is on screen is the lie this register exists to stop.
+
+LIVE element label
+    A bare `label` rule (`event_log.styl`'s column options). The exported
+    pages carry `<label>` elements of their own, which the gate measured; a
+    rule in the debugger register scope matching a page's label is matching
+    the markup it was written for.
+
 LIVE class local-calltrace-view bundle
 LIVE class calltrace-loading bundle
 LIVE class calltrace-view bundle
@@ -486,18 +516,15 @@ INERT class dts_*
 INERT class paging_simple_numbers
 INERT class odd
 INERT class even
-INERT class past
-INERT class future
 INERT class r
     `data_tables.styl` styles DataTables.js, which CodeTracer's State, Event
-    Log and Scratchpad panes are built on. `odd`, `even`, `past`, `future`
-    and `r` are that library's own row-state classes, written by its
+    Log and Scratchpad panes are built on. `odd`, `even` and `r` are that
+    library's own row-state classes, written by its
     JavaScript. BlockTracer renders those panes as its own markup
     (`components/debugger.nim`), carries no DataTables dependency, and would
     only reach this vocabulary by adopting the library.
 
 INERT class tippy-*
-INERT class custom-tooltip
 INERT class code-tooltip
 INERT class active-line
 INERT class excerpt-code
@@ -522,11 +549,6 @@ INERT class ct-counterexample*
     The counterexample pane, which upstream shows for a failed property test.
     This product has no such pane and no such input.
 
-INERT class ct-input-*
-    Upstream's four input VARIANTS — small, panel, form, command-palette —
-    and the search image inside one. BlockTracer's debug route has one input
-    idiom and it is the bare `input` selector, which is LIVE above. These
-    variants would come back with a command palette or a panel form.
 
 INERT class chart-*
 INERT class chartjs-render-monitor
@@ -558,7 +580,6 @@ INERT class ct-selected-outline
 
 INERT element circle
 INERT element ellipse
-INERT element line
 INERT element polygon
 INERT element polyline
 INERT element rect
@@ -580,7 +601,6 @@ INERT id welcomeScreen
     item here is an id rather than a class, which is why they survived the
     class-level reviews that preceded this register.
 
-INERT id category-image
 INERT id close-element
 INERT id backward-loop
 INERT id forward-loop
@@ -613,7 +633,6 @@ INERT class problems-empty
 INERT class point-list-empty
 INERT class search-results-empty
 INERT class unified-diff-empty
-INERT class event-log-marker-empty
 INERT class filesystem-empty-overlay
 INERT class filesystem-loading-overlay
 INERT class filesystem-error-overlay
@@ -627,13 +646,6 @@ INERT class fif-*
     distinction this family turns on: the shared rule is used, the per-pane
     ones name panes that do not exist.
 
-INERT class rr-ticks-*
-INERT class direct-location-rr-ticks
-INERT class event-rr-ticks-line
-    The rr-ticks column: upstream renders a recording's tick coordinate beside
-    each row of a data table. BlockTracer's scrubber shows position once for
-    the whole session rather than per row, and these rules are written against
-    the DataTables markup above besides.
 
 INERT class value-expanded-compound
 INERT class value-load-more-button
@@ -677,24 +689,22 @@ INERT class lm_item
 
 # ── the rest of `shared_widgets.styl`'s script-driven vocabulary ─────────
 
-INERT class active
 INERT class open
-INERT class hidden
 INERT class highlight
 INERT class hovered
 INERT class unselectable
 INERT class panel
 INERT class panel-width
 INERT class absolute-panel
-INERT class ct-button-no-border
     State and layout classes upstream's renderer toggles from script —
-    `.active`, `.open`, `.hidden`, `.highlight`, `.hovered` — plus four
-    container classes (`.panel`, `.panel-width`, `.absolute-panel`,
-    `.selector`) and two button modifiers that belong to widgets this product
-    does not build. FIVE OF THESE ARE THE REASON THE BUNDLE IS NOT COUNTED AS
-    LIVENESS: `active`, `checkbox`, `hidden`, `open` and `selector` all occur
-    as ordinary string literals in the bundles, and none of them is a class
-    this site writes anywhere. The sixth is the SVG element `line`.
+    `.open`, `.highlight`, `.hovered` — plus four container classes
+    (`.panel`, `.panel-width`, `.absolute-panel`, `.selector`) and two button
+    modifiers that belong to widgets this product does not build. `open`,
+    `checkbox` and `selector` are among the reasons the bundle is not counted
+    as liveness: they occur as ordinary string literals in the bundles, and
+    none of them is a class this site writes. (`active`, `hidden` and the SVG
+    `line` were the other three; the mounted shared views now write them, and
+    their rows are LIVE on bundle evidence, under the live panes.)
 
 # ── the seventeen button families that do not match ──────────────────────
 
@@ -702,7 +712,6 @@ INERT classpart -primary
 INERT classpart -tertiary
 INERT classpart ct-button-xs-
 INERT classpart ct-button-sm-
-INERT classpart ct-button-sm-secondary
 INERT classpart ct-button-md-
 INERT classpart ct-button-lg-
 INERT classpart ct-button-xl-
@@ -898,11 +907,9 @@ INERT class ct-hscrubber-thumb
     this build mounts do not attach it, so the code is not in the bundle. It
     would come back with a mounted view that does.
 
-INERT element label
 INERT id dialog
 INERT class expanded
 INERT class edit
     Names the port's rules use that the mounted views do not write as these
-    selectors: no bare `label` element, no `#dialog`, and no `.expanded` or
-    `.edit` class (the bundle carries the words, as text, which is not class
+    selectors: no `#dialog`, and no `.expanded` or `.edit` class (the bundle carries the words, as text, which is not class
     evidence). They belong to desktop panes this page does not mount.
