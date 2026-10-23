@@ -1,0 +1,28 @@
+{
+  "schema": "codetracer-flow-recorder/floor-probe@1",
+  "accessNode": "access.mainnet.nodes.onflow.org:9000",
+  "measuredAt": "2026-10-23T15:59:32Z",
+  "chain": "flow-mainnet",
+  "nodeVersion": "v0.51.1",
+  "sporkRootHeight": 137390146,
+  "nodeRootHeight": 137390146,
+  "sealedTip": 168734077,
+  "register": "0x1654653399040a61/contract_names",
+  "floor": 137390146,
+  "below": {
+    "height": 137390145,
+    "class": "out-of-range",
+    "code": "OutOfRange",
+    "message": "register values for block 137390145 is not available"
+  },
+  "atFloor": {
+    "height": 137390146,
+    "class": "served"
+  },
+  "atTip": {
+    "height": 168734077,
+    "class": "served"
+  },
+  "probes": 31,
+  "verdict": "floor: served at the floor, refused out-of-range one block below"
+}

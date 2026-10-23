@@ -32,6 +32,46 @@ export const RECORDER = Object.freeze({ id: 'solana-sbf', traceSchema: 'ctfs/v5'
 /** `provenance.prestateStrategy` — §1.4's seventh row; see the header. */
 export const PRESTATE_STRATEGY = 'forward-capture';
 
+/**
+ * `provenance.reachReason` — why history starts at `replayableFrom`. Under
+ * `forward-capture` the floor is where the capture began reading account state, not a
+ * limit of any node, so the reader's generic node-limit sentence would be wrong (CXP-SOL-6).
+ */
+// A tree may publish a later slice of its capture (the staging tree publishes one slot
+// of three), so the sentence names both slots when they differ rather than calling the
+// published floor the capture's start.
+export const reachReasonFor = (captureStart, fromSlot) => {
+  const begun = `this capture began reading account state at slot ${captureStart}, and no RPC serves account state at an earlier slot, so nothing before it can be replayed`;
+  return fromSlot === captureStart ? begun : `this tree publishes from slot ${fromSlot}; ${begun}`;
+};
+
+/** `provenance.verification` — what the mandatory divergence oracle compares, and the refusal. */
+export const VERIFICATION = 'each trace is compared with what the chain recorded for its transaction (error, compute units, fee, logs, balances, token amounts, inner instructions and return data), and a transaction that cannot be compared is refused, never guessed';
+
+/**
+ * `addressHistory` — spine need (f). Each paged address's chain history below the
+ * published window, from a committed `sol-address-history.mjs` answer. Refuses rather
+ * than repairs: an entry at or above `fromSlot` would be a transaction the window
+ * already publishes or one it skipped, an entry that IS a row is a duplicate, and an
+ * out-of-order list would make "older" a lie. Only addresses that already have a page
+ * (`paged`) are kept, so history never creates a page of its own.
+ */
+export function addressHistoryFor(answer, rowHashes, paged, fromSlot) {
+  const out = {};
+  for (const address of Object.keys(answer.addresses).sort()) {
+    if (!paged.has(address)) continue;
+    const a = answer.addresses[address];
+    for (let i = 0; i < a.entries.length; i++) {
+      const e = a.entries[i];
+      if (!(e.blockNumber < fromSlot)) throw new Error(`addressHistory ${address}: ${e.txHash} is at slot ${e.blockNumber}, not below ${fromSlot}`);
+      if (rowHashes.has(e.txHash)) throw new Error(`addressHistory ${address}: ${e.txHash} is already a published row`);
+      if (i > 0 && e.blockNumber > a.entries[i - 1].blockNumber) throw new Error(`addressHistory ${address}: entries are not newest first at ${i}`);
+    }
+    if (a.entries.length > 0) out[address] = { before: a.before, limit: a.limit, complete: a.complete, entries: a.entries };
+  }
+  return out;
+}
+
 /** `provenance.identifierEncoding` — every identifier kind this chain publishes. */
 export const IDENTIFIER_ENCODING = Object.freeze({ transaction: 'base58', address: 'base58', block: 'base58' });
 

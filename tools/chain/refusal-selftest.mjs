@@ -1483,6 +1483,8 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // THE FIFTH SUITE IN PATTERN FIVE: the Flow producer's facts, offline, so its
     // `BASE_ARMS` is its total.
     ['flow-producer-facts-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // The Flow conformance fixture's cases, offline, so its `BASE_ARMS` is its total.
+    ['flow-awkward-cases-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
     // The Sui producer's offline suite, in the commonest pattern.
     ['sui-producer-selftest.mjs', /asserted !== (\d+)\) \{/],
     // The Starknet producer's offline suite, which states its figure as a constant.
@@ -1812,7 +1814,10 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a NINETEENTH suite joined `chain-selftest` — `solana-producer-selftest`, the
 //       Solana producer's facts and committed inputs (Recorder-Solana, 2026-10-20) — at the
 //       same single assertion.
-expectCount(241);
+//   +1  a TWENTY-SECOND suite joined `chain-selftest` — `flow-awkward-cases-selftest`, the
+//       Flow conformance fixture's four cases (Recorder-Flow CXP-FLOW-4, 2026-10-23) — at
+//       the same single assertion.
+expectCount(242);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

@@ -181,6 +181,52 @@ let
       runHook postInstall
     '';
   };
+
+  # Recorder-Flow CXP-FLOW-4's conformance fixture: one tree per block that
+  # awkward-cases.json names, each capturing only the case and control transactions
+  # there (`--only`), and then the check that the trees carry each case. The block
+  # list is read from the manifest, so the fixture and its build cannot disagree.
+  casesDir = "fixtures/chain-inputs/flow-mainnet";
+  casesManifest = lib.importJSON (blocktracerRoot + "/${casesDir}/awkward-cases.json");
+  caseRefs = lib.concatMap (c: [ c ] ++ lib.optional (c ? control) c.control)
+    casesManifest.cases;
+  caseBlocks = lib.unique (map (r: toString r.block) caseRefs);
+  onlyFor = b: lib.unique (map (r: r.tx) (lib.filter (r: toString r.block == b) caseRefs));
+
+  casesSrc = lib.fileset.toSource {
+    root = blocktracerRoot;
+    fileset = lib.fileset.unions ([
+      (blocktracerRoot + "/tools/chain")
+      (blocktracerRoot + "/${casesDir}/awkward-cases.json")
+      (blocktracerRoot + "/client/hydrate/engine-pin.txt")
+    ] ++ map (b: blocktracerRoot + "/${casesDir}/${b}") caseBlocks);
+  };
+
+  flowAwkwardCases = stdenv.mkDerivation {
+    name = "flow-awkward-cases";
+    src = casesSrc;
+    nativeBuildInputs = [ nodejs bash ];
+    CT_PRINT = "${ctPrint}/bin/ct-print";
+    buildPhase = ''
+      runHook preBuild
+      export HOME=$TMPDIR
+    '' + lib.concatMapStrings (b: ''
+      bash tools/chain/flow-capture.sh \
+        --recorder ${flowRecorder}/bin/codetracer-flow-recorder \
+        --helper ${replayHelper}/bin/cadence-replay-helper \
+        --recorder-commit ${recorderRev} \
+        --inputs ${casesDir}/${b} --out $TMPDIR/trees/${b} --work $TMPDIR/work \
+        ${lib.concatMapStringsSep " " (t: "--only ${t}") (onlyFor b)}
+    '') caseBlocks + ''
+      node tools/chain/flow-awkward-cases-check.mjs --trees $TMPDIR/trees
+      runHook postBuild
+    '';
+    installPhase = ''
+      runHook preInstall
+      cp -r $TMPDIR/trees $out
+      runHook postInstall
+    '';
+  };
 in {
-  inherit flowRecorder replayHelper flowCaptureTree ctPrint;
+  inherit flowRecorder replayHelper flowCaptureTree flowAwkwardCases ctPrint;
 }

@@ -317,10 +317,14 @@
       flake = false;
     };
     # ── Solana: the SBF recorder (tools/chain/nix/sol.nix says why) ────────────
-    # Its trace-format path dependencies are `flow-trace-format` above, whose
-    # revision is exactly the one this recorder's repro.lock names.
+    # Its trace-format path dependencies are `sol-trace-format`, at exactly the
+    # revision this recorder's repro.lock names (afa4dde since recorder 44628b6).
     codetracer-solana-recorder = {
-      url = "github:metacraft-labs/codetracer-solana-recorder/0a1950220964d8c8793b43fa6c4ec1fb9bed35ef";
+      url = "github:metacraft-labs/codetracer-solana-recorder/c3ca118c312661ae51a68afcccaa49376fdc91dd";
+      flake = false;
+    };
+    sol-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/afa4dde4156c168bec73711c8002418345fa249b";
       flake = false;
     };
     # ── Sui: the Move recorder (tools/chain/nix/sui.nix says why) ─────────────
@@ -351,7 +355,7 @@
             , aztec-avm-runtime, codetracer-trace-format
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
-            , codetracer-solana-recorder
+            , codetracer-solana-recorder, sol-trace-format
             , codetracer-move-recorder
             , codetracer-cairo-recorder, cairo-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
@@ -566,7 +570,7 @@
           nodejs = followerNodejs;
           recorderSrc = codetracer-solana-recorder;
           recorderRev = codetracer-solana-recorder.rev;
-          solTraceFormatSrc = flow-trace-format;
+          solTraceFormatSrc = sol-trace-format;
           writerSrc = codetracer-trace-format-nim;
           writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
           blocktracerRoot = ./.;
@@ -626,6 +630,7 @@
         packages.flow-recorder = flow.flowRecorder;
         packages.cadence-replay-helper = flow.replayHelper;
         packages.flow-capture-tree = flow.flowCaptureTree;
+        packages.flow-awkward-cases = flow.flowAwkwardCases;
         packages.flow-ct-print = flow.ctPrint;
 
         # ── Solana, produced the same way (Recorder-Solana CXP-SOL-6) ──
