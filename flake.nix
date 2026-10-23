@@ -13,7 +13,7 @@
     # static sites (reprobuild-web-site / codetracer-web-site), recorded in the
     # isonim-sites registry.
     isonim = {
-      url = "github:metacraft-labs/isonim/d2193dc4935039f5faa0836e0a26eed9e15f1a72";
+      url = "github:metacraft-labs/isonim/3b3d356c17d65ae385350fe70e7235e5527c70c0";
       flake = false;
     };
     nim-everywhere = {
@@ -125,7 +125,7 @@
     codetracer = {
       # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
       # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/agents&rev=0d1325584b9e7c77d13bbb766077e3418395fe94&submodules=0";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/agents&rev=25e7a9049365aa77835daa0c065168df6e243baa&submodules=0";
       flake = false;
     };
 

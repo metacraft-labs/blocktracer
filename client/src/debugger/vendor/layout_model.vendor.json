@@ -70,7 +70,7 @@
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "agents",
-  "commit": "0d1325584b9e7c77d13bbb766077e3418395fe94",
+  "commit": "25e7a9049365aa77835daa0c065168df6e243baa",
   "files": [
     {
       "path": "src/frontend/headless_app/layout_model.nim",

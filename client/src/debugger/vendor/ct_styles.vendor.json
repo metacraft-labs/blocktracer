@@ -73,12 +73,12 @@
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "agents",
-  "commit": "0d1325584b9e7c77d13bbb766077e3418395fe94",
+  "commit": "25e7a9049365aa77835daa0c065168df6e243baa",
   "files": [
     {
       "path": "src/frontend/styles/components/button.styl",
       "local": "frontend/styles/components/button.styl",
-      "sha256": "5361a9678f8c6f815cc435ea2a3ee597cf3323c2df0793183b683b06c3d1c711"
+      "sha256": "f8bafade89bf02d4a262629577786fa96757ed38ff44594c9a9bde9d9ff503df"
     },
     {
       "path": "src/frontend/styles/components/input.styl",

@@ -305,6 +305,14 @@ INERT class value-history-button
     `ct/valueHistory` call anywhere in `client/hydrate/`. It would come back
     with that panel.
 
+INERT class isonim-debug-controls
+    The class of upstream's shared debug-toolbar root, named by the rule
+    `button.styl` gained at 25e7a9049 that restores hit-testing to a
+    disabled toolbar button so its tooltip still shows. BlockTracer's
+    controls bar is its own markup (the phase rail and its keymap), not
+    the shared toolbar view, and wears no such class. It would come back
+    with a live build that mounts the shared debug-controls view.
+
 INERT class custom-noir-icon
     The ninth vendored icon: the Noir language mark, drawn by
     `shared_widgets.styl` as a `::before` mask. Upstream puts it on the
