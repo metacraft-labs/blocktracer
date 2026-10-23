@@ -1403,11 +1403,25 @@ proc tour*(r: DataRoot, info: ChainInfo): seq[TourRow] =
 # ── address history: block-range segments, never ordinal pages (§2.2) ──────
 
 type
+  UntracedEntry* = object
+    ## One transaction the CHAIN recorded for this address below the window,
+    ## which this tree holds no container for (§5.2 `addressHistory`).
+    txHash*: string
+    blockNumber*: int
+    timestamp*: int     ## 0 when the chain recorded none
+    failed*: bool
+
   AddressSegmentRow* = object
     ## One immutable block-range page of an address's history.
     path*: string
     fromBlock*, toBlock*: int
     transactions*: seq[string]
+    untraced*: seq[UntracedEntry]
+      ## The chain's own history below the window, on the oldest segment only.
+      ## Empty on every other segment and on every chain whose producer
+      ## carries none.
+    complete*: bool     ## on an untraced segment: nothing older exists
+    limit*: int         ## on an untraced segment: how many entries were asked for
     loaded*: bool
       ## `false` when the generation listed the segment and the object did not
       ## resolve. The row is still returned: dropping it would make the page
@@ -1472,6 +1486,14 @@ proc readAddressSegment*(info: ChainInfo, path: string): AddressSegmentRow =
   if res.node.hasKey("transactions") and res.node["transactions"].kind == JArray:
     for t in res.node["transactions"]:
       if t.kind == JString: result.transactions.add t.getStr
+  if res.node.hasKey("untraced") and res.node["untraced"].kind == JArray:
+    for e in res.node["untraced"]:
+      if e.kind != JObject or e{"txHash"}.getStr.len == 0: continue
+      result.untraced.add UntracedEntry(txHash: e{"txHash"}.getStr,
+        blockNumber: e{"blockNumber"}.getInt, timestamp: e{"timestamp"}.getInt,
+        failed: e{"failed"}.getBool)
+    result.complete = res.node{"complete"}.getBool
+    result.limit = res.node{"limit"}.getInt
 
 func segmentIdOf*(path: string): string =
   ## The cursor a segment's published PATH carries, read out of the path rather

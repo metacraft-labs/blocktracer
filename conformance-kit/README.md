@@ -167,11 +167,11 @@ compiled in is not the same as travelling with you: a recipient holding
 The two trees are not two examples of the same thing. They are the two ends of the
 contract. Between them every member you **may leave out** appears present in one tree
 and absent in the other — which is how you learn, without reading §5.2b line by line,
-which those are. The **52** members the contract requires of every container appear in
+which those are. The **56** members the contract requires of every container appear in
 both, because a tree short of one of them is not a conforming tree and could not be
-shipped here as an example of one. (The census is 151 members: 52 required
+shipped here as an example of one. (The census is 160 members: 56 required
 everywhere, 6 required on some rows and not others — `container` on a traced row,
-`refusalReason` on an untraced one — and 93 optional. The 99 that are not required
+`refusalReason` on an untraced one — and 98 optional. The 104 that are not required
 everywhere are the ones shown both ways.)
 
 **`minimal/`** is the floor: one block, one untraced transaction, every member the

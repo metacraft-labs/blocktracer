@@ -124,8 +124,8 @@ arm('address history is the committed answer below the window, refusing what wou
     .transactions.map((r) => r.signature));
   const paged = new Set(Object.keys(answer.addresses));
   const kept = addressHistoryFor(answer, rowHashes, paged, 459262601);
-  assert.equal(Object.keys(kept).length, paged.size);
-  assert.ok(Object.values(kept).every((a) => a.entries.every((e) => e.blockNumber < 459262601)));
+  assert.equal(kept.length, paged.size);
+  assert.ok(kept.every((a) => a.entries.every((e) => e.blockNumber < 459262601)));
   const [addr] = [...paged];
   const one = (entries) => ({ addresses: { [addr]: { ...answer.addresses[addr], entries } } });
   const e0 = answer.addresses[addr].entries[0];
@@ -133,7 +133,7 @@ arm('address history is the committed answer below the window, refusing what wou
   assert.throws(() => addressHistoryFor(one([{ ...e0, txHash: [...rowHashes][0] }]), rowHashes, paged, 459262601), /already a published row/);
   assert.throws(() => addressHistoryFor(one([{ ...e0, blockNumber: 5 }, e0]), rowHashes, paged, 459262601), /newest first/);
   // An address without a page gets no history: history never creates a page.
-  assert.deepEqual(addressHistoryFor(one([e0]), rowHashes, new Set(), 459262601), {});
+  assert.deepEqual(addressHistoryFor(one([e0]), rowHashes, new Set(), 459262601), []);
 });
 
 if (passed !== BASE_ARMS) {

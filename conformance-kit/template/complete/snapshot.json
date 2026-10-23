@@ -83,6 +83,17 @@
     }
   ],
   "artifactResolution": "resolution/artifacts.json",
+  "addressHistory": [
+    {
+      "address": "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+      "complete": false,
+      "limit": 2,
+      "entries": [
+        {"txHash": "0x9999999999999999999999999999999999999999999999999999999999999999", "blockNumber": 999, "timestamp": 1700000000, "failed": false},
+        {"txHash": "0x9898989898989898989898989898989898989898989898989898989898989898", "blockNumber": 998, "timestamp": null, "failed": true}
+      ]
+    }
+  ],
   "transactions": [
     {
       "txHash": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",

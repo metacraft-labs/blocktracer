@@ -122,7 +122,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-chain-reach test-capability-tour test-instruction-listing test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-searchboot
+test: test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-chain-reach test-capability-tour test-instruction-listing test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-address-history test-searchboot
 
 # The browser's half of search, run without a browser: `nim js -r`, which is how
 # `searchboot.nim` can be tested at all. Its `importjs` boundary procs make the
@@ -351,3 +351,10 @@ test-frame-identity-jump:
 # In-memory closures, no fixtures, no filesystem — the question is routing.
 test-chain-origins:
     nim c -r --mm:orc --hints:off tests/test_chain_origins.nim
+
+# tests/test_address_history.nim — an address's chain history below the window
+# (§5.2 `addressHistory`, Recorder-Solana spine need (f)): the oldest segment
+# lists the chain's entries in full and links none, and the page does not call it
+# complete history unless the chain said nothing older exists.
+test-address-history:
+    nim c -r --mm:orc --hints:off tests/test_address_history.nim

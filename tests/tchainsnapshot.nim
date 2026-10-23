@@ -707,6 +707,13 @@ proc violate(id, dir: string): string =
     # so the only thing this edit changes is the member it adds.
     let blk = doc["blocks"][0]
     blk["systemTransactions"] = %[blk["transactions"][0]]
+  of "S5-ADDRESS-HISTORY-BELOW-WINDOW":
+    # AN ENTRY INSIDE THE WINDOW, the shape the rule exists for: it would be a
+    # transaction the address page lists twice, or one the window skipped.
+    var lowest = high(int)
+    for b in doc["blocks"]: lowest = min(lowest, b["number"].getInt)
+    doc["addressHistory"] = %*[{"address": "0x" & "ab".repeat(20), "entries": [
+      {"txHash": "0x" & "91".repeat(32), "blockNumber": lowest}]}]
   of "S5-POSITIONS-SCHEMA":
     let p = dir / "positions" / (PositionedTx & ".json")
     var n = parseJson(readFile(p))
@@ -760,7 +767,7 @@ const RuleCases = [
   "S5-COST-VECTOR", "S5-EXECUTIONS-NAMED", "S5-EXECUTIONS-ONE-TRACED",
   "S5-POSITIONS-SCHEMA",
   "S5-IDENTIFIER-ENCODING-CLOSED", "S5-IDENTIFIER-ENCODING-SHARDABLE",
-  "S5-SYSTEM-TRANSACTIONS",
+  "S5-SYSTEM-TRANSACTIONS", "S5-ADDRESS-HISTORY-BELOW-WINDOW",
 ]
 
 suite "a refusal names the §5 rule it enforces, and the repaired snapshot ingests":
@@ -898,7 +905,9 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
   # was made to run it.
   #
   # 179 → 183: ONE rule added (S5-SYSTEM-TRANSACTIONS, 2026-10-22), 1 × 4 = 4.
-  expectCount(183)
+  # 183 → 187: ONE rule added (S5-ADDRESS-HISTORY-BELOW-WINDOW, 2026-10-23,
+  # Recorder-Solana spine need (f)), 1 × 4 = 4.
+  expectCount(187)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT
@@ -2162,3 +2171,144 @@ suite "a block's system transactions are published on the block, counted nowhere
     #   6 × 3 + 3 — six refusals, each citing, naming the block and the id; three
     #               controls
     expectCount(1 + 3 + 3 + 3 + 2 + 6 * 3 + 3)
+
+# ── ADDRESS HISTORY BELOW THE WINDOW (`addressHistory`, §5.2) ───────────────────
+#
+# Spine need (f) of Recorder-Solana: a chain whose node serves an address's history
+# with no index (Solana's `getSignaturesForAddress`) lets the producer carry it, and
+# the reader publishes it as ONE more segment of that address's history, the oldest,
+# whose entries are listed as `untraced` and open nothing. The frames capture pages
+# no address, so each edit first gives its newest row a sender.
+
+const HistAddr = "0x" & "ab".repeat(20)
+const HistOther = "0x" & "cd".repeat(20)
+const HistA = "0x" & "91".repeat(32)
+const HistB = "0x" & "92".repeat(32)
+
+proc lowestBlock(doc: JsonNode): int =
+  result = high(int)
+  for b in doc["blocks"]: result = min(result, b["number"].getInt)
+
+proc withSender(doc: JsonNode) =
+  doc["transactions"][0]["roles"] = %*[{"role": "sender", "address": HistAddr}]
+
+proc historyOf(doc: JsonNode, address: string, entries: JsonNode): JsonNode =
+  %*{"address": address, "complete": false, "limit": 2, "entries": entries}
+
+proc twoBelow(doc: JsonNode): JsonNode =
+  let lo = lowestBlock(doc)
+  %*[{"txHash": HistA, "blockNumber": lo - 1, "timestamp": 5, "failed": false},
+     {"txHash": HistB, "blockNumber": lo - 2, "timestamp": nil, "failed": true}]
+
+proc addressIndexOf(outDir, address: string): JsonNode =
+  ## The address index naming `address`, read off disk, or nil.
+  for path in walkDirRec(outDir / "d"):
+    if "/addr/" in path and path.endsWith(".json"):
+      let n = parseJson(readFile(path))
+      if n{"address"}.getStr == address: return n
+
+suite "an address's chain history below the window is its oldest segment, and opens nothing":
+  asserted = 0
+
+  test "the history is one more segment, listed last, its entries untraced":
+    let (plain, _) = ingestWith("hist-none", proc (doc: JsonNode) = withSender(doc))
+    defer: removeDir plain
+    let (tree, _) = ingestWith("hist-two", proc (doc: JsonNode) =
+      withSender(doc)
+      doc["addressHistory"] = %[historyOf(doc, HistAddr, twoBelow(doc))])
+    defer: removeDir tree
+    let before = addressIndexOf(plain, HistAddr)
+    let after = addressIndexOf(tree, HistAddr)
+    ck not before.isNil and not after.isNil
+    ck after["segments"].len == before["segments"].len + 1
+    # The window's segments are untouched and come first; the history is last.
+    for i in 0 ..< before["segments"].len:
+      ck after["segments"][i] == before["segments"][i]
+    let lo = lowestBlock(parseJson(readFile(framesCapture / "snapshot.json")))
+    let last = after["segments"][^1].getStr
+    ck last.endsWith("/" & $(lo - 2) & "-" & $(lo - 1) & ".json")
+    let seg = parseJson(readFile(tree / last))
+    ck seg["transactions"].len == 0
+    ck seg["untraced"].len == 2
+    ck seg["untraced"][0]["txHash"].getStr == HistA
+    ck seg["untraced"][1]["failed"].getBool
+    ck seg["untraced"][1]["timestamp"].kind == JNull
+    ck not seg["complete"].getBool and seg["limit"].getInt == 2
+
+  test "each shape §5.2 rules out is refused by name, naming the address":
+    let want = cite("S5-ADDRESS-HISTORY-BELOW-WINDOW")
+    let pristine = parseJson(readFile(framesCapture / "snapshot.json"))
+    let lo = lowestBlock(pristine)
+    let rowId = pristine["transactions"][^1]["txHash"].getStr
+    let cases: seq[(string, proc (doc: JsonNode), string)] = @[
+      ("an entry in the lowest published block",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr,
+           %*[{"txHash": HistA, "blockNumber": lo}])], HistAddr),
+      ("an entry that is a row",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr,
+           %*[{"txHash": rowId, "blockNumber": lo - 1}])], HistAddr),
+      ("entries oldest first",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr,
+           %*[{"txHash": HistB, "blockNumber": lo - 2},
+              {"txHash": HistA, "blockNumber": lo - 1}])], HistAddr),
+      ("one address twice",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr, twoBelow(doc)),
+                                   historyOf(doc, HistAddr, twoBelow(doc))], HistAddr),
+      ("not an array",
+       proc (doc: JsonNode) =
+         doc["addressHistory"] = historyOf(doc, HistAddr, twoBelow(doc)), "not an array"),
+      # bt-evm's review: an address no row pages lost its history silently.
+      ("an address no row pages",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistOther, twoBelow(doc))], HistOther),
+      # …and the SAME address in another spelling (EIP-55 against lowercase).
+      ("the paged address in another spelling",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr.toUpperAscii.replace("0X", "0x"),
+                                             twoBelow(doc))], "0xABAB"),
+      # A duplicate AFTER an object with no entries, which a check keyed by the
+      # segments built missed.
+      ("one address twice, the first with no entries",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr, newJArray()),
+                                   historyOf(doc, HistAddr, twoBelow(doc))], HistAddr),
+      ("one entry twice for one address",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         let lo = lowestBlock(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr,
+           %*[{"txHash": HistA, "blockNumber": lo - 1},
+              {"txHash": HistA, "blockNumber": lo - 2}])], HistA),
+    ]
+    for (what, edit, names) in cases:
+      let said = refusalFor("hist-bad-" & what.replace(" ", "-"), edit)
+      if want notin said or names notin said:
+        checkpoint(what & ": got " & (if said.len == 0: "(no refusal at all)" else: said))
+      ck want in said
+      ck names in said
+    # CONTROLS: the well-formed history ingests, and so does a paged address
+    # whose object has no entries (it is named once and publishes no segment).
+    ck refusalFor("hist-ok", proc (doc: JsonNode) =
+      withSender(doc)
+      doc["addressHistory"] = %[historyOf(doc, HistAddr, twoBelow(doc))]) == ""
+    ck refusalFor("hist-ok-empty", proc (doc: JsonNode) =
+      withSender(doc)
+      doc["addressHistory"] = %[historyOf(doc, HistAddr, newJArray())]) == ""
+
+  test "assertion count":
+    #   1 + 1 + 1 + 1 + 6 — both indexes; one more segment; the window's one
+    #               segment unchanged; the range; the segment's six facts
+    #               (`complete` and `limit` asserted together)
+    #   9 × 2 + 2 — nine refusals, each citing and naming; two controls
+    expectCount(1 + 1 + 1 + 1 + 6 + 9 * 2 + 2)
