@@ -626,6 +626,7 @@
         packages.flow-recorder = flow.flowRecorder;
         packages.cadence-replay-helper = flow.replayHelper;
         packages.flow-capture-tree = flow.flowCaptureTree;
+        packages.flow-awkward-cases = flow.flowAwkwardCases;
         packages.flow-ct-print = flow.ctPrint;
 
         # ── Solana, produced the same way (Recorder-Solana CXP-SOL-6) ──

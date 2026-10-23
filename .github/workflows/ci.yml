@@ -532,7 +532,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 241 assertions, and the reason it is offline is the reason it
+        # ING-3, 242 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -930,6 +930,16 @@ jobs:
         # one, and the producer is shown to spell the member through its facts module --
         # each beside a planted defect, including the token this module used to export.
         run: node tools/chain/flow-producer-facts-selftest.mjs
+
+      - name: Does the Flow conformance fixture hold the four cases it lists?
+        # 10 assertions, offline and needing only node: the committed transcripts under
+        # fixtures/chain-inputs/flow-mainnet/ are read off disk. Each case -- three roles,
+        # an NFT moved across accounts, a failed pre-condition, a contract updated after
+        # the transaction ran -- is checked from the chain's own record beside a control
+        # on which the same predicate is false; for the update, the newer source hashing
+        # to the update event's codeHash. What the producer publishes for each case is
+        # `.#flow-awkward-cases`, which needs the recorder and is not run here.
+        run: node tools/chain/flow-awkward-cases-selftest.mjs
 
       - name: Does the Sui producer state its chain's facts and refuse a broken window?
         # 41 assertions, host-independent: every arm is offline and needs only node.

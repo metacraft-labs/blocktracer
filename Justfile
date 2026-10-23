@@ -161,7 +161,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-ONE suites — 105 + 19 + 24 + 24 + 57 + 241 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 9 + 41 + 33 + 8 + 33 + 24 = 1333 counted assertions —
+# TWENTY-TWO suites — 105 + 19 + 24 + 24 + 57 + 242 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 9 + 10 + 41 + 33 + 8 + 33 + 24 = 1344 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -455,6 +455,11 @@ chain-selftest:
     # from the committed block listing and transcript under
     # fixtures/chain-inputs/flow-mainnet/, each arm beside its control.
     node tools/chain/flow-producer-facts-selftest.mjs
+    # Offline and toolchain-free: the Flow conformance fixture's four awkward
+    # cases, each shown to be its case from the committed transcripts beside a
+    # control. What the producer publishes for them is `just flow-awkward-cases`,
+    # which needs the recorder.
+    node tools/chain/flow-awkward-cases-selftest.mjs
     # Offline and toolchain-free: the Sui producer's facts, its effects
     # comparison and its refusals, driven from literals shaped as Sui's GraphQL
     # service and `sui replay` write them. Traced rows need a container and are
@@ -2419,6 +2424,15 @@ flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
       --recorder-commit "$commit" \
       --inputs fixtures/chain-inputs/flow-mainnet/{{BLOCK}} \
       --out {{OUT}} --work .flow-capture/work
+
+# Recorder-Flow CXP-FLOW-4's conformance fixture: the blocks
+# fixtures/chain-inputs/flow-mainnet/awkward-cases.json names, each captured from its
+# committed transcripts for only the case and control transactions, and
+# tools/chain/flow-awkward-cases-check.mjs over the trees — in the build, with no
+# network. The trees land in OUT, one directory per block, for
+# `just conformance OUT/<height>`.
+flow-awkward-cases OUT=".flow-awkward-cases":
+    nix build .#flow-awkward-cases --out-link {{OUT}} -L
 
 # ── the RESIDENT follower: ING-1's deployed daemon, runnable locally over a range ──
 #
