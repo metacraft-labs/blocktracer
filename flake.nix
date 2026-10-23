@@ -309,7 +309,7 @@
     # tools/chain/nix/flow.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chain two.
     codetracer-flow-recorder = {
-      url = "github:metacraft-labs/codetracer-flow-recorder/04a05d33653da6809a1e1372e4c564d7fd462e3c";
+      url = "github:metacraft-labs/codetracer-flow-recorder/229654be23faa0a667d136b72642b35382a9f54c";
       flake = false;
     };
     flow-trace-format = {

@@ -20,7 +20,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 
-const ARMS = 9;
+const ARMS = 10;
 
 const i = process.argv.indexOf('--trees');
 const trees = i > 0 ? process.argv[i + 1] : undefined;
@@ -76,6 +76,17 @@ arm('every case is published replayed and source-level, with every effect reprod
     assert.equal(r.effects.reproduced, true, c.case);
     assert.equal(r.effects.mismatched, 0, c.case);
     assert.equal(r.recording.sourceLevel, true, c.case);
+  }
+});
+
+// Cadence locates a transaction's own script at `t.<transaction id>`, which is where the
+// chain's error positions point. A replay that rebuilt the body without its signatures
+// hashed it to another id and published the script under that name (recorder before
+// 229654b), which this arm rejects in every case tree.
+arm('every case publishes its transaction script at t.<its own id>', () => {
+  for (const c of manifest.cases) {
+    const scripts = locations(c).filter((l) => l.startsWith('t.'));
+    assert.deepEqual(scripts, [`t.${c.tx}`], c.case);
   }
 });
 
