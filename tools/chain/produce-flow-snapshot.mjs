@@ -389,7 +389,14 @@ async function main() {
     // A bundle's keys are the paths the container interns, byte for byte (§5.4), and each
     // file is read from the capture by its own name.
     const byName = new Map(verdict.sources.map((s) => [s.file, s]));
-    const bundles = c.paths.map((p) => {
+    // A FILE THAT DOES NOT HASH TO THE CODE THAT RAN IS DISCARDED, NOT REFUSED.
+    // Source-Resolution.md §4: on no match the source is never displayed and the
+    // contract falls back to no source. The rest of the transaction's sources are
+    // still the code that ran, so they are still published; the row stops claiming
+    // source level and the contract's artifact is marked unresolved, with the reason.
+    const row = rows.find((r) => r.txHash === h);
+    const discarded = [];
+    const bundles = c.paths.flatMap((p) => {
       const name = p.split('/').pop();
       const fact = byName.get(name);
       const file = join(dir, 'sources', name);
@@ -400,10 +407,10 @@ async function main() {
       const text = readFileSync(file, 'utf8');
       const sha = createHash('sha256').update(text).digest('hex');
       if (sha !== fact.sha256) {
-        throw refuse(SOURCE_REFUSAL, `${h}: ${name} hashes to ${sha} and the verdict `
-          + `recorded ${fact.sha256} for the code that ran`);
+        discarded.push({ fact, sha });
+        return [];
       }
-      return {
+      return [{
         address: fact.location.startsWith('A.') ? `0x${fact.location.split('.')[1]}` : null,
         location: fact.location,
         codeHash: sha,
@@ -413,11 +420,20 @@ async function main() {
         corroboration: 'single-distributor',
         agreeingDistributors: ['the chain itself'],
         language: POSITION_LANGUAGE,
-      };
+      }];
     });
-    writeJson(`sources/${h}.json`, { txHash: h, sourceLevel: true, bundles });
+    for (const { fact, sha } of discarded) {
+      const art = row.artifacts.find((a) => a.contractClassId === fact.sha256);
+      art.resolved = false;
+      art.reason = `Discarded (Source-Resolution.md §4, no match): the file the capture `
+        + `holds for ${fact.location} hashes to ${sha}, and the code that ran is `
+        + `${fact.sha256}.`;
+      console.error(`${HERE}: ${h}: discarded ${fact.location}, which does not hash to the `
+        + 'code that ran');
+    }
+    if (discarded.length > 0) row.recording.sourceLevel = false;
+    writeJson(`sources/${h}.json`, { txHash: h, sourceLevel: discarded.length === 0, bundles });
 
-    const row = rows.find((r) => r.txHash === h);
     writeJson(`positions/${h}.json`, {
       schema: POSITION_STREAM_SCHEMA,
       tx: h,
@@ -487,11 +503,14 @@ async function main() {
       stepsPositioned: traced.reduce((n, r) => n + r.recording.stepsPositioned, 0),
       stepsTotal: traced.reduce((n, r) => n + r.recording.steps, 0),
       contracts: new Set(traced.flatMap((r) => r.artifacts.map((a) => a.contractClassId))).size,
-      resolved: new Set(traced.flatMap((r) => r.artifacts.map((a) => a.contractClassId))).size,
+      resolved: new Set(traced.flatMap((r) => r.artifacts.filter((a) => a.resolved)
+        .map((a) => a.contractClassId))).size,
     },
     transactions: traced.map((r) => ({ txHash: r.txHash, blockNumber: r.blockNumber,
                                        artifacts: r.artifacts, positions: null })),
   });
+  // Recounted here, after the sources: a discarded bundle changes a row.
+  snapshot.counts = recountSnapshot(snapshot);
   writeJson('snapshot.json', snapshot);
 
   console.log(`${HERE}: wrote ${out}`);
