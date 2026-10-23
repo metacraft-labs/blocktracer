@@ -161,7 +161,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-TWO suites — 105 + 19 + 24 + 24 + 57 + 242 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 11 + 10 + 41 + 33 + 8 + 33 + 24 = 1346 counted assertions —
+# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 11 + 10 + 7 + 41 + 33 + 8 + 33 + 24 = 1354 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -460,6 +460,10 @@ chain-selftest:
     # control. What the producer publishes for them is `just flow-awkward-cases`,
     # which needs the recorder.
     node tools/chain/flow-awkward-cases-selftest.mjs
+    # Offline and toolchain-free: the era expectation judged by fitting yield
+    # against a step at declared boundaries and against a trend with depth, shown
+    # to report a refutation on a fabricated smooth decline.
+    node tools/chain/era-analysis-selftest.mjs
     # Offline and toolchain-free: the Sui producer's facts, its effects
     # comparison and its refusals, driven from literals shaped as Sui's GraphQL
     # service and `sui replay` write them. Traced rows need a container and are

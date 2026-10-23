@@ -532,7 +532,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 242 assertions, and the reason it is offline is the reason it
+        # ING-3, 243 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -942,6 +942,16 @@ jobs:
         # to the update event's codeHash. What the producer publishes for each case is
         # `.#flow-awkward-cases`, which needs the recorder and is not run here.
         run: node tools/chain/flow-awkward-cases-selftest.mjs
+
+      - name: Can the era expectation come out against itself?
+        # 7 assertions, offline and needing only node. lib/era-analysis.mjs fits per-point
+        # replay yield against a step at declared boundaries and against a trend with
+        # height, and charges the step model for its segments. A fabricated smooth decline
+        # must be reported as a refutation naming retention; the controls are a fabricated
+        # step, a decline in the other direction, a flat yield and too few points. The last
+        # arm judges the committed era probe reading against the NodeVersionBeacon's own
+        # boundaries, which comes out not-established.
+        run: node tools/chain/era-analysis-selftest.mjs
 
       - name: Does the Sui producer state its chain's facts and refuse a broken window?
         # 41 assertions, host-independent: every arm is offline and needs only node.
