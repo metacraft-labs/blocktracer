@@ -246,6 +246,15 @@ type
     height*: int
     parentHash*: string
     transactions*: seq[string]   ## txHashes, in block order
+    systemTransactions*: seq[string]
+      ## The identifiers of the transactions the PROTOCOL ran in this block whose
+      ## identifiers are the same in every block (Flow's system transactions),
+      ## in the chain's execution order — Data-Contract.md §5.2, "One kind of
+      ## transaction is not a row". They are not in `transactions` and have no
+      ## `/tx/` object, because an identifier every block shares cannot key one:
+      ## the second block would overwrite the first block's page. Empty means the
+      ## block settled none, and is the value of every block before the member
+      ## existed.
 
 # ---------------------------------------------------------------------------
 # Trace manifest — Trace-Artifacts.md §4. Carries NO observational fields, so
@@ -479,8 +488,15 @@ proc toJson*(x: GenerationRoot): JsonNode =
   if x.render != nil: result["render"] = x.render
 
 proc toJson*(x: BlockDetail): JsonNode =
-  %*{"chain": x.chain, "hash": x.hash, "height": x.height,
-     "parentHash": x.parentHash, "transactions": x.transactions}
+  result = %*{"chain": x.chain, "hash": x.hash, "height": x.height,
+              "parentHash": x.parentHash, "transactions": x.transactions}
+  # OMITTED WHEN EMPTY, and that is a compatibility statement rather than a
+  # saving of bytes: every block object published before §5.2 named the member
+  # carries none, and writing `[]` onto every block of every chain would change
+  # the bytes of every one of them on the next regeneration while saying nothing
+  # an absent key does not. Data-Contract.md §5.2 makes the two one answer.
+  if x.systemTransactions.len > 0:
+    result["systemTransactions"] = %x.systemTransactions
 
 proc toJson*(x: TraceManifest): JsonNode =
   result = newJObject()

@@ -40,6 +40,13 @@
 #      out of `just test`, for the same reason every `<subject>-test.sh` is its
 #      own CI step rather than part of `<subject>.sh`. Deliberately outside the
 #      aggregate is fine; run by nothing is not, and that is the distinction.
+#   1c. Every Nim suite in the ROOT Justfile's `test:` recipe is run by some job,
+#      by name or through a `nimble test` whose task names it. Measured on
+#      `agents` at `bd711f37` (2026-10-20): no job ran that recipe, so
+#      tchainsnapshot, tidentifierencoding, tchainprofile and tcontainerencoding
+#      ran nowhere. Three of them went red without anyone being told —
+#      tidentifierencoding at `bd711f37`, tchainsnapshot and tcontainerencoding
+#      still red at `de96a71`.
 #   2. Every shell gate is run by some job, OR is recorded in
 #      `ci/test/ci-coverage.known-dark.txt` with what it would cost to wire.
 #      "Every shell gate" means everything in `ci/test/` PLUS every test-shaped
@@ -362,6 +369,70 @@ done <<<"${declared_recipes}"
 if [ "${orphan_recipes}" -eq 0 ]; then
 	ok "all ${recipe_count} test-* recipes are run — $((recipe_count - by_name)) via the aggregate, ${by_name} by name in CI"
 fi
+echo
+
+# ---------------------------------------------------------------------------
+echo "Step 1c: every Nim suite in the ROOT Justfile's \`test:\` recipe runs in CI"
+echo "    Three recipes are called \"test\" here — the root Justfile's, client/"
+echo "    Justfile's and the nimble task — and no job ran the root one, so four"
+echo "    suites ran nowhere and three of them went red unseen."
+# ---------------------------------------------------------------------------
+# WHY A THIRD STEP AND NOT THE AGGREGATE RULE OF STEP 1. Step 1 accepts a job
+# running `just test` as covering client/Justfile's aggregate, and the only such
+# line in ci.yml is `cd client && just test`. That string cannot be told apart
+# from the ROOT recipe by a pattern over a `run:` line, and treating it as both is
+# exactly the confusion that left these suites dark: `debug-route` ran the
+# client recipe and was read as running "just test". So the root recipe is not
+# accepted as an aggregate here at all. A suite is covered when a job names its
+# file, or when the `test` task in blocktracer.nimble names it AND a job runs
+# `nimble test` — the `contract` job does, and that is where these suites run.
+#
+# SUBJECTS ARE READ FROM THE RECIPE BODY, comment lines dropped, for the reason
+# `workflow_all` drops them: the recipe's own prose names suites it does not run.
+# The `ci/test/*.sh` lines in the same body are step 2's subjects already, and
+# `cd client && just test` is step 1's.
+root_justfile="${repo_root}/Justfile"
+nimble_file="${repo_root}/blocktracer.nimble"
+# The body of a recipe or task: the indented lines after its header, up to the
+# next line that starts at column zero. Blank lines inside the body are kept out
+# of the stop condition so a recipe broken by an empty line is still read whole.
+recipe_suites() {
+	awk -v hdr="$2" '
+		index($0, hdr) == 1 { inside = 1; next }
+		inside && /^[^[:space:]]/ { exit }
+		inside && !/^[[:space:]]*#/ { print }
+	' "$1" | grep -oE 'tests/[A-Za-z0-9_]+\.nim' | sort -u || true
+}
+root_suites=""
+nimble_suites=""
+if [ -f "${root_justfile}" ]; then
+	root_suites="$(recipe_suites "${root_justfile}" 'test:')"
+fi
+if [ -f "${nimble_file}" ]; then
+	nimble_suites="$(recipe_suites "${nimble_file}" 'task test,')"
+fi
+root_suite_count="$(printf '%s\n' "${root_suites}" | grep -c . || true)"
+uncovered_root=0
+if [ "${root_suite_count}" -ge 3 ]; then
+	ok "the root Justfile's \`test:\` recipe runs ${root_suite_count} Nim suites"
+else
+	bad "parsed only ${root_suite_count} Nim suite(s) out of the root Justfile's \`test:\` recipe — the parser is broken, or the file is gone, and every per-suite check below would be vacuous"
+fi
+nimble_runs=0
+if grep -qE "nimble[[:space:]]+test([^a-z0-9-]|$)" <<<"${workflow_all}"; then
+	nimble_runs=1
+fi
+while read -r suite; do
+	[ -n "${suite}" ] || continue
+	if grep -qF -- "${suite}" <<<"${workflow_all}"; then
+		ok "root suite '${suite}' is run by a CI job, by name"
+	elif [ "${nimble_runs}" -eq 1 ] && grep -qxF -- "${suite}" <<<"${nimble_suites}"; then
+		ok "root suite '${suite}' is covered (via \`nimble test\`, which a CI job runs)"
+	else
+		uncovered_root=$((uncovered_root + 1))
+		bad "root suite '${suite}' is in the root Justfile's \`test:\` recipe and NO CI job runs it — not named by a job, and not run by a \`nimble test\` that a job runs"
+	fi
+done <<<"${root_suites}"
 echo
 
 # ---------------------------------------------------------------------------
@@ -717,6 +788,7 @@ echo
 # A number that cannot express the failure beside it invites exactly that.
 echo "${checks} check(s), ${failures} failure(s)"
 echo "  client suites: ${client_count} in \`just test\`, ${uncovered_client} uncovered"
+echo "  root suites:   ${root_suite_count} Nim suites in the root \`test:\`, ${uncovered_root} uncovered"
 echo "                 (${recipe_count} test-* recipes exist; ${by_name} run by CI outside the aggregate)"
 echo "  shell gates:   ${shell_count} found,    ${uncovered_shell} uncovered, ${recorded_dark} recorded dark"
 if [ "${failures}" -gt 0 ]; then

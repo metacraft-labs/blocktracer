@@ -31,8 +31,11 @@
 //   transactions whose ids are the SAME in every block (measured: `a9caece2…` and
 //   `3408f8b1…` at heights 135,000,000 and 168,391,034). Rows are keyed by transaction id,
 //   so publishing them would publish one id in every block; they are listed per block in
-//   `blocks[].systemTransactions` and counted in `provenance.systemTransactionsExcluded`
-//   instead, with the reason.
+//   `blocks[].systemTransactions`, the member Data-Contract.md §5.2 names for exactly this
+//   shape. The reader republishes them on the block object and counts them in no
+//   denominator, so this producer states no exclusion tally: the exclusion is §5.2's,
+//   not this capture's. (`provenance.systemTransactionsExcluded`, which carried one
+//   before §5.2 named the member, is retired with it.)
 //
 // ── THE FLOOR IS A PROBE, NOT A CONSTANT ──────────────────────────────────────────────
 //
@@ -327,12 +330,6 @@ async function main() {
       runtimeCommit: recorderCommit,
       replayEngine: [...recordings.values()][0].verdict.flowGoVersion,
       floorProbe: floor,
-      systemTransactionsExcluded: {
-        count: systemTxs.length,
-        reason: 'The protocol\'s system transactions run in every block under the same '
-          + 'ids, so as rows they would publish one id per block; they are listed per '
-          + 'block in `blocks[].systemTransactions` and not replayed.',
-      },
       containerVersion: [...recordings.values()][0].c.version,
       containerFlags: [...recordings.values()][0].c.flags,
     },
@@ -354,6 +351,9 @@ async function main() {
       // DEL-7: the EVM producer makes the same substitution for the same member.
       parentArchiveRoot: hexId(block.parentId),
       transactions: userTxs.map((t) => hexId(t.id)),
+      // §5.2's `blocks[].systemTransactions`: in the order the block executed them,
+      // in the same encoding as `transactions`, and never also a row (the reader
+      // refuses an overlap by name, `S5-SYSTEM-TRANSACTIONS`).
       systemTransactions: systemTxs.map((t) => hexId(t.id)),
     }],
     transactions: rows,

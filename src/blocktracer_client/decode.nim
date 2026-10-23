@@ -269,6 +269,11 @@ proc decodeBlockDetail*(n: JsonNode): BlockDetail =
   result.parentHash = optStr(n, "parentHash")
   if n.hasKey("transactions"):
     result.transactions = strSeq(n["transactions"])
+  # OPTIONAL, and absent on every block object published before Data-Contract.md
+  # §5.2 named it — the producer omits an empty list (`model.toJson`), so an
+  # absent key decodes to the empty seq that means "this block settled none".
+  if n.hasKey("systemTransactions"):
+    result.systemTransactions = strSeq(n["systemTransactions"])
 
 # ---------------------------------------------------------------------------
 # Trace manifest — Trace-Artifacts.md §4

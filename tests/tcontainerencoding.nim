@@ -563,29 +563,37 @@ suite "the consumer-side kit, which CANNOT decode and must say so":
     ck said.len > 0
     ck "a pre-compressed object would say so in container.encoding" in said
 
-suite "the object store: a local directory cannot carry object metadata":
-  test "putMany REFUSES an encoded item, naming the _headers remedy":
-    # The base implementation would have written the compressed bytes and dropped the
-    # header, producing the one state that is worse than either choice: compressed at
-    # rest, advertised as identity. The refusal names what WOULD carry it rather than
-    # quietly storing the bytes raw, which would be this backend deciding a policy its
-    # caller set.
+suite "the object store: a local directory carries its encoding in `_headers`":
+  # A DIRECTORY HAS NO PER-OBJECT METADATA, so writing the compressed bytes and
+  # dropping the header would produce the one state worse than either choice:
+  # compressed at rest, advertised as identity. This arm used to assert that
+  # `putMany` REFUSED such an item and named the remedy — the Cloudflare Pages
+  # `_headers` file, Chain-Delivery DEL-1b's deliverable. `63dcf8f` built that
+  # remedy, because the refusal left `publish-r2.yml`'s dry run unable to represent
+  # a brotli publish, and this arm stayed red on `agents` unseen: the suite ran in
+  # no CI job. What it asserts now is the relation the refusal protected — the
+  # compressed bytes never land without the rule that advertises them. The
+  # format's own arms (append-only, one leading slash, absent for identity) are
+  # `tests/tpublish.nim`'s DEL-1b suite; this is the CCP-6 half of the seam.
+  test "putMany stores an encoded item AND the `_headers` rule that advertises it":
     let d = tempDir("local")
     let src = d / "src.bin"
-    writeFile(src, syntheticContainer(100))
+    let body = syntheticContainer(100)
+    writeFile(src, body)
     let s = newLocalObjectStore(d / "store")
-    var said = ""
-    try:
-      s.putMany(@[BulkItem(key: "t/aa/bb/cc/trace.ct", srcPath: src,
-                           contentEncoding: "br")])
-    except CatchableError as e:
-      said = e.msg
-    ck said.len > 0
-    ck "no per-object metadata" in said
-    ck "_headers" in said
-    ck "DEL-1b" in said
+    s.putMany(@[BulkItem(key: "t/aa/bb/cc/trace.ct", srcPath: src,
+                         contentEncoding: "br")])
+    let got = s.get("t/aa/bb/cc/trace.ct")
+    ck got.ok and got.data == body
+    let hp = d / "store" / "_headers"
+    ck fileExists(hp)
+    let rules = if fileExists(hp): readFile(hp) else: ""
+    ck "\n/t/aa/bb/cc/trace.ct\n" in "\n" & rules
+    # The header line under ITS OWN path, not anywhere in the file: a rule that
+    # advertised the encoding on some other path would leave this object bare.
+    ck "\n/t/aa/bb/cc/trace.ct\n  Content-Encoding: br\n" in "\n" & rules
 
-  test "CONTROL: an UNENCODED item is written, so the refusal is about the encoding":
+  test "CONTROL: an UNENCODED item is written with no rule, so the rule is about the encoding":
     let d = tempDir("local2")
     let src = d / "src.bin"
     writeFile(src, "hello")
@@ -594,7 +602,10 @@ suite "the object store: a local directory cannot carry object metadata":
     let got = s.get("t/aa/bb/cc/trace.ct")
     ck got.ok
     ck got.data == "hello"
+    ck not fileExists(d / "store" / "_headers")
 
 suite "the suite counted itself":
   test "assertion count":
-    expectCount(141)
+    # 141 → 142: the CONTROL above gained the absence of `_headers`; the arm it
+    # controls kept its four.
+    expectCount(142)

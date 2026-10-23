@@ -2,7 +2,9 @@
 ##
 ## Four zones: the header, the family extras, the shared transactions table
 ## filtered to this block, and previous/next navigation "disabled at genesis and
-## head".
+## head". On a chain whose protocol runs transactions of its own under
+## identifiers every block shares, the block's system transactions are listed
+## after its transactions, unlinked (Data-Contract.md §5.2).
 ##
 ## ## What "disabled at genesis and head" means without script
 ##
@@ -19,10 +21,10 @@
 ##
 ## §5.2's examples (EVM base fee and blob gas, Move checkpoint and epoch, Solana
 ## slot and leader) come from the adapter, and the block object in this contract
-## carries chain, hash, height, parentHash and the transaction list — no
-## `native` payload, unlike a transaction. So there are no family extras to
-## render for any family yet, and the zone says which field would carry them
-## rather than being silently absent.
+## carries chain, hash, height, parentHash, the transaction list and, where the
+## chain has them, its system transactions — no `native` payload, unlike a
+## transaction. So there are no family extras to render for any family yet, and
+## the zone says which field would carry them rather than being silently absent.
 
 import isonim/ssr/escape
 import isonim/dsl/ui
@@ -131,6 +133,33 @@ proc blockPage*(chain: string, info: ChainInfo, detail: BlockDetail,
           "This block carried no transactions. That is a fact about the " &
           "block, not a gap in the index — the block object lists its " &
           "transactions and this one lists none.")
+
+        # ── The protocol's own transactions (Data-Contract.md §5.2) ─────
+        #
+        # Some chains end every block with transactions the PROTOCOL runs,
+        # under identifiers that are the same in every block (Flow's system
+        # transactions). They are not rows: there is no transaction page for
+        # one, because a page keyed by an identifier every block shares would
+        # belong to every block at once. The block object carries them as
+        # `systemTransactions`, and this lists them beside the block's
+        # transactions so the fact is on the page rather than dropped.
+        #
+        # UNLINKED, because there is nothing to link to — an anchor here would
+        # be a control that cannot succeed, the rule the Previous button above
+        # follows. NOT COUNTED: the "Transactions" figure above is the row
+        # count, and §5.2 puts these in no count. And ABSENT when the block
+        # settled none, so a chain without them renders exactly what it did.
+        if detail.systemTransactions.len > 0:
+          h2(class = "sec-title next"): text "System transactions in this block"
+          p(class = "muted"):
+            text "Transactions the protocol itself ran in this block, in the "
+            text "order the chain executed them. Their identifiers are the "
+            text "same in every block, so they have no page of their own and "
+            text "are not counted among the block's transactions."
+          ul(class = "linklist"):
+            for s in detail.systemTransactions:
+              li:
+                span(class = "identifier"): text s
 
         # THE STUB NOTE IS GONE. It read: "Family extras have no field in the
         # block object yet. §5.2's per-family zone — base fee and blob gas on an

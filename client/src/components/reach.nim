@@ -75,6 +75,10 @@ type
       ## reader is entitled to see which is which.
     isa*: string
       ## The instruction-set sentence, or empty when the row declares none.
+    verification*: string
+      ## The producer's own sentence for how each trace is checked, verbatim, or
+      ## empty. A QUOTATION for `note`'s reason. Unlike `note` it is carried
+      ## whatever the reach, because it is about the traces and not the boundary.
 
 const
   ReachHeading* = "How far back this chain can be debugged"
@@ -218,11 +222,17 @@ func reachStatement*(p: ChainProfile): ReachStatement =
          p.floor.reason else: ""),
     isa:
       (if p.vm.stated and p.vm.instructionSet.len > 0:
-         "Recordings on this chain are written against the " &
-         p.vm.instructionSet & " instruction set. Where a contract's source " &
-         "cannot be resolved, that is the granularity a step is reported at — " &
-         "each transaction's page states which of the two it got."
-       else: ""))
+         # TRUE FOR EVERY KIND OF EXECUTABLE FORMAT, not only a bytecode ISA. The row's `vm`
+         # names the format a program is executed from (Configuration.md §2.1), and on a chain
+         # whose runtime walks an AST (Flow, `cadence-ast`) a step is a statement and there is
+         # no instruction listing to fall back to. The earlier sentence promised that fallback
+         # on every chain, which Flow's landing page then served.
+         "Recordings on this chain are executed from the " & p.vm.instructionSet &
+         " format. Each transaction's page states the granularity its steps " &
+         "are reported at: source lines where the contract's source was " &
+         "resolved, otherwise the format's own units."
+       else: ""),
+    verification: p.verification)
 
 func transactionsPhrase(n: int): string =
   if n == 1: "1 transaction" else: $n & " transactions"
@@ -276,3 +286,8 @@ proc reachSection*(p: ChainProfile, tracesPublished = -1,
           text "”"
       if st.isa.len > 0:
         p(class = "muted measure"): text st.isa
+      if st.verification.len > 0:
+        p(class = "muted measure"):
+          text "How each trace on this chain is checked, in the pipeline's own words: “"
+          text st.verification
+          text "”"

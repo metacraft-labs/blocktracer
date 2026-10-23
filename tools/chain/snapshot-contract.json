@@ -221,6 +221,10 @@
     "S5-IDENTIFIER-ENCODING-SHARDABLE": {
       "section": "§5.6",
       "statement": "Every encoding a snapshot declares must be usable as a shard path SEGMENT. base64 is declarable and is not one — its alphabet contains a slash, so a fraction of identifiers would silently publish into a nested directory. Such a declaration is refused naming the encoding, the kind that declared it, the path-safe members of the set it could be instead, and the decision closing it needs."
+    },
+    "S5-SYSTEM-TRANSACTIONS": {
+      "section": "§5.2",
+      "statement": "A block's `systemTransactions`, when present, is an array of non-empty identifier strings, and it is disjoint from the rows: no block lists one identifier twice, and no identifier listed in any block's `systemTransactions` also appears in any block's `transactions` or as any row's `txHash`. A violation is refused naming the block and the identifier, because a system identifier that is also a row is the overwrite of one transaction page by another that the member exists to prevent. The same identifier in two DIFFERENT blocks' `systemTransactions` is what the member is for, and is not refused."
     }
   },
 
@@ -424,7 +428,9 @@
         "vm": {"required": false, "access": "optional",
                "holds": "the executable format this chain's programs are executed from, as {\"instructionSet\": \"…\"} — the declaration that reaches the registry row's `vm` without an instruction listing. An absent member means the producer declared no format, which is NOT a claim that the chain has none — Configuration.md §2.1, §5.3"},
         "reachReason": {"required": false, "access": "optional",
-                        "holds": "the producer's own sentence for WHY this capture's history starts where `replayableFrom` says, published verbatim as the chain's floor reason in place of the reader's generic one. For a chain whose history is a capture start rather than a node's limit (`forward-capture`) the generic sentence reads as a node limit, which is wrong. Absent or empty means the reader's sentence — §5.3"}
+                        "holds": "the producer's own sentence for WHY this capture's history starts where `replayableFrom` says, published verbatim as the chain's floor reason in place of the reader's generic one. For a chain whose history is a capture start rather than a node's limit (`forward-capture`) the generic sentence reads as a node limit, which is wrong. Absent or empty means the reader's sentence — §5.3"},
+        "verification": {"required": false, "access": "optional",
+                         "holds": "the producer's own sentence for how each trace on this chain is checked against the chain's recorded facts, and what becomes of a transaction that cannot be checked, published verbatim on the chain's registry row and quoted on its landing page. Absent or empty means the page states no such policy — §5.3"}
       }
     },
 
@@ -473,7 +479,9 @@
                               "holds": "the predecessor link this chain names its parent by; a chain whose predecessor link has another name states it here under this member"},
         "transactions": {"required": true, "access": "required", "holds": "the identifiers this block settled"},
         "timestamp": {"required": false, "access": "optional",
-                      "holds": "unix seconds; a block with none contributes nothing to the published coverage span rather than an invented date"}
+                      "holds": "unix seconds; a block with none contributes nothing to the published coverage span rather than an invented date"},
+        "systemTransactions": {"required": false, "access": "optional", "enforcedBy": "S5-SYSTEM-TRANSACTIONS",
+                               "holds": "the identifiers of the transactions the PROTOCOL ran in this block whose identifiers repeat from block to block, so they cannot be rows; in the chain's execution order, in the encoding of `transactions`. Republished verbatim on the block object and counted in no denominator. Absent and empty both mean this block settled none — §5.2"}
       }
     },
 

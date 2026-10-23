@@ -20,7 +20,8 @@
       "address": "hex"
     },
     "vm": { "instructionSet": "example-isa/1" },
-    "reachReason": "history starts where this example capture began, not at any limit of a node"
+    "reachReason": "history starts where this example capture began, not at any limit of a node",
+    "verification": "each example trace is compared with the outcome the example chain recorded, and one that cannot be compared is refused"
   },
   "window": {
     "tip": 1002,
@@ -42,6 +43,10 @@
       "transactions": [
         "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
         "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+      ],
+      "systemTransactions": [
+        "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+        "0x9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b"
       ]
     },
     {
@@ -51,6 +56,10 @@
       "transactions": [
         "0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
         "0xd4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+      ],
+      "systemTransactions": [
+        "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+        "0x9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b"
       ]
     },
     {

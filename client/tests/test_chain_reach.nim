@@ -43,7 +43,7 @@ import blocktracer_client
 import ../src/components/reach
 
 proc rowWith(reach: JsonNode = nil, floor: JsonNode = nil,
-             vm: JsonNode = nil): JsonNode =
+             vm: JsonNode = nil, verification: JsonNode = nil): JsonNode =
   ## A registry row carrying only the members a case is about, built through the
   ## REAL parser rather than by constructing a `ChainProfile` by hand — so these
   ## arms also cover the parse, and a member renamed on the wire fails here.
@@ -51,6 +51,7 @@ proc rowWith(reach: JsonNode = nil, floor: JsonNode = nil,
   if reach != nil: result["reach"] = reach
   if floor != nil: result["historyFloor"] = floor
   if vm != nil: result["vm"] = vm
+  if verification != nil: result["verification"] = verification
 
 suite "the chain landing page states historical reach":
 
@@ -154,10 +155,16 @@ suite "the chain landing page states historical reach":
   test "the instruction set is stated when the row declares one, and not otherwise":
     let withIsa = reachStatement(parseChainProfile(rowWith(
       reach = %"floor", vm = %*{"instructionSet": "evm"})))
-    check "written against the evm instruction set" in withIsa.isa
-    # The honest half: where source does not resolve, THIS is the granularity,
-    # and the per-transaction page is named as the place that says which.
-    check "each transaction's page states which of the two it got" in withIsa.isa
+    check "executed from the evm format" in withIsa.isa
+    # The honest half: the per-transaction page is named as the place that says
+    # which granularity a step got, and no granularity is promised for the chain.
+    check "Each transaction's page states the granularity" in withIsa.isa
+    # An AST-walking format gets the same sentence, and no instruction fallback:
+    # Flow (`cadence-ast`) publishes no instruction listing to fall back to.
+    let ast = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", vm = %*{"instructionSet": "cadence-ast"})))
+    check "executed from the cadence-ast format" in ast.isa
+    check "instruction" notin ast.isa
     let noIsa = reachStatement(parseChainProfile(rowWith(reach = %"floor")))
     check noIsa.isa.len == 0
 
@@ -188,9 +195,28 @@ suite "the chain landing page states historical reach":
     check ReachHeading in html
     check "down to block 0" in html
     check "probed to genesis" in html
-    check "evm instruction set" in html
+    check "executed from the evm format" in html
     # The quotation is MARKED as one.
     check "in the pipeline's own words" in html
+
+  test "the verification policy is quoted when the row states one, whatever the reach":
+    # Solana's CXP-SOL-6: every trace is checked against the chain's recorded facts
+    # and an unverifiable transaction is refused. Only the producer knows that, so
+    # the page quotes it and composes none of it.
+    const said = "every trace is checked against the facts the chain recorded; a " &
+      "transaction that cannot be checked is refused, never guessed"
+    let html = reachSection(parseChainProfile(rowWith(verification = %said)))
+    check said in html
+    check "How each trace on this chain is checked, in the pipeline's own words" in html
+    # Carried with NO declared reach too: it is about the traces, not the boundary.
+    check reachStatement(parseChainProfile(rowWith(verification = %said))).verification == said
+    # CONTROL: a row that says nothing, a number and a blank quote nothing, so the
+    # sentence is shown to come from the row rather than from this module.
+    for v in [JsonNode(nil), %42, %"   "]:
+      let st = reachStatement(parseChainProfile(rowWith(reach = %"floor", verification = v)))
+      check st.verification.len == 0
+      check "How each trace on this chain is checked" notin
+        reachSection(parseChainProfile(rowWith(reach = %"floor", verification = v)))
 
   test "the section renders for a chain that declares nothing at all":
     # Rendered unconditionally, and this is the arm that pins it: a region that
