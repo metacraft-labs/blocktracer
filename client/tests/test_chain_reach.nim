@@ -155,10 +155,16 @@ suite "the chain landing page states historical reach":
   test "the instruction set is stated when the row declares one, and not otherwise":
     let withIsa = reachStatement(parseChainProfile(rowWith(
       reach = %"floor", vm = %*{"instructionSet": "evm"})))
-    check "written against the evm instruction set" in withIsa.isa
-    # The honest half: where source does not resolve, THIS is the granularity,
-    # and the per-transaction page is named as the place that says which.
-    check "each transaction's page states which of the two it got" in withIsa.isa
+    check "executed from the evm format" in withIsa.isa
+    # The honest half: the per-transaction page is named as the place that says
+    # which granularity a step got, and no granularity is promised for the chain.
+    check "Each transaction's page states the granularity" in withIsa.isa
+    # An AST-walking format gets the same sentence, and no instruction fallback:
+    # Flow (`cadence-ast`) publishes no instruction listing to fall back to.
+    let ast = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", vm = %*{"instructionSet": "cadence-ast"})))
+    check "executed from the cadence-ast format" in ast.isa
+    check "instruction" notin ast.isa
     let noIsa = reachStatement(parseChainProfile(rowWith(reach = %"floor")))
     check noIsa.isa.len == 0
 
@@ -189,7 +195,7 @@ suite "the chain landing page states historical reach":
     check ReachHeading in html
     check "down to block 0" in html
     check "probed to genesis" in html
-    check "evm instruction set" in html
+    check "executed from the evm format" in html
     # The quotation is MARKED as one.
     check "in the pipeline's own words" in html
 

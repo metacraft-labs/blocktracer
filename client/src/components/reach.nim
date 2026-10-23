@@ -222,10 +222,15 @@ func reachStatement*(p: ChainProfile): ReachStatement =
          p.floor.reason else: ""),
     isa:
       (if p.vm.stated and p.vm.instructionSet.len > 0:
-         "Recordings on this chain are written against the " &
-         p.vm.instructionSet & " instruction set. Where a contract's source " &
-         "cannot be resolved, that is the granularity a step is reported at — " &
-         "each transaction's page states which of the two it got."
+         # TRUE FOR EVERY KIND OF EXECUTABLE FORMAT, not only a bytecode ISA. The row's `vm`
+         # names the format a program is executed from (Configuration.md §2.1), and on a chain
+         # whose runtime walks an AST (Flow, `cadence-ast`) a step is a statement and there is
+         # no instruction listing to fall back to. The earlier sentence promised that fallback
+         # on every chain, which Flow's landing page then served.
+         "Recordings on this chain are executed from the " & p.vm.instructionSet &
+         " format. Each transaction's page states the granularity its steps " &
+         "are reported at: source lines where the contract's source was " &
+         "resolved, otherwise the format's own units."
        else: ""),
     verification: p.verification)
 
