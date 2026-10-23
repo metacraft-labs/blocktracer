@@ -142,17 +142,17 @@
     "codetracer-solana-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1792506289,
-        "narHash": "sha256-tmvCLLBFol8uzTtPGlhBu5UcurVd4QtUvjR91ghKlQg=",
+        "lastModified": 1792685026,
+        "narHash": "sha256-SEck5sglgVcVd8n5aUryUg6Iuv/230MZ3ZmBAQ0245A=",
         "owner": "metacraft-labs",
         "repo": "codetracer-solana-recorder",
-        "rev": "0a1950220964d8c8793b43fa6c4ec1fb9bed35ef",
+        "rev": "c3ca118c312661ae51a68afcccaa49376fdc91dd",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-solana-recorder",
-        "rev": "0a1950220964d8c8793b43fa6c4ec1fb9bed35ef",
+        "rev": "c3ca118c312661ae51a68afcccaa49376fdc91dd",
         "type": "github"
       }
     },
@@ -382,7 +382,25 @@
         "nim-results": "nim-results",
         "nim-stew": "nim-stew",
         "nim-unittest2": "nim-unittest2",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "sol-trace-format": "sol-trace-format"
+      }
+    },
+    "sol-trace-format": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792358159,
+        "narHash": "sha256-HkBDw/ifYxp7ipHEo0cq1OgrrtR75ECNin8QLC+8FNU=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "afa4dde4156c168bec73711c8002418345fa249b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "afa4dde4156c168bec73711c8002418345fa249b",
+        "type": "github"
       }
     },
     "systems": {
