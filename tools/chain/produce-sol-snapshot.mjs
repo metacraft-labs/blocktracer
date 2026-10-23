@@ -62,7 +62,7 @@ import {
 import {
   RECORDER, PRESTATE_STRATEGY, IDENTIFIER_ENCODING, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
   INSTRUCTION_STREAM_SCHEMA, CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET,
-  executionsForRow, costVectorForRow, rolesForRow, payloadForRow,
+  executionsForRow, costVectorForRow, rolesForRow, payloadForRow, reachReasonFor, VERIFICATION,
 } from './lib/solana-producer-facts.mjs';
 
 const run = promisify(execFile);
@@ -300,6 +300,8 @@ async function main() {
       runtimeCommit: recorderCommit,
       captureScope: scope ?? 'all',
       accountProviders: (capture.providers?.accounts ?? []).map((p) => p.url),
+      reachReason: reachReasonFor(capture.window.firstSlot, from),
+      verification: VERIFICATION,
     },
     window: {
       tip: to,

@@ -32,6 +32,22 @@ export const RECORDER = Object.freeze({ id: 'solana-sbf', traceSchema: 'ctfs/v5'
 /** `provenance.prestateStrategy` — §1.4's seventh row; see the header. */
 export const PRESTATE_STRATEGY = 'forward-capture';
 
+/**
+ * `provenance.reachReason` — why history starts at `replayableFrom`. Under
+ * `forward-capture` the floor is where the capture began reading account state, not a
+ * limit of any node, so the reader's generic node-limit sentence would be wrong (CXP-SOL-6).
+ */
+// A tree may publish a later slice of its capture (the staging tree publishes one slot
+// of three), so the sentence names both slots when they differ rather than calling the
+// published floor the capture's start.
+export const reachReasonFor = (captureStart, fromSlot) => {
+  const begun = `this capture began reading account state at slot ${captureStart}, and no RPC serves account state at an earlier slot, so nothing before it can be replayed`;
+  return fromSlot === captureStart ? begun : `this tree publishes from slot ${fromSlot}; ${begun}`;
+};
+
+/** `provenance.verification` — what the mandatory divergence oracle compares, and the refusal. */
+export const VERIFICATION = 'each trace is compared with what the chain recorded for its transaction (error, compute units, fee, logs, balances, token amounts, inner instructions and return data), and a transaction that cannot be compared is refused, never guessed';
+
 /** `provenance.identifierEncoding` — every identifier kind this chain publishes. */
 export const IDENTIFIER_ENCODING = Object.freeze({ transaction: 'base58', address: 'base58', block: 'base58' });
 

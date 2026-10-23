@@ -15,12 +15,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  PRESTATE_STRATEGY, costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
+  PRESTATE_STRATEGY, VERIFICATION, costVectorForRow, executionsForRow, payloadForRow, reachReasonFor, rolesForRow,
 } from './lib/solana-producer-facts.mjs';
 
 // The assertion count this suite declares, which `refusal-selftest.mjs` cross-checks
 // against the `chain-selftest` header. No host configurations, so the base is the total.
-const BASE_ARMS = 6;
+const BASE_ARMS = 7;
 
 let passed = 0;
 const arm = (name, fn) => {
@@ -101,6 +101,20 @@ arm('the prestate token is `forward-capture`, and the contract\'s closed set hol
   // Control: the set is a closed set and not a free-text field — a token no §1.4 row
   // states is not in it.
   assert.equal(contract.prestateStrategies.tokens.includes('balances-only'), false);
+});
+
+arm('the floor reason names the capture start, and the verification sentence names the refusal', () => {
+  // Both are optional contract members the reader publishes verbatim (§5.3). A node-limit
+  // sentence would misstate a forward capture, and a policy without its refusal would
+  // read as a promise every transaction is traced.
+  const contract = JSON.parse(readFileSync(new URL('./snapshot-contract.json', import.meta.url), 'utf8'));
+  const text = JSON.stringify(contract);
+  assert.ok(text.includes('"reachReason"') && text.includes('"verification"'));
+  assert.match(reachReasonFor(459262600, 459262600), /^this capture began reading account state at slot 459262600\b/);
+  // A later published slice names where it publishes from AND where the capture began.
+  const slice = reachReasonFor(459262600, 459262601);
+  assert.match(slice, /publishes from slot 459262601\b.*began reading account state at slot 459262600\b/);
+  assert.match(VERIFICATION, /refused, never guessed/);
 });
 
 if (passed !== BASE_ARMS) {

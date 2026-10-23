@@ -959,13 +959,14 @@ jobs:
         run: node tools/chain/starknet-producer-selftest.mjs
 
       - name: Does the Solana producer state its chain's facts, and do its committed inputs hold?
-        # 6 assertions, host-independent: every arm is offline and needs only node.
+        # 7 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Solana producer's fee / compute-unit / cost-unit vector, the fee payer as
         # sender, the first non-ComputeBudget program as target, and the committed window's
         # content-addressed inputs, which unpack to their packed digests and refuse a
-        # tampered object. One arm asserts the prestate token is still outside §1.4's set,
-        # so it goes red the day the row lands. Traced rows need the recorder and are
+        # tampered object. One arm asserts the prestate token is `forward-capture`, in
+        # §1.4's set; one that the floor reason names the capture start and the
+        # verification sentence names the refusal. Traced rows need the recorder and are
         # built by `nix build .#sol-capture-tree`.
         run: node tools/chain/solana-producer-selftest.mjs
 
