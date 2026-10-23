@@ -5187,3 +5187,28 @@ suite "19 — a block's system transactions are listed beside its transactions, 
     #   3 — the control
     expectCount(4 + 3 + 2 + 3)
   removeDir(sdir)
+
+suite "a transaction list's Block cell is the chain's own coordinate":
+  asserted = 0
+  ## The same rule as the transaction page, on the shared table. A checkpoint
+  ## row has no block hash, height or index; the cell printed `0:0` from the
+  ## zero defaults until the row carried its `orderLabel`.
+
+  test "a checkpoint row prints its checkpoint, unlinked, and no 0:0":
+    let html = txTable(RealChain, @[TxRow(hash: "StiTgKUtyMD1bMYjH2qJPWTVsGrrrkNFKrM52iYu8xi",
+                                          orderLabel: "336806210")], "none")
+    ck "336806210" in html
+    ck "0:0" notin html
+    ck "/block/" notin html
+
+  test "CONTROL: a block row is still the linked height:index":
+    let html = txTable(RealChain, @[TxRow(hash: "0xreal", height: 19_000_000, index: 12,
+                                          blockHash: "0xabc", orderLabel: "19000000:12")],
+                       "none")
+    ck "19000000:12" in html
+    ck blockUrl(RealChain, "0xabc") in html
+
+  test "assertion count":
+    #   3 — the checkpoint row: its sequence number, no 0:0, no block link
+    #   2 — the control: the height:index, and its link
+    expectCount(3 + 2)

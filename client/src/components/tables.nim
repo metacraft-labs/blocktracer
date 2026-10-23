@@ -247,8 +247,8 @@ proc txTable*(chain: string, rows: seq[TxRow], emptyNote: string): string =
                   else:
                     # §2.3's `order` is a union: not every chain family orders
                     # by block and index, and one that does not gets no link
-                    # rather than a fabricated height.
-                    text $t.height & ":" & $t.index
+                    # and its own coordinate rather than a fabricated height.
+                    text t.orderLabel
                 td(`data-label` = "From"): raw addressCell(chain, t.fromAddr)
                 td(`data-label` = "To / target"): raw addressCell(chain, t.toTarget)
                 td(`data-label` = "Method"):

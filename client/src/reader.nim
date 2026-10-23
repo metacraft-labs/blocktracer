@@ -453,6 +453,12 @@ type
       ## references are addressed by where you look for it"). Carrying the hash
       ## on the row is what lets the link be built without a second read of the
       ## generation's height map per row.
+    orderLabel*: string
+      ## The row's ordering coordinate spelled the chain's own way
+      ## (`entities.orderLabel`): `height:index` for a block chain, the
+      ## checkpoint sequence number for a checkpoint chain. What the Block
+      ## column prints when there is no block to link, instead of a `0:0`
+      ## made of the zero height and index a checkpoint row does not have.
     fromAddr*: string
     toTarget*: string
     methodSel*: string
@@ -1071,7 +1077,7 @@ proc txRow*(r: DataRoot, info: ChainInfo, hash: string): TxRow =
   let v = txView(r, info, hash)
   result = TxRow(
     hash: hash, height: v.height, index: v.index, blockHash: v.blockHash,
-    outcome: v.outcome, outcomeReason: v.outcomeReason, cost: v.cost,
+    orderLabel: v.orderLabel, outcome: v.outcome, outcomeReason: v.outcomeReason, cost: v.cost,
     methodSel: v.payloadSelector, toTarget: v.payloadTarget,
     availability: v.headline, sources: v.sources)
   result.refusalReason = headlineRefusal(v)
