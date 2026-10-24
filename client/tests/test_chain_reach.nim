@@ -43,7 +43,8 @@ import blocktracer_client
 import ../src/components/reach
 
 proc rowWith(reach: JsonNode = nil, floor: JsonNode = nil,
-             vm: JsonNode = nil, verification: JsonNode = nil): JsonNode =
+             vm: JsonNode = nil, verification: JsonNode = nil,
+             ordering: JsonNode = nil): JsonNode =
   ## A registry row carrying only the members a case is about, built through the
   ## REAL parser rather than by constructing a `ChainProfile` by hand — so these
   ## arms also cover the parse, and a member renamed on the wire fails here.
@@ -52,6 +53,7 @@ proc rowWith(reach: JsonNode = nil, floor: JsonNode = nil,
   if floor != nil: result["historyFloor"] = floor
   if vm != nil: result["vm"] = vm
   if verification != nil: result["verification"] = verification
+  if ordering != nil: result["ordering"] = ordering
 
 suite "the chain landing page states historical reach":
 
@@ -144,7 +146,25 @@ suite "the chain landing page states historical reach":
     # cannot be satisfied by deleting the sentence.
     let floored = reachStatement(parseChainProfile(rowWith(
       reach = %"floor", floor = %*{"height": 67010})))
-    check "not reachable by the pipeline that records this chain" in floored.lead
+    check "cannot be recorded NOW by the pipeline that records this chain" in floored.lead
+
+  test "a floor names no cause, and is counted in the chain's own unit":
+    # Sui's row: `floor` at checkpoint 28,845,373, where the state below IS
+    # reachable by the pipeline and the limit is the execution layer's trace
+    # hooks. The page states the limit and leaves the cause to the producer's
+    # quoted sentence, so no clause may name one.
+    let sui = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", ordering = %*{"kind": "checkpoint"},
+      floor = %*{"height": 28845373, "reason": "protocol 38 has trace hooks"})))
+    check "recorded at checkpoint 28845373 and above" in sui.lead
+    check "block 28845373" notin sui.lead
+    for cause in ["not reachable", "it is obtainable at", "no longer exists"]:
+      check cause notin sui.lead
+    check sui.note == "protocol 38 has trace hooks"
+    # CONTROL: a row with no ordering member is block-ordered (§5.3), and says so.
+    let blockChain = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", floor = %*{"height": 67010})))
+    check "recorded at block 67010 and above" in blockChain.lead
 
   test "a self-contained chain is not described with a floor":
     let st = reachStatement(parseChainProfile(rowWith(reach = %"self-contained")))
