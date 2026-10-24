@@ -1690,15 +1690,19 @@ proc paint(h: Hydration) =
   # what this needs, and they arrive with `ct/updated-calltrace` rather than
   # with the stop.
   #
-  # NOTHING IS PAINTED BEFORE THE SESSION IS READY. Everything below reads the
-  # panel ViewModels, which exist only once the trace is open
-  # (`LiveSession.ready`). The engine can state a position earlier than that —
-  # `ct/complete-move` reaches `applyStop` while a large container is still
-  # opening — and painting then dereferenced a ViewModel that did not exist yet:
-  # the two largest Starknet recordings (9,832 and 18,903 steps) threw here and
-  # never went live. The served frame stays on screen, which §7.0 allows, and
-  # `goLive` paints as soon as the session is ready.
-  if not h.session.ready: return
+  # NOTHING IS PAINTED BEFORE THE PANEL VIEWMODELS EXIST. Everything below
+  # reads them, and the SDK constructs them only when a launch opens the trace
+  # (`DebuggerSession`, `dspIdle`: "The panel VMs are NOT yet constructed").
+  # The engine can state a position earlier than that — `ct/complete-move`
+  # reaches `applyStop` while a large container is still opening — and painting
+  # then dereferenced a ViewModel that did not exist: the two largest Starknet
+  # recordings (9,832 and 18,903 steps) threw here and never reached their
+  # honest refusal. The served frame stays on screen, which §7.0 allows.
+  #
+  # The test is the ViewModel itself and NOT `LiveSession.ready` (the phase):
+  # guarding on the phase dropped paints `goLive`'s effect relies on, and a
+  # session whose phase moved was left with its controls never enabled.
+  if h.session.calltrace.isNil: return
   if not h.frameSeeded and h.session.calltrace.visibleLines.val.len > 0:
     h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
