@@ -199,9 +199,15 @@ proc solanaSnapshot(tag: string): string =
     "the committed Solana window would not unpack (exit " & $uCode & "): " &
     uOut & " — exit 127 is node missing from PATH, which in this repository " &
     "means the devshell was not entered."
+  # `$CT_PRINT` when it is set (CI sets it from `.#sol-ct-print`), otherwise the
+  # producer's own default, the sibling checkout a workspace has and a CI runner does not:
+  # without this, the contract job refused here with "ct-print not found".
+  let ctPrintFlag =
+    if getEnv("CT_PRINT").len > 0: " --ct-print " & quoteShell(getEnv("CT_PRINT"))
+    else: ""
   let produce = "cd " & quoteShell(RepoRoot) & " && node " &
                 "tools/chain/produce-sol-snapshot.mjs --capture " &
-                quoteShell(capture) & " --recorder-commit " & rev &
+                quoteShell(capture) & ctPrintFlag & " --recorder-commit " & rev &
                 " --from " & SolanaPublishedSlot & " --to " &
                 SolanaPublishedSlot & " --out " & quoteShell(snapshot)
   let (pOut, pCode) = execCmdEx(produce)

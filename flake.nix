@@ -643,6 +643,10 @@
         # `forward-capture` row. See tools/chain/nix/sol.nix.
         packages.solana-recorder = sol.solanaRecorder;
         packages.sol-capture-tree = sol.solCaptureTree;
+        # The ct-print the Solana producer reads its containers with, at the writer's
+        # revision: tests/tidentifierencoding.nim drives the real producer, and CI has no
+        # sibling codetracer-trace-format-nim checkout to find one in.
+        packages.sol-ct-print = sol.ctPrint;
 
         # ── Sui mainnet, produced the same way (Recorder-Move CXP-MOVE-6) ──────────
         # In produced-captures as `sui-mainnet`: byte-reproducible (`nix build --rebuild`

@@ -1203,7 +1203,14 @@ jobs:
         # (`debug-route`'s `just test` is the CLIENT one), so every Nim suite it
         # names must also be in blocktracer.nimble's `test` task, and
         # `ci/test/ci-coverage.sh` step 1c fails by name on one that is not.
-        run: nix develop .#ci --command nimble test -y
+        #
+        # CT_PRINT: tidentifierencoding drives the real Solana producer, which reads its
+        # containers with ct-print, and a runner has no sibling trace-format checkout to
+        # find one in (it refused with "ct-print not found"); `.#sol-ct-print` is the one
+        # the Solana build itself uses.
+        run: |
+          CT_PRINT="$(nix build --no-link --print-out-paths .#sol-ct-print)/bin/ct-print" \
+            nix develop .#ci --command nimble test -y
 
       - name: Demo generator emits a contract-conformant tree
         run: |
