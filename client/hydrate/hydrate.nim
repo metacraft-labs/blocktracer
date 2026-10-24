@@ -1689,6 +1689,16 @@ proc paint(h: Hydration) =
   # had. Gated on `visibleLines` rather than on a phase because the frames are
   # what this needs, and they arrive with `ct/updated-calltrace` rather than
   # with the stop.
+  #
+  # NOTHING IS PAINTED BEFORE THE SESSION IS READY. Everything below reads the
+  # panel ViewModels, which exist only once the trace is open
+  # (`LiveSession.ready`). The engine can state a position earlier than that —
+  # `ct/complete-move` reaches `applyStop` while a large container is still
+  # opening — and painting then dereferenced a ViewModel that did not exist yet:
+  # the two largest Starknet recordings (9,832 and 18,903 steps) threw here and
+  # never went live. The served frame stays on screen, which §7.0 allows, and
+  # `goLive` paints as soon as the session is ready.
+  if not h.session.ready: return
   if not h.frameSeeded and h.session.calltrace.visibleLines.val.len > 0:
     h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)
   var view = projectReplayPanes(h.session, h.base, h.ui.island)

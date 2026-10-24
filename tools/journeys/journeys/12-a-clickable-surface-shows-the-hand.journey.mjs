@@ -533,6 +533,10 @@ const shape = (m) =>
  * readable: is there anything to judge, was it actually under the pointer, and
  * did it compute the value claimed.
  */
+/** The mounted shared views' click surfaces (see the hydrated arm). */
+const SHARED_CALL = ".isonim-calltrace .call-text";
+const SHARED_EVENT = ".eventLog-row";
+
 function judge(j, m, what, want) {
   j.atLeast(m.reachable, 1, `SUBJECTS: ${what}`);
   j.countIs(m.hit, m.reachable, `${what} — each is the element under the pointer at its own centre`);
@@ -592,28 +596,39 @@ export async function run({ browser, site, j }) {
     // The predicate is the precondition itself and the budget is bounded, so a
     // build that really does lose its anchors still fails here after 15s with
     // the same sentence and the same count.
+    //
+    // AND THE LIVE ROWS ARE NOT ALWAYS ANCHORS NOW. Once the session is live
+    // the Call Trace and Event Log rows are CodeTracer's shared views
+    // (Shared-DOM-Front-Ends Q6, `hydrate.mountSharedPanes`): a call is chosen
+    // on its `.call-text`, an event on its `.eventLog-row`. Those are the
+    // click surfaces this arm measures when they are mounted, and the served
+    // anchors when they are not.
     await page
-      .waitForFunction(() => document.querySelectorAll("a.ctrow,a.evrow").length > 0, null, {
-        timeout: 15000,
-      })
+      .waitForFunction(
+        (call) => document.querySelectorAll(`a.ctrow,a.evrow,${call}`).length > 0,
+        SHARED_CALL,
+        { timeout: 15000 },
+      )
       .catch(() => {});
-    const rowKinds = await page.evaluate(() => ({
+    const rowKinds = await page.evaluate(([call, event]) => ({
       rows: document.querySelectorAll(".ctrow,.evrow").length,
       anchors: document.querySelectorAll("a.ctrow,a.evrow").length,
-    }));
+      mounted: document.querySelectorAll(`${call},${event}`).length,
+    }), [SHARED_CALL, SHARED_EVENT]);
+    const mounted = rowKinds.mounted > 0;
     // NOT `anchors === rows`. The aggregate `Self cost` view renders
     // `div.ctrow.d0.flat` rows on purpose — a function is not a frame, those
     // rows jump nowhere, and they are correctly not anchors. What has to hold is
     // that hydration produced SOME anchors, because otherwise there is no click
     // for this journey to describe and every assertion below is about nothing.
     j.atLeast(
-      rowKinds.anchors,
+      rowKinds.anchors + rowKinds.mounted,
       1,
-      "CONTROL: hydration turned navigation rows into anchors, so there is a click to describe",
+      "CONTROL: hydration turned navigation rows into anchors or mounted the shared rows, so there is a click to describe",
     );
 
     // ── the call trace, the surface the visitor named ────────────────────
-    const ct = await cursorsAtCentre(page, "a.ctrow");
+    const ct = await cursorsAtCentre(page, mounted ? SHARED_CALL : "a.ctrow");
     j.note(`call trace: ${shape(ct)}`);
     judge(j, ct, "call-trace rows", "pointer");
 
@@ -621,7 +636,10 @@ export async function run({ browser, site, j }) {
     // widest cell in the row and the one carrying `.copyable`. Measured as its
     // own population because a row whose centre happened to fall in the gutter
     // would pass the row assertion above while the name still showed the plus.
-    const ctName = await cursorsAtCentre(page, "a.ctrow .copyable");
+    // On a mounted row the name IS the click surface (`.call-text`, "{name}
+    // #{index}"), and it carries no `.copyable`: the element the report named
+    // is that one.
+    const ctName = await cursorsAtCentre(page, mounted ? SHARED_CALL : "a.ctrow .copyable");
     j.note(`copyable cells inside rows: ${shape(ctName)}`);
     judge(j, ctName, "copyable value cells sitting inside a navigable row", "pointer");
 
@@ -636,7 +654,7 @@ export async function run({ browser, site, j }) {
     // the pane that holds the event rows, and the control whose fragment points
     // at it. A renamed pane moves this on its own.
     const opened = await page.evaluate(() => {
-      const pane = document.querySelector(".evrow")?.closest(".lm_content");
+      const pane = document.querySelector(".evrow,.eventLog-row")?.closest(".lm_content");
       if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
       const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
       if (!tab) return { ok: false, why: `no control targets #${pane.id}` };
@@ -646,7 +664,10 @@ export async function run({ browser, site, j }) {
     await page.waitForTimeout(400);
     j.note(`event log: ${opened.ok ? `opened ${opened.pane}` : opened.why}`);
 
-    const ev = await cursorsAtCentre(page, "a.evrow");
+    const ev = await cursorsAtCentre(
+      page,
+      (await page.evaluate((e) => !!document.querySelector(e), SHARED_EVENT)) ? SHARED_EVENT : "a.evrow",
+    );
     j.note(`event log rows: ${shape(ev)}`);
     judge(j, ev, "event-log rows", "pointer");
 
@@ -804,15 +825,23 @@ async function realArm(browser, site, j, subject) {
       return new DOMParser().parseFromString(text, "text/html")
         .querySelectorAll(".ctrow").length;
     }, site.origin + subject.debugPath);
+    // The engine's rows are either the anchors that replaced the export's, or
+    // the shared views mounted in their place (see the hydrated arm).
     const answered = await page
       .waitForFunction(
-        (n) => document.querySelectorAll(".ctrow").length !== n,
-        servedCt,
+        ([n, call]) =>
+          document.querySelector(call) !== null ||
+          document.querySelectorAll(".ctrow").length !== n,
+        [servedCt, SHARED_CALL],
         { timeout: 15000 },
       )
       .then(() => true)
       .catch(() => false);
-    const rows = await cursorsAtCentre(page, ".ctrow,.evrow");
+    const realMounted = await page.evaluate((call) => !!document.querySelector(call), SHARED_CALL);
+    const rows = await cursorsAtCentre(
+      page,
+      realMounted ? `${SHARED_CALL},${SHARED_EVENT}` : ".ctrow,.evrow",
+    );
     j.note(
       `REAL rows: ${shape(rows)}` +
         (answered

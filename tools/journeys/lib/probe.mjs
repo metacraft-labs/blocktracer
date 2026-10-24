@@ -391,7 +391,26 @@ export const readFacts = (page) =>
       // point of reading the pane here rather than counting rows: "no values"
       // and "the values of some other frame" are the two answers a Values pane
       // can give wrongly, and a row count cannot tell them apart.
-      stateRows: [...(document.querySelector("#pane-state")?.querySelectorAll(".strow") ?? [])]
+      //
+      // TWO RENDERINGS OF ONE PANE. Before the session is live the pane is the
+      // served markup (`.strow`, `components/debugger.renderState`); once it is
+      // live it is CodeTracer's shared State view (Shared-DOM-Front-Ends Q6,
+      // `hydrate.mountSharedPanes`), whose rows are `.value-expanded` with
+      // `.value-name` / `.value-expanded-text` / `.value-type`, and whose
+      // changed value carries `.value-changed`. The reading is the same three
+      // cells either way. The shared view has no "appeared" mark, so a mounted
+      // row reports `appeared: false`.
+      stateRows: document.querySelector("#pane-state .isonim-state")
+        ? [...document.querySelectorAll("#pane-state .isonim-state .value-expanded")]
+          .filter(shown)
+          .map((r) => ({
+            name: r.querySelector(".value-name")?.textContent?.trim() ?? "",
+            value: r.querySelector(".value-expanded-text")?.textContent?.trim() ?? "",
+            type: r.querySelector(".value-type")?.textContent?.trim() ?? "",
+            changed: !!r.querySelector(".value-expanded-text.value-changed"),
+            appeared: false,
+          }))
+        : [...(document.querySelector("#pane-state")?.querySelectorAll(".strow") ?? [])]
         .filter(shown)
         .map((r) => ({
           name: r.querySelector(".stname")?.textContent?.trim() ?? "",
@@ -406,7 +425,14 @@ export const readFacts = (page) =>
           changed: r.classList.contains("chg"),
           appeared: r.classList.contains("new"),
         })),
-      stateNote: document.querySelector("#pane-state .empty-overlay")?.textContent?.trim() ?? "",
+      // The sentence in place of rows: the served pane's empty overlay, or —
+      // once the shared view is mounted — the caption BlockTracer keeps above
+      // it (`renderStateCaption`), when the view has no rows to show.
+      stateNote: (document.querySelector("#pane-state .empty-overlay")?.textContent?.trim()) ||
+        (document.querySelector("#pane-state .isonim-state") &&
+         ![...document.querySelectorAll("#pane-state .isonim-state .value-expanded")].some(shown)
+          ? document.querySelector("#pane-state .livecap .stcap")?.textContent?.trim() ?? ""
+          : ""),
 
       // THE FUNCTION HEADERS THIS PAGE RENDERED, per document, as raw rows.
       //
