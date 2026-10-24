@@ -386,6 +386,12 @@ proc setRail(ui: Ui; view: DebugSessionView) =
   else:
     rail.replaceWith(html.cstring)
 
+var controlsWritten = ""
+  ## The toolbar markup `setControls` last wrote. The page has one toolbar
+  ## and one hydration, so one module-level record; the `data-written` mark on
+  ## the element it wrote is what tells a replacement made elsewhere (and a
+  ## served toolbar never written here) from the one recorded.
+
 proc setControls(ui: Ui; view: DebugSessionView; km: Keymap) =
   ## The toolbar itself, replaced from a view that HAS buttons.
   ##
@@ -401,7 +407,19 @@ proc setControls(ui: Ui; view: DebugSessionView; km: Keymap) =
   ## shortcuts that stop being documented after the first step.
   let dc = ui.controls.querySelector(".dc")
   if dc == nil: return
-  dc.replaceWith(panes.renderControls(view.controls, km).cstring)
+  # IDENTICAL MARKUP IS NOT WRITTEN — `writePane`'s rule, at the toolbar.
+  # Replacing `.dc` destroys every control in it, and once the shared views
+  # are mounted a render follows every change they make to the store (a
+  # scrolled window, a measured viewport), not only an engine event. Rewriting
+  # an unchanged toolbar on each of those detached the button under a
+  # visitor's pointer: a journey's click on "step over" retried against a
+  # detached element for 30 s and never landed.
+  let html = panes.renderControls(view.controls, km)
+  if html != controlsWritten or dc.getAttribute("data-written") != "1":
+    controlsWritten = html
+    dc.replaceWith(html.cstring)
+    let fresh = ui.controls.querySelector(".dc")
+    if fresh != nil: fresh.setAttribute("data-written", "1")
   setRail(ui, view)
 
 proc markRailNavigable(ui: Ui) =
@@ -1569,23 +1587,53 @@ proc measureMounted(h: Hydration; pane: Element; scrollerSel, rowSel: cstring;
                     pxPerLevel: float; countPartialRow: bool;
                     fallbackRowPx: proc(): float;
                     report: proc(v: Viewport; rowPx: float);
-                    changed: proc()) =
+                    changed: proc(); heightFromPane = false) =
   ## Measure a mounted view's scroller now, one tick after its rows change, and
   ## on every resize and scroll — `ui/panel_host.startMeasuring`, over this
   ## page's pane. A pane with no height (a hidden tab of the stack) reports
   ## nothing, so it asks the engine for nothing until it is shown.
   let scroller = pane.querySelector(scrollerSel)
   if scroller == nil: return
+  # THE STATE PANE'S HEIGHT IS THE PANE'S, NOT ITS ROWS' AREA. Above the
+  # mounted State view sits this site's caption, and the caption changes while
+  # a load is in flight ("Reading the values at this position…") and again when
+  # the answer lands. Measured below the caption, the rows area was 12 rows
+  # tall during a load and 13 after it — two value budgets, so every answer
+  # asked again: ~25 `ct/load-locals` a second on an idle demo session,
+  # measured, alternating 12/13 at a constant 24px pitch. The pane's own height
+  # does not move with the caption, so the budget it gives is stable; the
+  # scroll offset still comes from the scroller.
+  let heightFrom = if heightFromPane: pane else: scroller
+  # Only a CHANGED measurement is reported. A report is a request to the
+  # engine for a window, the answer changes the rows, and a change of rows
+  # measures again — so re-reporting an unchanged layout would turn that
+  # cycle into traffic instead of letting it come to rest.
+  var lastV: Viewport
+  var lastRowPx = -1.0
   let measure = proc() =
     if h.stopped: return
     var rowPx = rowPitchIn(scroller, rowSel)
-    if rowPx <= 0.0: rowPx = fallbackRowPx()
-    let v = pixelPaneViewport(scroller.paneClientHeight,
+    # NO ROWS ON SCREEN IS NOT A NEW PITCH. While a load is in flight a view
+    # can briefly render none, and measuring the fallback then reported a
+    # different viewport — which is a different value budget, which is a new
+    # `ct/load-locals`, whose answer brings the rows back at their measured
+    # pitch: an A/B oscillation measured at ~20 requests a second on an idle
+    # demo session, which no "report only a change" check can stop. The last
+    # pitch the rows were measured at stands until rows say otherwise; the
+    # fallback is only for a pane that has never shown one.
+    if rowPx <= 0.0:
+      rowPx = if lastRowPx > 0.0: lastRowPx else: fallbackRowPx()
+    let v = pixelPaneViewport(heightFrom.paneClientHeight,
                               scroller.paneClientWidth, rowPx,
                               scroller.paneScrollTop, pxPerLevel,
                               countPartialRow = countPartialRow)
-    if v.measured: report(v, rowPx)
+    if not v.measured: return
+    if v == lastV and abs(rowPx - lastRowPx) < 0.01: return
+    lastV = v
+    lastRowPx = rowPx
+    report(v, rowPx)
   watchPane(scroller, measure)
+  if heightFrom != scroller: watchPane(heightFrom, measure)
   createEffect proc() =
     changed()
     paneSetTimeout(measure, 0)
@@ -1648,7 +1696,8 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
       ".value-expanded", 0.0, countPartialRow = true,
       fallbackRowPx = proc(): float = StateRowFallbackPx,
       report = proc(v: Viewport; rowPx: float) = vm.setViewport(v),
-      changed = proc() = discard store.locals.locals.val)
+      changed = proc() = discard store.locals.locals.val,
+      heightFromPane = true)
   if not h.latch.eventLog.mounted and view.eventLog.rows.len > 0:
     ensureContextMenuHost()
     h.ui.eventLog.innerHTML = panes.renderLiveShell().cstring
