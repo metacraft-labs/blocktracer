@@ -17,9 +17,15 @@ name: Staging on R2
 # vendors the replay engine, publishes with the same `blocktracer-publish` and lease
 # production uses, and reads the result back over HTTPS.
 
+# ON EVERY PUSH TO `staging`, beside the Pages deploy and not instead of it (operator: keep
+# blocktracer-staging.pages.dev until R2 is verified). Verified end to end on the bring-up
+# branch, run 40140298121: every chain page, the registry, the engine, the traced
+# ETH transaction and its debug page 200, and the container it loads byte-identical to the
+# one published. `workflow_dispatch` republishes without a push.
 on:
   push:
-    branches: [r2-staging-probe]
+    branches: [staging]
+  workflow_dispatch:
 
 concurrency:
   group: r2-staging
