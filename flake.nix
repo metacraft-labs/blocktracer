@@ -12,8 +12,13 @@
     # latest-mainline (default `dev` branch) SHAs, matching the sibling isonim
     # static sites (reprobuild-web-site / codetracer-web-site), recorded in the
     # isonim-sites registry.
+    # A TARBALL URL, NOT `github:`. isonim carries a submodule (src/isonim/layout/yoga) whose
+    # empty directory one Nix keeps and another drops when it fetches `github:`, so the same rev
+    # had two NAR hashes and one lock could only satisfy one fleet (2026-10-24: home-pc, Nix 2.34,
+    # got sha256-L+Cy…; the CI runners got sha256-qNVe…). GitHub archive tarball unpacks the same
+    # under every Nix version measured, to sha256-qNVe….
     isonim = {
-      url = "github:metacraft-labs/isonim/3b3d356c17d65ae385350fe70e7235e5527c70c0";
+      url = "https://github.com/metacraft-labs/isonim/archive/3b3d356c17d65ae385350fe70e7235e5527c70c0.tar.gz";
       flake = false;
     };
     nim-everywhere = {
