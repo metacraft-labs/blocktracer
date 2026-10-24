@@ -159,10 +159,19 @@ jobs:
             code=$(curl -s -o /dev/null -w '%{http_code}' "https://$STAGING_HOST$p")
             echo "$code $p"; [ "$code" = 200 ] || fail=1
           done
-          # `grep -m1`, not `| head -1`: steps run under `bash -e`, and with pipefail grep dies on
-          # SIGPIPE when head closes the pipe, which failed run 40131995740 after every page was 200.
-          tx=$(curl -s "https://$STAGING_HOST/ethereum-mainnet/" | grep -m1 -oE '/ethereum-mainnet/tx/0x[0-9a-f]+')
+          # THE TRACED TRANSACTION THE STAGING CAPTURE PRODUCES, and the container its debug page
+          # loads, checked by hash: a 200 on a page is not a trace. `sed -n 1p` and not `head`:
+          # steps run under bash -e with pipefail, and head closing the pipe killed grep with
+          # SIGPIPE (run 40131995740). `grep -m1` was no fix, the page is one line.
+          tx=/ethereum-mainnet/tx/0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa
           for p in "$tx/" "$tx/debug/"; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "https://$STAGING_HOST$p"); echo "$code $p"; [ "$code" = 200 ] || fail=1
           done
+          ct=$(curl -s "https://$STAGING_HOST$tx/debug/" | grep -oE '/t/[a-z0-9/]+/trace\.ct' | sed -n 1p)
+          sum=$(curl -s "https://$STAGING_HOST$ct" | sha256sum | cut -c1-16)
+          echo "container ${ct:-<none>} sha256 $sum"
+          # Against the bytes this job published, so the check follows the tree rather than a constant.
+          want=$( [ -n "$ct" ] && [ -f "site$ct" ] && sha256sum "site$ct" | cut -c1-16 || echo none)
+          echo "published sha256 $want"
+          [ -n "$ct" ] && [ "$sum" = "$want" ] || { echo "::error::the debug page does not load the container this job published"; fail=1; }
           [ "$fail" -eq 0 ] || { echo "::error::staging on R2 does not answer every page"; exit 1; }
