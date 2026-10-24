@@ -814,6 +814,24 @@ _compact-build:
     nim c --hints:off -d:release "${paths[@]}" \
       -o:.compact-container tools/chain/compact_container.nim
 
+# Regenerate `meta.dat` schema-6 containers as schema 7, verified by a full
+# decode (tools/chain/meta_dat_v7.nim says why that is a regeneration and not a
+# guess). FOR THE ENGINE-PIN MOVE ONLY: the engine pinned in
+# client/hydrate/engine-pin.txt reads schema 6 and refuses 7, so the corpus and
+# the pin move in ONE commit. TRACE_FORMAT_NIM is a codetracer-trace-format-nim
+# tree at the revision the new engine's codetracer locks (ffd0554d for
+# codetracer aca163924), because the verifying reader must read 7. Writes in
+# place; deterministic. `--check` reports without writing.
+#   just ct-meta-dat-v7 ../codetracer-trace-format-nim --check
+ct-meta-dat-v7 TRACE_FORMAT_NIM *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    paths=(-p:"{{TRACE_FORMAT_NIM}}/src")
+    IFS=: read -ra extra <<< "${CT_NIM_EXTRA_PATHS:-}"
+    for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
+    nim c --hints:off -d:release "${paths[@]}" -o:.meta-dat-v7 tools/chain/meta_dat_v7.nim
+    ./.meta-dat-v7 {{ARGS}} $(git ls-files '*.ct' | grep -v '^conformance-kit/template/')
+
 # Re-read the census into the committed reading. Run this deliberately, after a
 # corpus change, and say in the commit WHY each delta moved.
 ct-corpus-read:

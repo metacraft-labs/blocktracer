@@ -268,3 +268,4 @@ fixtures/chain-health/readable-container/ct/*.ct
 /.eth-coverage-proof/
 /.eth-follower-proof/
 .compact-container
+.meta-dat-v7
