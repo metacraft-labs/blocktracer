@@ -3,11 +3,17 @@
 #
 #   bash tools/chain/flow-capture.sh --recorder <codetracer-flow-recorder> \
 #     --helper <cadence-replay-helper> --recorder-commit <sha> \
-#     --inputs fixtures/chain-inputs/flow-mainnet/<height> --out <tree> [--work <dir>]
+#     --inputs fixtures/chain-inputs/flow-mainnet/<height> --out <tree> [--work <dir>] \
+#     [--only <tx id>]...
 #
 # The inputs directory holds `block.json` (the helper's `block` listing),
 # `floor-probe.json` (its `probe-floor` reading) and one transcript directory per user
-# transaction (`--record-inputs`). Each transaction is replayed with `--inputs`, so no
+# transaction (`--record-inputs`) — or, with `--only`, for the transactions it names.
+# A transcript carries the registers its preceding transactions read, because the
+# prestate strategy replays them, so one transaction is captured without its
+# neighbours' transcripts and the producer publishes those as `not-attempted` rows.
+# Without `--only` a missing transcript is refused, so a fixture cannot shrink
+# silently. Each transaction is replayed with `--inputs`, so no
 # network is used, in a capture directory of its own and with a relative output
 # directory, so the container interns `./sources/<location>.cdc` and no path of the
 # machine that ran it. Then tools/chain/produce-flow-snapshot.mjs assembles the tree.
@@ -19,6 +25,7 @@ recorder_commit=""
 inputs=""
 out=""
 work=".flow-capture"
+only=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --recorder) recorder="$2"; shift 2 ;;
@@ -27,6 +34,7 @@ while [ $# -gt 0 ]; do
     --inputs) inputs="$2"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
     --work) work="$2"; shift 2 ;;
+    --only) only+=("$2"); shift 2 ;;
     *) printf 'flow-capture: unknown argument %s\n' "$1" >&2; exit 2 ;;
   esac
 done
@@ -47,10 +55,19 @@ mkdir -p "$work"
 work_abs=$(abs "$work")
 
 capture_args=()
-for tx in $(node -e '
+txs=$(node -e '
   const b = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-  for (const t of b.transactions) if (!t.system) console.log(t.id);
-' "$inputs/block.json"); do
+  const only = process.argv.slice(2);
+  const user = b.transactions.filter((t) => !t.system).map((t) => t.id);
+  for (const id of only) {
+    if (!user.includes(id)) {
+      console.error(`flow-capture: --only ${id} is not a user transaction of the block`);
+      process.exit(2);
+    }
+  }
+  for (const id of user) if (only.length === 0 || only.includes(id)) console.log(id);
+' "$inputs/block.json" ${only[@]+"${only[@]}"}) || exit 2
+for tx in $txs; do
   [ -d "$inputs_abs/$tx" ] || fail "no transcript for $tx under $inputs"
   capture="$work_abs/$tx"
   mkdir -p "$capture"
