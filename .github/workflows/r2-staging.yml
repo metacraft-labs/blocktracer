@@ -159,7 +159,9 @@ jobs:
             code=$(curl -s -o /dev/null -w '%{http_code}' "https://$STAGING_HOST$p")
             echo "$code $p"; [ "$code" = 200 ] || fail=1
           done
-          tx=$(curl -s "https://$STAGING_HOST/ethereum-mainnet/" | grep -oE '/ethereum-mainnet/tx/0x[0-9a-f]+' | head -1)
+          # `grep -m1`, not `| head -1`: steps run under `bash -e`, and with pipefail grep dies on
+          # SIGPIPE when head closes the pipe, which failed run 40131995740 after every page was 200.
+          tx=$(curl -s "https://$STAGING_HOST/ethereum-mainnet/" | grep -m1 -oE '/ethereum-mainnet/tx/0x[0-9a-f]+')
           for p in "$tx/" "$tx/debug/"; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "https://$STAGING_HOST$p"); echo "$code $p"; [ "$code" = 200 ] || fail=1
           done
