@@ -428,7 +428,10 @@ export const readFacts = (page) =>
       // The sentence in place of rows: the served pane's empty overlay, or —
       // once the shared view is mounted — the caption BlockTracer keeps above
       // it (`renderStateCaption`), when the view has no rows to show.
-      stateNote: (document.querySelector("#pane-state .empty-overlay")?.textContent?.trim()) ||
+      // VISIBLE overlays only: the mounted State view keeps its empty-state
+      // overlay in the DOM, hidden, while it has rows.
+      stateNote: ([...document.querySelectorAll("#pane-state .empty-overlay")].find(shown)
+          ?.textContent?.trim()) ||
         (document.querySelector("#pane-state .isonim-state") &&
          ![...document.querySelectorAll("#pane-state .isonim-state .value-expanded")].some(shown)
           ? document.querySelector("#pane-state .livecap .stcap")?.textContent?.trim() ?? ""

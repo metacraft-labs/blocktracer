@@ -299,12 +299,27 @@ export async function run({ browser, site, j }) {
     // a served row it is the row itself.
     const clickSel = rowSel === SHARED_ROWS ? `${SHARED_ROWS} .call-text` : rowSel;
     for (const target of group) {
-      await page.evaluate(
-        ([sel, i]) => document.querySelectorAll(sel)[i].scrollIntoView({ block: "center" }),
-        [rowSel, target.i],
-      );
+      // A MOUNTED ROW IS ADDRESSED BY ITS IDENTITY, NOT ITS POSITION. The
+      // shared Call Trace is a window over the trace: scrolling a row into
+      // view can move the window, which re-renders the rows, so "the 23rd
+      // row" names a different element after every scroll and Playwright's
+      // own scroll-before-click kept replacing the one it had found (measured:
+      // `element was detached from the DOM, retrying` for 30s). The call key
+      // names the same call in every window.
+      const target$ = rowSel === SHARED_ROWS
+        ? `${SHARED_ROWS}[data-call-key="${target.anchor}"]`
+        : null;
+      if (target$) {
+        await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: "center" }), target$);
+        await page.waitForTimeout(600);
+      } else {
+        await page.evaluate(
+          ([sel, i]) => document.querySelectorAll(sel)[i].scrollIntoView({ block: "center" }),
+          [rowSel, target.i],
+        );
+      }
       const mark = consoleMark(page);
-      await page.click(`${clickSel} >> nth=${target.i}`);
+      await page.click(target$ ? `${target$} .call-text` : `${clickSel} >> nth=${target.i}`);
       // The engine answers every gesture with a position line whether or not
       // anything moved — which is exactly the case here, since these rows share
       // a tick. Waiting on a DOM change instead would time out on a correct
