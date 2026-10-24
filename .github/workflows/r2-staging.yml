@@ -168,7 +168,11 @@ jobs:
             code=$(curl -s -o /dev/null -w '%{http_code}' "https://$STAGING_HOST$p"); echo "$code $p"; [ "$code" = 200 ] || fail=1
           done
           ct=$(curl -s "https://$STAGING_HOST$tx/debug/" | grep -oE '/t/[a-z0-9/]+/trace\.ct' | sed -n 1p)
-          sum=$(curl -s "https://$STAGING_HOST$ct" | sha256sum | cut -c1-16)
+          # `Accept-Encoding: br`: a container is published brotli with Content-Encoding br, and an
+          # edge that is not told the client takes brotli decompresses it (run 40135420848 read the raw
+          # 81,920-byte container against the 2,356 bytes published). Asking for br returns the
+          # stored bytes, which is what the published copy is.
+          sum=$(curl -s -H 'Accept-Encoding: br' "https://$STAGING_HOST$ct" | sha256sum | cut -c1-16)
           echo "container ${ct:-<none>} sha256 $sum"
           # Against the bytes this job published, so the check follows the tree rather than a constant.
           want=$( [ -n "$ct" ] && [ -f "site$ct" ] && sha256sum "site$ct" | cut -c1-16 || echo none)
