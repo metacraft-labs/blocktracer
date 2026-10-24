@@ -135,6 +135,15 @@ jobs:
           secret=$(printf '%s' "$CF_TOKEN" | sha256sum | cut -d' ' -f1)
           echo "::add-mask::$tid"; echo "::add-mask::$secret"
           export AWS_ACCESS_KEY_ID="$tid" AWS_SECRET_ACCESS_KEY="$secret"
+          # A LEASE PRESENT NOW IS STALE. Only this workflow publishes to the staging bucket, and
+          # its concurrency group runs one at a time, so a lease left in `_leases/` belongs to a
+          # run that was killed mid-publish (run 40129234648 was, by a runner shutdown, and the
+          # retry was refused: "chain 'aztec-testnet' is locked by another publisher").
+          for k in $(nix develop .#ci --command aws s3 ls "s3://$STAGING_BUCKET/_leases/" \
+                       --endpoint-url "$ENDPOINT" 2>/dev/null | awk '{print $4}'); do
+            echo "breaking stale lease _leases/$k"
+            nix develop .#ci --command aws s3 rm "s3://$STAGING_BUCKET/_leases/$k" --endpoint-url "$ENDPOINT"
+          done
           nix develop .#ci --command nim c --hints:off -d:release \
             -o:blocktracer-publish src/blocktracer_publish.nim
           # --refresh: staging is republished as its content changes, so every existing
