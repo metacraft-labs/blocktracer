@@ -1,0 +1,52 @@
+{
+ "format": "blocktracer/eth-receipt-check@1",
+ "measuredAt": "2026-10-25T04:14:22.316Z",
+ "rpc": "https://sepolia.drpc.org",
+ "totals": {
+  "rows": 505,
+  "matched": 367,
+  "divergent": 0
+ },
+ "blocks": [
+  {
+   "block": 6000000,
+   "rows": 129,
+   "matched": 76,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 53
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 6000001,
+   "rows": 136,
+   "matched": 94,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 42
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 9000000,
+   "rows": 155,
+   "matched": 131,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 24
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 9000001,
+   "rows": 85,
+   "matched": 66,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 19
+   },
+   "divergentRows": []
+  }
+ ]
+}

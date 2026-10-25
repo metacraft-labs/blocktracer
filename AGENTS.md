@@ -26,7 +26,7 @@ flake-pinned `wrangler pages deploy`:
 | Branch | Pages project | Preview alias |
 |--------|---------------|---------------|
 | `live` | `blocktracer` | — (production) |
-| `staging` | `blocktracer-staging` | — |
+| `staging` | — (served from R2 at `staging.blocktracer.org` by `r2-staging.yml`; the `blocktracer-staging` Pages deploy was retired 2026-10-25) | — |
 | `dev` | `blocktracer-dev` | — |
 | any PR | `blocktracer-dev` | `<head-ref>.blocktracer-dev.pages.dev` |
 

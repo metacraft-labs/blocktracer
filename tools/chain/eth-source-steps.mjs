@@ -5,7 +5,10 @@
 //
 // Usage:
 //   node tools/chain/eth-source-steps.mjs --blocks <dir of per-block trace-block runs> \
-//        --recorder <commit> --out <file>
+//        --recorder <commit> --out <file> [--chain <label>] [--windows <from>-<to>[,…]]
+//
+// `--windows` defaults to Ethereum mainnet's six pinned windows; a second instance names its
+// own (Recorder-EVM CXP-EVM-5's Sepolia comparison), and `--chain` labels the reading.
 //
 // Each block directory holds `trace-block`'s per-transaction reports (`evm-*.log`), recorded
 // with Sourcify on, no lookup cap and the verified solc releases on PATH. A report states
@@ -27,7 +30,7 @@ const flag = (name) => {
   return i > 0 ? process.argv[i + 1] : undefined;
 };
 
-const WINDOWS = [[4370100, 4370101], [12500000, 12500001], [13000000, 13000001],
+const MAINNET_WINDOWS = [[4370100, 4370101], [12500000, 12500001], [13000000, 13000001],
                  [17100000, 17100001], [19500000, 19500001], [22500000, 22500001]];
 
 function summarize(txs) {
@@ -54,7 +57,12 @@ function main() {
   const dir = flag('blocks');
   const recorder = flag('recorder');
   const out = flag('out');
-  if (!dir || !recorder || !out || !existsSync(dir)) {
+  const chain = flag('chain') ?? 'ethereum-mainnet';
+  const WINDOWS = flag('windows')
+    ? flag('windows').split(',').map((w) => w.split('-').map(Number))
+    : MAINNET_WINDOWS;
+  if (!dir || !recorder || !out || !existsSync(dir) ||
+      WINDOWS.some((w) => w.length !== 2 || !w.every(Number.isInteger))) {
     console.error('usage: eth-source-steps.mjs --blocks <dir> --recorder <commit> --out <file>');
     return 2;
   }
@@ -97,6 +105,7 @@ function main() {
       'builds on PATH (8 older or nightly releases have none, so their contracts are unbacked).',
     ],
     measuredAt: new Date().toISOString(),
+    chain,
     recorder: `metacraft-labs/codetracer-evm-recorder ${recorder}`,
     total: summarize(txs),
     windows,
