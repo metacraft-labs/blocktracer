@@ -37,18 +37,18 @@
     "codetracer": {
       "flake": false,
       "locked": {
-        "lastModified": 1792659802,
-        "narHash": "sha256-OQB06veZZxSI/xaZw5ThsyOnglZQ7Eh5Z37LN/buq9c=",
+        "lastModified": 1792787443,
+        "narHash": "sha256-V8KyRINvZAfpl4Cnv8yrZ+Gm6CHaJ0jyN3mbJB+sgrs=",
         "ref": "refs/heads/agents",
-        "rev": "0d1325584b9e7c77d13bbb766077e3418395fe94",
-        "revCount": 5426,
+        "rev": "aca163924c79d9f1219ccd3c585f82f123842a27",
+        "revCount": 5615,
         "submodules": false,
         "type": "git",
         "url": "https://github.com/metacraft-labs/codetracer"
       },
       "original": {
         "ref": "refs/heads/agents",
-        "rev": "0d1325584b9e7c77d13bbb766077e3418395fe94",
+        "rev": "aca163924c79d9f1219ccd3c585f82f123842a27",
         "submodules": false,
         "type": "git",
         "url": "https://github.com/metacraft-labs/codetracer"
@@ -91,34 +91,34 @@
     "codetracer-evm-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1792713179,
-        "narHash": "sha256-d8X3RMmw9+nIiv5QAeTfR51Wcy+daiXviUSYvh3Nm94=",
+        "lastModified": 1792768701,
+        "narHash": "sha256-teCC4XwMqU03nbFR2t9xl7qcgYEFQXSAvHNuZ9X/l/8=",
         "owner": "metacraft-labs",
         "repo": "codetracer-evm-recorder",
-        "rev": "43d55adb1af32d275a406d63ee7a8dcd11bf2b64",
+        "rev": "c9b56b3e9e5fec721a9d5a20bfd00f4b7b8a7866",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-evm-recorder",
-        "rev": "43d55adb1af32d275a406d63ee7a8dcd11bf2b64",
+        "rev": "c9b56b3e9e5fec721a9d5a20bfd00f4b7b8a7866",
         "type": "github"
       }
     },
     "codetracer-flow-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1792507591,
-        "narHash": "sha256-Dljmkj3gDvRcJfTC3/O+g8QAl9Wlk06zdLtTwb3E+3Y=",
+        "lastModified": 1792773507,
+        "narHash": "sha256-0gp8JiYPWEzJFy/wLyPOjeE/vAv6yqZ/pMBwId1DEWM=",
         "owner": "metacraft-labs",
         "repo": "codetracer-flow-recorder",
-        "rev": "04a05d33653da6809a1e1372e4c564d7fd462e3c",
+        "rev": "229654be23faa0a667d136b72642b35382a9f54c",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-flow-recorder",
-        "rev": "04a05d33653da6809a1e1372e4c564d7fd462e3c",
+        "rev": "229654be23faa0a667d136b72642b35382a9f54c",
         "type": "github"
       }
     },
@@ -245,18 +245,14 @@
     "isonim": {
       "flake": false,
       "locked": {
-        "lastModified": 1792635500,
-        "narHash": "sha256-VbsVlSLsthllxHiAaEAP0aEs3dHc/sV1brPQrlefwsI=",
-        "owner": "metacraft-labs",
-        "repo": "isonim",
-        "rev": "d2193dc4935039f5faa0836e0a26eed9e15f1a72",
-        "type": "github"
+        "lastModified": 1792772624,
+        "narHash": "sha256-qNVe5if+zuOK0w1QguqOhSQNpnj2j4lIm9iVBFcEJ30=",
+        "type": "tarball",
+        "url": "https://github.com/metacraft-labs/isonim/archive/3b3d356c17d65ae385350fe70e7235e5527c70c0.tar.gz"
       },
       "original": {
-        "owner": "metacraft-labs",
-        "repo": "isonim",
-        "rev": "d2193dc4935039f5faa0836e0a26eed9e15f1a72",
-        "type": "github"
+        "type": "tarball",
+        "url": "https://github.com/metacraft-labs/isonim/archive/3b3d356c17d65ae385350fe70e7235e5527c70c0.tar.gz"
       }
     },
     "isonim-tui": {

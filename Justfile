@@ -161,7 +161,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-TWO suites — 105 + 19 + 24 + 24 + 57 + 242 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 9 + 10 + 41 + 33 + 8 + 33 + 24 = 1344 counted assertions —
+# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 11 + 10 + 7 + 44 + 33 + 8 + 33 + 24 = 1357 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -460,6 +460,10 @@ chain-selftest:
     # control. What the producer publishes for them is `just flow-awkward-cases`,
     # which needs the recorder.
     node tools/chain/flow-awkward-cases-selftest.mjs
+    # Offline and toolchain-free: the era expectation judged by fitting yield
+    # against a step at declared boundaries and against a trend with depth, shown
+    # to report a refutation on a fabricated smooth decline.
+    node tools/chain/era-analysis-selftest.mjs
     # Offline and toolchain-free: the Sui producer's facts, its effects
     # comparison and its refusals, driven from literals shaped as Sui's GraphQL
     # service and `sui replay` write them. Traced rows need a container and are
@@ -809,6 +813,24 @@ _compact-build:
     for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
     nim c --hints:off -d:release "${paths[@]}" \
       -o:.compact-container tools/chain/compact_container.nim
+
+# Regenerate `meta.dat` schema-6 containers as schema 7, verified by a full
+# decode (tools/chain/meta_dat_v7.nim says why that is a regeneration and not a
+# guess). FOR THE ENGINE-PIN MOVE ONLY: the engine pinned in
+# client/hydrate/engine-pin.txt reads schema 6 and refuses 7, so the corpus and
+# the pin move in ONE commit. TRACE_FORMAT_NIM is a codetracer-trace-format-nim
+# tree at the revision the new engine's codetracer locks (ffd0554d for
+# codetracer aca163924), because the verifying reader must read 7. Writes in
+# place; deterministic. `--check` reports without writing.
+#   just ct-meta-dat-v7 ../codetracer-trace-format-nim --check
+ct-meta-dat-v7 TRACE_FORMAT_NIM *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    paths=(-p:"{{TRACE_FORMAT_NIM}}/src")
+    IFS=: read -ra extra <<< "${CT_NIM_EXTRA_PATHS:-}"
+    for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
+    nim c --hints:off -d:release "${paths[@]}" -o:.meta-dat-v7 tools/chain/meta_dat_v7.nim
+    ./.meta-dat-v7 {{ARGS}} $(git ls-files '*.ct' | grep -v '^conformance-kit/template/')
 
 # Re-read the census into the committed reading. Run this deliberately, after a
 # corpus change, and say in the commit WHY each delta moved.

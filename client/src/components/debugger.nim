@@ -1465,8 +1465,25 @@ const SelfCostViewId* = "calltrace-self-cost"
   ## panel and the capture harness all address it and a third spelling is a
   ## view that can be reached but never marked.
 
-proc renderCallTrace*(p: CallTracePane): string =
-  if p.frames.len == 0:
+type
+  CallTracePart* = enum
+    ## Which markup `renderCallTrace` produces.
+    ctpWhole        ## the pane, as the static export and the served page draw it
+    ctpLiveShell    ## the pane with the call-order view's rows replaced by the
+                    ## mount point of the shared Call Trace view
+    ctpSelfCost     ## the by-function view alone, which the live build rewrites
+                    ## beside the mounted view
+
+const CallTraceMountClass* = "ctmount"
+  ## Where the live build mounts the shared Call Trace view (`ctpLiveShell`).
+
+proc renderCallTrace*(p: CallTracePane; part = ctpWhole): string =
+  ## The Call Trace pane. `part` selects the live build's two pieces of it:
+  ## the shared view replaces the call-order rows only (Shared-DOM-Front-Ends
+  ## Q6), and the by-function cost aggregation, which the shared view has no
+  ## counterpart for, stays this module's in both builds — one renderer, so the
+  ## two cannot drift.
+  if p.frames.len == 0 and part == ctpWhole:
     return paneNote(if p.note.len > 0: p.note else:
       "The call structure comes from the execution trace.")
 
@@ -1734,17 +1751,24 @@ proc renderCallTrace*(p: CallTracePane): string =
   # no-JavaScript mechanism as the pane stack's tabs — not a label styled as an
   # action. VD.5's first round recorded `.ctsort` as an affordance that lies;
   # a control that switches a view is the fix.
+  let selfCost = ui:
+    tdiv(class = "ctview alt", id = SelfCostViewId):
+      raw head("Function", "Self " & p.costLabel, withCalls = true)
+      raw costRows()
+      tdiv(class = "ctfoot"):
+        span: text "By function — self cost, callees excluded."
+        a(class = "ctsort", href = "#pane-calltrace"): text "Call order"
+  if part == ctpSelfCost:
+    return selfCost
   ui:
     tdiv(class = "ct"):
-      tdiv(class = "ctview alt", id = SelfCostViewId):
-        raw head("Function", "Self " & p.costLabel, withCalls = true)
-        raw costRows()
-        tdiv(class = "ctfoot"):
-          span: text "By function — self cost, callees excluded."
-          a(class = "ctsort", href = "#pane-calltrace"): text "Call order"
+      raw selfCost
       tdiv(class = "ctview def"):
-        raw head("Frame", p.costLabel, withCalls = false)
-        raw rows(p.frames)
+        if part == ctpLiveShell:
+          tdiv(class = CallTraceMountClass)
+        else:
+          raw head("Frame", p.costLabel, withCalls = false)
+          raw rows(p.frames)
         tdiv(class = "ctfoot"):
           span: text "By call order."
           a(class = "ctsort", href = "#" & SelfCostViewId): text "Self cost"
@@ -1763,6 +1787,22 @@ proc originStNote(note: string): string =
   ## the facts.
   ui:
     tdiv(class = "stnote"): text note
+
+const LiveCaptionClass* = "livecap"
+  ## The live build's caption slot above a mounted shared view: the sentence
+  ## `renderStateCaption` / `renderEventLogCaption` writes there.
+const LiveMountClass* = "livemount"
+  ## Where the live build mounts the shared State or Event Log view.
+
+proc renderLiveShell*(): string =
+  ## A pane body for a mounted shared view: BlockTracer's caption above the
+  ## view. The caption is what this site says about the RECORDING (machine
+  ## columns, values not yet answered, no traceable origin), which the shared
+  ## view does not know; the rows are the view's.
+  ui:
+    tdiv(class = "liveshell"):
+      tdiv(class = LiveCaptionClass)
+      tdiv(class = LiveMountClass)
 
 proc renderState*(p: StatePane): string =
   # THE ORIGIN SENTENCE OUTLIVES THE ROWS, and that is the fix.
@@ -1846,6 +1886,17 @@ proc renderState*(p: StatePane): string =
       # is also what the empty pane above draws.
       raw origin
 
+proc renderStateCaption*(p: StatePane): string =
+  ## The State pane's sentences without its rows, for the live build's caption
+  ## slot: the pane's note, then the origin sentence — the order `renderState`
+  ## draws them in around its rows.
+  let note = p.note
+  if note.len > 0:
+    result = ui:
+      p(class = "stcap"): text note
+  if p.originNote.len > 0:
+    result.add originStNote(p.originNote)
+
 proc renderEventLog*(p: EventLogPane): string =
   if p.rows.len == 0:
     return paneNote(if p.note.len > 0: p.note else:
@@ -1903,6 +1954,13 @@ proc renderEventLog*(p: EventLogPane): string =
         else:
           tdiv(class = cls, `data-step` = $r.step, `data-anchor` = r.anchor):
             raw eventCells(r)
+
+proc renderEventLogCaption*(p: EventLogPane): string =
+  ## The Event Log's note without its rows, for the live build's caption slot.
+  let note = p.note
+  if note.len > 0:
+    result = ui:
+      p(class = "evcap"): text note
 
 const PositionNoticeSlotId* = "dbg-position-notice"
   ## The element `renderPositionNotice`'s output goes in.

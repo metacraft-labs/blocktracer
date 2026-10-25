@@ -24,22 +24,34 @@
 ## what changes that sentence, and it is the only place the honest-failure text
 ## is written.
 ##
-## ## Why the panes are re-rendered rather than patched
+## ## Which panes are re-rendered, and which are CodeTracer's views
 ##
-## Every pane update calls the SAME renderer `static_export.nim` called — this
-## bundle links `client/src/components/debugger.nim` itself. So the hydrated
-## markup is the served markup by construction, not by review: there is no
-## second implementation of a source line, a call frame or an event row that
-## could drift from the one a crawler sees. That is worth more here than the
-## bytes a surgical patch would save, and it is why the pane renderers were
-## made reachable from a browser build at all (see the import note in
-## `components/debugger.nim`).
+## The source pane, the controls and the selection panel are updated by the
+## SAME renderers `static_export.nim` called — this bundle links
+## `client/src/components/debugger.nim` itself. So their hydrated markup is the
+## served markup by construction, not by review: there is no second
+## implementation of a source line that could drift from the one a crawler
+## sees, and it is why the pane renderers were made reachable from a browser
+## build at all (see the import note in `components/debugger.nim`).
 ##
-## ## Facade only
+## The Call Trace, State and Event Log ROWS are different, by decision
+## (Shared-DOM-Front-Ends Q6, 2026-10-19): once live they are CodeTracer's
+## shared views over the session's own ViewModels — the views the desktop, the
+## web page and VS Code show — mounted once and updating themselves
+## (`mountSharedPanes`). Until a pane is mounted it shows what was served, and
+## it is mounted only when the session has something to put there, so §7.0
+## holds as it does for every other pane. What the shared views have no
+## counterpart for stays this site's in both builds: the by-function cost
+## view beside the call-order rows, and the captions about the recording.
 ##
-## The only import from the CodeTracer side is `codetracer_embed`
-## (CodeTracer-Embed-SDK.md §7), and it is reached through `session_project`,
-## which owns the projection.
+## ## Facades only
+##
+## Two imports come from the CodeTracer side, each a facade
+## (CodeTracer-Embed-SDK.md §7): `codetracer_embed`, the rendering-free SDK the
+## session runs on (reached through `session_project`, which owns the
+## projection), and `codetracer_ui_components`, the rendered views. The second
+## is imported here and nowhere in `client/src`, which is what keeps the static
+## export compiling with no CodeTracer source on its path (Mode ∅).
 
 when not defined(js):
   {.error: "hydrate is the browser bundle; it is built with `nim js`.".}
@@ -49,6 +61,13 @@ import std/[dom, json, options, strutils]
 import isonim/core/async_compat
 from isonim/core/batch import untrack
 import codetracer_embed
+# The shared Call Trace, State and Event Log views, rendered with IsoNim's DOM
+# renderer (Shared-DOM-Front-Ends Q6). Only this build imports them: the static
+# export draws the same panes with `components/debugger`'s renderers and no
+# CodeTracer source on its path (Mode ∅).
+import codetracer_ui_components
+import isonim/web/web_renderer
+from isonim/web/dom_api as idom import nil
 
 import ../src/debugger/replay_engine
 import ../src/debugger/session_view
@@ -367,6 +386,12 @@ proc setRail(ui: Ui; view: DebugSessionView) =
   else:
     rail.replaceWith(html.cstring)
 
+var controlsWritten = ""
+  ## The toolbar markup `setControls` last wrote. The page has one toolbar
+  ## and one hydration, so one module-level record; the `data-written` mark on
+  ## the element it wrote is what tells a replacement made elsewhere (and a
+  ## served toolbar never written here) from the one recorded.
+
 proc setControls(ui: Ui; view: DebugSessionView; km: Keymap) =
   ## The toolbar itself, replaced from a view that HAS buttons.
   ##
@@ -382,7 +407,19 @@ proc setControls(ui: Ui; view: DebugSessionView; km: Keymap) =
   ## shortcuts that stop being documented after the first step.
   let dc = ui.controls.querySelector(".dc")
   if dc == nil: return
-  dc.replaceWith(panes.renderControls(view.controls, km).cstring)
+  # IDENTICAL MARKUP IS NOT WRITTEN — `writePane`'s rule, at the toolbar.
+  # Replacing `.dc` destroys every control in it, and once the shared views
+  # are mounted a render follows every change they make to the store (a
+  # scrolled window, a measured viewport), not only an engine event. Rewriting
+  # an unchanged toolbar on each of those detached the button under a
+  # visitor's pointer: a journey's click on "step over" retried against a
+  # detached element for 30 s and never landed.
+  let html = panes.renderControls(view.controls, km)
+  if html != controlsWritten or dc.getAttribute("data-written") != "1":
+    controlsWritten = html
+    dc.replaceWith(html.cstring)
+    let fresh = ui.controls.querySelector(".dc")
+    if fresh != nil: fresh.setAttribute("data-written", "1")
   setRail(ui, view)
 
 proc markRailNavigable(ui: Ui) =
@@ -811,6 +848,11 @@ type
     ## pane on every render.
     latched: bool
     written: string
+    mounted: bool
+      ## The pane's rows are a mounted shared view (`mountSharedPanes`), which
+      ## updates itself from its ViewModel; `renderPanes` writes only the
+      ## sections of the pane that stay this site's (the by-function view, a
+      ## caption). Latches like `latched`, and for the same reason.
 
   PaneLatch = object
     ## Which panes the live session has ever had content for, and what each one
@@ -832,6 +874,9 @@ type
     ## and freezing the previous frame's values there would be the worse lie.
     ## So this latches once and never resets.
     editor, calltrace, state, eventLog: PaneWrite
+    calltraceSelfCost, stateCaption, eventLogCaption: PaneWrite
+      ## The sections `renderPanes` still writes in a pane whose rows are a
+      ## mounted shared view.
 
 proc writePane(target: Element; html: string; hasContent: bool;
                pane: var PaneWrite) =
@@ -875,6 +920,20 @@ proc writePane(target: Element; html: string; hasContent: bool;
   pane.latched = true
   pane.written = html
   target.innerHTML = html.cstring
+
+proc writeSlot(pane: Element; selector: cstring; html: string; outer: bool;
+               slot: var PaneWrite) =
+  ## One section of a pane whose rows are a mounted shared view, written only
+  ## when its markup changed — `writePane`'s discipline, at the section the
+  ## shared view does not own. `outer` replaces the section element itself (the
+  ## by-function view, whose renderer produces its own element and `id`), and
+  ## otherwise its contents (a caption slot).
+  if html == slot.written: return
+  let target = pane.querySelector(selector)
+  if target == nil: return
+  slot.written = html
+  if outer: target.outerHTML = html.cstring
+  else: target.innerHTML = html.cstring
 
 proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch;
                  km: Keymap) =
@@ -994,8 +1053,15 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch;
   writePane(ui.editor, panes.renderSource(view.editor, view.controls),
             view.editor.documents.len > 0 or view.editor.reason.len > 0,
             latch.editor)
-  writePane(ui.calltrace, panes.renderCallTrace(view.calltrace),
-            view.calltrace.frames.len > 0, latch.calltrace)
+  # A pane holding a shared view keeps its rows up to date by itself; what is
+  # written here is only the section around them that stays this site's.
+  if latch.calltrace.mounted:
+    writeSlot(ui.calltrace, ".ctview.alt",
+              panes.renderCallTrace(view.calltrace, ctpSelfCost), outer = true,
+              latch.calltraceSelfCost)
+  else:
+    writePane(ui.calltrace, panes.renderCallTrace(view.calltrace),
+              view.calltrace.frames.len > 0, latch.calltrace)
   # The State pane's "content" is not "values", for the reason the source pane's
   # is not "documents", one clause up. A live session that has asked the engine
   # for this position's values and not yet been answered has a true sentence to
@@ -1004,10 +1070,20 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch;
   # shape of §7.0 violation the latch cannot see: the pane is full, and full of
   # the wrong frame. `session_project.projectState` produces the sentence and
   # `live_locals.noteFor` decides which one.
-  writePane(ui.state, panes.renderState(view.state),
-            view.state.values.len > 0 or view.state.note.len > 0, latch.state)
-  writePane(ui.eventLog, panes.renderEventLog(view.eventLog),
-            view.eventLog.rows.len > 0, latch.eventLog)
+  if latch.state.mounted:
+    writeSlot(ui.state, ("." & panes.LiveCaptionClass).cstring,
+              panes.renderStateCaption(view.state), outer = false,
+              latch.stateCaption)
+  else:
+    writePane(ui.state, panes.renderState(view.state),
+              view.state.values.len > 0 or view.state.note.len > 0, latch.state)
+  if latch.eventLog.mounted:
+    writeSlot(ui.eventLog, ("." & panes.LiveCaptionClass).cstring,
+              panes.renderEventLogCaption(view.eventLog), outer = false,
+              latch.eventLogCaption)
+  else:
+    writePane(ui.eventLog, panes.renderEventLog(view.eventLog),
+              view.eventLog.rows.len > 0, latch.eventLog)
   setControls(ui, view, km)
   # The selection panel, from the SAME `view` the panes were just drawn from.
   #
@@ -1461,6 +1537,184 @@ const PositionSettleFrames = 6
   ## position…" — because a wait this long is a wait a visitor is entitled to
   ## see, and §8 forbids hiding one.
 
+# ---------------------------------------------------------------------------
+# The shared views (Shared-DOM-Front-Ends Q6)
+# ---------------------------------------------------------------------------
+#
+# The live Call Trace, State and Event Log rows are CodeTracer's generic views
+# over the session's own ViewModels, mounted once and then updating themselves
+# from those ViewModels — the views the desktop, the web page and VS Code show.
+# Until a pane is mounted it keeps the served markup, which `components/
+# debugger` drew; mounting is `writePane`'s latch moment (the projection has
+# something to put there), so §7.0 holds: the served pane is replaced only by a
+# pane with content in it.
+#
+# What stays this site's, in both builds, is what the shared views have no
+# counterpart for: the by-function cost aggregation beside the call-order rows,
+# and the captions that say something about the RECORDING (machine columns,
+# values not yet answered, no traceable origin).
+#
+# THE HOST MEASURES. A shared view reports no size of its own
+# (Viewport-Driven-Loading V3): its host tells the ViewModel the rows the pane
+# shows and the row it is scrolled to, from the pixels it measures, through
+# `pane_viewport.pixelPaneViewport` — what the desktop's panel host does
+# (`ui/panel_host.measureOf`), with the same scrollers, rows and indent.
+
+proc toIsonim(e: Element): idom.Element {.importjs: "#".}
+  ## The same DOM element, typed for IsoNim's renderer. `std/dom` and
+  ## `isonim/web/dom_api` both describe the browser's one `Element`.
+
+proc paneClientHeight(el: Element): float {.importjs: "(#.clientHeight || 0)".}
+proc paneClientWidth(el: Element): float {.importjs: "(#.clientWidth || 0)".}
+proc paneScrollTop(el: Element): float {.importjs: "(#.scrollTop || 0)".}
+proc rowPitchIn(el: Element; sel: cstring): float {.importjs:
+  "((el, sel) => { var r = el.querySelectorAll(sel); if (r.length === 0) return 0; if (r.length === 1) return r[0].getBoundingClientRect().height; return (r[r.length - 1].getBoundingClientRect().top - r[0].getBoundingClientRect().top) / (r.length - 1); })(#, #)".}
+  ## The rows' ADVANCE, top to top, averaged over the rendered rows — the
+  ## desktop host's measure (`ui/panel_host.rowPitchIn`), so a sub-pixel
+  ## advance is recovered exactly.
+proc watchPane(el: Element; onChange: proc()) {.importjs:
+  "((el, cb) => { if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => cb()).observe(el); el.addEventListener('scroll', cb, {passive: true}); })(#, #)".}
+  ## `onChange` on every resize and every scroll of `el`, for the page's life.
+proc paneSetTimeout(fn: proc(); ms: int) {.importjs: "setTimeout(#, #)".}
+
+const
+  StateRowFallbackPx = 22.0
+  EventRowFallbackPx = 24.0
+    ## A row's pitch before one is rendered: the desktop host's values
+    ## (`ui/panel_host`), which the shared sheets draw the rows at.
+
+proc measureMounted(h: Hydration; pane: Element; scrollerSel, rowSel: cstring;
+                    pxPerLevel: float; countPartialRow: bool;
+                    fallbackRowPx: proc(): float;
+                    report: proc(v: Viewport; rowPx: float);
+                    changed: proc(); heightFromPane = false) =
+  ## Measure a mounted view's scroller now, one tick after its rows change, and
+  ## on every resize and scroll — `ui/panel_host.startMeasuring`, over this
+  ## page's pane. A pane with no height (a hidden tab of the stack) reports
+  ## nothing, so it asks the engine for nothing until it is shown.
+  let scroller = pane.querySelector(scrollerSel)
+  if scroller == nil: return
+  # THE STATE PANE'S HEIGHT IS THE PANE'S, NOT ITS ROWS' AREA. Above the
+  # mounted State view sits this site's caption, and the caption changes while
+  # a load is in flight ("Reading the values at this position…") and again when
+  # the answer lands. Measured below the caption, the rows area was 12 rows
+  # tall during a load and 13 after it — two value budgets, so every answer
+  # asked again: ~25 `ct/load-locals` a second on an idle demo session,
+  # measured, alternating 12/13 at a constant 24px pitch. The pane's own height
+  # does not move with the caption, so the budget it gives is stable; the
+  # scroll offset still comes from the scroller.
+  let heightFrom = if heightFromPane: pane else: scroller
+  # Only a CHANGED measurement is reported. A report is a request to the
+  # engine for a window, the answer changes the rows, and a change of rows
+  # measures again — so re-reporting an unchanged layout would turn that
+  # cycle into traffic instead of letting it come to rest.
+  var lastV: Viewport
+  var lastRowPx = -1.0
+  let measure = proc() =
+    if h.stopped: return
+    var rowPx = rowPitchIn(scroller, rowSel)
+    # NO ROWS ON SCREEN IS NOT A NEW PITCH. While a load is in flight a view
+    # can briefly render none, and measuring the fallback then reported a
+    # different viewport — which is a different value budget, which is a new
+    # `ct/load-locals`, whose answer brings the rows back at their measured
+    # pitch: an A/B oscillation measured at ~20 requests a second on an idle
+    # demo session, which no "report only a change" check can stop. The last
+    # pitch the rows were measured at stands until rows say otherwise; the
+    # fallback is only for a pane that has never shown one.
+    if rowPx <= 0.0:
+      rowPx = if lastRowPx > 0.0: lastRowPx else: fallbackRowPx()
+    let v = pixelPaneViewport(heightFrom.paneClientHeight,
+                              scroller.paneClientWidth, rowPx,
+                              scroller.paneScrollTop, pxPerLevel,
+                              countPartialRow = countPartialRow)
+    if not v.measured: return
+    if v == lastV and abs(rowPx - lastRowPx) < 0.01: return
+    lastV = v
+    lastRowPx = rowPx
+    report(v, rowPx)
+  watchPane(scroller, measure)
+  if heightFrom != scroller: watchPane(heightFrom, measure)
+  createEffect proc() =
+    changed()
+    paneSetTimeout(measure, 0)
+
+proc mountInto(pane: Element; slotSel: cstring; render: proc(): idom.Element) =
+  ## Render a shared view into the slot `slotSel` of `pane`, in a reactive root
+  ## of its own that lives as long as the page.
+  let slot = pane.querySelector(slotSel)
+  if slot == nil: return
+  createRoot proc(dispose: proc()) =
+    discard idom.appendChild(idom.Node(toIsonim(slot)), idom.Node(render()))
+
+proc ensureContextMenuHost() =
+  ## The shared views' right-click menu draws into `#context-menu-container`
+  ## (`context_menu_bridge.showContextMenu`, which does nothing without it, AFTER
+  ## the row has cancelled the browser's own menu). The desktop and web pages
+  ## carry it in their markup; this page gets it when the first view mounts.
+  if document.getElementById("context-menu-container") != nil: return
+  let host = document.createElement("div")
+  host.id = "context-menu-container"
+  host.setAttribute("style", "display: none;")
+  document.body.appendChild(host)
+
+proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
+  ## Mount each of the three shared views the first time the projection has
+  ## content for its pane — the condition `writePane` latches on.
+  let r = WebRenderer()
+  if not h.latch.calltrace.mounted and view.calltrace.frames.len > 0:
+    ensureContextMenuHost()
+    h.ui.calltrace.innerHTML =
+      panes.renderCallTrace(view.calltrace, ctpLiveShell).cstring
+    let vm = h.session.calltrace
+    mountInto(h.ui.calltrace, ("." & panes.CallTraceMountClass).cstring,
+      proc(): idom.Element =
+        renderCalltracePanel[WebRenderer, idom.Element](r, vm))
+    h.latch.calltrace.mounted = true
+    h.latch.calltrace.latched = true
+    h.latch.calltraceSelfCost.written =
+      panes.renderCallTrace(view.calltrace, ctpSelfCost)
+    let store = h.session.store
+    h.measureMounted(h.ui.calltrace, ".local-calltrace-view",
+      ".calltrace-call-line", CallDepthIndentPx, countPartialRow = false,
+      fallbackRowPx = proc(): float = vm.rowHeightPx.val,
+      report = proc(v: Viewport; rowPx: float) =
+        vm.setRowHeightPx(rowPx)
+        vm.setViewport(v),
+      changed = proc() = discard store.calltrace.lines.val)
+  if not h.latch.state.mounted and
+      (view.state.values.len > 0 or view.state.note.len > 0):
+    ensureContextMenuHost()
+    h.ui.state.innerHTML = panes.renderLiveShell().cstring
+    let vm = h.session.state
+    mountInto(h.ui.state, ("." & panes.LiveMountClass).cstring,
+      proc(): idom.Element =
+        renderStatePanel[WebRenderer, idom.Element](r, vm))
+    h.latch.state.mounted = true
+    h.latch.state.latched = true
+    let store = h.session.store
+    h.measureMounted(h.ui.state, ".value-components-container",
+      ".value-expanded", 0.0, countPartialRow = true,
+      fallbackRowPx = proc(): float = StateRowFallbackPx,
+      report = proc(v: Viewport; rowPx: float) = vm.setViewport(v),
+      changed = proc() = discard store.locals.locals.val,
+      heightFromPane = true)
+  if not h.latch.eventLog.mounted and view.eventLog.rows.len > 0:
+    ensureContextMenuHost()
+    h.ui.eventLog.innerHTML = panes.renderLiveShell().cstring
+    let vm = h.session.eventLog
+    mountInto(h.ui.eventLog, ("." & panes.LiveMountClass).cstring,
+      proc(): idom.Element =
+        renderEventLogPanel[WebRenderer, idom.Element](r, vm))
+    h.latch.eventLog.mounted = true
+    h.latch.eventLog.latched = true
+    h.measureMounted(h.ui.eventLog, ".eventLog-scroll-body", ".eventLog-row",
+      0.0, countPartialRow = true,
+      fallbackRowPx = proc(): float = EventRowFallbackPx,
+      report = proc(v: Viewport; rowPx: float) =
+        vm.setRowHeightPx(rowPx)
+        vm.setViewport(v),
+      changed = proc() = discard vm.eventRows.val)
+
 proc paintWhenSettled(h: Hydration)
 
 proc paint(h: Hydration) =
@@ -1484,6 +1738,20 @@ proc paint(h: Hydration) =
   # had. Gated on `visibleLines` rather than on a phase because the frames are
   # what this needs, and they arrive with `ct/updated-calltrace` rather than
   # with the stop.
+  #
+  # NOTHING IS PAINTED BEFORE THE PANEL VIEWMODELS EXIST. Everything below
+  # reads them, and the SDK constructs them only when a launch opens the trace
+  # (`DebuggerSession`, `dspIdle`: "The panel VMs are NOT yet constructed").
+  # The engine can state a position earlier than that — `ct/complete-move`
+  # reaches `applyStop` while a large container is still opening — and painting
+  # then dereferenced a ViewModel that did not exist: the two largest Starknet
+  # recordings (9,832 and 18,903 steps) threw here and never reached their
+  # honest refusal. The served frame stays on screen, which §7.0 allows.
+  #
+  # The test is the ViewModel itself and NOT `LiveSession.ready` (the phase):
+  # guarding on the phase dropped paints `goLive`'s effect relies on, and a
+  # session whose phase moved was left with its controls never enabled.
+  if h.session.calltrace.isNil: return
   if not h.frameSeeded and h.session.calltrace.visibleLines.val.len > 0:
     h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
@@ -1509,6 +1777,7 @@ proc paint(h: Hydration) =
     for li in 0 ..< view.editor.documents[di].lines.len:
       view.editor.documents[di].lines[li].breakpoint =
         h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
+  h.mountSharedPanes(view)
   renderPanes(h.ui, view, h.latch, h.keymap)
   # A DRAG OWNS THE HANDLE UNTIL IT IS RELEASED.
   #
@@ -2665,13 +2934,20 @@ proc measureViewports(h: Hydration) =
   ## pane hidden in a collapsed region costs no request.
   proc report() =
     if h.stopped or not h.session.ready: return
-    let calltraceRows = paneRowsOf(h.ui.calltrace, cstring".ctrow")
+    # A mounted pane is measured by `measureMounted`, from the shared view's
+    # own scroller; this measures the SERVED rows, which are what asks for the
+    # first window before anything is mounted.
+    let calltraceRows =
+      if h.latch.calltrace.mounted: 0
+      else: paneRowsOf(h.ui.calltrace, cstring".ctrow")
     if calltraceRows > 0:
       let v = h.session.calltrace.viewport.val
       if v.rows != calltraceRows:
         h.session.calltrace.setViewport(
           v.withRows(calltraceRows).withCols(panes.MaxIndentDepth + 1))
-    let eventRows = paneRowsOf(h.ui.eventLog, cstring".evrow")
+    let eventRows =
+      if h.latch.eventLog.mounted: 0
+      else: paneRowsOf(h.ui.eventLog, cstring".evrow")
     if eventRows > 0:
       let v = h.session.eventLog.viewport.val
       if v.rows != eventRows:

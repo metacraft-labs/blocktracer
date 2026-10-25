@@ -1,0 +1,187 @@
+name: Staging on R2
+
+# SERVE STAGING FROM R2 — operator decision 2026-10-23: a new bucket behind
+# staging.blocktracer.org, the same shape as production, keeping the
+# blocktracer-staging Pages project serving until this is verified.
+#
+# Production, as read by a GET-only probe (run 40126845332): the R2 bucket has
+# blocktracer.org as its custom domain, and the zone's `http_request_transform`
+# entrypoint ("blocktracer.org index resolution") rewrites a directory path to its
+# index.html with two rules keyed on `http.host eq "blocktracer.org"`. No worker
+# serves it.
+#
+# `ensure` makes staging the same, IDEMPOTENTLY, creating only what is missing:
+# the bucket, its custom domain, and two rewrite rules COPIED from production's with
+# only the host replaced, ADDED beside them. Production's rules are read, never
+# edited. `publish` builds `site-staging` (what the staging Pages deploy builds),
+# vendors the replay engine, publishes with the same `blocktracer-publish` and lease
+# production uses, and reads the result back over HTTPS.
+
+# ON EVERY PUSH TO `staging`, beside the Pages deploy and not instead of it (operator: keep
+# blocktracer-staging.pages.dev until R2 is verified). Verified end to end on the bring-up
+# branch, run 40140298121: every chain page, the registry, the engine, the traced
+# ETH transaction and its debug page 200, and the container it loads byte-identical to the
+# one published. `workflow_dispatch` republishes without a push.
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+concurrency:
+  group: r2-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  STAGING_BUCKET: blocktracer-staging
+  STAGING_HOST: staging.blocktracer.org
+  PROD_HOST: blocktracer.org
+
+jobs:
+  ensure:
+    runs-on: ["self-hosted", "linux", "x64"]
+    timeout-minutes: 15
+    steps:
+      - name: Bucket, custom domain and index rewrite for the staging host
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          api() { curl -sS -H "Authorization: Bearer $CF_TOKEN" -H 'content-type: application/json' "$@"; }
+          A="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT"
+          Z0="https://api.cloudflare.com/client/v4/zones"
+          ok() { jq -e '.success' >/dev/null; }
+
+          if api "$A/r2/buckets" | jq -e --arg b "$STAGING_BUCKET" '[.result.buckets[].name] | index($b)' >/dev/null; then
+            echo "bucket: present"
+          else
+            api -X POST "$A/r2/buckets" -d "{\"name\":\"$STAGING_BUCKET\"}" | tee /tmp/r | ok \
+              || { echo "::error::could not create the staging bucket"; cat /tmp/r; exit 1; }
+            echo "bucket: created"
+          fi
+
+          ZONE=$(api "$Z0?name=$PROD_HOST" | jq -r '.result[0].id')
+          if api "$A/r2/buckets/$STAGING_BUCKET/domains/custom" | jq -e --arg d "$STAGING_HOST" '[.result.domains[].domain] | index($d)' >/dev/null; then
+            echo "custom domain: present"
+          else
+            api -X POST "$A/r2/buckets/$STAGING_BUCKET/domains/custom" \
+              -d "{\"domain\":\"$STAGING_HOST\",\"zoneId\":\"$ZONE\",\"enabled\":true}" | tee /tmp/r | ok \
+              || { echo "::error::could not attach the staging custom domain"; cat /tmp/r; exit 1; }
+            echo "custom domain: attached"
+          fi
+
+          EP=$(api "$Z0/$ZONE/rulesets/phases/http_request_transform/entrypoint")
+          RS=$(echo "$EP" | jq -r '.result.id')
+          if echo "$EP" | jq -e --arg h "$STAGING_HOST" '[.result.rules[].expression | contains("\"" + $h + "\"")] | any' >/dev/null; then
+            echo "index rewrite: present for the staging host"
+          else
+            # Production's rules, verbatim, with only the host compared against changed.
+            echo "$EP" | jq -c --arg p "http.host eq \"$PROD_HOST\"" --arg s "http.host eq \"$STAGING_HOST\"" \
+              '.result.rules[] | select(.expression | contains($p)) |
+               {description: (.description + " (staging)"), expression: (.expression | sub($p; $s)),
+                action, action_parameters, enabled: true}' > /tmp/rules
+            n=$(wc -l < /tmp/rules)
+            [ "$n" -eq 2 ] || { echo "::error::expected production's 2 index rules, found $n"; exit 1; }
+            while read -r rule; do
+              api -X POST "$Z0/$ZONE/rulesets/$RS/rules" -d "$rule" | tee /tmp/r | ok \
+                || { echo "::error::could not add an index rule"; cat /tmp/r; exit 1; }
+            done < /tmp/rules
+            echo "index rewrite: 2 rules added for the staging host"
+          fi
+          api "$Z0/$ZONE/rulesets/phases/http_request_transform/entrypoint" \
+            | jq -r '.result.rules[] | "  rule: " + .description'
+
+  publish:
+    needs: ensure
+    runs-on: ["self-hosted", "linux", "x64"]
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Nix
+        uses: metacraft-labs/devops-modules/.github/setup-nix@dev
+        with:
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build the staging site
+        run: nix build .#site-staging
+      - name: Stage a clean, writable publish dir
+        run: |
+          set -euo pipefail
+          rm -rf site; cp -rL result site; chmod -R u+w site
+          echo "staged $(find site -type f | wc -l) files, $(du -sh site | cut -f1)"
+      - name: Vendor the replay engine into the publish dir
+        env:
+          ENGINE_BASE: ${{ vars.REPLAY_ENGINE_BASE || 'https://web-codetracer.pages.dev' }}
+        run: |
+          set -euo pipefail
+          mkdir -p .deploy
+          nix develop .#ci --command bash client/hydrate/fetch-engine.sh site/replay-engine "$ENGINE_BASE" \
+            .deploy/engine-fetch.json
+      # THE S3 KEY IS NOT THE PRODUCTION KEY. R2_ACCESS_KEY_ID is scoped to the production
+      # bucket: run 40127030550's first write here, the publish lease, was AccessDenied. The
+      # Cloudflare API token that created this bucket has account R2 write, and R2's documented
+      # S3 view of an API token is (access key = the token's id, secret = sha256 of its value).
+      # So the staging publish uses that, derived here and masked, and the production key keeps
+      # its narrower scope.
+      - name: Publish to the staging bucket
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          AWS_DEFAULT_REGION: auto
+          ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          tid=$(curl -sS -H "Authorization: Bearer $CF_TOKEN" \
+                  "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/tokens/verify" | jq -r '.result.id // empty')
+          [ -n "$tid" ] || { echo "::error::the API token reports no id; cannot derive its S3 credentials"; exit 1; }
+          secret=$(printf '%s' "$CF_TOKEN" | sha256sum | cut -d' ' -f1)
+          echo "::add-mask::$tid"; echo "::add-mask::$secret"
+          export AWS_ACCESS_KEY_ID="$tid" AWS_SECRET_ACCESS_KEY="$secret"
+          # A LEASE PRESENT NOW IS STALE. Only this workflow publishes to the staging bucket, and
+          # its concurrency group runs one at a time, so a lease left in `_leases/` belongs to a
+          # run that was killed mid-publish (run 40129234648 was, by a runner shutdown, and the
+          # retry was refused: "chain 'aztec-testnet' is locked by another publisher").
+          for k in $(nix develop .#ci --command aws s3 ls "s3://$STAGING_BUCKET/_leases/" \
+                       --endpoint-url "$ENDPOINT" 2>/dev/null | awk '{print $4}'); do
+            echo "breaking stale lease _leases/$k"
+            nix develop .#ci --command aws s3 rm "s3://$STAGING_BUCKET/_leases/$k" --endpoint-url "$ENDPOINT"
+          done
+          nix develop .#ci --command nim c --hints:off -d:release \
+            -o:blocktracer-publish src/blocktracer_publish.nim
+          # --refresh: staging is republished as its content changes, so every existing
+          # key whose bytes differ is superseded rather than skipped.
+          nix develop .#ci --command ./blocktracer-publish \
+            --tree site --backend s3 --bucket "$STAGING_BUCKET" --endpoint "$ENDPOINT" --refresh
+      - name: Read it back over HTTPS
+        run: |
+          set -uo pipefail
+          fail=0
+          for p in / /chains/ /ethereum-mainnet/ /solana-mainnet/ /starknet-mainnet/ /flow-mainnet/ /sui/ /aztec/ \
+                   /registry/chains.v1.json /replay-engine/worker.js; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://$STAGING_HOST$p")
+            echo "$code $p"; [ "$code" = 200 ] || fail=1
+          done
+          # THE TRACED TRANSACTION THE STAGING CAPTURE PRODUCES, and the container its debug page
+          # loads, checked by hash: a 200 on a page is not a trace. `sed -n 1p` and not `head`:
+          # steps run under bash -e with pipefail, and head closing the pipe killed grep with
+          # SIGPIPE (run 40131995740). `grep -m1` was no fix, the page is one line.
+          tx=/ethereum-mainnet/tx/0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa
+          for p in "$tx/" "$tx/debug/"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://$STAGING_HOST$p"); echo "$code $p"; [ "$code" = 200 ] || fail=1
+          done
+          ct=$(curl -s "https://$STAGING_HOST$tx/debug/" | grep -oE '/t/[a-z0-9/]+/trace\.ct' | sed -n 1p)
+          # `Accept-Encoding: br`: a container is published brotli with Content-Encoding br, and an
+          # edge that is not told the client takes brotli decompresses it (run 40135420848 read the raw
+          # 81,920-byte container against the 2,356 bytes published). Asking for br returns the
+          # stored bytes, which is what the published copy is.
+          sum=$(curl -s -H 'Accept-Encoding: br' "https://$STAGING_HOST$ct" | sha256sum | cut -c1-16)
+          echo "container ${ct:-<none>} sha256 $sum"
+          # Against the bytes this job published, so the check follows the tree rather than a constant.
+          want=$( [ -n "$ct" ] && [ -f "site$ct" ] && sha256sum "site$ct" | cut -c1-16 || echo none)
+          echo "published sha256 $want"
+          [ -n "$ct" ] && [ "$sum" = "$want" ] || { echo "::error::the debug page does not load the container this job published"; fail=1; }
+          [ "$fail" -eq 0 ] || { echo "::error::staging on R2 does not answer every page"; exit 1; }

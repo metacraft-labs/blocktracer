@@ -54,10 +54,11 @@ export const VERIFICATION = 'each trace is compared with what the chain recorded
  * than repairs: an entry at or above `fromSlot` would be a transaction the window
  * already publishes or one it skipped, an entry that IS a row is a duplicate, and an
  * out-of-order list would make "older" a lie. Only addresses that already have a page
- * (`paged`) are kept, so history never creates a page of its own.
+ * (`paged`) are kept, so history never creates a page of its own. An ARRAY, sorted by
+ * address, because the contract models collections as arrays and has no map form.
  */
 export function addressHistoryFor(answer, rowHashes, paged, fromSlot) {
-  const out = {};
+  const out = [];
   for (const address of Object.keys(answer.addresses).sort()) {
     if (!paged.has(address)) continue;
     const a = answer.addresses[address];
@@ -67,7 +68,7 @@ export function addressHistoryFor(answer, rowHashes, paged, fromSlot) {
       if (rowHashes.has(e.txHash)) throw new Error(`addressHistory ${address}: ${e.txHash} is already a published row`);
       if (i > 0 && e.blockNumber > a.entries[i - 1].blockNumber) throw new Error(`addressHistory ${address}: entries are not newest first at ${i}`);
     }
-    if (a.entries.length > 0) out[address] = { before: a.before, limit: a.limit, complete: a.complete, entries: a.entries };
+    if (a.entries.length > 0) out.push({ address, before: a.before, limit: a.limit, complete: a.complete, entries: a.entries });
   }
   return out;
 }

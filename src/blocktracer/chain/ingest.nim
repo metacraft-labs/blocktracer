@@ -911,6 +911,69 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
             ruleStatement("S5-SYSTEM-TRANSACTIONS"))
         seen[id] = true
 
+  # ADDRESS HISTORY BELOW THE WINDOW (`addressHistory`, S5-ADDRESS-HISTORY-BELOW-WINDOW).
+  #
+  # Checked whole before anything is written, for the reason the block above is: a
+  # refusal half-way through the address loop would leave a tree with some
+  # addresses' history and not others'. Each entry must sit below the LOWEST
+  # published block, so it can be neither a transaction this window publishes nor
+  # one it skipped, and must not be a row. Newest first, because the page's
+  # "older" link walks segments in that order. The segment each address gets is
+  # BUILT here, where every member is read off the object it belongs to, and kept
+  # by address for the writer below, which reads no snapshot member itself.
+  var historyByAddress = initTable[string, JsonNode]()
+  # EVERY address an `addressHistory` object names, entries or not, in order, for
+  # the check after the transaction loop that each one is an address a row pages.
+  var historyNamed: seq[string]
+  block addressHistory:
+    let ah = snap{"addressHistory"}
+    if ah == nil: break addressHistory
+    if ah.kind != JArray:
+      raise newException(ValueError,
+        RuleAddressHistory & snapPath & " states `addressHistory` as " & $ah.kind &
+        ", which is not an array. " & ruleStatement("S5-ADDRESS-HISTORY-BELOW-WINDOW"))
+    var lowest = high(int)
+    for b in snap["blocks"]: lowest = min(lowest, b["number"].getInt)
+    var rowIds = initTable[string, bool]()
+    for t in snap["transactions"]: rowIds[t["txHash"].getStr] = true
+    for h in ah:
+      let address = h{"address"}.getStr
+      let entries = h{"entries"}
+      let where = "address " & address & " in " & snapPath
+      if address.len == 0 or address in historyNamed or
+         entries == nil or entries.kind != JArray:
+        raise newException(ValueError,
+          RuleAddressHistory & "an `addressHistory` object in " & snapPath &
+          " names no address, names one twice, or has no `entries` array (" &
+          address & "). " & ruleStatement("S5-ADDRESS-HISTORY-BELOW-WINDOW"))
+      historyNamed.add address
+      var prev = high(int)
+      var seenTx = initTable[string, bool]()
+      var lo = high(int)
+      var hi = low(int)
+      var untraced = newJArray()
+      for e in entries:
+        let id = e{"txHash"}.getStr
+        let n = e{"blockNumber"}.getInt(high(int))
+        if id.len == 0 or n >= lowest or id in rowIds or n > prev or id in seenTx:
+          raise newException(ValueError,
+            RuleAddressHistory & where & " lists " & $e & ": it must be a non-empty " &
+            "identifier below block " & $lowest & ", not a row, not listed twice, and " &
+            "no newer than the entry before it. " &
+            ruleStatement("S5-ADDRESS-HISTORY-BELOW-WINDOW"))
+        seenTx[id] = true
+        prev = n
+        lo = min(lo, n)
+        hi = max(hi, n)
+        let ts = e{"timestamp"}
+        untraced.add %*{"txHash": id, "blockNumber": n,
+          "timestamp": (if ts == nil: newJNull() else: ts),
+          "failed": e{"failed"}.getBool}
+      if untraced.len > 0:
+        historyByAddress[address] = %*{"fromBlock": lo, "toBlock": hi,
+          "transactions": newJArray(), "untraced": untraced,
+          "complete": h{"complete"}.getBool, "limit": h{"limit"}.getInt}
+
   let gen = if cfg.generation.len > 0: cfg.generation else: "1"
   let prov = snap["provenance"]
 
@@ -2984,6 +3047,19 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # `participate` drops the empty string.
     participate(payloadTarget, height, txHash)
 
+  # EVERY HISTORY ADDRESS IS ONE A ROW PAGES (S5-ADDRESS-HISTORY-BELOW-WINDOW).
+  # Checked here because the rows' addresses are only known once the loop above
+  # has walked them, and before `current.json` moves, so a refusal publishes
+  # nothing. Compared by exact spelling: a history address spelled differently
+  # from the rows (an EIP-55 mixed-case one against lowercase rows on a hex
+  # chain) would otherwise lose its history without a word.
+  for address in historyNamed:
+    if address notin addrTxsByHeight:
+      raise newException(ValueError,
+        RuleAddressHistory & "`addressHistory` in " & snapPath & " names address " &
+        address & ", which no row of the published window pages, so its history " &
+        "would have no page. " & ruleStatement("S5-ADDRESS-HISTORY-BELOW-WINDOW"))
+
   # ---- registry row, now that the published set is known -------------------
   # See the block above where `reg` was read and the incumbent pin checked. The
   # WRITE waits until here because `recorders` describes the containers this
@@ -3123,6 +3199,19 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       cfg.writeJson(rel, %*{"chain": chain, "address": address,
         "fromBlock": h, "toBlock": h,
         "transactions": addrTxsByHeight[address][h]})
+      segRels.add rel
+    # THE CHAIN'S OWN HISTORY BELOW THE WINDOW, when the producer carried it
+    # (`addressHistory`, §5.3). One segment, listed LAST because it is the
+    # oldest, holding no `transactions` — none of these has a container here —
+    # and the entries as `untraced`, so the page can say what they are rather
+    # than render them as rows that open nothing. Absent: nothing changes.
+    if address in historyByAddress:
+      let seg = historyByAddress[address]
+      let rel = addressSegmentPath(chain, address,
+        $seg["fromBlock"].getInt & "-" & $seg["toBlock"].getInt, identifierEncoding)
+      var obj = %*{"chain": chain, "address": address}
+      for k, v in seg: obj[k] = v
+      cfg.writeJson(rel, obj)
       segRels.add rel
     let rel = addressIndexPath(chain, gen, address, identifierEncoding)
     var segArray = newJArray()

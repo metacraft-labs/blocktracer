@@ -1,0 +1,774 @@
+@import "../generated/index"
+
+.eventLogComponent-columns
+  position: relative
+
+.eventLog-switch
+  display: none
+
+.eventLog-categories
+  display: inherit
+  flex-wrap: wrap
+
+.eventLog-medium-control-button
+  user-select: none
+  border-radius: 6px
+  color: colors-ui-text-primary-body
+  white-space: nowrap
+  cursor: pointer
+  height: 28px
+  // margin-bottom: 10px
+  margin-left: 10px
+  background-color: colors-ui-surface-input-default
+  text-align: center
+  transform: rotate(0deg)
+  width: fit-content
+  position: relative
+  z-index: 1
+  // font-weight: bold
+  display: flex
+  align-items: center
+  justify-content: start
+  padding-left: 8px
+  padding-right: 8px
+  font-weight: 400
+
+  &:hover
+    background-color: colors-ui-surface-base-panel
+    color: colors-ui-text-primary-body
+
+  &:active
+    background-color: colors-ui-surface-primary-secondary-hover
+
+  &.active
+    background-color: colors-ui-surface-primary-secondary-hover
+
+  .custom-tooltip
+    width: 200px
+    text-align: start
+    font-size: 12px
+    line-height: 16px
+    right: -46px
+
+#eventLog-category-filter
+  z-index: 4
+
+#eventLog-category-onlytrace
+  z-index: 3
+
+#eventLog-category-only-recorded-event
+  z-index: 2
+
+.hamburger-dropdown-container
+  position: relative
+  display: flex
+  flex-direction: column
+  align-items: start
+
+.hamburger-dropdown
+  border-radius: 6px
+  color: colors-ui-text-primary-body
+  cursor: pointer
+  height: 24px
+  background-color: colors-ui-surface-primary-tertiary
+  right: 0
+  width: 24px
+  position: relative
+  z-index: 1
+  display: flex
+  justify-content: center
+  align-items: center
+
+  .fa-bars
+    height: 100%
+    width: 100%
+    display: flex
+    justify-content: center
+    align-items: center
+
+  &:focus
+    outline: none !important
+    box-shadow: none !important
+    cursor: pointer
+    background-color: colors-ui-surface-base-panel
+
+  &:focus-visible
+    outline: none !important
+    box-shadow: inset 0 0 0 0.125em colors-ui-border-focus !important
+    cursor: pointer
+    background-color: colors-ui-surface-base-panel
+
+  &:hover
+    background-color: colors-ui-surface-base-panel
+    color: colors-ui-text-primary-body
+
+.dropdown-container
+  position: absolute
+  display: flex
+  flex-direction: column
+  width: unquote("min(40em, calc(100vw - 2em))")
+  max-width: unquote("calc(100vw - 2em)")
+  // The shared menu radius (components/shared_widgets.styl).  This was `1em`,
+  // which against this menu's own 0.875rem font size drew a 14px curve — more
+  // than twice every other dropdown, and a value that would have moved again
+  // the next time the font size did.
+  border-radius: DROPDOWN_RADIUS
+  border: 0.0625em solid colors-ui-border-tertiary
+  background: colors-ui-surface-base-canvas
+  color: colors-ui-text-primary-body
+  z-index: TRACE_LOG_EDITOR_Z_INDEX + 7
+  user-select: none
+  transform-origin: top left
+  overflow: hidden
+  box-shadow: 0 1em 2.5em rgba(0, 0, 0, 0.32)
+  // `top` is overwritten inline: the container is appended to `document.body`
+  // and positioned from the filter button's measured rect, gap included — see
+  // `setupFilterDropdown` in src/frontend/ui/event_log.nim.  This is the
+  // fallback for the brief moment before that runs.
+  top: 100%
+  font-size: 0.875rem
+  font-family: "SpaceGrotesk"
+
+  // The menu scrollbar, matching every dropdown that calls
+  // `dropdown-surface()`.  This menu still paints its own surface — it is a
+  // panel-sized filter grid rather than a list of rows, so it carries a shadow
+  // and its own background — and therefore has to take the scrollbar, and the
+  // radius above, on its own.
+  dropdown-scrollbar()
+
+.dropdown-list
+  display: flex
+  flex-direction: column
+  width: 100%
+  margin: 0 !important
+  padding: 0
+  list-style: none
+  background: colors-ui-surface-base-raised
+
+  .dropdown-list-item
+    width: fit-content
+    min-width: 0
+    display: flex
+    align-items: center
+
+    .ct-checkmark-field
+      width: 100%
+      min-width: 0
+      align-items: center
+      gap: 0.625em
+      color: colors-ui-text-primary-body
+      line-height: 1.15
+
+    .ct-checkmark
+      --ct-checkmark-size: 1rem
+      // A slightly fainter box than the default in the dark theme; in the
+      // light one the default box's tokens (checkmark.styl), as fainter
+      // white would not show there (`by-mode`, defaults.styl).
+      --ct-checkmark-border: by-mode(rgba(255, 255, 255, 0.22), colors-ui-border-primary)
+      --ct-checkmark-border-hover: by-mode(rgba(255, 255, 255, 0.34), colors-ui-border-primary-hover)
+      --ct-checkmark-bg-hover: by-mode(rgba(255, 255, 255, 0.02), colors-ui-surface-primary-default-hover)
+
+    .ct-checkmark-label
+      min-width: 0
+      white-space: nowrap
+
+// Event Log rows (and every other DataTables table): the list hover
+// (LIST_HOVER_BG, button.styl).  The shared table hovers in data_tables.styl
+// never matched these rows — they expect `.data-table tr.odd.past`, and the
+// real rows are a bare `tr.past` / `tr.future` in a DataTables `table.dataTable`
+// — so the log had no row hover at all.  The current position's row
+// (`tr.active`) keeps its own look.
+table.dataTable tbody tr:not(.active):hover
+  background-color: LIST_HOVER_BG
+
+.dropdown-list-row
+  display: grid
+  grid-template-columns: 9em minmax(0, 1fr)
+  align-items: stretch
+  min-height: 2em
+  border-top: 0.0625em solid colors-ui-border-tertiary
+  list-style: none
+
+  &:first-child
+    border-top: none
+
+  // The list hover (LIST_HOVER_BG, button.styl), across the whole row —
+  // including the tag cell, which paints its own fill at rest.
+  &:hover,
+  &:hover > .ct-checkmark-field
+    background: LIST_HOVER_BG
+
+  // Left column — tag label checkbox
+  > .ct-checkmark-field
+    padding: 0.25em 0.5em
+    align-items: center
+    gap: 0.375em
+    color: colors-ui-text-primary-body-subtle
+    font-weight: 500
+    line-height: 1.15
+    border-right: 0.0625em solid colors-ui-border-tertiary
+    background: colors-ui-surface-base-raised
+
+    .ct-checkmark
+      --ct-checkmark-size: 1rem
+      // As the filter list's box above.
+      --ct-checkmark-border: by-mode(rgba(255, 255, 255, 0.22), colors-ui-border-primary)
+      --ct-checkmark-border-hover: by-mode(rgba(255, 255, 255, 0.34), colors-ui-border-primary-hover)
+      --ct-checkmark-bg-hover: by-mode(rgba(255, 255, 255, 0.02), colors-ui-surface-primary-default-hover)
+
+// Right column — kind checkboxes in a wrapping flex row
+.dropdown-kind-items
+  display: flex
+  flex-wrap: wrap
+  align-items: center
+  gap: 0.125em 0.75em
+  padding: 0.25em 0.625em
+
+  .ct-checkmark-field
+    align-items: center
+    gap: 0.375em
+    color: colors-ui-text-primary-body
+    line-height: 1.15
+    white-space: nowrap
+
+    .ct-checkmark
+      --ct-checkmark-size: 1rem
+      // As the filter list's box above.
+      --ct-checkmark-border: by-mode(rgba(255, 255, 255, 0.22), colors-ui-border-primary)
+      --ct-checkmark-border-hover: by-mode(rgba(255, 255, 255, 0.34), colors-ui-border-primary-hover)
+      --ct-checkmark-bg-hover: by-mode(rgba(255, 255, 255, 0.02), colors-ui-surface-primary-default-hover)
+
+// The filter menu's header row: the "Trace events" / "Recorded events" tabs on
+// the left and the On/Off switch on the right.
+//
+// The tabs take the same mode-switcher look as the State panel's
+// Locals / Globals / Watches (components/state.styl — CodeTracer Design System,
+// "I2 · Mode switcher"): one outlined track, the selected tab raised inside it.
+//
+// The markup has no element around just the two tabs — they share this row
+// with the switch — so the track is drawn by `::before`.  The row is a grid,
+// and the pseudo-element is a grid item spanning the tabs' two columns, placed
+// before them so they paint on top.  This assumes two tabs, which is what
+// `renderFilterDropdownPanel` renders.
+.toggle-buttons
+  display: grid
+  grid-template-columns: max-content max-content 1fr max-content
+  column-gap: 0.125rem
+  padding: 0 0.5rem
+  background: colors-ui-surface-base-canvas
+  align-items: center
+  // Whole pixels, so the 26px track sits exactly 5px from the top and bottom.
+  // This was 2.4em (33.6px at the row's 14px) with a 0.875px border, which put
+  // the track's outline on a fractional row and softened it.  37px because the
+  // row is border-box: 36px of room plus the 1px border below it.
+  min-height: 2.3125rem
+  border-bottom: 0.0625rem solid colors-ui-border-tertiary
+
+  // The track: the MEDIUM control size, 26px — 1px border, 2px inset, a 20px
+  // (extra small) tab, 2px, 1px — with the same surface, border and 6px
+  // corners as the State panel's.
+  &::before
+    content: ""
+    grid-row: 1
+    grid-column: 1 / 3
+    height: CONTROL_HEIGHT_MD
+    box-sizing: border-box
+    background-color: colors-ui-surface-base-raised
+    border: CONTROL_BORDER_WIDTH solid CONTROL_BORDER_COLOR
+    border-radius: CONTROL_RADIUS
+
+  // Enable/disable toggle — pushed to the far right
+  .toggle-enabled-wrapper
+    grid-row: 1
+    grid-column: 4
+    display: flex
+    align-items: center
+    gap: 0.375em
+    padding-right: 0.25em
+
+  .ct-tab
+    grid-row: 1
+    // The shared segmented tab (shared_widgets.styl), selected by
+    // `data-selected` here rather than `.active`.
+    segmented-tab()
+    transition: none
+
+    // 3px in from the track's outer edge on the outside of each tab (1px
+    // border + 2px inset); the 2px between them is the column gap.
+    &:nth-of-type(1)
+      grid-column: 1
+      margin-left: 0.1875rem
+
+    &:nth-of-type(2)
+      grid-column: 2
+      margin-right: 0.1875rem
+
+    // No hover, as on the State tabs: the shared `.ct-tab` hover wash and
+    // underline would give these a state the State tabs do not have.
+    &:hover:not([data-disabled="true"]):not([data-selected="true"])
+      background: transparent
+      color: colors-ui-text-primary-body-subtle
+
+    &[data-selected="true"]
+      background: colors-ui-surface-base-card
+      color: colors-ui-text-primary-headings
+
+.eventLog
+  font-family: Arial, Helvetica, sans-serif
+  height: 100%
+  display: flex
+  flex-direction: column
+
+  // The panel inset (PANEL_INSET, 8px — button.styl) on both sides: the toolbar
+  // and the footer start 8px from the left edge, on the same line as the tab
+  // title and the event rows, and end 8px from the right.  The shared
+  // `.ct-flex` toolbar and `.data-tables-footer` both default to 4px; they are
+  // overridden here, not at the source, because other panels use them too.
+  // The toolbar's top is the panel body's own 8px (`.lm_content`).
+  > .ct-flex
+    padding-left: PANEL_INSET
+    padding-right: PANEL_INSET
+
+  > .data-tables-footer
+    padding-left: PANEL_INSET
+    padding-right: PANEL_INSET
+    flex: 0 0 auto
+    min-height: 2.75em
+    align-items: center
+    font-family: "SpaceGrotesk"
+    font-size: 0.75rem
+    line-height: 1.1
+    color: colors-ui-text-primary-body
+
+    .data-tables-footer-info
+      margin-right: 0
+      gap: 0.25em
+      align-items: center
+      font-variant-numeric: tabular-nums
+
+      .data-tables-footer-end-row,
+      .data-tables-footer-rows-count
+        padding-left: 0
+        padding-right: 0
+
+    .data-tables-footer-input
+      width: 4.5em
+      min-width: 4.5em
+      max-width: 4.5em
+      // The extra-small input size (input.styl): a compact inline field in the
+      // footer.  This was 1.75em, which followed the footer's 12px text to 21px.
+      height: INPUT_HEIGHT_XS
+      max-height: INPUT_HEIGHT_XS
+      margin: 0em 0em !important
+      padding: 0 0.75em
+      border-radius: 0.5em
+      // Matches the 0.0625rem (1px) field border in input.styl. This rule wins
+      // over `.ct-input-small` on specificity, so leaving it at the old 0.03125em
+      // kept this one field a hairline while every other field went to 1px.
+      border: CONTROL_BORDER_WIDTH solid CONTROL_BORDER_COLOR
+      background: colors-ui-surface-input-secondary
+      color: colors-ui-text-primary-body !important
+      font-family: "SpaceGrotesk"
+      font-size: 1em !important
+      line-height: 1
+      text-align: left
+      box-sizing: border-box
+
+      &:hover
+        border-color: colors-ui-border-primary-hover
+        background: colors-ui-surface-input-secondary
+
+      // Border and ring come from the shared active state (input.styl);
+      // the surface stays the field's own, as it does for every other field.
+      &:focus-visible
+        outline: none !important
+        background: colors-ui-surface-input-secondary
+
+  .eventLog-detailed-table
+    display: none // TODO: show
+
+  .eventLog-columns
+    flex-basis: 15%
+
+    .eventLog-button
+      width: 50px !important
+
+  /* thanks to https://stackoverflow.com/a/52977310 */
+
+  .eventLog-index
+    min-width: 5ch
+    max-width: 5ch
+    padding-left: 0.5em
+    text-align: center
+
+  .eventLog-event
+    // background-image: EVENT_LOG_EVENT_ICON_PATH
+    background-repeat: no-repeat
+    width: 1.125em
+    // height: 13px
+    position: relative
+    cursor: pointer
+    min-width: 2.3ch !important
+    max-width: 2.3ch !important
+    height: 1.5em
+    display: flex
+    align-items: center
+    // top: 30%
+
+    .row-expander
+      background-size: 2ch !important
+      height: 1.125em !important
+      background-position: center !important
+      min-width: 2.3ch !important
+      max-width: 2.3ch !important
+
+  .eventLog-text
+    // min-width: 40%
+    // max-width: 40%
+    margin-left: 0.9375em
+    flex: auto
+    margin-right: 0.9375em
+    display: flex
+    overflow: visible
+    padding-right: 0.5em
+
+  .eventLog-fullpath
+    min-width: 20%
+    max-width: 20%
+    flex: auto
+
+  .eventLog-lowlevellocation
+    min-width: 25% // calc(25%)
+    max-width: 25% // calc(25%)
+    flex: auto
+
+  .eventLog-events
+    display: flex
+    flex-basis: 50%
+
+    .dropdown
+      width: auto
+
+  .eventLog-button //.eventLog-kind, .eventLog-category
+    width: 150px
+    margin-left: 10px
+    margin-right: 10px
+    margin-top: 14px
+    margin-bottom: 14px
+    padding: 0
+    font-size: 15px
+    font-weight: bold
+    height: 32px
+    line-height: 20px
+    text-align: center
+    border-radius: 10px
+    border: 0
+    cursor: pointer
+    background-color: EVENT_LOG_BUTTON_BACKGROUND_COLOR
+    color: EVENT_LOG_BUTTON_UNSELECTED_COLOR
+
+  .eventLog-normal-color-button, .eventLog-selected-kind, .eventLog-selected-category
+    // A surface token as text: the panel's own colour in the light theme
+    // (#e6e2db, 1.2:1), so there it takes the label text token (`by-mode`,
+    // defaults.styl).
+    color: by-mode(colors-ui-surface-primary-secondary, colors-ui-text-primary-label)
+
+  .eventLog-button
+    i
+      margin-left: 5px
+      vertical-align: -2px
+      color: colors-ui-text-primary-label
+
+  .eventLog-header
+    position: relative
+    z-index: 1
+    height: fit-content
+    display: flex
+  /* thanks to https://stackoverflow.com/a/52977310 */
+  .eventLog-detailed-index
+    width: calc(20%) !important
+    color: black
+
+  .eventLog-detailed-event
+    width: calc(10%) !important
+
+  .eventLog-detailed-location
+    width: calc(70%) !important
+    height: 0.125em // TODO location? not in events currently
+
+  .eventLog-detailed-text
+    width: calc(100%) !important
+    float: left
+
+
+  /* TODO width */
+  .eventLog-detailed-table > :nth-child(1)
+    display: none
+
+    tr
+      display: flex
+      flex-direction: column
+      background-color: colors-ui-surface-base-panel
+      width: 100%
+      border: 0.0625em colors-ui-text-primary-body solid
+      margin-bottom: 1.25em
+
+    thead
+      tr
+        height: 1.25em
+
+label
+  text-align: start
+  min-width: 110px
+  color: colors-ui-text-primary-body
+  font-weight: 400
+
+.eventLog-cell
+  text-overflow: ellipsis
+  white-space: pre
+  overflow: hidden
+  color: colors-ui-text-primary-body
+  font-weight: bold
+  padding-right: 0.625em
+
+.eventLog-index, .eventLog-event, .eventLog-fullpath
+  padding-top: 0 !important
+  padding-bottom: 0 !important
+
+.eventLog-text
+  padding-top: 0.1em !important
+  line-height: 1.1em !important
+  padding-bottom: 0.1em !important
+  max-height: 1.5em
+  overflow: visible
+
+// if !IS_EXTENSION
+//   .eventLog-text:hover
+//     overflow-x: auto
+
+//     &::-webkit-scrollbar-thumb:horizontal
+//       border: 0px !important
+//       background-color: colors-ui-surface-primary-tertiary
+
+//   .eventLog-lowlevellocation:hover
+//     overflow-x: overlay
+//     white-space: nowrap
+
+//   .eventLog-cell::-webkit-scrollbar
+//     width 8px
+//     height 4px
+//     background-color: transparent
+
+//   .eventLog-cell::-webkit-scrollbar:hover
+//     background-color: transparent
+//     position: absolute
+
+
+/* todo .eventLog-cell */
+
+.dropdown-list-tag
+  display: flex
+  align-items: center
+  padding: 0.25em 0 0.25em 1em
+
+  .ct-checkmark-field
+    font-weight: 500
+
+.dropdown-list-kind
+  display: grid
+  grid-template-columns: repeat(3, minmax(0, 1fr))
+  gap: 0.25em 1em
+  align-items: center
+  padding: 0.25em 1em 0.25em 1.25em
+
+.paging-menu
+  display: flex
+
+  .paging-page
+    background-color: blue
+    color: white
+    cursor: pointer
+    margin-left: 2px
+    margin-right: 2px
+
+  .paging-active-page
+    background-color: yellow
+
+// Event-log-specific DataTable overrides.
+// The HTML structure is: .eventLog > .eventLog-dense-table.data-table > (DataTables) > table > tr
+// So overrides must be scoped as .eventLog .data-table, NOT .data-table .eventLog.
+.eventLog
+  .data-table
+    // PLAT35-PD2 (closed by PLAT-40): the event log says what its columns
+    // are. DataTables' own header row stays hidden (`data_tables.styl`) —
+    // showing it re-measures the Scroller's columns against a table layout
+    // these flex rows do not use, and a run with it visible lost the location
+    // column. `ui/event_log.renderColumnHeader` draws this strip instead, one
+    // cell per column with the column's own class, so the class rules that
+    // size a body cell size its header cell too.
+    // Styled as the Requests panel's column header (`.request-table-header`,
+    // request_panel.styl) — small uppercase Space Grotesk on the primary
+    // surface over a 1px line — so the two tables read alike (Nikolay,
+    // 2026-10-15).  The type sits on `.eventLog-column-label` (ui/event_log.nim)
+    // and not on the cell, whose `ch`/`em` width must stay its body column's.
+    .eventLog-column-header
+      display: flex
+      align-items: center
+      min-height: 1.75rem
+      // No fill of its own: the header sits on the panel (Nikolay, 2026-10-15).
+      background: transparent
+      border-bottom: 1px solid colors-ui-border-secondary
+      user-select: none
+      .eventLog-cell
+        color: colors-ui-text-primary-label
+        overflow: hidden
+        // PLAT-50: a header click orders the log by the column.
+        cursor: pointer
+        // Every label on one centre line: the body's `.eventLog-text` rules
+        // (its 1.1em line box and 0.1em padding) lifted OUTPUT above TICK and #.
+        display: flex
+        align-items: center
+        align-self: stretch
+        padding-top: 0 !important
+        padding-bottom: 0 !important
+        max-height: none !important
+        line-height: normal !important
+      // The body's index column centres its numbers; a flex cell ignores
+      // `text-align`, so its label is centred the flex way.
+      .eventLog-index
+        justify-content: center
+      .eventLog-column-label
+        font-family: "SpaceGrotesk"
+        font-size: 0.6875rem
+        font-weight: 500
+        line-height: 1.125rem
+        letter-spacing: 0.06em
+        text-transform: uppercase
+        white-space: nowrap
+    tr
+      border-top: none !important
+      align-items: center !important
+
+    .direct-location-rr-ticks
+      overflow: visible !important
+      max-height: none !important
+      transform: none !important
+      padding-left: 0.5em !important
+      padding-right: 0.75em !important
+
+    // Combined selector beats .eventLog-cell alone so overflow: visible wins
+    .eventLog-cell.direct-location-rr-ticks
+      overflow: visible !important
+
+// The list (HSF-D6): the IsoNim view's own scroller, which replaced
+// DataTables' Scroller. The scroll area is as tall as the whole (filtered)
+// list (`listHeight`) and the held window sits `loadedStart` rows down in it
+// (`windowOffset`), so the scrollbar spans the log.
+.eventLog
+  .eventLog-dense-table
+    display: flex
+    flex-direction: column
+    position: relative
+
+  // `flex-basis: 0`: the body takes the table's height whatever it holds.
+  // Sized by its content (`auto`), an empty log measured 0px tall, so the
+  // pane reported no rows, asked for none, and stayed empty.
+  .eventLog-scroll-body
+    flex: 1 1 0
+    min-height: 0
+    overflow-y: auto
+    overflow-x: hidden
+
+  // The empty log's text sits over the list rather than taking its height.
+  > .eventLog-dense-table > .dt-empty
+    position: absolute
+    top: 2em
+    left: 0
+    right: 0
+    pointer-events: none
+
+  .eventLog-scroll-space
+    position: relative
+    min-height: 100%
+
+  .eventLog-rows
+    position: absolute
+    top: 0
+    left: 0
+    right: 0
+    border-collapse: collapse
+
+  .eventLog-row
+    cursor: pointer
+
+    &.event-selected, &.selected
+      background-color: colors-ui-surface-primary-secondary-hover
+
+    &.eventLog-expanded .eventLog-text
+      max-height: 20ch
+      overflow: auto
+      white-space: pre-wrap
+
+  .row-expander-none
+    display: none
+
+.paging-content
+  display: flex
+  flex-direction: column
+
+  .paging-child
+    display: flex
+
+    .paging-view
+      flex-basis: 80%
+
+    .paging-expand
+      color: green
+      flex-basis: 20%
+
+    .paging-collapse
+      color: red
+      flex-basis: 20%
+
+.dt-empty
+  font-family: "SpaceGrotesk"
+  padding-left: 0.5em
+  padding-top: 1em
+
+// PLAT-49 part B (finding 14): the column menu — Event-Log-Pane.md's
+// "[+ Columns]", a row per column of `EventLogVM.columns`: a check to show or
+// hide it, and a move left / right.
+.eventLog-columns-button
+  margin-left: auto
+  white-space: nowrap
+  font-size: 0.75em
+  padding: 0.125em 0.5em
+  cursor: pointer
+
+.eventLog-columns-menu
+  position: absolute
+  right: 0.5em
+  top: 2.25em
+  z-index: 20
+  min-width: 12em
+  padding: 0.25em 0
+  background-color: colors-ui-surface-base-card
+  border: 0.0625em solid colors-ui-border-secondary
+  border-radius: 0.375em
+  color: colors-ui-text-primary-body
+  .eventLog-column-option
+    display: flex
+    align-items: center
+    gap: 0.5em
+    padding: 0.125em 0.625em
+    .eventLog-column-check
+      cursor: pointer
+      width: 1em
+    .eventLog-column-title
+      flex: 1
+    .eventLog-column-left, .eventLog-column-right
+      cursor: pointer
+      background: transparent
+      border: none
+      color: inherit
+      font-size: 0.75em

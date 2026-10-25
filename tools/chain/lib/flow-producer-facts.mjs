@@ -19,6 +19,30 @@ export const RECORDER = Object.freeze({ id: 'flow-cadence', traceSchema: 'ctfs/v
  */
 export const PRESTATE_STRATEGY = 'replay-preceding';
 
+/**
+ * `provenance.reachReason` — why history starts at `replayableFrom`. On Flow that floor is
+ * the access node's RETENTION, not the chain's: a node serves state only from its own
+ * spork's root, and earlier sporks are served, if at all, by earlier sporks' nodes
+ * (Recorder-Flow CXP-FLOW-1; `tools/chain/flow-floor-census.mjs` measures which still do).
+ * The reader's generic sentence would read as the start of the chain's history.
+ */
+export const reachReasonFor = (probe) => `the access node this capture read (${probe.accessNode}) `
+  + `serves state only from its own spork's root, block ${probe.floor}, and refuses the block `
+  + 'below it. That is the node\'s retention, an operational limit: earlier sporks are served '
+  + 'only by their own nodes, so it is not where the chain\'s history begins';
+
+/**
+ * `provenance.verification` — what each trace is checked against, where its source comes
+ * from, and what becomes of a transaction that cannot be checked (Source-Resolution.md §4:
+ * a source that does not hash to the code that ran is discarded).
+ */
+export const VERIFICATION = 'each transaction is re-executed by the network\'s own FVM and '
+  + 'compared with what the chain recorded (status, every event with its values, and the '
+  + 'computation), and one that does not match is published as divergent, never as a '
+  + 'trace of the chain. Its Cadence source is the contract code the execution read from '
+  + 'chain state, so no third party supplies it, and a file that does not hash to that '
+  + 'code is discarded';
+
 /** A source bundle's `language`: these positions are positions in Cadence source text. */
 export const POSITION_LANGUAGE = 'cadence';
 

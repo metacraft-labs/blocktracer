@@ -85,9 +85,39 @@ export const spec =
 export const needsEngine = true;
 export const assertions = 11;
 
+// TWO RENDERINGS OF THE CALL-ORDER ROWS. The served page draws them with
+// `components/debugger.renderCallTrace` (`.ctview.def .ctrow`, the identity in
+// `data-anchor`, the coordinate in `data-step`, the mark `.cur`). Once the
+// session is live the live build mounts CodeTracer's shared Call Trace view in
+// their place (Shared-DOM-Front-Ends Q6), whose rows state the same two
+// identities as `data-call-key` and `data-rr-ticks` (the step), name the
+// function in `data-function`, and mark the selected call `.event-selected`.
+// A gesture lands on its `.call-text`, which selects the call and moves the
+// session there. The claim is the same over either.
+const SHARED_ROWS = ".isonim-calltrace .calltrace-call-line";
+const SERVED_ROWS = ".ctview.def .ctrow";
+const rowSelector = (page) =>
+  page.evaluate(
+    ([shared, served]) => (document.querySelector(shared) ? shared : served),
+    [SHARED_ROWS, SERVED_ROWS],
+  );
+
 /** Every live call-trace row, with the two identities it carries. */
 const readRows = (page) =>
-  page.evaluate(() => {
+  page.evaluate(([shared]) => {
+    const mounted = [...document.querySelectorAll(shared)];
+    if (mounted.length > 0) {
+      return mounted.map((r, i) => ({
+        i,
+        step: r.getAttribute("data-rr-ticks"),
+        anchor: r.getAttribute("data-call-key"),
+        name: r.getAttribute("data-function"),
+        current: r.classList.contains("event-selected"),
+        // A mounted row is the engine's by construction: the shared view draws
+        // only what the session's ViewModel holds.
+        live: true,
+      }));
+    }
     const rows = [...document.querySelectorAll(".ctview.def .ctrow")];
     return rows.map((r, i) => ({
       i,
@@ -102,11 +132,25 @@ const readRows = (page) =>
       // is the producer, and the CONTROL below reads it.
       live: r.tagName === "A",
     }));
-  });
+  }, [SHARED_ROWS]);
 
 /** What the page says it is showing, after a gesture has settled. */
 const readMarked = (page) =>
-  page.evaluate(() => {
+  page.evaluate(([shared]) => {
+    const sharedCur = document.querySelector(`${shared}.event-selected`);
+    if (document.querySelector(shared)) {
+      const src = document.querySelector(".srcline.cur");
+      const doc = src?.closest(".srcdoc");
+      return {
+        curAnchor: sharedCur?.getAttribute("data-call-key") ?? null,
+        curName: sharedCur?.getAttribute("data-function") ?? null,
+        curCount: document.querySelectorAll(`${shared}.event-selected`).length,
+        curModule: sharedCur?.getAttribute("data-path") || null,
+        curLine: sharedCur ? `:${sharedCur.getAttribute("data-line")}` : null,
+        srcLine: src?.querySelector(".n")?.textContent?.trim() ?? null,
+        srcDoc: doc?.getAttribute("data-path") ?? doc?.id ?? null,
+      };
+    }
     const cur = document.querySelector(".ctview.def .ctrow.cur");
     const src = document.querySelector(".srcline.cur");
     const doc = src?.closest(".srcdoc");
@@ -129,7 +173,7 @@ const readMarked = (page) =>
       srcLine: src?.querySelector(".n")?.textContent?.trim() ?? null,
       srcDoc: doc?.getAttribute("data-path") ?? doc?.id ?? null,
     };
-  });
+  }, [SHARED_ROWS]);
 
 export async function run({ browser, site, j }) {
   const all = await transactions(site.root);
@@ -250,13 +294,32 @@ export async function run({ browser, site, j }) {
     j.note(`opened ${folds} folded subtree(s) so every one of the six is on screen`);
 
     const landings = [];
+    const rowSel = await rowSelector(page);
+    // On a mounted row the gesture is on its `.call-text` (select and go); on
+    // a served row it is the row itself.
+    const clickSel = rowSel === SHARED_ROWS ? `${SHARED_ROWS} .call-text` : rowSel;
     for (const target of group) {
-      await page.evaluate(
-        (i) => document.querySelectorAll(".ctview.def .ctrow")[i].scrollIntoView({ block: "center" }),
-        target.i,
-      );
+      // A MOUNTED ROW IS ADDRESSED BY ITS IDENTITY, NOT ITS POSITION. The
+      // shared Call Trace is a window over the trace: scrolling a row into
+      // view can move the window, which re-renders the rows, so "the 23rd
+      // row" names a different element after every scroll and Playwright's
+      // own scroll-before-click kept replacing the one it had found (measured:
+      // `element was detached from the DOM, retrying` for 30s). The call key
+      // names the same call in every window.
+      const target$ = rowSel === SHARED_ROWS
+        ? `${SHARED_ROWS}[data-call-key="${target.anchor}"]`
+        : null;
+      if (target$) {
+        await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: "center" }), target$);
+        await page.waitForTimeout(600);
+      } else {
+        await page.evaluate(
+          ([sel, i]) => document.querySelectorAll(sel)[i].scrollIntoView({ block: "center" }),
+          [rowSel, target.i],
+        );
+      }
       const mark = consoleMark(page);
-      await page.click(`.ctview.def .ctrow >> nth=${target.i}`);
+      await page.click(target$ ? `${target$} .call-text` : `${clickSel} >> nth=${target.i}`);
       // The engine answers every gesture with a position line whether or not
       // anything moved — which is exactly the case here, since these rows share
       // a tick. Waiting on a DOM change instead would time out on a correct

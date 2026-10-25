@@ -63,11 +63,19 @@
 ##   * `//` line comments and `/* … */` block comments, both stripped
 ##   * `@import` lines, skipped (the generated token layer is replaced by the
 ##     bridge)
+##   * a value whose parentheses span several lines (`linear-gradient(` with one
+##     stop per line), joined into one declaration
+##   * `@keyframes NAME` — emitted as ONE rule, never scoped: a keyframe stop
+##     is not a selector, and an animation name is global to the document
+##   * `@media QUERY` — emitted as a block whose inner rules are scoped like
+##     any other rule
+##   * `by-mode(dark, light)`, upstream's build-time theme switch, resolved to
+##     one arm (`resolveByMode`)
 ##
-## NOT in the subset, and each one raises: mixin DEFINITIONS and calls,
-## `@media`/`@keyframes`/`@supports`, `if`/`else`/`for`/`unless`, `@extend`,
-## interpolation `{…}`, property-without-colon form. Where a vendored file uses
-## one, the enclosing rule is named in `dropRules` with a reason.
+## NOT in the subset, and each one raises: `@supports` and every other
+## at-rule, `if`/`else`/`for`/`unless` beyond the listed build conditions,
+## `@extend`, interpolation `{…}`. Where a vendored file uses one, the
+## enclosing rule is named in `dropRules` with a reason.
 ##
 ## ## What happens to an identifier the bridge does not carry
 ##
@@ -123,6 +131,19 @@ type
     ## from. The path is what every provenance comment and diagnostic names.
     origin*: string
     text*: string
+    definitionsOnly*: bool
+      ## Contributes its mixins and `NAME = value` constants and emits NO rule.
+      ## For a sheet whose definitions a vendored sheet calls and whose rules
+      ## address markup this site does not have: `state.styl` calls
+      ## `line-number-type()`, which `text_editor.styl` defines beside the
+      ## Monaco editor's rules. Upstream's import order puts the definition in
+      ## scope the same way, and its rules are not this port's to emit —
+      ## except the top-level rules `emitOnly` names.
+    emitOnly*: seq[string]
+      ## For a `definitionsOnly` source: the top-level selector lines whose
+      ## rules ARE emitted, in source order. `text_editor.styl` also draws the
+      ## right-click menu the shared panes open (`#context-menu-container` and
+      ## its items), which the live build uses and the editor does not own.
 
   StylPort* = object
     ## Everything BlockTracer decides, in one place so it can be reported.
@@ -139,7 +160,10 @@ type
       ## identifier bridge cannot reach: a QUOTED font-family name, which the
       ## two products spell differently for the same face.
     dropRules*: OrderedTable[string, string]
-      ## Upstream selector line → why BlockTracer does not emit it.
+      ## Upstream selector line → why BlockTracer does not emit it. A key may
+      ## name its sheet as `<file>.styl: <line>`, and then drops that line in
+      ## that sheet only: the same at-rule text (`@media (prefers-reduced-motion:
+      ## reduce)`) is in three sheets and is droppable in two of them.
     assetUrls*: OrderedTable[string, string]
       ## `<group>/<file>` (the tail of a vendored `…/public/resources/…` url) →
       ## the URL BlockTracer publishes its own copy of that file at.
@@ -226,18 +250,45 @@ proc indentOf(s: string): int =
 proc buildTree(src: StylSource): seq[Node] =
   ## Lines → a tree by indentation. Assignments and `@import` stay in the tree
   ## as ordinary nodes; the emitter decides what each one is.
+  ##
+  ## A value whose parentheses do not close on its own line continues on the
+  ## next ones (`linear-gradient(` with one stop per line, as `calltrace.styl`
+  ## writes its loading hairline): the lines are joined into ONE node at the
+  ## first line's indentation, so a continuation is never read as a child
+  ## selector. Stylus allows the same split
+  ## (https://stylus-lang.com/docs/syntax.html, "Selectors" / "Properties").
   var roots: seq[Node]
   var stack: seq[Node]
+  var pending = ""
+  var pendingLine, pendingIndent, depth = 0
   for (lineNo, raw) in stripComments(src.text):
-    let body = raw.strip
-    if body.len == 0: continue
-    let ind = indentOf(raw)
-    let n = Node(indent: ind, line: lineNo, text: body)
+    let piece = raw.strip
+    if piece.len == 0: continue
+    if pending.len == 0:
+      pendingLine = lineNo
+      pendingIndent = indentOf(raw)
+    elif not pending.endsWith("(") and not piece.startsWith(")"):
+      pending.add ' '
+    pending.add piece
+    for c in piece:
+      if c == '(': inc depth
+      elif c == ')': dec depth
+    if depth > 0: continue
+    if depth < 0:
+      raise newException(StylError, src.origin & ":" & $lineNo &
+        ": a ')' with no '(' before it")
+    let body = pending
+    let ind = pendingIndent
+    pending = ""
+    let n = Node(indent: ind, line: pendingLine, text: body)
     while stack.len > 0 and stack[^1].indent >= ind:
       discard stack.pop
     if stack.len == 0: roots.add n
     else: stack[^1].kids.add n
     stack.add n
+  if depth != 0:
+    raise newException(StylError, src.origin & ":" & $pendingLine &
+      ": a '(' that never closes")
   roots
 
 # ── values ─────────────────────────────────────────────────────────────────
@@ -291,6 +342,58 @@ proc substitute(value: string; env: Table[string, string];
       continue
     result.add c
     inc i
+
+proc resolveByMode(value: string; env: Table[string, string];
+                   bridge: OrderedTable[string, string]): string =
+  ## `by-mode(dark, light)` — upstream's BUILD-TIME theme switch
+  ## (`src/frontend/styles/defaults.styl`: the light arm when `COLOR_MODE` is
+  ## "Light", the dark arm otherwise) — resolved to ONE arm, after the arms are
+  ## substituted.
+  ##
+  ## This register switches theme at RUNTIME, through the `--bt-*` roles, so the
+  ## arm it keeps is the one that names a role, for the reason the bridge binds
+  ## by role at all: a role is what keeps the light debugger right. The dark arm
+  ## wins when it is a role (the register's default theme is dark, which is the
+  ## arm upstream's own default build takes); a dark arm that is a raw literal —
+  ## `rgba(255, 255, 255, 0.22)` over the checkmarks — would draw white on the
+  ## light theme, so the light arm's role is taken instead. With no role in
+  ## either, the dark arm, as upstream's build.
+  var i = 0
+  while i < value.len:
+    let hit = value.find("by-mode(", i)
+    if hit < 0 or (hit > 0 and value[hit - 1] in IdentBody):
+      if hit < 0:
+        result.add value[i .. ^1]
+        break
+      result.add value[i .. hit]
+      i = hit + 1
+      continue
+    result.add value[i ..< hit]
+    var depth = 0
+    var j = hit + "by-mode(".len
+    var args = @[""]
+    while j < value.len:
+      let c = value[j]
+      if c == '(': inc depth
+      elif c == ')':
+        if depth == 0: break
+        dec depth
+      if c == ',' and depth == 0: args.add ""
+      else: args[^1].add c
+      inc j
+    if j >= value.len or args.len != 2:
+      raise newException(StylError, "by-mode needs two arms: " & value)
+    let dark = substitute(args[0].strip, env, bridge)
+    let light = substitute(args[1].strip, env, bridge)
+    result.add(if "var(--bt-" in dark: dark
+               elif "var(--bt-" in light: light
+               else: dark)
+    i = j + 1
+
+proc substituteValue(value: string; env: Table[string, string];
+                     bridge: OrderedTable[string, string]): string =
+  ## `substitute`, with the `by-mode` build switch resolved first.
+  substitute(resolveByMode(value, env, bridge), env, bridge)
 
 proc residualToken(value: string): string =
   ## The first identifier left over that was meant to resolve, or "".
@@ -549,9 +652,31 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
   for n in nodes:
     if n.text.startsWith("@import"):
       continue
-    if n.text in port.dropRules:
-      rep.dropped.add src.origin & ":" & $n.line & "  " & n.text & " — " &
-        port.dropRules[n.text]
+    let qualified = src.origin.rsplit('/', 1)[^1] & ": " & n.text
+    if qualified in port.dropRules or n.text in port.dropRules:
+      let why = if qualified in port.dropRules: port.dropRules[qualified]
+                else: port.dropRules[n.text]
+      rep.dropped.add src.origin & ":" & $n.line & "  " & n.text & " — " & why
+      continue
+    if n.text.startsWith("@keyframes ") and n.kids.len > 0:
+      # The stops are emitted as rules into a buffer of their own and joined
+      # onto ONE line, which is what `scoped` recognises and leaves alone.
+      flushDecls()
+      var stops = ""
+      for stop in n.kids:
+        emitBlock(stop.kids, @[stop.text], src, port, env, rep, stops, mixins,
+                  expandDepth)
+      body.add n.text & "{" & stops.replace("\n", "") & "}\n"
+      inc rep.rules
+      continue
+    if n.text.startsWith("@media ") and n.kids.len > 0:
+      # The opening and closing lines are passed through by `scoped`; the rules
+      # between them are scoped like every other rule. A `@media` nested in a
+      # rule keeps that rule's selector, as Stylus bubbles it.
+      flushDecls()
+      body.add n.text & "{\n"
+      emitBlock(n.kids, parents, src, port, env, rep, body, mixins, expandDepth)
+      body.add "}\n"
       continue
     if n.text.startsWith("@"):
       raise newException(StylError,
@@ -596,7 +721,7 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
       var value = n.text[colon + 1 .. ^1].strip
       # Stylus tolerates a trailing `;`; several vendored rules carry one.
       value = value.strip(leading = false, chars = {';', ' '})
-      var subbed = substitute(value, env, port.bridge)
+      var subbed = substituteValue(value, env, port.bridge)
       # The residue check runs BEFORE the aliases, and the order is load-bearing.
       # `residualToken` looks for an identifier that was MEANT to resolve, and
       # one of its shapes is SCREAMING_CASE — which a replacement's own text can
@@ -641,7 +766,7 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
       let sp = n.text.find(' ')
       let prop = n.text[0 ..< sp]
       let value = n.text[sp + 1 .. ^1].strip.strip(leading = false, chars = {';', ' '})
-      var subbed = substitute(value, env, port.bridge)
+      var subbed = substituteValue(value, env, port.bridge)
       let residue = residualToken(subbed)
       if residue.len > 0:
         rep.unresolved.add src.origin & ":" & $n.line & "  " & prop & ": " &
@@ -678,8 +803,17 @@ proc transpile*(sources: seq[StylSource]; port: StylPort;
   var env = collectVars(sources, port.bridge)
   let mixins = collectMixins(sources)
   for src in sources:
+    var roots = buildTree(src)
+    if src.definitionsOnly:
+      var kept: seq[Node]
+      for n in roots:
+        if n.text in src.emitOnly: kept.add n
+      if kept.len != src.emitOnly.len:
+        raise newException(StylError, src.origin & ": emitOnly names " &
+          $src.emitOnly.len & " rule(s) and " & $kept.len & " are in the sheet")
+      roots = kept
     var body = ""
-    emitBlock(buildTree(src), @[], src, port, env, rep, body, mixins)
+    emitBlock(roots, @[], src, port, env, rep, body, mixins)
     if body.len > 0:
       result.add "\n/* ── ported verbatim from CodeTracer " & src.origin &
         " ── */\n"
@@ -692,7 +826,11 @@ proc scoped*(css, scope: string): string =
   if scope.len == 0: return css
   for line in css.splitLines:
     if line.len == 0: continue
-    if line.startsWith("/*") or line.startsWith(" "):
+    if line.startsWith("/*") or line.startsWith(" ") or line.startsWith("@") or
+        line == "}":
+      # A comment, a continuation, an at-rule's own line (`@keyframes` is one
+      # whole line; `@media` opens a block whose rules are scoped below) or the
+      # `}` that closes a `@media`.
       result.add line & "\n"
       continue
     let brace = line.find('{')

@@ -101,6 +101,13 @@ const
     "../debugger/vendor/frontend/styles/components/button.styl")
   VendoredInput = staticRead(
     "../debugger/vendor/frontend/styles/components/input.styl")
+  # The right-click menu the shared panes open (`context_menu_bridge`): its
+  # rows are `.ct-menu-item`, and the event log's filter menu draws
+  # `.ct-checkmark` boxes. Both sit between `input` and `tab` upstream.
+  VendoredCheckmark = staticRead(
+    "../debugger/vendor/frontend/styles/components/checkmark.styl")
+  VendoredMenuItem = staticRead(
+    "../debugger/vendor/frontend/styles/components/menu_item.styl")
   # `codetracer.styl` imports this between `input` and `notifications`. It is
   # the TAB IDIOM itself — the first review round found three different ones in
   # a single debugger screenshot (underline on the file tabs, a pill on the
@@ -116,10 +123,29 @@ const
   # meaning to override the surface has to arrive after it.
   VendoredSharedWidgets = staticRead(
     "../debugger/vendor/frontend/styles/components/shared_widgets.styl")
+  # The three pane sheets and the list scrubber are the stylesheets of the
+  # shared Call Trace, Event Log and State views the live debugger mounts
+  # (Shared-DOM-Front-Ends Q6). Each one goes where `codetracer.styl` imports
+  # it, so the cascade between them and the surface rules is upstream's own.
+  # Definitions only (`StylSource.definitionsOnly`): `state.styl` calls its
+  # `line-number-type()` mixin for the value-history line numbers. Its rules
+  # draw the Monaco editor, which this site does not have — the source pane is
+  # BlockTracer's own — so none is emitted except the right-click menu's four
+  # (`emitOnly`), which the shared panes open.
+  VendoredTextEditor = staticRead(
+    "../debugger/vendor/frontend/styles/components/text_editor.styl")
+  VendoredEventLog = staticRead(
+    "../debugger/vendor/frontend/styles/components/event_log.styl")
   VendoredDataTables = staticRead(
     "../debugger/vendor/frontend/styles/components/data_tables.styl")
+  VendoredCalltrace = staticRead(
+    "../debugger/vendor/frontend/styles/components/calltrace.styl")
+  VendoredListScrubber = staticRead(
+    "../debugger/vendor/frontend/styles/components/list_scrubber.styl")
   VendoredGoldenLayout = staticRead(
     "../debugger/vendor/frontend/styles/components/golden_layout.styl")
+  VendoredState = staticRead(
+    "../debugger/vendor/frontend/styles/components/state.styl")
   # LAST, exactly as in `codetracer.styl`, and for the reason its own header
   # gives: the shared empty-state treatment has to win over the per-component
   # padding declared above it, and it wins by arriving later in the cascade.
@@ -169,7 +195,7 @@ const
     ## halves are checked against each other by `tools/deploy/check-assets.mjs`
     ## A6 over the published bytes, which is the only place that can.
 
-  CtVendoredIcons: array[9, tuple[group, file: string]] = [
+  CtVendoredIcons: array[20, tuple[group, file: string]] = [
     # `origin-icons/` — `button.styl`'s `.ct-origin-icon-*` badge masks.
     (group: "origin-icons", file: "clock-rewind.svg"),
     (group: "origin-icons", file: "door.svg"),
@@ -182,6 +208,21 @@ const
     # `shared_widgets.styl`'s `.custom-noir-icon::before`.
     (group: "shared", file: "history_value_view_toggle_dark.svg"),
     (group: "shared", file: "noir_logo_dark_theme.svg"),
+    # The live panes' icons (Shared-DOM-Front-Ends Q6): the call trace's
+    # toggles and markers (`calltrace.styl`), and the State pane's value
+    # toggles and current-line arrow (`state.styl`), at their dark-theme
+    # names, which is what the bridge's `*_IMG` / `*_ICON` rows assign.
+    (group: "calltrace", file: "collapse-call-calltrace-dark.svg"),
+    (group: "calltrace", file: "collapse-active-call-calltrace-dark.svg"),
+    (group: "calltrace", file: "expand-call-calltrace-dark.svg"),
+    (group: "calltrace", file: "expand-active-call-calltrace-dark.svg"),
+    (group: "calltrace", file: "dot-call-calltrace-dark.svg"),
+    (group: "calltrace", file: "dot-active-call-calltrace-dark.svg"),
+    (group: "calltrace", file: "end-of-program-dark.svg"),
+    (group: "calltrace", file: "end-of-program-error-dark.svg"),
+    (group: "shared/filesystem", file: "filesystem_open_toggle_dark.svg"),
+    (group: "shared/filesystem", file: "filesystem_close_toggle_dark.svg"),
+    (group: "shared", file: "highlight_line_arrow.svg"),
   ]
     ## The TOTAL list. A fixed-length `array` rather than a seq so that adding a
     ## row without saying so is a compile error here too, and so the count is
@@ -209,7 +250,7 @@ const CtIconRows = static:
 proc ctIconUrls*(): OrderedTable[string, string] =
   ## `<group>/<file>` → a `data:` URI carrying BlockTracer's copy. This is what
   ## `StylPort.assetUrls` carries, and `client/tests/test_ct_components_css.nim`
-  ## reads it to assert the two sheets' nine urls are all placed.
+  ## reads it to assert every vendored url is placed.
   ##
   ## ## WHY THE BYTES AND NOT THE URL, AND WHAT WOULD UNDO IT
   ##
@@ -258,16 +299,33 @@ proc vendoredSources*(): seq[StylSource] =
                text: VendoredButton),
     StylSource(origin: "src/frontend/styles/components/input.styl",
                text: VendoredInput),
+    StylSource(origin: "src/frontend/styles/components/checkmark.styl",
+               text: VendoredCheckmark),
+    StylSource(origin: "src/frontend/styles/components/menu_item.styl",
+               text: VendoredMenuItem),
     StylSource(origin: "src/frontend/styles/components/tab.styl",
                text: VendoredTab),
     StylSource(origin: "src/frontend/styles/components/notifications.styl",
                text: VendoredNotifications),
     StylSource(origin: "src/frontend/styles/components/shared_widgets.styl",
                text: VendoredSharedWidgets),
+    StylSource(origin: "src/frontend/styles/components/text_editor.styl",
+               text: VendoredTextEditor, definitionsOnly: true,
+               emitOnly: @["#context-menu-container",
+                           ".context-menu-item-container",
+                           ".context-menu-item", ".context-menu-hint"]),
+    StylSource(origin: "src/frontend/styles/components/event_log.styl",
+               text: VendoredEventLog),
     StylSource(origin: "src/frontend/styles/components/data_tables.styl",
                text: VendoredDataTables),
+    StylSource(origin: "src/frontend/styles/components/calltrace.styl",
+               text: VendoredCalltrace),
+    StylSource(origin: "src/frontend/styles/components/list_scrubber.styl",
+               text: VendoredListScrubber),
     StylSource(origin: "src/frontend/styles/components/golden_layout.styl",
                text: VendoredGoldenLayout),
+    StylSource(origin: "src/frontend/styles/components/state.styl",
+               text: VendoredState),
     StylSource(origin: "src/frontend/styles/components/empty_states.styl",
                text: VendoredEmptyStates)]
 
@@ -431,6 +489,49 @@ const Bridge*: seq[(string, string)] = @[
   # not have; naming its origin here is the cheaper honest option. 2.5rem is
   # `--bt-space-2xl` (scale.950 = 40px).
   ("EMPTY_OVERLAY_SIDE_GAP", "var(--bt-space-2xl)"),
+  # the live panes ─────────────────────────────────────────────────────────
+  # The roles the shared Call Trace, Event Log and State sheets name, for the
+  # views the live build mounts. Tokens first (`generated/mapped.styl`), then
+  # the theme-file constants (`default_dark_theme.styl` / `defaults.styl`,
+  # which this port does not vendor), each read at its DARK value and bound by
+  # role. Several of the constants are placeholders upstream never themed
+  # (`EVENT_LOG_BUTTON_UNSELECTED_COLOR = red`, `CALLTRACE_SUMMARY_BG = #a2a`);
+  # those bind to the role the rule plays, and the comment says so.
+  ("colors-ui-surface-base-card", "var(--bt-surface-sunken)"),            # role: neutral-cold-750 -> neutral-700
+  ("colors-ui-text-primary-headings", "var(--bt-text-strong)"),           # neutral-cold-50 = neutral-50
+  ("colors-ui-text-information-primary-hover", "var(--bt-status-info-fg)"), # role: information-400
+  ("colors-ui-icon-primary-disabled", "var(--bt-text-disabled)"),         # role: a disabled menu row's icon
+  ("colors-editor-surface-select", "var(--bt-surface-selected)"),         # role: the selected row
+  ("colors-editor-action-secondary", "var(--bt-status-warning-fg)"),      # role: yellow-400, the scrubber's current mark
+  ("colors-editor-syntax-parameter", "var(--bt-syntax-string)"),          # role: dracula orange -> orange-300
+  ("CALLTRACE_TRACE_LINE_COLOR", "var(--bt-text-default)"),               # the label colour, as the light theme names it
+  ("CALLTRACE_ARGS_COLOR", "var(--bt-status-success-fg)"),                # role: green-200
+  ("CALLTRACE_RETURN_COLOR", "var(--bt-status-info-fg)"),                 # role: blue-200
+  ("CALLTRACE_NEXT_CALL_POINTER_COLOR", "var(--bt-status-warning-fg)"),   # role: orange
+  ("CALLTRACE_END_OF_PROGRAM_TEXT", "var(--bt-status-warning-fg)"),       # role: orange-200
+  ("CALLTRACE_COLLAPSED_CALL", "var(--bt-status-success-bg)"),            # role: green-800
+  ("CALLTRACE_COLOR_PREVIOUS", "var(--bt-text-link)"),                    # placeholder #00f; role: a link-blue
+  ("CALLTRACE_SUMMARY_BG", "var(--bt-surface-overlay)"),                  # placeholder #a2a; role: a raised row
+  ("EVENT_LOG_BUTTON_BACKGROUND_COLOR", "var(--bt-surface-hover)"),       # placeholder #eef; role: a control surface
+  ("EVENT_LOG_BUTTON_UNSELECTED_COLOR", "var(--bt-text-muted)"),          # placeholder `red`; role: an unselected label
+  ("DIALOG_COLOR_FG", "var(--bt-text-strong)"),                           # white -> neutral-50
+  ("DIALOG_COLOR_BG", "var(--bt-surface-canvas)"),                        # black = base-black
+  ("CURRENT_LINE_BG", "var(--bt-surface-selected)"),                      # role: the current line
+  ("BOLD_WEIGHT", "500"),                                                 # = upstream; a weight, not a colour
+  # The toggle and marker icons, as the RELATIVE paths upstream's dark theme
+  # assigns them: `rewriteUrls` then places each on BlockTracer's vendored copy,
+  # exactly as it places the url()s the sheets spell out themselves.
+  ("CALLTRACE_COLLAPSE_IMG", "\"../../public/resources/calltrace/collapse-call-calltrace-dark.svg\""),
+  ("CALLTRACE_ACTIVE_COLLAPSE_IMG", "\"../../public/resources/calltrace/collapse-active-call-calltrace-dark.svg\""),
+  ("CALLTRACE_EXPAND_IMG", "\"../../public/resources/calltrace/expand-call-calltrace-dark.svg\""),
+  ("CALLTRACE_ACTIVE_EXPAND_IMG", "\"../../public/resources/calltrace/expand-active-call-calltrace-dark.svg\""),
+  ("CALLTRACE_DOT_IMG", "\"../../public/resources/calltrace/dot-call-calltrace-dark.svg\""),
+  ("CALLTRACE_ACTIVE_DOT_IMG", "\"../../public/resources/calltrace/dot-active-call-calltrace-dark.svg\""),
+  ("CALLTRACE_EOP_IMG", "\"../../public/resources/calltrace/end-of-program-dark.svg\""),
+  ("CALLTRACE_EOP_ERROR_IMG", "\"../../public/resources/calltrace/end-of-program-error-dark.svg\""),
+  ("SHARED_OPEN_FA_ICON", "url(\"../../public/resources/shared/filesystem/filesystem_open_toggle_dark.svg\")"),
+  ("SHARED_CLOSE_FA_ICON", "url(\"../../public/resources/shared/filesystem/filesystem_close_toggle_dark.svg\")"),
+  ("HIGHLIGHT_LINE_ARROW", "url(\"../../public/resources/shared/highlight_line_arrow.svg\")"),
 ]
 
 # ── 2. the two literal aliases ─────────────────────────────────────────────
@@ -470,13 +571,16 @@ const Dropped*: seq[(string, string)] = @[
   ("@keyframes lm-tab-busy-pulse",
    "the busy-tab animation is driven by `setCalltraceTabBusy` in CodeTracer's " &
    "renderer; a static page has no panel that can become busy"),
-  ("@media (prefers-reduced-motion: reduce)",
-   "TWO rules share this key, in golden_layout.styl and shared_widgets.styl, " &
-   "and the key is the selector text so one entry drops both. In " &
-   "golden_layout its only content is the busy-tab rule above; in " &
-   "shared_widgets it is the reduced-motion arm of the dropdown reveal, whose " &
-   "keyframes are dropped below. Neither has anything left to say once the " &
-   "animation it modifies is not emitted"),
+  # Qualified by sheet: `calltrace.styl` carries the same at-rule for the
+  # call trace's loading hairline, which the live build animates, so that one
+  # is EMITTED and only these two leave the port.
+  ("golden_layout.styl: @media (prefers-reduced-motion: reduce)",
+   "its only content is the busy-tab rule above, and it has nothing left to " &
+   "say once the animation it modifies is not emitted"),
+  ("shared_widgets.styl: @media (prefers-reduced-motion: reduce)",
+   "the reduced-motion arm of the dropdown reveal, whose keyframes are " &
+   "dropped below; it has nothing left to say once the animation it " &
+   "modifies is not emitted"),
   ("@keyframes ct-dropdown-reveal",
    "the dropdown reveal animation plays when a menu OPENS; this route's " &
    "menus are `:target` links with no JavaScript to open them, so the " &

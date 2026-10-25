@@ -2,7 +2,7 @@
 //
 // flow-awkward-cases-check.mjs — what the Flow producer published for each awkward case.
 //
-//   node tools/chain/flow-awkward-cases-check.mjs --trees <dir>
+//   node tools/chain/flow-awkward-cases-check.mjs --trees <dir> [--tampered <dir>]
 //
 // <dir> holds one §5 tree per block `fixtures/chain-inputs/flow-mainnet/awkward-cases.json`
 // names, at <dir>/<height> — `.#flow-awkward-cases` builds exactly that, with the recorder
@@ -20,10 +20,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 
-const ARMS = 9;
-
 const i = process.argv.indexOf('--trees');
 const trees = i > 0 ? process.argv[i + 1] : undefined;
+const j = process.argv.indexOf('--tampered');
+const tampered = j > 0 ? process.argv[j + 1] : undefined;
+const ARMS = tampered ? 12 : 10;
 if (!trees || !existsSync(trees)) {
   console.error('flow-awkward-cases-check: --trees <dir of <height>/snapshot.json> is required');
   process.exit(2);
@@ -76,6 +77,17 @@ arm('every case is published replayed and source-level, with every effect reprod
     assert.equal(r.effects.reproduced, true, c.case);
     assert.equal(r.effects.mismatched, 0, c.case);
     assert.equal(r.recording.sourceLevel, true, c.case);
+  }
+});
+
+// Cadence locates a transaction's own script at `t.<transaction id>`, which is where the
+// chain's error positions point. A replay that rebuilt the body without its signatures
+// hashed it to another id and published the script under that name (recorder before
+// 229654b), which this arm rejects in every case tree.
+arm('every case publishes its transaction script at t.<its own id>', () => {
+  for (const c of manifest.cases) {
+    const scripts = locations(c).filter((l) => l.startsWith('t.'));
+    assert.deepEqual(scripts, [`t.${c.tx}`], c.case);
   }
 });
 
@@ -160,6 +172,35 @@ arm('control: the newer source, which hashes to the update\'s codeHash, is not w
   assert.notDeepEqual(published().bytes, newer);
 });
 
+
+// ── Source-Resolution.md §4's discard, when the build hands over a tampered tree ─────
+// `.#flow-awkward-cases` produces the updated contract's block a second time from a copy
+// of its capture whose source file was altered after the replay, so it no longer hashes
+// to the code that ran. That bundle must be discarded, never shown; the other bundles of
+// the same transaction are the code that ran and must still be shown.
+if (tampered) {
+  const tTree = (rel) => JSON.parse(readFileSync(join(tampered, String(upd.block), rel),
+                                                'utf8'));
+  const tSnap = tTree('snapshot.json');
+  const tRow = tSnap.transactions.find((r) => r.txHash === `0x${upd.tx}`);
+  const tBundles = tTree(tRow.sourceBundles).bundles;
+
+  arm('discard: a source that does not hash to the code that ran is not published, and its '
+      + 'artifact says why', () => {
+    assert.ok(!tBundles.some((b) => b.location === upd.contract));
+    const art = tRow.artifacts.find((a) => a.contractClassId === published().b.codeHash);
+    assert.equal(art.resolved, false);
+    assert.match(art.reason, /Discarded \(Source-Resolution\.md §4, no match\)/);
+    assert.equal(tRow.recording.sourceLevel, false);
+  });
+
+  arm('control: in the same run every other bundle of that transaction is still published, '
+      + 'byte-equal to the untampered tree', () => {
+    const others = bundles(upd).filter((b) => b.location !== upd.contract);
+    assert.ok(others.length > 0);
+    assert.deepEqual(tBundles, others);
+  });
+}
 if (passed + failed !== ARMS) {
   console.error(`flow-awkward-cases-check: ${passed + failed} arm(s) ran and ${ARMS} are declared`);
   process.exit(1);

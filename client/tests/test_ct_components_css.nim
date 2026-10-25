@@ -49,10 +49,25 @@ suite "the CodeTracer component port — the rules are upstream's, compiled":
     ## sheet that compiled to nothing loses its header while keeping its row,
     ## and a header with no sheet behind it loses its row while keeping its
     ## header — and neither direction needs a number anybody maintains.
+    ##
+    ## A DEFINITIONS-ONLY source (`StylSource.definitionsOnly`) is the other
+    ## side of the same claim: it has a header only when it names rules it
+    ## emits (`emitOnly`), and otherwise none, because only its mixins and
+    ## constants are in scope. A header for one with no `emitOnly` would mean
+    ## the Monaco editor's rules were being served.
     let sources = vendoredSources()
     let headers = codetracerComponentCss.count(
       "ported verbatim from CodeTracer ")
-    check headers == sources.len
+    var emitting = 0
+    proc emits(src: StylSource): bool =
+      not src.definitionsOnly or src.emitOnly.len > 0
+    for src in sources:
+      if emits(src): inc emitting
+    check headers == emitting
+    var definitionsOnly = 0
+    for src in sources:
+      if src.definitionsOnly: inc definitionsOnly
+    check definitionsOnly > 0
     # …and a floor, so the equality cannot be satisfied by both sides
     # collapsing to zero. Four, which is well under the six this port landed
     # with (`40db9e8`) and the eight it carries now: a floor exists to refuse
@@ -62,8 +77,8 @@ suite "the CodeTracer component port — the rules are upstream's, compiled":
     for src in sources:
       check src.origin.startsWith("src/frontend/styles/components/")
       check src.text.len > 0
-      check ("ported verbatim from CodeTracer " & src.origin) in
-            codetracerComponentCss
+      check (("ported verbatim from CodeTracer " & src.origin) in
+             codetracerComponentCss) == emits(src)
 
   test "the port emits a substantial stylesheet, not a handful of rules":
     ## A floor, not an exact count — an exact count is a number somebody
@@ -83,6 +98,10 @@ suite "the CodeTracer component port — the rules are upstream's, compiled":
     var unscoped: seq[string]
     for line in codetracerComponentCss.splitLines:
       if line.len == 0 or line.startsWith("/*"): continue
+      # An at-rule's own line is not a selector list: `@keyframes` is one
+      # whole rule whose stops are not selectors, and `@media` opens a block
+      # whose rules are the following lines, each checked here as usual.
+      if line.startsWith("@keyframes ") or line.startsWith("@media "): continue
       let brace = line.find('{')
       if brace < 0: continue
       for sel in line[0 ..< brace].split(','):
@@ -173,7 +192,12 @@ suite "the CodeTracer component port — the rules are upstream's, compiled":
       check d.startsWith("src/frontend/styles/components/")
       # `origin:line  <text> — <reason>`; the text is what is matched.
       let body = d[d.find("  ") + 2 ..< d.find(" — ")]
-      if body in usage:
+      # A key may name its sheet (`StylPort.dropRules`): `<file>.styl: <text>`.
+      let sheet = d[0 ..< d.find(':')].rsplit('/', 1)[^1]
+      let qualified = sheet & ": " & body
+      if qualified in usage:
+        inc usage[qualified]
+      elif body in usage:
         inc usage[body]
       else:
         # The only other way out is a build condition, which names its own
@@ -283,13 +307,53 @@ suite "the Stylus subset — what it refuses, and why that matters":
     port.literalAliases = initOrderedTable[string, string]()
     port.dropRules = initOrderedTable[string, string]()
 
-    for bad in ["@media (min-width: 10px)\n  .x\n    color: red\n",
+    for bad in ["@supports (display: grid)\n  .x\n    color: red\n",
                 ".x\n  some-mixin(1px)\n",
-                "@keyframes spin\n  0%\n    opacity: 1\n"]:
+                "@font-face\n  font-family: x\n",
+                ".x\n  background: linear-gradient(\n    90deg,\n"]:
       var rep = StylReport()
       expect StylError:
         discard transpile(@[StylSource(origin: "probe.styl", text: bad)],
                           port, rep)
+
+  test "the widened subset — keyframes, media, by-mode and a split value":
+    ## Each of the four constructs the live panes' sheets brought, in the shape
+    ## the port must emit: a `@keyframes` is one UNSCOPED rule (a stop is not a
+    ## selector and an animation name is global); a `@media`'s rules are scoped
+    ## like any other; `by-mode(dark, light)` keeps the arm that names a role,
+    ## preferring the dark one; a value split over lines is one declaration.
+    var port: StylPort
+    port.bridge = initOrderedTable[string, string]()
+    port.bridge["role-a"] = "var(--bt-text-default)"
+    port.bridge["role-b"] = "var(--bt-text-muted)"
+    port.literalAliases = initOrderedTable[string, string]()
+    port.dropRules = initOrderedTable[string, string]()
+    let src = """
+@keyframes sweep
+  0%
+    opacity: 0.1
+  100%
+    opacity: 0.5
+@media (prefers-reduced-motion: reduce)
+  .x
+    animation: none
+.y
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    role-a 50%)
+  color: by-mode(rgba(255, 255, 255, 0.2), role-b)
+  border-color: by-mode(role-a, role-b)
+"""
+    var rep = StylReport()
+    let css = scoped(transpile(@[StylSource(origin: "probe.styl", text: src)],
+                               port, rep), "[s]")
+    check "@keyframes sweep{0%{opacity:0.1;}100%{opacity:0.5;}}" in css
+    check "@media (prefers-reduced-motion: reduce){\n[s] .x{animation:none;}\n}" in css
+    check "background:linear-gradient(90deg, transparent 0%, var(--bt-text-default) 50%);" in css
+    check "color:var(--bt-text-muted);" in css            # the raw dark arm loses to a role
+    check "border-color:var(--bt-text-default);" in css   # both roles: the dark arm
+    check rep.unresolved.len == 0
 
   test "a dropped rule takes its whole subtree, and says so":
     var port: StylPort
@@ -365,8 +429,10 @@ suite "url() — the nine icons that shipped as 404s":
         echo "  unplaced url: ", payload
       i = close + 1
     check relatives == 0
-    # Nine: the exact set that published broken before this change.
-    check placed == 9
+    # At least one placement per vendored icon: the nine that published broken
+    # before this change, and the eleven the live panes brought (one of them,
+    # the active call dot, is named by two rules).
+    check placed >= 20
 
   test "every placed url names a row of the vendored-icon table":
     ## The two halves have to agree: `ctIconUrls()` is what the port was built
@@ -376,7 +442,7 @@ suite "url() — the nine icons that shipped as 404s":
       var s: seq[string] = @[]
       for _, url in ctIconUrls().pairs: s.add url
       s
-    check published.len == 9
+    check published.len == 20
     for url in published:
       check url.startsWith("data:image/svg+xml;base64,")
       check ("url(\"" & url & "\")") in debugRouteCss

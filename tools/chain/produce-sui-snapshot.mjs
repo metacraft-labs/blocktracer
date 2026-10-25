@@ -57,10 +57,19 @@ import {
 } from './lib/producer-runtime.mjs';
 import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL,
-  POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY, RECORDER,
-  costVectorForRow, executionsForRow, payloadForRow, rolesForRow,
+  POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY, RECORDER, VERIFICATION,
+  costVectorForRow, executionsForRow, payloadForRow, reachReasonFor, rolesForRow,
 } from './lib/sui-producer-facts.mjs';
 import { inputVersionsOf } from './lib/sui-graphql.mjs';
+
+/** The committed endpoint-horizon reading's deepest served checkpoint, or null. */
+function horizonDeepestServed() {
+  try {
+    const here = fileURLToPath(new URL('.', import.meta.url));
+    const r = JSON.parse(readFileSync(join(here, 'measurements', 'sui-endpoint-horizon.json'), 'utf8'));
+    return Number.isInteger(r.deepestServed) ? r.deepestServed : null;
+  } catch { return null; }
+}
 
 const run = promisify(execFile);
 const HERE = 'tools/chain/produce-sui-snapshot.mjs';
@@ -498,6 +507,8 @@ async function main(argv) {
       tool: HERE,
       runtimeCommit: recorderCommit,
       tracedFloor: floor,
+      reachReason: reachReasonFor(floor.checkpoint, horizonDeepestServed()),
+      verification: VERIFICATION,
       containerVersion: anchor?.c.version ?? null,
       containerFlags: anchor?.c.flags ?? null,
     },

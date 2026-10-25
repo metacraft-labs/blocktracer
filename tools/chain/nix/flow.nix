@@ -192,6 +192,8 @@ let
     casesManifest.cases;
   caseBlocks = lib.unique (map (r: toString r.block) caseRefs);
   onlyFor = b: lib.unique (map (r: r.tx) (lib.filter (r: toString r.block == b) caseRefs));
+  upd = lib.findFirst (c: c.case == "contract-updated-after")
+    (throw "awkward-cases.json names no contract-updated-after case") casesManifest.cases;
 
   casesSrc = lib.fileset.toSource {
     root = blocktracerRoot;
@@ -215,10 +217,21 @@ let
         --recorder ${flowRecorder}/bin/codetracer-flow-recorder \
         --helper ${replayHelper}/bin/cadence-replay-helper \
         --recorder-commit ${recorderRev} \
-        --inputs ${casesDir}/${b} --out $TMPDIR/trees/${b} --work $TMPDIR/work \
+        --inputs ${casesDir}/${b} --out $TMPDIR/trees/${b} --work $TMPDIR/work-${b} \
         ${lib.concatMapStringsSep " " (t: "--only ${t}") (onlyFor b)}
     '') caseBlocks + ''
-      node tools/chain/flow-awkward-cases-check.mjs --trees $TMPDIR/trees
+      # Source-Resolution.md §4's discard, exercised: the updated contract's capture
+      # again, with its source file altered so it no longer hashes to the code that
+      # ran. The producer must leave that bundle out and keep the others.
+      cp -r $TMPDIR/work-${toString upd.block}/${upd.tx} $TMPDIR/tamper
+      printf '\n// not the code that ran\n' >> $TMPDIR/tamper/sources/${upd.contract}.cdc
+      node tools/chain/produce-flow-snapshot.mjs \
+        --block ${casesDir}/${toString upd.block}/block.json \
+        --floor-probe ${casesDir}/${toString upd.block}/floor-probe.json \
+        --inputs ${casesDir}/${toString upd.block} --capture $TMPDIR/tamper \
+        --recorder-commit ${recorderRev} --out $TMPDIR/tampered/${toString upd.block}
+      node tools/chain/flow-awkward-cases-check.mjs --trees $TMPDIR/trees \
+        --tampered $TMPDIR/tampered
       runHook postBuild
     '';
     installPhase = ''

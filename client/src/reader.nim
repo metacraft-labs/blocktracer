@@ -453,6 +453,12 @@ type
       ## references are addressed by where you look for it"). Carrying the hash
       ## on the row is what lets the link be built without a second read of the
       ## generation's height map per row.
+    orderLabel*: string
+      ## The row's ordering coordinate spelled the chain's own way
+      ## (`entities.orderLabel`): `height:index` for a block chain, the
+      ## checkpoint sequence number for a checkpoint chain. What the Block
+      ## column prints when there is no block to link, instead of a `0:0`
+      ## made of the zero height and index a checkpoint row does not have.
     fromAddr*: string
     toTarget*: string
     methodSel*: string
@@ -1071,7 +1077,7 @@ proc txRow*(r: DataRoot, info: ChainInfo, hash: string): TxRow =
   let v = txView(r, info, hash)
   result = TxRow(
     hash: hash, height: v.height, index: v.index, blockHash: v.blockHash,
-    outcome: v.outcome, outcomeReason: v.outcomeReason, cost: v.cost,
+    orderLabel: v.orderLabel, outcome: v.outcome, outcomeReason: v.outcomeReason, cost: v.cost,
     methodSel: v.payloadSelector, toTarget: v.payloadTarget,
     availability: v.headline, sources: v.sources)
   result.refusalReason = headlineRefusal(v)
@@ -1397,11 +1403,25 @@ proc tour*(r: DataRoot, info: ChainInfo): seq[TourRow] =
 # ── address history: block-range segments, never ordinal pages (§2.2) ──────
 
 type
+  UntracedEntry* = object
+    ## One transaction the CHAIN recorded for this address below the window,
+    ## which this tree holds no container for (§5.2 `addressHistory`).
+    txHash*: string
+    blockNumber*: int
+    timestamp*: int     ## 0 when the chain recorded none
+    failed*: bool
+
   AddressSegmentRow* = object
     ## One immutable block-range page of an address's history.
     path*: string
     fromBlock*, toBlock*: int
     transactions*: seq[string]
+    untraced*: seq[UntracedEntry]
+      ## The chain's own history below the window, on the oldest segment only.
+      ## Empty on every other segment and on every chain whose producer
+      ## carries none.
+    complete*: bool     ## on an untraced segment: nothing older exists
+    limit*: int         ## on an untraced segment: how many entries were asked for
     loaded*: bool
       ## `false` when the generation listed the segment and the object did not
       ## resolve. The row is still returned: dropping it would make the page
@@ -1466,6 +1486,14 @@ proc readAddressSegment*(info: ChainInfo, path: string): AddressSegmentRow =
   if res.node.hasKey("transactions") and res.node["transactions"].kind == JArray:
     for t in res.node["transactions"]:
       if t.kind == JString: result.transactions.add t.getStr
+  if res.node.hasKey("untraced") and res.node["untraced"].kind == JArray:
+    for e in res.node["untraced"]:
+      if e.kind != JObject or e{"txHash"}.getStr.len == 0: continue
+      result.untraced.add UntracedEntry(txHash: e{"txHash"}.getStr,
+        blockNumber: e{"blockNumber"}.getInt, timestamp: e{"timestamp"}.getInt,
+        failed: e{"failed"}.getBool)
+    result.complete = res.node{"complete"}.getBool
+    result.limit = res.node{"limit"}.getInt
 
 func segmentIdOf*(path: string): string =
   ## The cursor a segment's published PATH carries, read out of the path rather

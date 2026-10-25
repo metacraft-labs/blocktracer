@@ -63,7 +63,7 @@
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "agents",
-  "commit": "0d1325584b9e7c77d13bbb766077e3418395fe94",
+  "commit": "aca163924c79d9f1219ccd3c585f82f123842a27",
   "files": [
     {
       "path": "src/frontend/viewmodel/viewmodels/flow_layout.nim",

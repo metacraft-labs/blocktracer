@@ -1,6 +1,6 @@
 # CodeTracer icons, vendored
 
-These nine SVGs are **vendored byte-verbatim from CodeTracer**. Nobody here
+These twenty SVGs are **vendored byte-verbatim from CodeTracer**. Nobody here
 drew them, and nobody here may edit them: they are the icons the vendored
 Stylus component sheets under
 `client/src/debugger/vendor/frontend/styles/components/` reference by name, and
@@ -20,6 +20,17 @@ that BlockTracer *serves CodeTracer's sheets* rather than paraphrasing them.
 | `src/public/resources/origin-icons/sigma.svg` | `origin-icons/sigma.svg` |
 | `src/public/resources/shared/history_value_view_toggle_dark.svg` | `shared/history_value_view_toggle_dark.svg` |
 | `src/public/resources/shared/noir_logo_dark_theme.svg` | `shared/noir_logo_dark_theme.svg` |
+| `src/public/resources/calltrace/{collapse,collapse-active,expand,expand-active,dot,dot-active}-call-calltrace-dark.svg` | `calltrace/…` (six files) |
+| `src/public/resources/calltrace/end-of-program-dark.svg`, `end-of-program-error-dark.svg` | `calltrace/…` |
+| `src/public/resources/shared/filesystem/filesystem_{open,close}_toggle_dark.svg` | `shared/filesystem/…` |
+| `src/public/resources/shared/highlight_line_arrow.svg` | `shared/highlight_line_arrow.svg` |
+
+The last eleven are the live panes' icons (Shared-DOM-Front-Ends Q6): the call
+trace's toggles and markers and the State pane's toggles and current-line
+arrow, at the dark-theme names `ct_components_css.Bridge` assigns. They were
+copied from CodeTracer **`aca163924c79d9f1219ccd3c585f82f123842a27`**, the pin
+at the time, and on 2026-10-24 all twenty files were checked byte-identical to
+that commit (`git cat-file -p aca163924:src/public/resources/<path> | sha256sum`).
 
 Copied at CodeTracer commit **`af70456c981ea8e3c8de2534cdee16eca5550efd`** —
 the SAME commit `client/src/debugger/vendor/ct_styles.vendor.json` and

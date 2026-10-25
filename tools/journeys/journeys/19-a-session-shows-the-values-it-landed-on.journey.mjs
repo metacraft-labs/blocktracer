@@ -117,19 +117,43 @@ const READ = () => {
   // The call-ORDER view only. The aggregate view is a `:target` alternate whose
   // rows are functions rather than frames, and counting the class alone would
   // count one pane's rows twice in two different meanings (journey 14).
-  const ct = all(".ctview.def .ctrow").filter(shown);
-  const st = all("#pane-state .strow").filter(shown);
+  //
+  // ONCE LIVE, THE ROWS ARE THE SHARED VIEWS' (Shared-DOM-Front-Ends Q6,
+  // `hydrate.mountSharedPanes`): call-trace rows `.calltrace-call-line` naming
+  // the function in `data-function`, value rows `.value-expanded` with
+  // `.value-name` / `.value-expanded-text` / `.value-type`. The pane's sentence
+  // is then BlockTracer's caption above the view (`.livecap .stcap`, where
+  // "Reading the values at this position…" is written), or the view's own
+  // empty state when it is VISIBLE — the view keeps that overlay in the DOM,
+  // hidden, while it has rows.
+  const sharedCt = document.querySelector(".isonim-calltrace");
+  const sharedSt = document.querySelector("#pane-state .isonim-state");
+  const ct = sharedCt
+    ? all(".isonim-calltrace .calltrace-call-line").filter(shown)
+    : all(".ctview.def .ctrow").filter(shown);
+  const st = sharedSt
+    ? all("#pane-state .isonim-state .value-expanded").filter(shown)
+    : all("#pane-state .strow").filter(shown);
+  const caption = document.querySelector("#pane-state .livecap .stcap")?.textContent?.trim() ?? "";
+  const overlay = all("#pane-state .empty-overlay").find(shown)?.textContent?.trim() ?? "";
   return {
     step: document.querySelector(".dbg")?.getAttribute("data-step") ?? null,
     calltraceRows: ct.length,
-    calltraceNames: ct.map((r) => r.querySelector(".ctname")?.textContent ?? ""),
+    calltraceNames: ct.map((r) =>
+      sharedCt ? r.getAttribute("data-function") ?? "" : r.querySelector(".ctname")?.textContent ?? ""),
     valueRows: st.length,
-    valueCells: st.map((r) => ({
-      name: r.querySelector(".stname")?.textContent?.trim() ?? "",
-      value: r.querySelector(".stval")?.textContent?.trim() ?? "",
-      type: r.querySelector(".sttype")?.textContent?.trim() ?? "",
-    })),
-    note: document.querySelector("#pane-state .empty-overlay")?.textContent?.trim() ?? "",
+    valueCells: st.map((r) => sharedSt
+      ? {
+          name: r.querySelector(".value-name")?.textContent?.trim() ?? "",
+          value: r.querySelector(".value-expanded-text")?.textContent?.trim() ?? "",
+          type: r.querySelector(".value-type")?.textContent?.trim() ?? "",
+        }
+      : {
+          name: r.querySelector(".stname")?.textContent?.trim() ?? "",
+          value: r.querySelector(".stval")?.textContent?.trim() ?? "",
+          type: r.querySelector(".sttype")?.textContent?.trim() ?? "",
+        }),
+    note: sharedSt ? (caption || (st.length === 0 ? overlay : "")) : overlay,
   };
 };
 

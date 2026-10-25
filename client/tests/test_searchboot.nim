@@ -532,6 +532,63 @@ suite "the index path still works, and is unchanged by the encoding":
     ck a46Probes.len == 1
     ck a46Probes[0].encodings == @["hex", "ss58"]
 
+suite "a Flow account address resolves through the index, on the one chain that holds it":
+  # Recorder-Flow CXP-FLOW-6, `test_a_flow_address_dispatches_a_flow_lookup`. §2's
+  # Cadence row (`0x` + 16 hex) sits inside the Starknet felt row on purpose, so the
+  # string is well-formed on both chains and both readings are carried; §2 then says
+  # "exactly one answers". The direct path builds no address candidate
+  # (`candidatesFor`), so an address is found through the §5 index or not at all.
+  # The address is block 168,391,034's fee payer, published at
+  # `/flow-mainnet/address/0x18eb4ee6b3c026d2/` on staging; the run of journey 28
+  # over that build lands there.
+  const FlowAddr = "0x18eb4ee6b3c026d2"
+  # A constructed Starknet felt in the SAME shard (`18`), so the scan does reach it,
+  # that does NOT begin with the Flow address's payload.
+  const StarknetAddr = "0x18a5e8e44e3ac84e1d0d8f38e2dcff1b0a3b4ad2c2a4f1c8d3e8b9b0f2c1d7e"
+
+  test "the query is read as a felt too, and the one index shard answers for Flow alone":
+    let shapes = shapesOf(FlowAddr)
+    ck qsHexShort in shapes                         # the felt reading is carried
+    ck isHashLike(shapes)
+    ck candidatesFor(canonicalHash(FlowAddr), parseChainRefs(
+      "flow-mainnet:hex:hex,starknet-mainnet:hex:hex")).len == 4
+    # …and none of those four is an address: the direct path cannot find one.
+    for c in candidatesFor(canonicalHash(FlowAddr), parseChainRefs(
+        "flow-mainnet:hex:hex,starknet-mainnet:hex:hex")):
+      ck c.kind in ["transaction", "block"]
+    let probes = indexProbesOf(FlowAddr)
+    ck probes.len == 1                              # one hex payload, one shard
+    let plan = parseMeta("2|2|18").indexPlanFor(probes)
+    ck plan.requests.len == 1
+    ck plan.requests[0].path == "/idx/hash/2/18.bin"
+    let shard = encodeHashShard(@[
+      HashEntry(encoding: "hex", identifier: FlowAddr, chain: "flow-mainnet",
+                kind: hkAddress),
+      HashEntry(encoding: "hex", identifier: StarknetAddr, chain: "starknet-mainnet",
+                kind: hkAddress)], 2)
+    let hits = hitsFor(shard, plan.requests[0].readings[0].encodings,
+                       plan.requests[0].readings[0].payload)
+    # EXACTLY ONE ANSWERS, and one hit navigates (§8).
+    ck hits.len == 1
+    ck hits[0].chain == "flow-mainnet"
+    ck hits[0].kind == hkAddress
+    ck hits[0].route.startsWith("/flow-mainnet/address/" & FlowAddr)
+
+  test "control: a Starknet felt that DOES begin with the address is a second answer":
+    # So the single answer above is the index's, not a scan that can only ever
+    # return one: when another chain really holds an identifier with this prefix,
+    # both claims come back and the page disambiguates instead of navigating.
+    const Colliding = FlowAddr & "00000000000000000000000000000000000000000000000"
+    let shard = encodeHashShard(@[
+      HashEntry(encoding: "hex", identifier: FlowAddr, chain: "flow-mainnet",
+                kind: hkAddress),
+      HashEntry(encoding: "hex", identifier: Colliding, chain: "starknet-mainnet",
+                kind: hkAddress)], 2)
+    let p = indexProbesOf(FlowAddr)[0]
+    let hits = hitsFor(shard, p.encodings, p.payload)
+    ck hits.len == 2
+    ck "starknet-mainnet" in [hits[0].chain, hits[1].chain]
+
 echo "assertion count: ", asserted
-doAssert asserted == 148,
-  "assertion count is " & $asserted & ", expected 148 — a case was added or removed."
+doAssert asserted == 164,
+  "assertion count is " & $asserted & ", expected 164 — a case was added or removed."

@@ -1,0 +1,294 @@
+{
+  "format": "blocktracer/flow-floor-census@1",
+  "measuredAt": "2026-10-23T16:47:21Z",
+  "sporksList": "https://raw.githubusercontent.com/onflow/flow/master/sporks.json",
+  "helper": "cadence-replay-helper-0.1.0",
+  "chainFloor": 130290659,
+  "liveRetention": 137390146,
+  "sporks": [
+    {
+      "spork": "mainnet28",
+      "rootHeight": 137390146,
+      "live": true,
+      "node": "access.mainnet.nodes.onflow.org:9000",
+      "resolves": true,
+      "probe": {
+        "verdict": "floor: served at the floor, refused out-of-range one block below",
+        "floor": 137390146,
+        "sealedTip": 168737654,
+        "nodeVersion": "v0.51.1",
+        "measuredAt": "2026-10-23T16:47:14Z"
+      }
+    },
+    {
+      "spork": "mainnet27",
+      "rootHeight": 130290659,
+      "live": false,
+      "node": "access-001.mainnet27.nodes.onflow.org:9000",
+      "resolves": true,
+      "probe": {
+        "verdict": "floor: served at the floor, refused out-of-range one block below",
+        "floor": 130290659,
+        "sealedTip": 137390145,
+        "nodeVersion": "v0.44.1-rc.1",
+        "measuredAt": "2026-10-23T16:47:15Z"
+      }
+    },
+    {
+      "spork": "mainnet26",
+      "rootHeight": 88226267,
+      "live": false,
+      "node": "access-001.mainnet26.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet25",
+      "rootHeight": 85981135,
+      "live": false,
+      "node": "access-001.mainnet25.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet24",
+      "rootHeight": 65264619,
+      "live": false,
+      "node": "access-001.mainnet24.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet23",
+      "rootHeight": 55114467,
+      "live": false,
+      "node": "access-001.mainnet23.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet22",
+      "rootHeight": 47169687,
+      "live": false,
+      "node": "access-001.mainnet22.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet21",
+      "rootHeight": 44950207,
+      "live": false,
+      "node": "access-001.mainnet21.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet20",
+      "rootHeight": 40171634,
+      "live": false,
+      "node": "access-001.mainnet20.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet19",
+      "rootHeight": 35858811,
+      "live": false,
+      "node": "access-001.mainnet19.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet18",
+      "rootHeight": 31735955,
+      "live": false,
+      "node": "access-001.mainnet18.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet17",
+      "rootHeight": 27341470,
+      "live": false,
+      "node": "access-001.mainnet17.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet16",
+      "rootHeight": 23830813,
+      "live": false,
+      "node": "access-001.mainnet16.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet15",
+      "rootHeight": 21291692,
+      "live": false,
+      "node": "access-001.mainnet15.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet14",
+      "rootHeight": 19050753,
+      "live": false,
+      "node": "access-001.mainnet14.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet13",
+      "rootHeight": 18587478,
+      "live": false,
+      "node": "access-001.mainnet13.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet12",
+      "rootHeight": 17544523,
+      "live": false,
+      "node": "access-001.mainnet12.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet11",
+      "rootHeight": 16755602,
+      "live": false,
+      "node": "access-001.mainnet11.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet10",
+      "rootHeight": 15791891,
+      "live": false,
+      "node": "access-001.mainnet10.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet9",
+      "rootHeight": 14892104,
+      "live": false,
+      "node": "access-001.mainnet9.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet8",
+      "rootHeight": 13950742,
+      "live": false,
+      "node": "access-001.mainnet8.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet7",
+      "rootHeight": 13404174,
+      "live": false,
+      "node": "access-001.mainnet7.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet6",
+      "rootHeight": 12609237,
+      "live": false,
+      "node": "access-001.mainnet6.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet5",
+      "rootHeight": 12020337,
+      "live": false,
+      "node": "access-001.mainnet5.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet4",
+      "rootHeight": 9992020,
+      "live": false,
+      "node": "access-001.mainnet4.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet3",
+      "rootHeight": 9737133,
+      "live": false,
+      "node": "access-001.mainnet3.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet2",
+      "rootHeight": 8742959,
+      "live": false,
+      "node": "access-001.mainnet2.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "mainnet1",
+      "rootHeight": 7601063,
+      "live": false,
+      "node": "access-001.mainnet1.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "candidate9",
+      "rootHeight": 6483246,
+      "live": false,
+      "node": "access-001.candidate9.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "candidate8",
+      "rootHeight": 4972987,
+      "live": false,
+      "node": "access-001.candidate8.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "candidate7",
+      "rootHeight": 4132133,
+      "live": false,
+      "node": "access-001.candidate7.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "candidate6",
+      "rootHeight": 3187931,
+      "live": false,
+      "node": "access-001.candidate6.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "candidate5",
+      "rootHeight": 2033592,
+      "live": false,
+      "node": "access-001.candidate5.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    },
+    {
+      "spork": "candidate4",
+      "rootHeight": 1065711,
+      "live": false,
+      "node": "access-001.candidate4.nodes.onflow.org:9000",
+      "resolves": false,
+      "dns": "ENOTFOUND"
+    }
+  ]
+}
