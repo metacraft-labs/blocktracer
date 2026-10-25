@@ -1,0 +1,60 @@
+{
+ "format": "blocktracer/eth-source-steps@1",
+ "_comment": [
+  "THE SHARE OF EACH TRACED TRANSACTION'S EXECUTED STEPS THAT HAS BACKING SOURCE, the",
+  "per-transaction source-level figure the operator chose for CXP-EVM-5 on 2026-10-23.",
+  "A step is backed when it resolved to a line of source the recorder recompiled from",
+  "Sourcify and checked against the deployed code (any §1.2a rung: an optimized contract's",
+  "lines count). Every transaction of the six pinned windows with an execution, recorded with",
+  "Sourcify on, no lookup cap, and the 77 verified solc releases that have static Linux",
+  "builds on PATH (8 older or nightly releases have none, so their contracts are unbacked)."
+ ],
+ "measuredAt": "2026-10-25T04:14:30.998Z",
+ "chain": "sepolia",
+ "recorder": "metacraft-labs/codetracer-evm-recorder dc516fd",
+ "total": {
+  "transactions": 367,
+  "steps": 7898248,
+  "onSource": 5039069,
+  "onListing": 1503180,
+  "onNoLine": 1355999,
+  "aggregateSourceShare": 63.8,
+  "meanPerTransaction": 44.1,
+  "medianPerTransaction": 51.2,
+  "transactionsAllSource": 5,
+  "transactionsAtLeastHalf": 186,
+  "transactionsNoSource": 75
+ },
+ "windows": [
+  {
+   "from": 6000000,
+   "to": 6000001,
+   "transactions": 170,
+   "steps": 1459837,
+   "onSource": 857937,
+   "onListing": 517906,
+   "onNoLine": 83994,
+   "aggregateSourceShare": 58.8,
+   "meanPerTransaction": 49.8,
+   "medianPerTransaction": 54.9,
+   "transactionsAllSource": 5,
+   "transactionsAtLeastHalf": 111,
+   "transactionsNoSource": 25
+  },
+  {
+   "from": 9000000,
+   "to": 9000001,
+   "transactions": 197,
+   "steps": 6438411,
+   "onSource": 4181132,
+   "onListing": 985274,
+   "onNoLine": 1272005,
+   "aggregateSourceShare": 64.9,
+   "meanPerTransaction": 39.2,
+   "medianPerTransaction": 32.2,
+   "transactionsAllSource": 0,
+   "transactionsAtLeastHalf": 75,
+   "transactionsNoSource": 50
+  }
+ ]
+}
