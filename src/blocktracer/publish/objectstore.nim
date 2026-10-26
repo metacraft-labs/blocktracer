@@ -107,6 +107,38 @@ method exists*(s: ObjectStore, key: string): bool {.base.} =
 method get*(s: ObjectStore, key: string): tuple[data: string, ok: bool] {.base.} =
   raise newException(CatchableError, "ObjectStore.get not implemented")
 
+type
+  FetchOutcome* = enum
+    ## ── WHY `get`'s BOOLEAN IS NOT ENOUGH, AND WHAT IT COST ────────────────
+    ##
+    ## `get` answers "did I come back with bytes", which folds two states that
+    ## are opposites into one `false`: THE STORE SAID IT IS NOT THERE, and THE
+    ## STORE DID NOT ANSWER. For most keys that fold is harmless — the caller
+    ## retries or gives up either way.
+    ##
+    ## For `d/{chain}/current.json` it is not harmless, it is history loss, and
+    ## it has happened. On 2026-10-14, run 38524448139 read the pointer of a
+    ## chain holding 102,690 blocks, logged `resumed-from generation: (none)`,
+    ## and published a fresh generation `1` built from the ~560-object fixture
+    ## tree over the top of it. Nothing was deleted — both generations are
+    ## still in the bucket — but the pointer stopped naming the full one, so
+    ## the site serves the fixture. `readSyncState` had turned one unreadable
+    ## read into `present: false`, and `present: false` is the publisher's
+    ## word for "first go-live, there is nothing to resume from".
+    ##
+    ## A publisher is allowed to not know. It is not allowed to call not
+    ## knowing an empty store. So the distinction gets a type, and the one
+    ## caller for whom it decides whether a chain keeps its history reads it.
+    foFound        ## the store answered and these are the bytes
+    foAbsent       ## the store answered, and the key is NOT THERE
+    foUnreadable   ## the store did not answer — NOTHING is known about the key
+
+method fetch*(s: ObjectStore, key: string): tuple[data: string, outcome: FetchOutcome] {.base.} =
+  ## `get` with the two meanings of its `false` kept apart. A backend that
+  ## cannot tell them apart must say so by not implementing this, rather than
+  ## by guessing — which is what the base method's raise is for.
+  raise newException(CatchableError, "ObjectStore.fetch not implemented")
+
 method put*(s: ObjectStore, key, data: string) {.base.} =
   raise newException(CatchableError, "ObjectStore.put not implemented")
 
@@ -156,6 +188,18 @@ method get*(s: LocalObjectStore, key: string): tuple[data: string, ok: bool] =
   let p = s.pathOf(key)
   if not fileExists(p): return ("", false)
   (readFile(p), true)
+
+method fetch*(s: LocalObjectStore, key: string): tuple[data: string, outcome: FetchOutcome] =
+  ## A directory can answer the question directly: the path is there or it is
+  ## not, and a `readFile` that throws over a path that EXISTS is the third
+  ## state — a permission, a device error, a file being written — never
+  ## absence.
+  let p = s.pathOf(key)
+  if not fileExists(p): return ("", foAbsent)
+  try:
+    (readFile(p), foFound)
+  except CatchableError:
+    ("", foUnreadable)
 
 method put*(s: LocalObjectStore, key, data: string) =
   ## Atomic replace: write a sibling temp then rename over the target, so a reader
@@ -319,6 +363,27 @@ proc isPreconditionFailure*(outp: string): bool =
   ## rather than a word that also appears in prose about preconditions.
   "(PreconditionFailed)" in outp or "HTTP 412" in outp
 
+proc isNotFound*(outp: string): bool =
+  ## Did a call fail BECAUSE THE KEY IS NOT THERE — as opposed to failing for
+  ## any of the reasons that leave the key's existence unknown?
+  ##
+  ## Anchored exactly the way `isPreconditionFailure` above is, and for the
+  ## same reason: this runs over a MERGED stdout+stderr string carrying the
+  ## CLI's whole diagnostic, including the hex `RequestId`/`HostId` pair, in
+  ## which a bare `404` turns up by chance. Both spellings matched are the
+  ## error CODE in parentheses, which a hex identifier cannot produce:
+  ##
+  ##   AWS CLI v2   `An error occurred (404) when calling the HeadObject
+  ##                operation: Not Found`
+  ##   R2 / others  `An error occurred (NoSuchKey) when calling the GetObject
+  ##                operation: The specified key does not exist.`
+  ##
+  ## The prose halves ("Not Found", "does not exist") are deliberately NOT
+  ## matched: they appear in sentences about other failures too, and a false
+  ## positive here is the one this module's `FetchOutcome` exists to prevent —
+  ## a throttle or a credential error read as an empty chain.
+  "(404)" in outp or "(NoSuchKey)" in outp
+
 method exists*(s: S3ObjectStore, key: string): bool =
   let (_, code) = s.run(@["s3api", "head-object", "--bucket", s.bucket,
     "--key", s.fullKey(key)] & s.endpointArgs())
@@ -329,6 +394,33 @@ method get*(s: S3ObjectStore, key: string): tuple[data: string, ok: bool] =
     "s3://" & s.bucket & "/" & s.fullKey(key), "-"] & s.endpointArgs())
   if code != 0: return ("", false)
   (outp, true)
+
+method fetch*(s: S3ObjectStore, key: string): tuple[data: string, outcome: FetchOutcome] =
+  ## TWO CALLS ON THE FAILING PATH, AND ONLY ON THE FAILING PATH.
+  ##
+  ## The transfer itself has to go through `runBytes`, which keeps stderr OUT
+  ## of stdout — its own header says why, and splicing a CLI progress line
+  ## into a `trace.ct` is not a trade worth making for a diagnostic. So when
+  ## the transfer fails there is nothing to read but an exit code, and an exit
+  ## code is precisely the signal that cannot tell 404 from throttled.
+  ##
+  ## `head-object` can: it goes through `run`, whose `poStdErrToStdOut` keeps
+  ## the diagnostic. It is asked only after a failure, so the ordinary read
+  ## costs exactly what it did before.
+  ##
+  ## Note the order of the answers. A `head-object` that SUCCEEDS over a key
+  ## whose GET just failed is the clearest `foUnreadable` there is: the object
+  ## is demonstrably there and we still did not get it. Only a head-object
+  ## that failed with the key's own absence is `foAbsent`; anything else —
+  ## a 503, a credential, a network — leaves the key unknown.
+  let (outp, code) = s.runBytes(@["s3", "cp",
+    "s3://" & s.bucket & "/" & s.fullKey(key), "-"] & s.endpointArgs())
+  if code == 0: return (outp, foFound)
+  let (head, headCode) = s.run(@["s3api", "head-object", "--bucket", s.bucket,
+    "--key", s.fullKey(key)] & s.endpointArgs())
+  if headCode == 0: return ("", foUnreadable)
+  if isNotFound(head): return ("", foAbsent)
+  ("", foUnreadable)
 
 method put*(s: S3ObjectStore, key, data: string) =
   let (outp, code) = s.run(@["s3", "cp", "-",

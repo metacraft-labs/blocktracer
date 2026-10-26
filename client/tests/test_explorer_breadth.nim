@@ -694,7 +694,10 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
     # asset the file names, and restores the default afterwards.
     let exported = readFile(dist / "404.html")
     let hrefAt = exported.find("href=\"/_a/")
-    check hrefAt >= 0
+    # `require`, not `check`: `check` records and CONTINUES, so a missed
+    # `find` would reach the slice below as -1 and crash with a RangeDefect
+    # instead of failing by name. This exact shape crashed once on CI.
+    require hrefAt >= 0
     let hrefStart = hrefAt + "href=\"".len
     useExternalCss(exported[hrefStart ..< exported.find('"', hrefStart)])
     let (status, body, _) = renderRoute(root, "/no/such/thing/at/all")
@@ -745,7 +748,6 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
     #
     # `siteCss()` IS the thing the renderer inlines. Comparing the published
     # file to it is the same claim with no render, no mode, and no `find`.
-    require hrefAt >= 0
     let hrefEnd = exported.find('"', hrefStart)
     require hrefEnd > hrefStart
     let sheetHref = exported[hrefStart ..< hrefEnd]
