@@ -52,6 +52,33 @@
 //              any page with a table in it, which is not a claim about CodeTracer.
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+// ── THE REGISTER HAS ONE READER AND ONE MATCHER, AND THIS FILE USED TO HAVE
+//    A SECOND OF EACH ────────────────────────────────────────────────────────
+//
+// The header above says a hardcoded list here "would be a second register, and
+// the two would disagree". It was right about the danger and wrong about where
+// it lived: the list was read from the register, and then read WRONGLY, by a
+// nine-line regex of this file's own that dropped the evidence column, and
+// compared with `includes()` where the register's grammar is a glob.
+//
+// Measured against blocktracer.pages.dev on 2026-10-27, over a tree whose own
+// gate (`ci/test/ct-css-reachable.sh` -> `tools/ci/check-css-reachable.mjs`)
+// reports "PASS — every row of the register holds":
+//
+//   missing from the stylesheet: ct-input-*, category-image, rr-ticks-*,
+//                                gdb-evaluate, border-value-*, context-menu-container
+//
+// Three wildcards and three IDs, and not one of them absent. `.ct-input-*`
+// with a literal asterisk matches nothing by construction, and an `id` row was
+// searched as `.category-image` because one ternary built `.` for every kind
+// but `element`. The emission arm had the third: 110 of the register's rows
+// are declared `bundle`, meaning the hydration bundle writes them, and the arm
+// looked only in the page HTML — so every one of them read as never emitted.
+//
+// So the semantics come from the module that defines them.
+import {
+  parseRegister, matchesPattern, decodeCharCodeLiterals,
+} from "../ci/check-css-reachable.mjs";
 
 const HERE = new URL(".", import.meta.url).pathname;
 const REPO = resolve(HERE, "..", "..");
@@ -75,13 +102,52 @@ function liveRows() {
     console.error("  would have to carry a list of its own, which is the thing it avoids.");
     process.exit(64);
   }
-  const out = [];
-  for (const line of readFileSync(REGISTER, "utf8").split("\n")) {
-    const m = /^(LIVE|INERT)\s+(class|classpart|element|id)\s+(\S+)/.exec(line);
-    if (m) out.push({ state: m[1], kind: m[2], name: m[3] });
-  }
+  // `parseRegister` is the register's own reader: it enforces the grammar,
+  // carries the EVIDENCE column this file needs, and raises by line number on
+  // a malformed row rather than silently skipping it the way a regex does.
+  return parseRegister(readFileSync(REGISTER, "utf8")).map((r) => ({
+    state: r.verdict, kind: r.kind, name: r.pattern, evidence: r.evidence,
+  }));
+}
+
+// ── the universe a selector can be found in, extracted once ────────────────
+//
+// A PRESENCE TEST OVER AN EXTRACTED UNIVERSE, NOT A SUBSTRING SEARCH. The
+// register's patterns are globs, so a pattern has to be matched against NAMES;
+// `includes("." + pattern)` cannot do that and silently fails every row with a
+// `*` in it. `classpart` is the exception and stays a substring, because it is
+// a fragment of a compound selector by definition — that is what the kind
+// means.
+const CSS_CLASS_RE = /\.(-?[A-Za-z_][\w-]*)/g;
+const CSS_ID_RE = /#(-?[A-Za-z_][\w-]*)/g;
+const HTML_CLASS_ATTR_RE = /class\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+const JS_STR_RE = /"((?:[^"\\\n]|\\.)*)"|'((?:[^'\\\n]|\\.)*)'/g;
+
+const namesFrom = (text, re) => {
+  const out = new Set();
+  for (const m of text.matchAll(re)) out.add(m[1]);
+  return out;
+};
+
+/** Tokens a bundle could write into a `class` attribute: its string literals,
+ *  plus the char-code arrays `nim js` emits some literals as. Without the
+ *  second half a text grep reports a class that IS there as absent — the
+ *  reason `check-css-reachable.mjs` validates its decoder before trusting it. */
+function bundleTokens(js) {
+  const out = new Set();
+  for (const m of js.matchAll(JS_STR_RE))
+    for (const t of (m[1] ?? m[2]).split(/[\s\\]+/)) if (t) out.add(t);
+  for (const str of decodeCharCodeLiterals(js))
+    for (const t of str.split(/\s+/)) if (t) out.add(t);
   return out;
 }
+
+/** Does any name in `universe` satisfy this row? `classpart` asks the raw text
+ *  instead, which is why both are passed. */
+const satisfied = (row, universe, rawText) =>
+  row.kind === "classpart"
+    ? rawText.includes(row.name)
+    : [...universe].some((n) => matchesPattern(row.name, n));
 
 // ── fetching, the same way from either source ──────────────────────────────
 // ── FRESH BYTES, BECAUSE THIS RUNS SECONDS AFTER A PUBLISH ────────────────
@@ -179,11 +245,14 @@ ck(`the stylesheet fetches${cssPath ? ` (${cssPath})` : ""}`, css.ok && css.body
    `HTTP ${css.status}, ${css.body.length} bytes, ${css.type}`);
 
 // ── every LIVE selector, in the served stylesheet ──────────────────────────
+// THE SIGIL FOLLOWS THE KIND. `id` is `#`, and this line used to build `.` for
+// it — which is why three ids that are in the sheet were reported absent.
+const cssClasses = namesFrom(css.body, CSS_CLASS_RE);
+const cssIds = namesFrom(css.body, CSS_ID_RE);
 const missingInCss = live.filter((r) => {
-  const needle = r.kind === "element" ? r.name : `.${r.name}`;
-  // `classpart` is matched as a bare substring, because it is a fragment of a
-  // compound selector by definition.
-  return !(r.kind === "classpart" ? css.body.includes(r.name) : css.body.includes(needle));
+  if (r.kind === "classpart") return !css.body.includes(r.name);
+  if (r.kind === "element") return !css.body.includes(r.name);
+  return !satisfied(r, r.kind === "id" ? cssIds : cssClasses, css.body);
 });
 ck(`every LIVE selector the register names has a rule in the SERVED stylesheet — ${live.length} checked`,
    missingInCss.length === 0,
@@ -262,14 +331,56 @@ ck(`the sample contains a page that publishes SOURCE, without which the rows tha
    + `there cannot be judged — ${sourceBearing.length} of ${pages.length} page(s)`,
    sourceBearing.length > 0,
    sourceBearing.length ? sourceBearing.map((p) => p.path).join(", ") : "none — class-emission results below are bounded by that");
+// ── THE BUNDLE IS PART OF THE SAMPLE, BECAUSE 110 ROWS SAY SO ─────────────
+//
+// The register's fourth column is the EVIDENCE TIER, and `bundle` means the
+// hydration bundle writes the class — `check-css-reachable.mjs` calls it "a
+// declarable evidence tier, never a default". A `bundle` row is NOT in the
+// served HTML and was never going to be: these are the calltrace rows, the
+// value tree, the event log and the context menu, which the mounted shared
+// views write after hydration. Asking the page for them produced, against a
+// tree whose own gate passes, a hundred-row failure list that was entirely an
+// artefact of looking in the wrong file.
+//
+// So the bundles each sampled page references are fetched and read the same
+// way the local gate reads them — string literals plus the char-code arrays
+// `nim js` emits some literals as.
+const scriptSrcs = [...new Set(pages.flatMap((p) =>
+  [...p.body.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1])))]
+  .filter((u) => u.startsWith("/"));
+const bundles = [];
+for (const src of scriptSrcs) {
+  const js = await getText(src);
+  if (js.ok && js.body.length > 0) bundles.push({ src, tokens: bundleTokens(js.body) });
+}
+const bundleUniverse = new Set(bundles.flatMap((b) => [...b.tokens]));
+// A `bundle` ROW WITH NO BUNDLE READ IS NOT A PASS. If the scripts could not be
+// fetched, the rows that depend on them were not measured, and a verdict taken
+// over an empty universe would be the silence this whole file exists to break.
+const bundleRows = live.filter((r) => r.kind === "class" && r.evidence === "bundle");
+ck(`the bundles the sampled pages reference were read, because ${bundleRows.length} LIVE row(s) `
+   + `name the bundle as their evidence — ${bundles.length} of ${scriptSrcs.length} fetched`,
+   bundleRows.length === 0 || bundles.length > 0,
+   bundles.map((b) => `${b.src} (${b.tokens.size} tokens)`).join(", ")
+     || `none fetched of: ${scriptSrcs.join(", ") || "no <script src> on any sampled page"}`);
+
 const classRows = live.filter((r) => r.kind === "class");
+const pageUniverses = pages.map((p) => ({
+  path: p.path,
+  body: p.body,
+  classes: new Set([...p.body.matchAll(HTML_CLASS_ATTR_RE)]
+    .flatMap((m) => (m[1] ?? m[2]).split(/\s+/)).filter(Boolean)),
+}));
 const carriedBy = new Map();
 for (const r of classRows) {
-  carriedBy.set(r.name, pages.filter((p) => p.body.includes(r.name)).map((p) => p.path));
+  const where = pageUniverses.filter((p) => satisfied(r, p.classes, p.body)).map((p) => p.path);
+  if (where.length === 0 && r.evidence === "bundle" && satisfied(r, bundleUniverse, ""))
+    where.push("<bundle>");
+  carriedBy.set(r.name, where);
 }
 const missingInPages = classRows.filter((r) => carriedBy.get(r.name).length === 0);
 ck(`every LIVE class is EMITTED somewhere in the sample — ${classRows.length} checked over `
-   + `${pages.length} page(s)`,
+   + `${pages.length} page(s) and ${bundles.length} bundle(s)`,
    missingInPages.length === 0,
    missingInPages.length
      ? `not emitted anywhere: ${missingInPages.map((r) => r.name).join(", ")}`
