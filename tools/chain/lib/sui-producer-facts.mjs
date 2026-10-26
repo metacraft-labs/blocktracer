@@ -58,8 +58,16 @@ export const POSITION_STREAM_SCHEMA = 'move-disassembly-positions/1';
 /** The call-trace stream's own `schema` token. */
 export const CALLTRACE_STREAM_SCHEMA = 'move-call-frames/1';
 
-/** The instruction set the positions index into. */
-export const INSTRUCTION_SET = 'move';
+/**
+ * The executable format a Sui program is executed from, declared as `provenance.vm`: Sui's
+ * DIALECT of Move bytecode. The token names the format and not the chain (Configuration.md
+ * §2.1); the one qualifier it admits is a registered dialect, and Move is a family whose
+ * dialects have diverged — Sui's and Aptos's bytecode differ in file-format versions and
+ * instructions — so one table selected by a bare `move` could be wrong for one of them.
+ * The family is still the stem of this module's sibling tokens (`move-disassembly-…`).
+ * Decided with the operator 2026-10-25/26.
+ */
+export const INSTRUCTION_SET = 'sui-move';
 
 /**
  * `executions[]`. One execution per transaction, whose selector names the whole

@@ -34,7 +34,7 @@ import { join } from 'node:path';
 
 import { graphqlUrlFor, inputVersionsOf } from './lib/sui-graphql.mjs';
 import {
-  CHAIN_SLUG, costVectorForRow, executionsForRow, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL, payloadForRow, PRESTATE_STRATEGY, reachReasonFor, RECORDER, rolesForRow, VERIFICATION,
+  CHAIN_SLUG, INSTRUCTION_SET, costVectorForRow, executionsForRow, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL, payloadForRow, PRESTATE_STRATEGY, reachReasonFor, RECORDER, rolesForRow, VERIFICATION,
 } from './lib/sui-producer-facts.mjs';
 import { ACQUISITION_FORMAT, effectsFacts, main as produce } from './produce-sui-snapshot.mjs';
 import { compareReadings } from './sui-horizon-probe.mjs';
@@ -328,14 +328,16 @@ test('§7 the producer\'s own reach and verification sentences');
   ck('CONTROL: with no horizon reading it states no depth, and never the generic prestate cause',
      !/\d{5,}/.test(reachReasonFor(28845373, null).split('GraphQL service')[1])
      && !/prestate was obtainable/.test(r));
+  ck('the declared format names Sui\'s Move dialect, not a bare family or an executor',
+     INSTRUCTION_SET === 'sui-move');
   ck('verification names the compared effects and what a mismatch becomes',
      /events digest/.test(VERIFICATION) && /published as divergent/.test(VERIFICATION));
 }
 
 // The count is a LITERAL because `refusal-selftest.mjs` reads it out of this line and
 // cross-checks it against the Justfile header and ci.yml.
-if (asserted !== 44) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 44 — a case was added, removed or skipped.`);
+if (asserted !== 45) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 45 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

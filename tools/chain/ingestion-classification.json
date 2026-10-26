@@ -595,7 +595,7 @@
       "against": "the instruction-set token",
       "classifiedAs": "network-specific",
       "whatHappened": "`lib/sui-producer-facts.mjs` exports `INSTRUCTION_SET = 'move'` and the whole tree contains exactly ONE occurrence of the name in a Sui context - that declaration. No producer imports it, so no spelling of it can reach a published row. This is the same defect `flow-producer-facts-selftest.mjs`'s own arm was written for on 2026-10-21, on a different chain.",
-      "notActedOn": "Adding `vm: { instructionSet: INSTRUCTION_SET }` to Sui's provenance would CHANGE PUBLISHED OUTPUT and decide a question this milestone has no standing to decide - whether Sui declares its format on the registry row or carries it as an instruction listing's `isa`. Recorded, not fixed.",
+      "notActedOn": "Adding `vm: { instructionSet: INSTRUCTION_SET }` to Sui's provenance would CHANGE PUBLISHED OUTPUT and decide a question this milestone has no standing to decide - whether Sui declares its format on the registry row or carries it as an instruction listing's `isa`. Recorded, not fixed. ACTED ON 2026-10-26, by the decision this record said belonged elsewhere: the operator decided Sui declares its format on the registry row, as the dialect token `sui-move` under Configuration.md §2.1's dialect amendment, and `produce-sui-snapshot.mjs` now spells `vm: { instructionSet: INSTRUCTION_SET }` through the module.",
       "measuredHow": "`grep -rn INSTRUCTION_SET tools src client` returns 1 line for sui against 2 for flow, 2 for eth, 2 for starknet and 2 for sol, 2026-10-22.",
       "subjectKind": "component"
     },
