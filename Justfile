@@ -161,7 +161,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 11 + 10 + 7 + 45 + 33 + 8 + 33 + 24 = 1358 counted assertions —
+# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 11 + 10 + 7 + 49 + 33 + 8 + 33 + 24 = 1362 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -1812,18 +1812,29 @@ sui-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-sui-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
 
-# The same capture with NO network: checkpoint 336,000,001 from its committed GraphQL
-# transcript (fixtures/chain-inputs/sui-mainnet/336000001), served on loopback. The
-# recording ids are derived and the clock readings pinned, so the tree is byte-identical
-# run to run. Needs the recorder and a `sui` with the `tracing` feature.
+# The same capture with NO network, over Sui's committed windows: each is captured from
+# its own GraphQL transcript (fixtures/chain-inputs/sui-mainnet/<window>), served on
+# loopback, and the published tree is their UNION (tools/chain/merge-sui-windows.mjs), as
+# a chain's history accumulates by ranges. 28,845,372..28,845,373 straddles the traced
+# floor — two transactions at protocol 36 are refused, three at 38 are traced — and
+# 336,000,001 is the modern era. Recording ids are derived and clock readings pinned, so
+# the tree is byte-identical run to run. Needs the recorder and a `sui` with `tracing`.
 sui-capture RECORDER COMMIT OUT=".sui-capture/tree" *ARGS:
-    node tools/chain/capture-sui-range.mjs \
-      --transcript fixtures/chain-inputs/sui-mainnet/336000001 \
-      --from 336000001 --to 336000001 --max 1000 \
-      --fixed-time 2026-10-22T00:00:00.000Z \
-      --work .sui-capture/work --out {{OUT}} \
-      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
-      --positions-reader {{RECORDER}} {{ARGS}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    trees=()
+    for w in 28845372-28845373 336000001-336000001; do
+      from="${w%-*}"; to="${w#*-}"
+      dir=fixtures/chain-inputs/sui-mainnet/$w; [ -d "$dir" ] || dir=fixtures/chain-inputs/sui-mainnet/$from
+      node tools/chain/capture-sui-range.mjs \
+        --transcript "$dir" --from "$from" --to "$to" --max 1000 \
+        --fixed-time 2026-10-22T00:00:00.000Z \
+        --work ".sui-capture/work-$w" --out ".sui-capture/w-$w" \
+        --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+        --positions-reader {{RECORDER}} {{ARGS}}
+      trees+=(--tree ".sui-capture/w-$w")
+    done
+    node tools/chain/merge-sui-windows.mjs "${trees[@]}" --out {{OUT}}
 
 # Is the Sui endpoint still serving the object versions it served when the
 # committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed
