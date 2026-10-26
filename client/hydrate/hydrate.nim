@@ -1661,6 +1661,11 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
   ## Mount each of the three shared views the first time the projection has
   ## content for its pane — the condition `writePane` latches on.
   let r = WebRenderer()
+  # Each row of the shared Call Trace and Event Log links to its §6.0a URL
+  # (Shared-DOM-Front-Ends D10): the views draw the link, `rowLinksFor` builds
+  # it from the row's address. Open in a new tab, copy link and the status bar
+  # are the browser's again; a plain click still seeks in place.
+  let links = h.session.rowLinksFor(h.base.traceContentHash)
   if not h.latch.calltrace.mounted and view.calltrace.frames.len > 0:
     ensureContextMenuHost()
     h.ui.calltrace.innerHTML =
@@ -1668,7 +1673,7 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
     let vm = h.session.calltrace
     mountInto(h.ui.calltrace, ("." & panes.CallTraceMountClass).cstring,
       proc(): idom.Element =
-        renderCalltracePanel[WebRenderer, idom.Element](r, vm))
+        renderCalltracePanel[WebRenderer, idom.Element](r, vm, links))
     h.latch.calltrace.mounted = true
     h.latch.calltrace.latched = true
     h.latch.calltraceSelfCost.written =
@@ -1704,7 +1709,7 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
     let vm = h.session.eventLog
     mountInto(h.ui.eventLog, ("." & panes.LiveMountClass).cstring,
       proc(): idom.Element =
-        renderEventLogPanel[WebRenderer, idom.Element](r, vm))
+        renderEventLogPanel[WebRenderer, idom.Element](r, vm, links))
     h.latch.eventLog.mounted = true
     h.latch.eventLog.latched = true
     h.measureMounted(h.ui.eventLog, ".eventLog-scroll-body", ".eventLog-row",

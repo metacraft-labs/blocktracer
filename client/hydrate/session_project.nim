@@ -920,6 +920,60 @@ proc projectEventLog*(vm: EventLogVM; contentHash = ""): EventLogPane =
     result.rows[i].href = positionQuery(
       contentHash, result.rows[i].step, result.rows[i].anchor)
 
+proc eventAnchorOf(vm: EventLogVM; eventIndex: int): string =
+  ## The §6.0a anchor the event `eventIndex` carries in this pane: the one
+  ## `withEventAnchors` gives its row in `projectEventLog`, so a mounted row's
+  ## link and the projection's `href` name the same anchor. `""` for an event
+  ## the projection leaves out (no position) or does not hold.
+  ##
+  ## The anchor of one row depends on the rows before it (`log:` counts the
+  ## pane's events, `sw:` the writes to the same slot), so it is read off the
+  ## whole projection rather than computed from the row alone. That is one pass
+  ## over the held page per row asked for — a page is the window this pane
+  ## measured, tens of rows.
+  let pane = projectEventLog(vm)
+  var i = 0
+  for row in vm.eventRows.val:
+    if row.noPosition:
+      continue
+    if row.eventIndex == eventIndex:
+      return (if i < pane.rows.len: pane.rows[i].anchor else: "")
+    inc i
+
+proc rowLinksFor*(s: LiveSession; contentHash: string): RowLinks =
+  ## The link builder this page passes the shared Call Trace and Event Log
+  ## views (Shared-DOM-Front-Ends D10): BlockTracer's half of "the VMs carry the
+  ## view-agnostic logical data necessary to construct URLs … and the views
+  ## provide the actual URL construction logic".
+  ##
+  ## Each row's address becomes the §6.0a URL its row had before the panes were
+  ## shared, built by the same `positionQuery` with the same three inputs as
+  ## `projectCalltrace` / `projectEventLog`:
+  ##
+  ##   * `contentHash` — the artifact the page opened (`traceContentHash`, from
+  ##     the served DOM), so `t` never travels without `c`;
+  ##   * the step — the address's `rrTicks`, the field `CallFrame.step` and
+  ##     `EventRow.step` are filled from;
+  ##   * the anchor — `call:` and the address's `callPath` joined with `.`,
+  ##     which the SDK numbers as `deeplink_landing.callPath` does; for an
+  ##     event, the anchor `withEventAnchors` gives its row (`eventAnchorOf`).
+  ##
+  ## An event with no position gets no link: it is not a place to go, and
+  ## `projectEventLog` leaves it out for the same reason.
+  let eventLog = s.eventLog
+  result = proc(a: RowAddress): string =
+    case a.kind
+    of rakFrame:
+      var segs: seq[string]
+      for seg in a.callPath: segs.add $seg
+      let anchor = if segs.len > 0: "call:" & segs.join(".") else: ""
+      positionQuery(contentHash, int(a.rrTicks), anchor)
+    of rakEvent:
+      if not a.hasPosition: ""
+      else: positionQuery(contentHash, int(a.rrTicks),
+                          eventAnchorOf(eventLog, a.eventIndex))
+    of rakNone: ""
+
 proc canDo*(vm: DebugControlsVM; a: DebugAction): bool =
   ## Whether the VM says this move is available right now.
   ##
