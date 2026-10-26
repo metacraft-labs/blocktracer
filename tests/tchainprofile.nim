@@ -435,8 +435,57 @@ suite "both producers state what they MEASURED, and nothing they did not":
     ck validateTree(tree).len == 0
     removeDir tree
 
+  test "a producer's own floor reason is published verbatim, and nothing else replaces the reader's":
+    # `forward-capture` history starts where the CAPTURE began, and the reader's
+    # sentence ("prestate was obtainable from N upward") would tell a visitor a
+    # node limit that does not exist. So the producer may say why, in
+    # `provenance.reachReason`, and the reader carries it as it carries `vm`.
+    proc floorReason(tag: string, reason: JsonNode): string =
+      let snapDir = tmpDir(tag & "-snap")
+      copyDir(LiveMainnet, snapDir / "capture")
+      let capture = snapDir / "capture"
+      var doc = parseJson(readFile(capture / "snapshot.json"))
+      if reason != nil: doc["provenance"]["reachReason"] = reason
+      writeFile(capture / "snapshot.json", $doc)
+      let tree = buildIngest(tag, capture)
+      let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+      result = row["historyFloor"]["reason"].getStr
+      removeDir tree
+      removeDir snapDir
+    const said = "history starts at the slot this capture began following, not at a node limit"
+    let declared = floorReason("ing-reach-said", %said)
+    ck declared == said
+    ck "obtainable" notin declared
+    let generic = floorReason("ing-reach-none", nil)
+    ck generic.startsWith("prestate was obtainable from ")
+    # CONTROL: a wrong shape and an empty sentence are NOT a reason, so the
+    # reader's own sentence stands rather than a blank or a stringified number.
+    ck floorReason("ing-reach-num", %42) == generic
+    ck floorReason("ing-reach-empty", %"  ") == generic
+
+  test "a producer's verification sentence reaches the row verbatim, and silence publishes none":
+    proc rowFor(tag: string, said: JsonNode): JsonNode =
+      let snapDir = tmpDir(tag & "-snap")
+      copyDir(LiveMainnet, snapDir / "capture")
+      let capture = snapDir / "capture"
+      var doc = parseJson(readFile(capture / "snapshot.json"))
+      if said != nil: doc["provenance"]["verification"] = said
+      writeFile(capture / "snapshot.json", $doc)
+      let tree = buildIngest(tag, capture)
+      result = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+      removeDir tree
+      removeDir snapDir
+    const said = "each trace is compared with the outcome the chain recorded; one that " &
+      "cannot be compared is refused"
+    let row = rowFor("ing-ver-said", %said)
+    ck row["verification"].getStr == said
+    ck parseChainProfile(row).verification == said
+    # CONTROL: nothing said and a blank publish no member, rather than an empty one.
+    ck not rowFor("ing-ver-none", nil).hasKey("verification")
+    ck not rowFor("ing-ver-blank", %"  ").hasKey("verification")
+
   test "assertion count":
-    expectCount(9 + 2 + 8 + 4 + 5 + 5 + 5)
+    expectCount(9 + 2 + 8 + 4 + 5 + 5 + 5 + 5 + 4)
 
 # ───────────────────────────────────────────────────────────────────────────
 suite "a producer that declares one thing and publishes another is caught":

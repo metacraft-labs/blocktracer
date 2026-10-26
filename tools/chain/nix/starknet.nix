@@ -130,6 +130,14 @@ let
 
   # The committed input set, read from the recorder input — see the header.
   transcript = recorderSrc + "/onchain/tests/fixtures/mainnet-16664301";
+  # A second block: an L1_HANDLER (a StarkGate deposit, no Starknet sender) beside an INVOKE.
+  transcriptL1 = recorderSrc + "/onchain/tests/fixtures/mainnet-16752201";
+  # A class upgrade (index 0 replaces an account's class), and a block inside §1.3's
+  # documented hole. Each is replayed whole and records ONE transaction (`@0x…`): the
+  # upgrade, and the hole block's smallest (1,564 steps). Recording all 23 would add
+  # ~250 MB of per-transaction listings to staging for no further case.
+  transcriptUpgrade = recorderSrc + "/onchain/tests/fixtures/mainnet-16625884";
+  transcriptInHole = recorderSrc + "/onchain/tests/fixtures/mainnet-1948151";
   # The class-source bindings that recorder revision proved (`bind-class`), from the same
   # pin for the same reason: a binding is checked against the class the transcript serves.
   classSources = recorderSrc + "/onchain/tests/fixtures/class-sources";
@@ -159,6 +167,9 @@ let
         --recorder ${onchainRecorder}/bin/codetracer-cairo-onchain \
         --recorder-commit ${recorderRev} \
         --transcript ${transcript} \
+        --transcript ${transcriptL1} \
+        --transcript ${transcriptUpgrade}@0x440ba8db1f529a7d4b9154aaa558b47fc7dc80a55a4671e92e8c2f5a7b6145e \
+        --transcript ${transcriptInHole}@0x215e5604a76b89781d79795ef94d6aa97ec2fb13d486a64517f09a064ae32c \
         --class-sources ${classSources} \
         --ct-print ${ctPrint}/bin/ct-print \
         --out $TMPDIR/tree --work $TMPDIR/work

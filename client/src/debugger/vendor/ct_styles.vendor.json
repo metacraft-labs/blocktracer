@@ -8,6 +8,13 @@
     "'nothing here yet' treatment (empty_states) and the alert surfaces",
     "(notifications).",
     "",
+    "THE LIVE PANES' SHEETS. Since Shared-DOM-Front-Ends Q6 the hydrated build",
+    "mounts CodeTracer's shared Call Trace, State and Event Log views, so their",
+    "sheets are here too (calltrace, state, event_log, list_scrubber), with the",
+    "right-click menu they open (menu_item, checkmark, and four rules of",
+    "text_editor, which is otherwise vendored for its mixin definitions only —",
+    "`StylSource.definitionsOnly` / `emitOnly`).",
+    "",
     "WHY BLOCKTRACER NEEDED THEM. The operator's report was that adopting",
     "CodeTracer's TOKEN VALUES had not made the debugger look like CodeTracer —",
     "'the way that tab bars look, panel separators, the elements inside the",
@@ -73,17 +80,27 @@
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "agents",
-  "commit": "0d1325584b9e7c77d13bbb766077e3418395fe94",
+  "commit": "aca163924c79d9f1219ccd3c585f82f123842a27",
   "files": [
     {
       "path": "src/frontend/styles/components/button.styl",
       "local": "frontend/styles/components/button.styl",
-      "sha256": "5361a9678f8c6f815cc435ea2a3ee597cf3323c2df0793183b683b06c3d1c711"
+      "sha256": "f8bafade89bf02d4a262629577786fa96757ed38ff44594c9a9bde9d9ff503df"
     },
     {
       "path": "src/frontend/styles/components/input.styl",
       "local": "frontend/styles/components/input.styl",
       "sha256": "9e92f803049dc16edcc3e66f66fb598deb6237e9dd044072a653d23982b8f00f"
+    },
+    {
+      "path": "src/frontend/styles/components/checkmark.styl",
+      "local": "frontend/styles/components/checkmark.styl",
+      "sha256": "f24837a143cab2d25865fb5de17902c244692b75fbade4ea055d1fdd64990f55"
+    },
+    {
+      "path": "src/frontend/styles/components/menu_item.styl",
+      "local": "frontend/styles/components/menu_item.styl",
+      "sha256": "da84d435055ad3d61d93fb994299018d332ce81e662ca4ca1ecf4a2de2034815"
     },
     {
       "path": "src/frontend/styles/components/tab.styl",
@@ -101,14 +118,39 @@
       "sha256": "c0bd80d4fbb9b48d1236cf10e35b18f168d3d5ed0ffbb1aad564b1afc4969a6e"
     },
     {
+      "path": "src/frontend/styles/components/text_editor.styl",
+      "local": "frontend/styles/components/text_editor.styl",
+      "sha256": "6fc333ce674228c2994fd3c1c81a778760f23090ede0015117afb5ef9e72a0a3"
+    },
+    {
+      "path": "src/frontend/styles/components/event_log.styl",
+      "local": "frontend/styles/components/event_log.styl",
+      "sha256": "ea493ceadad15d68f635a4c03741b107b56fdfa4e5af14ed40337b6aa9504dfe"
+    },
+    {
       "path": "src/frontend/styles/components/data_tables.styl",
       "local": "frontend/styles/components/data_tables.styl",
       "sha256": "bf91d7d6a191cf6a00fc764f3c85aa838c516c60ad1fd53a562099390319d385"
     },
     {
+      "path": "src/frontend/styles/components/calltrace.styl",
+      "local": "frontend/styles/components/calltrace.styl",
+      "sha256": "763b8424651865168b02807b8f0b81a4428f25b83e085879d9721beaf7af2d3f"
+    },
+    {
+      "path": "src/frontend/styles/components/list_scrubber.styl",
+      "local": "frontend/styles/components/list_scrubber.styl",
+      "sha256": "032eeceb75835a6bb31ebc78404a0f2603b1e4751cd2f3f960f403cf01a02ea1"
+    },
+    {
       "path": "src/frontend/styles/components/golden_layout.styl",
       "local": "frontend/styles/components/golden_layout.styl",
       "sha256": "75b94eaf80803b3dce11b05b45b9fa5ce9c104f55e8a097ab884f20798526448"
+    },
+    {
+      "path": "src/frontend/styles/components/state.styl",
+      "local": "frontend/styles/components/state.styl",
+      "sha256": "e1152f51d4c6497e37d58fc69a377aae9323aeb0e5b6b8c66fc97e901f933a03"
     },
     {
       "path": "src/frontend/styles/components/empty_states.styl",

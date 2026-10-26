@@ -1797,6 +1797,34 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 .ctview.alt:target{display:block}
 .ctview.alt:target ~ .ctview.def{display:none}
 
+/* THE LIVE BUILD'S MOUNTED VIEWS GET THE PANE'S HEIGHT. Once a session is live
+   the Call Trace, State and Event Log rows are CodeTracer's shared views
+   (`hydrate.mountSharedPanes`), and each of them scrolls INSIDE itself — the
+   call trace and the event log load the window their scroller shows, which is
+   only a window if the scroller is shorter than the list. They report no size
+   of their own, so the host has to hand down a definite height: the panel
+   (`.lm_content`, a flex column of the pane's height) to the shell, the shell
+   to the mount point, the mount point to the view. Without this the shell took
+   its content's height, the Event Log's scroll body collapsed to 0px under its
+   footer, and the Call Trace scrolled as one long page that asked the engine
+   for every row at once (measured on the demo session and a 354-frame Starknet
+   recording).
+
+   The call-order view is reached through `:has(> .ctmount)` and never by a
+   rule more specific than `.ctview.alt:target ~ .ctview.def`, so choosing the
+   by-function view still hides it. None of these classes exists in a static
+   page: only the live build writes them. */
+.liveshell{display:flex;flex-direction:column;flex:1 1 0;min-height:0}
+.livecap{flex:none}
+.livemount{display:flex;flex-direction:column;flex:1 1 0;min-height:0}
+.livemount > *{flex:1 1 0;min-height:0}
+.ct:has(> .ctview.def > .ctmount){display:flex;flex-direction:column;
+  flex:1 1 0;min-height:0}
+.ctview.def:has(> .ctmount){display:flex;flex-direction:column;flex:1 1 0;
+  min-height:0}
+.ctmount{display:flex;flex-direction:column;flex:1 1 0;min-height:0}
+.ctmount > *{flex:1 1 0;min-height:0}
+
 /* A dense pane sets its own data size, and `.num` must not override it.
    `styles.nim` gives `.num` the explorer's numeric size and line-height, which
    inside a 12px/1.35 debugger row resolves to 14px/1.5 — so the row grew to

@@ -664,6 +664,14 @@ proc violate(id, dir: string): string =
     # emitting a value outside the table is a gap in the table, not a producer
     # using a free-text field. Deleting the member would reach the rule above.
     doc["provenance"]["prestateStrategy"] = %"a-strategy-no-table-lists"
+  of "S5-ORDERING-CLOSED":
+    # PRESENT AND OUTSIDE THE SET. An ABSENT member means `blockIndex`, which is
+    # what every tree published before the member existed was built as, so
+    # deleting it reaches no rule at all. A value this reader cannot build is the
+    # case the rule exists for: built as a height, it would publish the silently
+    # wrong ordering Static-Site-Architecture.md §2.3 makes ordering a union to
+    # prevent.
+    doc["provenance"]["ordering"] = %"an-ordering-no-reader-builds"
   of "S5-COST-VECTOR":
     # MALFORMED RATHER THAN ABSENT, for the same reason: `cost` is required and
     # taken by an unguarded subscript, so deleting it is refused by the generated
@@ -690,6 +698,22 @@ proc violate(id, dir: string): string =
     # the rule above has nothing to say about it. Its alphabet contains `/`.
     doc["provenance"]["identifierEncoding"] =
       %*{"block": "hex", "transaction": "base64", "address": "hex"}
+  of "S5-SYSTEM-TRANSACTIONS":
+    # A SYSTEM IDENTIFIER THAT IS ALSO A ROW, which is the overwrite the member
+    # exists to prevent: §5.2 puts a transaction in `systemTransactions` exactly
+    # because its identifier cannot key a `/tx/` object, so one listed there
+    # AND published as a row is two statements about one page. The NEWEST block
+    # is the subject, and the row named is the one that block already settles,
+    # so the only thing this edit changes is the member it adds.
+    let blk = doc["blocks"][0]
+    blk["systemTransactions"] = %[blk["transactions"][0]]
+  of "S5-ADDRESS-HISTORY-BELOW-WINDOW":
+    # AN ENTRY INSIDE THE WINDOW, the shape the rule exists for: it would be a
+    # transaction the address page lists twice, or one the window skipped.
+    var lowest = high(int)
+    for b in doc["blocks"]: lowest = min(lowest, b["number"].getInt)
+    doc["addressHistory"] = %*[{"address": "0x" & "ab".repeat(20), "entries": [
+      {"txHash": "0x" & "91".repeat(32), "blockNumber": lowest}]}]
   of "S5-POSITIONS-SCHEMA":
     let p = dir / "positions" / (PositionedTx & ".json")
     var n = parseJson(readFile(p))
@@ -739,9 +763,11 @@ const RuleCases = [
   "S5-CALLTRACE-FOLD-TALLY", "S5-CALLTRACE-FOLD-BOUND",
   "S5-SIDECAR-FORMAT-UNKNOWN", "S5-SIDECAR-CHAIN",
   "S5-RECORDER-STATED", "S5-PRESTATE-STATED", "S5-PRESTATE-CLOSED",
+  "S5-ORDERING-CLOSED",
   "S5-COST-VECTOR", "S5-EXECUTIONS-NAMED", "S5-EXECUTIONS-ONE-TRACED",
   "S5-POSITIONS-SCHEMA",
   "S5-IDENTIFIER-ENCODING-CLOSED", "S5-IDENTIFIER-ENCODING-SHARDABLE",
+  "S5-SYSTEM-TRANSACTIONS", "S5-ADDRESS-HISTORY-BELOW-WINDOW",
 ]
 
 suite "a refusal names the §5 rule it enforces, and the repaired snapshot ingests":
@@ -871,7 +897,17 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
   #
   # 171 → 175: ONE rule added (S5-CONTAINER-NOT-PREENCODED, CCP-6), and the same
   # arithmetic applies — 1 × 4 = 4.
-  expectCount(175)
+  #
+  # 175 → 179: ONE rule added (S5-ORDERING-CLOSED, `db3ab3a`), 1 × 4 = 4. That
+  # commit added the rule to `tools/chain/snapshot-contract.json` and not to
+  # `RuleCases`, so the equality above went red on `agents` and stayed red
+  # unseen: this suite ran in no CI job until the `contract` job's `nimble test`
+  # was made to run it.
+  #
+  # 179 → 183: ONE rule added (S5-SYSTEM-TRANSACTIONS, 2026-10-22), 1 × 4 = 4.
+  # 183 → 187: ONE rule added (S5-ADDRESS-HISTORY-BELOW-WINDOW, 2026-10-23,
+  # Recorder-Solana spine need (f)), 1 × 4 = 4.
+  expectCount(187)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT
@@ -1938,3 +1974,341 @@ suite "a transaction's target gets an address history, like its roles":
     ck publishedPathsNaming(false) == 0      # the control: no such address yet
     ck publishedPathsNaming(true) > 0        # the target has an address object
   expectCount(2)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  A BLOCK'S SYSTEM TRANSACTIONS HAVE A HOME: published on the block, counted
+#  nowhere, and refused wherever they would be rows
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Data-Contract.md §5.2, "One kind of transaction is not a row" (2026-10-22). Flow
+# ends every block with protocol transactions whose identifiers are THE SAME IN
+# EVERY BLOCK, and `transactions[]` rows, `/tx/` objects and every transaction URL
+# are keyed by identifier — so they cannot be rows. The Flow producer listed them
+# in `blocks[].systemTransactions` before the contract named that member, and the
+# reader dropped them: tolerated, not specified, and absent from the published
+# tree, which is the "field that has no home" Static-Site-Architecture.md §2.3
+# calls a schema gap.
+#
+# So this suite asserts the four things the paragraph says, each against the
+# shipping reader over the real committed frames capture:
+#
+#   * the published block object carries the member VERBATIM AND IN ORDER, and the
+#     ids may repeat from block to block — that repetition is the whole reason the
+#     member exists, so a reader that refused it would refuse Flow;
+#   * a block that settled none publishes NO member, so every tree published
+#     before it existed regenerates byte-identically (asserted as bytes, over
+#     every block object, against the pristine capture's tree);
+#   * nothing COUNTS them — the ingest's transaction total, the summary's counter
+#     and each block's own transaction list are the pristine capture's;
+#   * every shape §5.2 rules out is refused citing S5-SYSTEM-TRANSACTIONS and
+#     naming the block and the identifier, beside a control that ingests.
+#
+# NO MOCKS: the real `ingestSnapshot` over a real committed capture, the edit to
+# `systemTransactions` being the only synthesis.
+
+const
+  SysA = "0x" & repeat("a9", 32)
+  SysB = "0x" & repeat("34", 32)
+    ## Two identifiers in the shape Flow's are (`a9caece2…`, `3408f8b1…`) and
+    ## in this capture's hex encoding, and deliberately NOT Flow's real ids:
+    ## the subject is the member's shape, and a real Flow id in an Aztec capture
+    ## would be a fact about neither chain.
+
+proc publishedBlocks(outDir: string): seq[(string, string)] =
+  ## Every published block object as (file name, bytes), sorted. Read off disk
+  ## rather than through any reader, so the comparison is independent of the
+  ## code under test.
+  for path in walkDirRec(outDir / "d"):
+    if "/block/" in path and path.endsWith(".json"):
+      result.add (path.extractFilename, readFile(path))
+  result.sort()
+
+proc ingestWith(tag: string, edit: proc (doc: JsonNode)): (string, IngestResult) =
+  ## The frames capture with one edit to its snapshot, ingested into a fresh
+  ## tree. Returns the tree and the result; the caller removes the tree.
+  let dir = tempOut("sys-in-" & tag)
+  defer: removeDir dir
+  let outDir = tempOut("sys-out-" & tag)
+  copyCapture(dir)
+  var doc = parseJson(readFile(dir / "snapshot.json"))
+  edit(doc)
+  writeFile(dir / "snapshot.json", pretty(doc, 1))
+  let ing = ingestSnapshot(IngestConfig(outDir: outDir, snapshotDir: dir,
+                                        generation: "1", scope: isFull))
+  (outDir, ing)
+
+proc dropFromBlocks(doc: JsonNode, id: string) =
+  ## Remove `id` from every block's `transactions`, leaving its row in place.
+  for b in doc["blocks"]:
+    var kept = newJArray()
+    for x in b["transactions"]:
+      if x.getStr != id: kept.add x
+    b["transactions"] = kept
+
+proc refusalFor(tag: string, edit: proc (doc: JsonNode)): string =
+  ## The refusal an edited frames capture draws, or "" if it ingests.
+  try:
+    let (outDir, _) = ingestWith(tag, edit)
+    removeDir outDir
+  except CatchableError as e:
+    result = e.msg
+
+suite "a block's system transactions are published on the block, counted nowhere, and never rows":
+  asserted = 0
+
+  test "every block carries the member verbatim and in order, though its ids repeat":
+    let (pristine, base) = ingestWith("none", proc (doc: JsonNode) = discard)
+    defer: removeDir pristine
+    let (tree, ing) = ingestWith("all", proc (doc: JsonNode) =
+      for b in doc["blocks"]: b["systemTransactions"] = %[SysA, SysB])
+    defer: removeDir tree
+    let blocks = publishedBlocks(tree)
+    ck blocks.len == 26                      # every block, so the arm is not vacuous
+    var carried, inOrder, txListsKept = 0
+    let before = publishedBlocks(pristine)
+    for i, (name, bytes) in blocks:
+      let n = parseJson(bytes)
+      if n{"systemTransactions"} != nil: inc carried
+      if n{"systemTransactions"} == %[SysA, SysB]: inc inOrder
+      if n["transactions"] == parseJson(before[i][1])["transactions"]: inc txListsKept
+    ck carried == 26
+    ck inOrder == 26
+    ck txListsKept == 26
+    # COUNTED NOWHERE. Fifty-two system transactions were added, and the totals
+    # are the pristine capture's to the transaction.
+    ck ing.transactions == base.transactions
+    ck ing.transactions == 8
+    let sumBase = parseJson(readFile(pristine / "d" / base.chain / "g" / "1" / "summary.json"))
+    let sumNow = parseJson(readFile(tree / "d" / ing.chain / "g" / "1" / "summary.json"))
+    ck sumNow["counters"]["transactions"] == sumBase["counters"]["transactions"]
+
+  test "a block that settled none publishes no member, byte for byte":
+    # An absent member and an empty array say the same thing, and both must
+    # publish what every tree before the member published: nothing.
+    let (pristine, _) = ingestWith("none2", proc (doc: JsonNode) = discard)
+    defer: removeDir pristine
+    let (emptied, _) = ingestWith("empty", proc (doc: JsonNode) =
+      for b in doc["blocks"]: b["systemTransactions"] = newJArray())
+    defer: removeDir emptied
+    let before = publishedBlocks(pristine)
+    ck before.len == 26
+    ck publishedBlocks(emptied) == before
+    var named = 0
+    for (_, bytes) in before:
+      if "systemTransactions" in bytes: inc named
+    ck named == 0
+    # …and ONE block carrying the member changes that block's object and no other.
+    let (one, _) = ingestWith("one", proc (doc: JsonNode) =
+      doc["blocks"][3]["systemTransactions"] = %[SysB, SysA])
+    defer: removeDir one
+    let after = publishedBlocks(one)
+    var changed = 0
+    for i in 0 ..< after.len:
+      if after[i] != before[i]:
+        inc changed
+        ck parseJson(after[i][1])["systemTransactions"] == %[SysB, SysA]
+    ck changed == 1
+
+  test "each shape §5.2 rules out is refused by name, naming the block and the identifier":
+    let want = cite("S5-SYSTEM-TRANSACTIONS")
+    # The subjects, read off the committed capture rather than chosen: block 1 is
+    # the one edited, block 0 settles the transaction it borrows, and the LAST
+    # row is one block 1 does not settle — so "a row's txHash" and "another
+    # block's transaction" are two different identifiers.
+    let pristine = parseJson(readFile(framesCapture / "snapshot.json"))
+    let blockHash = pristine["blocks"][1]["hash"].getStr
+    let otherBlockTx = pristine["blocks"][0]["transactions"][0].getStr
+    let rowId = pristine["transactions"][^1]["txHash"].getStr
+    doAssert blockHash.len > 0 and rowId.len > 0 and otherBlockTx.len > 0
+    doAssert otherBlockTx notin pristine["blocks"][1]["transactions"].getElems.mapIt(it.getStr)
+    # Each case: (what it is, the edit, a string the refusal must name).
+    let cases: seq[(string, proc (doc: JsonNode), string)] = @[
+      ("not an array",
+       proc (doc: JsonNode) = doc["blocks"][1]["systemTransactions"] = %SysA, blockHash),
+      ("an element that is not a string",
+       proc (doc: JsonNode) = doc["blocks"][1]["systemTransactions"] = %[%SysA, %7], blockHash),
+      ("an empty identifier",
+       proc (doc: JsonNode) = doc["blocks"][1]["systemTransactions"] = %[SysA, ""], blockHash),
+      ("one identifier twice in one block",
+       proc (doc: JsonNode) = doc["blocks"][1]["systemTransactions"] = %[SysA, SysB, SysA], SysA),
+      ("an identifier ANOTHER block settles as a transaction",
+       proc (doc: JsonNode) = doc["blocks"][1]["systemTransactions"] = %[otherBlockTx], otherBlockTx),
+      # A ROW THAT NO BLOCK LISTS. In the committed capture every row's txHash is
+      # also in some block's `transactions`, so listing `rowId` as it stands is
+      # refused by the block half of the check and leaves the `txHash` half
+      # unexercised: a reader that consulted only the blocks would pass. The edit
+      # therefore takes the row out of every block's list first (the third
+      # control below shows that alone ingests), so only the row can match.
+      ("an identifier that is ONLY a row's txHash",
+       proc (doc: JsonNode) =
+         dropFromBlocks(doc, rowId)
+         doc["blocks"][1]["systemTransactions"] = %[rowId], rowId),
+    ]
+    for (what, edit, names) in cases:
+      let said = refusalFor("bad-" & what.replace(" ", "-"), edit)
+      if want notin said or blockHash notin said or names notin said:
+        checkpoint(what & ": got " & (if said.len == 0: "(no refusal at all)" else: said))
+      ck want in said
+      ck blockHash in said
+      ck names in said
+    # CONTROL: the same block with two distinct, unshared identifiers ingests —
+    # and so does the SAME identifier in two different blocks, which is Flow.
+    ck refusalFor("ok-one", proc (doc: JsonNode) =
+      doc["blocks"][1]["systemTransactions"] = %[SysA, SysB]) == ""
+    ck refusalFor("ok-two", proc (doc: JsonNode) =
+      doc["blocks"][1]["systemTransactions"] = %[SysA]
+      doc["blocks"][2]["systemTransactions"] = %[SysA]) == ""
+    # …and the row taken out of every block's list, with no system member, ingests,
+    # so the ONLY-a-row case above is refused by the rule and not by the removal.
+    ck refusalFor("ok-unlisted-row", proc (doc: JsonNode) =
+      dropFromBlocks(doc, rowId)) == ""
+
+  test "assertion count":
+    #   1 + 3 + 3 — 26 blocks, each carrying, in order, its own transactions kept;
+    #               and three totals that did not move
+    #   3 + 2     — empty = absent byte for byte, named nowhere; one block's edit
+    #               changes that block (asserted once) and no other
+    #   6 × 3 + 3 — six refusals, each citing, naming the block and the id; three
+    #               controls
+    expectCount(1 + 3 + 3 + 3 + 2 + 6 * 3 + 3)
+
+# ── ADDRESS HISTORY BELOW THE WINDOW (`addressHistory`, §5.2) ───────────────────
+#
+# Spine need (f) of Recorder-Solana: a chain whose node serves an address's history
+# with no index (Solana's `getSignaturesForAddress`) lets the producer carry it, and
+# the reader publishes it as ONE more segment of that address's history, the oldest,
+# whose entries are listed as `untraced` and open nothing. The frames capture pages
+# no address, so each edit first gives its newest row a sender.
+
+const HistAddr = "0x" & "ab".repeat(20)
+const HistOther = "0x" & "cd".repeat(20)
+const HistA = "0x" & "91".repeat(32)
+const HistB = "0x" & "92".repeat(32)
+
+proc lowestBlock(doc: JsonNode): int =
+  result = high(int)
+  for b in doc["blocks"]: result = min(result, b["number"].getInt)
+
+proc withSender(doc: JsonNode) =
+  doc["transactions"][0]["roles"] = %*[{"role": "sender", "address": HistAddr}]
+
+proc historyOf(doc: JsonNode, address: string, entries: JsonNode): JsonNode =
+  %*{"address": address, "complete": false, "limit": 2, "entries": entries}
+
+proc twoBelow(doc: JsonNode): JsonNode =
+  let lo = lowestBlock(doc)
+  %*[{"txHash": HistA, "blockNumber": lo - 1, "timestamp": 5, "failed": false},
+     {"txHash": HistB, "blockNumber": lo - 2, "timestamp": nil, "failed": true}]
+
+proc addressIndexOf(outDir, address: string): JsonNode =
+  ## The address index naming `address`, read off disk, or nil.
+  for path in walkDirRec(outDir / "d"):
+    if "/addr/" in path and path.endsWith(".json"):
+      let n = parseJson(readFile(path))
+      if n{"address"}.getStr == address: return n
+
+suite "an address's chain history below the window is its oldest segment, and opens nothing":
+  asserted = 0
+
+  test "the history is one more segment, listed last, its entries untraced":
+    let (plain, _) = ingestWith("hist-none", proc (doc: JsonNode) = withSender(doc))
+    defer: removeDir plain
+    let (tree, _) = ingestWith("hist-two", proc (doc: JsonNode) =
+      withSender(doc)
+      doc["addressHistory"] = %[historyOf(doc, HistAddr, twoBelow(doc))])
+    defer: removeDir tree
+    let before = addressIndexOf(plain, HistAddr)
+    let after = addressIndexOf(tree, HistAddr)
+    ck not before.isNil and not after.isNil
+    ck after["segments"].len == before["segments"].len + 1
+    # The window's segments are untouched and come first; the history is last.
+    for i in 0 ..< before["segments"].len:
+      ck after["segments"][i] == before["segments"][i]
+    let lo = lowestBlock(parseJson(readFile(framesCapture / "snapshot.json")))
+    let last = after["segments"][^1].getStr
+    ck last.endsWith("/" & $(lo - 2) & "-" & $(lo - 1) & ".json")
+    let seg = parseJson(readFile(tree / last))
+    ck seg["transactions"].len == 0
+    ck seg["untraced"].len == 2
+    ck seg["untraced"][0]["txHash"].getStr == HistA
+    ck seg["untraced"][1]["failed"].getBool
+    ck seg["untraced"][1]["timestamp"].kind == JNull
+    ck not seg["complete"].getBool and seg["limit"].getInt == 2
+
+  test "each shape §5.2 rules out is refused by name, naming the address":
+    let want = cite("S5-ADDRESS-HISTORY-BELOW-WINDOW")
+    let pristine = parseJson(readFile(framesCapture / "snapshot.json"))
+    let lo = lowestBlock(pristine)
+    let rowId = pristine["transactions"][^1]["txHash"].getStr
+    let cases: seq[(string, proc (doc: JsonNode), string)] = @[
+      ("an entry in the lowest published block",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr,
+           %*[{"txHash": HistA, "blockNumber": lo}])], HistAddr),
+      ("an entry that is a row",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr,
+           %*[{"txHash": rowId, "blockNumber": lo - 1}])], HistAddr),
+      ("entries oldest first",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr,
+           %*[{"txHash": HistB, "blockNumber": lo - 2},
+              {"txHash": HistA, "blockNumber": lo - 1}])], HistAddr),
+      ("one address twice",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr, twoBelow(doc)),
+                                   historyOf(doc, HistAddr, twoBelow(doc))], HistAddr),
+      ("not an array",
+       proc (doc: JsonNode) =
+         doc["addressHistory"] = historyOf(doc, HistAddr, twoBelow(doc)), "not an array"),
+      # bt-evm's review: an address no row pages lost its history silently.
+      ("an address no row pages",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistOther, twoBelow(doc))], HistOther),
+      # …and the SAME address in another spelling (EIP-55 against lowercase).
+      ("the paged address in another spelling",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr.toUpperAscii.replace("0X", "0x"),
+                                             twoBelow(doc))], "0xABAB"),
+      # A duplicate AFTER an object with no entries, which a check keyed by the
+      # segments built missed.
+      ("one address twice, the first with no entries",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr, newJArray()),
+                                   historyOf(doc, HistAddr, twoBelow(doc))], HistAddr),
+      ("one entry twice for one address",
+       proc (doc: JsonNode) =
+         withSender(doc)
+         let lo = lowestBlock(doc)
+         doc["addressHistory"] = %[historyOf(doc, HistAddr,
+           %*[{"txHash": HistA, "blockNumber": lo - 1},
+              {"txHash": HistA, "blockNumber": lo - 2}])], HistA),
+    ]
+    for (what, edit, names) in cases:
+      let said = refusalFor("hist-bad-" & what.replace(" ", "-"), edit)
+      if want notin said or names notin said:
+        checkpoint(what & ": got " & (if said.len == 0: "(no refusal at all)" else: said))
+      ck want in said
+      ck names in said
+    # CONTROLS: the well-formed history ingests, and so does a paged address
+    # whose object has no entries (it is named once and publishes no segment).
+    ck refusalFor("hist-ok", proc (doc: JsonNode) =
+      withSender(doc)
+      doc["addressHistory"] = %[historyOf(doc, HistAddr, twoBelow(doc))]) == ""
+    ck refusalFor("hist-ok-empty", proc (doc: JsonNode) =
+      withSender(doc)
+      doc["addressHistory"] = %[historyOf(doc, HistAddr, newJArray())]) == ""
+
+  test "assertion count":
+    #   1 + 1 + 1 + 1 + 6 — both indexes; one more segment; the window's one
+    #               segment unchanged; the range; the segment's six facts
+    #               (`complete` and `limit` asserted together)
+    #   9 × 2 + 2 — nine refusals, each citing and naming; two controls
+    expectCount(1 + 1 + 1 + 1 + 6 + 9 * 2 + 2)

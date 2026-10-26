@@ -1,0 +1,137 @@
+@import "../generated/index"
+
+/*
+ * menu_item.styl — Design-system menu item component
+ *
+ * Base class: .ct-menu-item
+ * Sub-elements:
+ *   .ct-menu-item-icon      — left icon (svg background or inline)
+ *   .ct-menu-item-label     — primary text
+ *   .ct-menu-item-sublabel  — secondary / descriptive text (keyboard shortcut)
+ *   .ct-menu-item-trailing  — right chevron (›)
+ *
+ * State modifier classes (IsoNim-friendly, no data-attributes):
+ *   .ct-menu-item--disabled  — disabled row
+ *   .ct-menu-item--active    — keyboard-navigation active row (tab focus)
+ *
+ * Variants:
+ *   Standard  — left icon (current implementation)
+ *   Checkbox  — left .ct-checkmark inside .ct-menu-item-icon (future)
+ *
+ * Design token mapping (from design system):
+ *   Default:  fill=colors-ui-surface-base-raised
+ *   Hover:    fill=colors-ui-surface-primary-default-hover
+ *   Focused:  fill=colors-ui-border-focus
+ *   Disabled: icon=colors-ui-icon-primary-disabled, text=colors-ui-text-primary-disabled
+ *   Icon:     colors-ui-icon-primary-default
+ *   Text:     colors-ui-text-primary-body
+ *   Subtext:  colors-ui-text-primary-body-subtle
+ */
+
+.ct-menu-item
+  display: flex
+  align-items: center
+  gap: 0.5em
+  padding: 0 0.5em
+  // rem, not em: this component is used in menus whose font sizes differ (12px
+  // in the branch picker, 14px in the layout menu), and an em height made the
+  // same row 27px in one and 31.5px in the other.  2.25rem is 36px everywhere.
+  height: 2.25rem
+  width: 100%
+  box-sizing: border-box
+  cursor: pointer
+  user-select: none
+  background: colors-ui-surface-base-raised
+  color: colors-ui-text-primary-body
+  font-family: "SpaceGrotesk"
+  font-size: inherit
+  line-height: 1.25em
+  border: none
+  border-radius: 0
+  outline: none
+  text-align: start
+  transition: background-color 0.12s ease
+
+  // ── Sub-elements ─────────────────────────────────────────
+
+  .ct-menu-item-icon
+    flex: 0 0 1em
+    width: 1em
+    height: 1em
+    display: flex
+    align-items: center
+    justify-content: center
+    color: colors-ui-icon-primary-default
+
+  .ct-menu-item-label
+    font-size: 0.875em
+    font-weight: 400
+    color: colors-ui-text-primary-body
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
+
+  .ct-menu-item-sublabel
+    font-size: 0.875em
+    color: colors-ui-text-primary-body-subtle
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
+
+  .ct-menu-item-trailing
+    margin-left: auto
+    flex: 0 0 auto
+    display: flex
+    align-items: center
+    justify-content: center
+    width: 0.5em
+    height: 0.75em
+    background-image: url("data:image/svg+xml,%3Csvg width='5' height='9' viewBox='0 0 5 9' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0.353516 8.35352L4.35352 4.35352L0.353515 0.353516' stroke='%23DDDDDD' stroke-linejoin='round'/%3E%3C/svg%3E")
+    background-repeat: no-repeat
+    background-position: center
+    background-size: contain
+
+  // ── Hover ─────────────────────────────────────────────────
+
+  // The list hover (LIST_HOVER_BG, button.styl) — the one row hover every
+  // menu, list and table uses.
+  &:hover:not(.ct-menu-item--disabled)
+    background: LIST_HOVER_BG
+
+  // ── Keyboard navigation active (blue) ────────────────────
+  // Only .ct-menu-item--active gets the blue background.
+  // :focus-visible is intentionally excluded — it fires on
+  // mouse clicks too and would override the hover gray.
+  //
+  // Sublabel keeps colors-ui-text-primary-body-subtle on the
+  // blue background (same as default/hover per design spec).
+
+  &.ct-menu-item--active:not(.ct-menu-item--disabled)
+    outline: none
+    background: colors-ui-border-focus
+
+    .ct-menu-item-sublabel
+      color: colors-ui-text-primary-body-subtle
+
+  // ── Disabled ──────────────────────────────────────────────
+
+  &.ct-menu-item--disabled
+    cursor: not-allowed
+    pointer-events: none
+
+    .ct-menu-item-icon
+      color: colors-ui-icon-primary-disabled
+
+    .ct-menu-item-label,
+    .ct-menu-item-sublabel
+      color: colors-ui-text-primary-disabled
+
+    .ct-menu-item-trailing
+      opacity: 0.3
+
+    // A disabled item's box: fainter white strokes in the dark theme, the
+    // disabled border and icon tokens in the light one (`by-mode`,
+    // defaults.styl; checkmark.styl).
+    .ct-checkmark
+      --ct-checkmark-border: by-mode(rgba(255, 255, 255, 0.14), colors-ui-border-disabled)
+      --ct-checkmark-icon: by-mode(rgba(255, 255, 255, 0.3), colors-ui-icon-primary-disabled)

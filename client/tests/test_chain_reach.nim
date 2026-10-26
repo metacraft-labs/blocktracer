@@ -43,7 +43,8 @@ import blocktracer_client
 import ../src/components/reach
 
 proc rowWith(reach: JsonNode = nil, floor: JsonNode = nil,
-             vm: JsonNode = nil): JsonNode =
+             vm: JsonNode = nil, verification: JsonNode = nil,
+             ordering: JsonNode = nil): JsonNode =
   ## A registry row carrying only the members a case is about, built through the
   ## REAL parser rather than by constructing a `ChainProfile` by hand — so these
   ## arms also cover the parse, and a member renamed on the wire fails here.
@@ -51,6 +52,8 @@ proc rowWith(reach: JsonNode = nil, floor: JsonNode = nil,
   if reach != nil: result["reach"] = reach
   if floor != nil: result["historyFloor"] = floor
   if vm != nil: result["vm"] = vm
+  if verification != nil: result["verification"] = verification
+  if ordering != nil: result["ordering"] = ordering
 
 suite "the chain landing page states historical reach":
 
@@ -143,7 +146,25 @@ suite "the chain landing page states historical reach":
     # cannot be satisfied by deleting the sentence.
     let floored = reachStatement(parseChainProfile(rowWith(
       reach = %"floor", floor = %*{"height": 67010})))
-    check "not reachable by the pipeline that records this chain" in floored.lead
+    check "cannot be recorded NOW by the pipeline that records this chain" in floored.lead
+
+  test "a floor names no cause, and is counted in the chain's own unit":
+    # Sui's row: `floor` at checkpoint 28,845,373, where the state below IS
+    # reachable by the pipeline and the limit is the execution layer's trace
+    # hooks. The page states the limit and leaves the cause to the producer's
+    # quoted sentence, so no clause may name one.
+    let sui = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", ordering = %*{"kind": "checkpoint"},
+      floor = %*{"height": 28845373, "reason": "protocol 38 has trace hooks"})))
+    check "recorded at checkpoint 28845373 and above" in sui.lead
+    check "block 28845373" notin sui.lead
+    for cause in ["not reachable", "it is obtainable at", "no longer exists"]:
+      check cause notin sui.lead
+    check sui.note == "protocol 38 has trace hooks"
+    # CONTROL: a row with no ordering member is block-ordered (§5.3), and says so.
+    let blockChain = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", floor = %*{"height": 67010})))
+    check "recorded at block 67010 and above" in blockChain.lead
 
   test "a self-contained chain is not described with a floor":
     let st = reachStatement(parseChainProfile(rowWith(reach = %"self-contained")))
@@ -154,10 +175,16 @@ suite "the chain landing page states historical reach":
   test "the instruction set is stated when the row declares one, and not otherwise":
     let withIsa = reachStatement(parseChainProfile(rowWith(
       reach = %"floor", vm = %*{"instructionSet": "evm"})))
-    check "written against the evm instruction set" in withIsa.isa
-    # The honest half: where source does not resolve, THIS is the granularity,
-    # and the per-transaction page is named as the place that says which.
-    check "each transaction's page states which of the two it got" in withIsa.isa
+    check "executed from the evm format" in withIsa.isa
+    # The honest half: the per-transaction page is named as the place that says
+    # which granularity a step got, and no granularity is promised for the chain.
+    check "Each transaction's page states the granularity" in withIsa.isa
+    # An AST-walking format gets the same sentence, and no instruction fallback:
+    # Flow (`cadence-ast`) publishes no instruction listing to fall back to.
+    let ast = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", vm = %*{"instructionSet": "cadence-ast"})))
+    check "executed from the cadence-ast format" in ast.isa
+    check "instruction" notin ast.isa
     let noIsa = reachStatement(parseChainProfile(rowWith(reach = %"floor")))
     check noIsa.isa.len == 0
 
@@ -188,9 +215,28 @@ suite "the chain landing page states historical reach":
     check ReachHeading in html
     check "down to block 0" in html
     check "probed to genesis" in html
-    check "evm instruction set" in html
+    check "executed from the evm format" in html
     # The quotation is MARKED as one.
     check "in the pipeline's own words" in html
+
+  test "the verification policy is quoted when the row states one, whatever the reach":
+    # Solana's CXP-SOL-6: every trace is checked against the chain's recorded facts
+    # and an unverifiable transaction is refused. Only the producer knows that, so
+    # the page quotes it and composes none of it.
+    const said = "every trace is checked against the facts the chain recorded; a " &
+      "transaction that cannot be checked is refused, never guessed"
+    let html = reachSection(parseChainProfile(rowWith(verification = %said)))
+    check said in html
+    check "How each trace on this chain is checked, in the pipeline's own words" in html
+    # Carried with NO declared reach too: it is about the traces, not the boundary.
+    check reachStatement(parseChainProfile(rowWith(verification = %said))).verification == said
+    # CONTROL: a row that says nothing, a number and a blank quote nothing, so the
+    # sentence is shown to come from the row rather than from this module.
+    for v in [JsonNode(nil), %42, %"   "]:
+      let st = reachStatement(parseChainProfile(rowWith(reach = %"floor", verification = v)))
+      check st.verification.len == 0
+      check "How each trace on this chain is checked" notin
+        reachSection(parseChainProfile(rowWith(reach = %"floor", verification = v)))
 
   test "the section renders for a chain that declares nothing at all":
     # Rendered unconditionally, and this is the arm that pins it: a region that

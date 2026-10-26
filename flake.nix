@@ -12,8 +12,13 @@
     # latest-mainline (default `dev` branch) SHAs, matching the sibling isonim
     # static sites (reprobuild-web-site / codetracer-web-site), recorded in the
     # isonim-sites registry.
+    # A TARBALL URL, NOT `github:`. isonim carries a submodule (src/isonim/layout/yoga) whose
+    # empty directory one Nix keeps and another drops when it fetches `github:`, so the same rev
+    # had two NAR hashes and one lock could only satisfy one fleet (2026-10-24: home-pc, Nix 2.34,
+    # got sha256-L+Cy…; the CI runners got sha256-qNVe…). GitHub archive tarball unpacks the same
+    # under every Nix version measured, to sha256-qNVe….
     isonim = {
-      url = "github:metacraft-labs/isonim/d2193dc4935039f5faa0836e0a26eed9e15f1a72";
+      url = "https://github.com/metacraft-labs/isonim/archive/3b3d356c17d65ae385350fe70e7235e5527c70c0.tar.gz";
       flake = false;
     };
     nim-everywhere = {
@@ -125,7 +130,7 @@
     codetracer = {
       # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
       # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/agents&rev=0d1325584b9e7c77d13bbb766077e3418395fe94&submodules=0";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/agents&rev=aca163924c79d9f1219ccd3c585f82f123842a27&submodules=0";
       flake = false;
     };
 
@@ -272,7 +277,7 @@
     # last revision that writes `meta.dat` 6, because the engine this site pins
     # reads 6 only. Move it with client/hydrate/engine-pin.txt, never ahead of it.
     codetracer-evm-recorder = {
-      url = "github:metacraft-labs/codetracer-evm-recorder/0301bf3b2309d5e54ae8c5b7495b1b28b38f9443";
+      url = "github:metacraft-labs/codetracer-evm-recorder/dc516fdab3933bcdef877c51a44b0718fbcc1198";
       flake = false;
     };
     evm-trace-format = {
@@ -309,7 +314,7 @@
     # tools/chain/nix/flow.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chain two.
     codetracer-flow-recorder = {
-      url = "github:metacraft-labs/codetracer-flow-recorder/04a05d33653da6809a1e1372e4c564d7fd462e3c";
+      url = "github:metacraft-labs/codetracer-flow-recorder/229654be23faa0a667d136b72642b35382a9f54c";
       flake = false;
     };
     flow-trace-format = {
@@ -317,10 +322,14 @@
       flake = false;
     };
     # ── Solana: the SBF recorder (tools/chain/nix/sol.nix says why) ────────────
-    # Its trace-format path dependencies are `flow-trace-format` above, whose
-    # revision is exactly the one this recorder's repro.lock names.
+    # Its trace-format path dependencies are `sol-trace-format`, at exactly the
+    # revision this recorder's repro.lock names (afa4dde since recorder 44628b6).
     codetracer-solana-recorder = {
-      url = "github:metacraft-labs/codetracer-solana-recorder/0a1950220964d8c8793b43fa6c4ec1fb9bed35ef";
+      url = "github:metacraft-labs/codetracer-solana-recorder/c3ca118c312661ae51a68afcccaa49376fdc91dd";
+      flake = false;
+    };
+    sol-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/afa4dde4156c168bec73711c8002418345fa249b";
       flake = false;
     };
     # ── Sui: the Move recorder (tools/chain/nix/sui.nix says why) ─────────────
@@ -334,7 +343,7 @@
     # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chains two and three.
     codetracer-cairo-recorder = {
-      url = "github:metacraft-labs/codetracer-cairo-recorder/67ee2770506398c28e9cf1ea9874471a8b0349ae";
+      url = "github:metacraft-labs/codetracer-cairo-recorder/d13bba54f5e75ae10d8b04503623d20af47e71fb";
       flake = false;
     };
     cairo-trace-format = {
@@ -351,7 +360,7 @@
             , aztec-avm-runtime, codetracer-trace-format
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
-            , codetracer-solana-recorder
+            , codetracer-solana-recorder, sol-trace-format
             , codetracer-move-recorder
             , codetracer-cairo-recorder, cairo-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
@@ -566,7 +575,7 @@
           nodejs = followerNodejs;
           recorderSrc = codetracer-solana-recorder;
           recorderRev = codetracer-solana-recorder.rev;
-          solTraceFormatSrc = flow-trace-format;
+          solTraceFormatSrc = sol-trace-format;
           writerSrc = codetracer-trace-format-nim;
           writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
           blocktracerRoot = ./.;
@@ -626,6 +635,7 @@
         packages.flow-recorder = flow.flowRecorder;
         packages.cadence-replay-helper = flow.replayHelper;
         packages.flow-capture-tree = flow.flowCaptureTree;
+        packages.flow-awkward-cases = flow.flowAwkwardCases;
         packages.flow-ct-print = flow.ctPrint;
 
         # ── Solana, produced the same way (Recorder-Solana CXP-SOL-6) ──
@@ -633,6 +643,10 @@
         # `forward-capture` row. See tools/chain/nix/sol.nix.
         packages.solana-recorder = sol.solanaRecorder;
         packages.sol-capture-tree = sol.solCaptureTree;
+        # The ct-print the Solana producer reads its containers with, at the writer's
+        # revision: tests/tidentifierencoding.nim drives the real producer, and CI has no
+        # sibling codetracer-trace-format-nim checkout to find one in.
+        packages.sol-ct-print = sol.ctPrint;
 
         # ── Sui mainnet, produced the same way (Recorder-Move CXP-MOVE-6) ──────────
         # In produced-captures as `sui-mainnet`: byte-reproducible (`nix build --rebuild`

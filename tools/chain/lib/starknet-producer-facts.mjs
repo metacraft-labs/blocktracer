@@ -175,6 +175,24 @@ export const rolesForRow = ({ body, receipt } = {}) => {
 };
 
 /**
+ * `transactions[].l1Message` — what an L1_HANDLER has INSTEAD of a sender: the L1 message
+ * that started it. Its sender is an Ethereum address (the first calldata felt, by the
+ * L1_HANDLER calling convention), its nonce is the L1 message nonce, and the receipt's
+ * `message_hash` identifies the message on both chains. These are what `roles` cannot
+ * hold — a role names a Starknet account — so they get a member of their own, and only
+ * an L1_HANDLER row has it (`null` everywhere else, never an empty shell).
+ */
+export const l1MessageForRow = ({ body, receipt } = {}) => {
+  if (body?.type !== 'L1_HANDLER') return null;
+  const cd = Array.isArray(body?.calldata) ? body.calldata : [];
+  return {
+    fromAddress: cd[0] ?? null,
+    nonce: body?.nonce ?? null,
+    messageHash: receipt?.message_hash ?? null,
+  };
+};
+
+/**
  * `transactions[].payload` — what was called.
  *
  * An account's `__execute__` takes a list of calls. In the Cairo 1 account convention the

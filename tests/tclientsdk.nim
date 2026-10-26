@@ -115,6 +115,32 @@ suite "M12a — contract types imported verbatim from M5b, never redeclared":
     mangled["roles"] = newJArray()
     check decodeTransactionFacts(mangled).toJson != facts.toJson
 
+  test "a block's system transactions round-trip in order, and an empty list is not written":
+    # Data-Contract.md §5.2: a chain's protocol transactions whose identifiers
+    # repeat in every block are not rows, and the published block object carries
+    # them as `systemTransactions` — verbatim, in the chain's order, and OMITTED
+    # when the block settled none, so every block object published before the
+    # member existed is the same bytes. The oracle is the producer's encoder,
+    # read with `std/json`, and the decoder shares no code with it.
+    let withSys = contractModel.BlockDetail(chain: "flow", hash: "0xb1",
+      height: 7, parentHash: "0xb0", transactions: @["0xu1"],
+      systemTransactions: @["0xs2", "0xs1"])
+    let enc = withSys.toJson
+    check enc["systemTransactions"] == %["0xs2", "0xs1"]
+    check enc["transactions"] == %["0xu1"]
+    check decodeBlockDetail(enc).systemTransactions == @["0xs2", "0xs1"]
+    check decodeBlockDetail(enc).toJson == enc
+    # Empty is not written, and a block object with no member decodes to none.
+    let none = contractModel.BlockDetail(chain: "flow", hash: "0xb1", height: 7,
+      parentHash: "0xb0", transactions: @["0xu1"])
+    check not none.toJson.hasKey("systemTransactions")
+    check decodeBlockDetail(none.toJson).systemTransactions.len == 0
+    # MUTATION BITE: the member reordered is a different block object, so a
+    # decoder that sorted it, or one that dropped it, would fail the round trip.
+    var swapped = enc.copy
+    swapped["systemTransactions"] = %["0xs1", "0xs2"]
+    check decodeBlockDetail(swapped).toJson != enc
+
 # ===========================================================================
 # The demo tree, read through the SDK
 # ===========================================================================

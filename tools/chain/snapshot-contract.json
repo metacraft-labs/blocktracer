@@ -221,6 +221,14 @@
     "S5-IDENTIFIER-ENCODING-SHARDABLE": {
       "section": "§5.6",
       "statement": "Every encoding a snapshot declares must be usable as a shard path SEGMENT. base64 is declarable and is not one — its alphabet contains a slash, so a fraction of identifiers would silently publish into a nested directory. Such a declaration is refused naming the encoding, the kind that declared it, the path-safe members of the set it could be instead, and the decision closing it needs."
+    },
+    "S5-SYSTEM-TRANSACTIONS": {
+      "section": "§5.2",
+      "statement": "A block's `systemTransactions`, when present, is an array of non-empty identifier strings, and it is disjoint from the rows: no block lists one identifier twice, and no identifier listed in any block's `systemTransactions` also appears in any block's `transactions` or as any row's `txHash`. A violation is refused naming the block and the identifier, because a system identifier that is also a row is the overwrite of one transaction page by another that the member exists to prevent. The same identifier in two DIFFERENT blocks' `systemTransactions` is what the member is for, and is not refused."
+    },
+    "S5-ADDRESS-HISTORY-BELOW-WINDOW": {
+      "section": "§5.2",
+      "statement": "`addressHistory`, when present, is an array of objects each naming a non-empty `address` at most once (whether or not it has entries), whose `entries` are non-empty identifiers at block numbers BELOW the lowest published block, newest first, none of them any row's `txHash`. A violation is refused naming the address and the entry, because an entry inside the window is a transaction the page would show twice or one the window skipped, and an out-of-order list makes the page's \"older\" step backwards in time. An address no row of the published window pages is refused too, by its exact spelling, because history never creates a page and an address that silently lost its history would read as one that has none. No entry is listed twice for one address."
     }
   },
 
@@ -392,7 +400,37 @@
         "captures": {"required": false, "access": "optional",
                      "holds": "one entry per catch of a supervised watch, each naming the build that was running"},
         "artifactResolution": {"required": false, "access": "optional",
-                               "holds": "where the artifact-resolution sidecar is, if this capture has one"}
+                               "holds": "where the artifact-resolution sidecar is, if this capture has one"},
+        "addressHistory": {"required": false, "access": "optional", "enforcedBy": "S5-ADDRESS-HISTORY-BELOW-WINDOW",
+                           "holds": "the chain's own history, below the window, for addresses the rows already page: one object per address, published as one more segment of that address's history, the oldest, whose entries are listed and open no trace. Absent means the address pages show the window only — §5.2"}
+      }
+    },
+
+    "snapshot.addressHistory[]": {
+      "section": "§5.2",
+      "members": {
+        "address": {"required": true, "access": "optional", "enforcedBy": "S5-ADDRESS-HISTORY-BELOW-WINDOW",
+                    "holds": "the address, in the encoding of the rows' roles"},
+        "complete": {"required": false, "access": "optional",
+                     "holds": "true when the chain was asked for more than it holds below the window, so nothing older exists; absent or false means older history was not fetched"},
+        "limit": {"required": false, "access": "optional",
+                  "holds": "how many entries the producer asked the chain for, so a page can say what \"not fetched\" means"},
+        "entries": {"required": true, "access": "optional", "enforcedBy": "S5-ADDRESS-HISTORY-BELOW-WINDOW",
+                    "holds": "the history, newest first"}
+      }
+    },
+
+    "snapshot.addressHistory[].entries[]": {
+      "section": "§5.2",
+      "members": {
+        "txHash": {"required": true, "access": "optional", "enforcedBy": "S5-ADDRESS-HISTORY-BELOW-WINDOW",
+                   "holds": "the transaction's identifier, in the rows' encoding"},
+        "blockNumber": {"required": true, "access": "optional", "enforcedBy": "S5-ADDRESS-HISTORY-BELOW-WINDOW",
+                        "holds": "the block the chain put it in, below the lowest published block"},
+        "timestamp": {"required": false, "access": "optional",
+                      "holds": "the chain's block time, seconds; null when the chain did not record one"},
+        "failed": {"required": false, "access": "optional",
+                   "holds": "true when the chain recorded the transaction as failed"}
       }
     },
 
@@ -422,7 +460,11 @@
         "identifierEncoding": {"required": false, "access": "optional", "enforcedBy": "S5-IDENTIFIER-ENCODING-CLOSED",
                                "holds": "how this chain writes its identifiers, per kind — the one declaration the reader keys every sharded path from AND publishes onto the registry row. Absent means hex, which is what every tree published before the member existed was keyed under — §5.6"},
         "vm": {"required": false, "access": "optional",
-               "holds": "the executable format this chain's programs are executed from, as {\"instructionSet\": \"…\"} — the declaration that reaches the registry row's `vm` without an instruction listing. An absent member means the producer declared no format, which is NOT a claim that the chain has none — Configuration.md §2.1, §5.3"}
+               "holds": "the executable format this chain's programs are executed from, as {\"instructionSet\": \"…\"} — the declaration that reaches the registry row's `vm` without an instruction listing. An absent member means the producer declared no format, which is NOT a claim that the chain has none — Configuration.md §2.1, §5.3"},
+        "reachReason": {"required": false, "access": "optional",
+                        "holds": "the producer's own sentence for WHY this capture's history starts where `replayableFrom` says, published verbatim as the chain's floor reason in place of the reader's generic one. For a chain whose history is a capture start rather than a node's limit (`forward-capture`) the generic sentence reads as a node limit, which is wrong. Absent or empty means the reader's sentence — §5.3"},
+        "verification": {"required": false, "access": "optional",
+                         "holds": "the producer's own sentence for how each trace on this chain is checked against the chain's recorded facts, and what becomes of a transaction that cannot be checked, published verbatim on the chain's registry row and quoted on its landing page. Absent or empty means the page states no such policy — §5.3"}
       }
     },
 
@@ -471,7 +513,9 @@
                               "holds": "the predecessor link this chain names its parent by; a chain whose predecessor link has another name states it here under this member"},
         "transactions": {"required": true, "access": "required", "holds": "the identifiers this block settled"},
         "timestamp": {"required": false, "access": "optional",
-                      "holds": "unix seconds; a block with none contributes nothing to the published coverage span rather than an invented date"}
+                      "holds": "unix seconds; a block with none contributes nothing to the published coverage span rather than an invented date"},
+        "systemTransactions": {"required": false, "access": "optional", "enforcedBy": "S5-SYSTEM-TRANSACTIONS",
+                               "holds": "the identifiers of the transactions the PROTOCOL ran in this block whose identifiers repeat from block to block, so they cannot be rows; in the chain's execution order, in the encoding of `transactions`. Republished verbatim on the block object and counted in no denominator. Absent and empty both mean this block settled none — §5.2"}
       }
     },
 

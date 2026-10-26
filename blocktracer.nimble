@@ -60,6 +60,16 @@ task test, "Run the conformance + publisher + Client SDK test suites":
   # separate suite (tests/tembedhandoff.nim, `just sdk-test-embed`), because the
   # chain half compiling without one IS the layering.
   exec "nim c -r --hints:off tests/tclientsdk.nim"
+  # The four suites the root `just test` ran and NOTHING ELSE did. CI's `contract`
+  # job runs this task, not the root recipe, so until they were listed here they
+  # executed in no job — and three of them went red on `agents` with nobody told:
+  # an assertion total edited past its code, a rule with no case, and an arm
+  # asserting a refusal its own remedy had replaced. `ci/test/ci-coverage.sh`
+  # step 1c now fails by name on a root-recipe suite that no job runs.
+  exec "nim c -r --hints:off tests/tchainsnapshot.nim"
+  exec "nim c -r --hints:off tests/tidentifierencoding.nim"
+  exec "nim c -r --hints:off tests/tchainprofile.nim"
+  exec "nim c -r --hints:off tests/tcontainerencoding.nim"
   # Does the publish rehearsal's coverage gate bite? The suite asserts both
   # ends — that a healthy corpus reaches every cell of the contract (a gate
   # that can never be green gets turned off) and that each deliberately broken

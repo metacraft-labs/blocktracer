@@ -846,6 +846,133 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
         (if t{"txHash"} != nil: " (" & shortHash(t{"txHash"}.getStr) & ")" else: "") &
         ". " & ruleStatement("S5-ROW-MEMBERS-REQUIRED"))
 
+  # ── A BLOCK'S SYSTEM TRANSACTIONS: A HOME, AND NEVER A ROW ─────────────────
+  #
+  # Data-Contract.md §5.2, "One kind of transaction is not a row" (2026-10-22).
+  # Flow ends every block with transactions the protocol itself runs, under
+  # identifiers that are THE SAME IN EVERY BLOCK. A row, its `/tx/` object and
+  # every transaction URL are keyed by identifier, so such a transaction cannot
+  # be a row: the second block that settled it would overwrite the first one's
+  # page. The Flow producer listed them in `blocks[].systemTransactions` before
+  # the contract named the member, and this reader dropped them — tolerated, not
+  # specified, and absent from the published tree.
+  #
+  # So the member is now read, checked here and republished on the block object
+  # below. What is checked is what makes it a home rather than a second
+  # transaction list: an array of non-empty identifier strings, no identifier
+  # twice in one block, and NOTHING SHARED WITH THE ROWS — no identifier that is
+  # also in any block's `transactions` or is any row's `txHash`, because a
+  # system identifier that is also a row is precisely the overwrite the member
+  # exists to prevent. The same identifier in two DIFFERENT blocks is not
+  # refused: that repetition is the whole reason the member exists.
+  #
+  # IT RUNS AFTER THE ROW-MEMBER PASS, because the disjointness half reads every
+  # row's `txHash`, and a row without one has already been refused by name
+  # above rather than being read here as an empty identifier.
+  #
+  # NOTHING COUNTS THEM. §5.2 puts them in no denominator — not `counts`, not
+  # the summary's counter, not any traced or source-level fraction — and nothing
+  # below reads this member except the block object it is published on.
+  block systemTransactions:
+    var rowIds = initTable[string, string]()   # identifier -> where it is a row
+    for b in snap["blocks"]:
+      for x in b["transactions"]:
+        rowIds[x.getStr] = "a transaction of block " & b["hash"].getStr
+    for t in snap["transactions"]:
+      if t["txHash"].getStr notin rowIds:
+        rowIds[t["txHash"].getStr] = "a transaction row's `txHash`"
+    for b in snap["blocks"]:
+      let sys = b{"systemTransactions"}
+      if sys == nil: continue
+      let where = "block " & b["hash"].getStr & " (number " & $b["number"].getInt &
+        ") in " & snapPath
+      if sys.kind != JArray:
+        raise newException(ValueError,
+          RuleSystemTransactions & where & " states `systemTransactions` as " &
+          $sys & ", which is not an array of identifiers. " &
+          ruleStatement("S5-SYSTEM-TRANSACTIONS"))
+      var seen = initTable[string, bool]()
+      for x in sys:
+        if x.kind != JString or x.getStr.len == 0:
+          raise newException(ValueError,
+            RuleSystemTransactions & where & " lists " & $x &
+            " in `systemTransactions`, which is not a non-empty identifier. " &
+            ruleStatement("S5-SYSTEM-TRANSACTIONS"))
+        let id = x.getStr
+        if id in seen:
+          raise newException(ValueError,
+            RuleSystemTransactions & where & " lists system transaction " & id &
+            " twice. " & ruleStatement("S5-SYSTEM-TRANSACTIONS"))
+        if id in rowIds:
+          raise newException(ValueError,
+            RuleSystemTransactions & where & " lists system transaction " & id &
+            ", which is also " & rowIds[id] & ", so it would be published as a " &
+            "row and as a system transaction at once. " &
+            ruleStatement("S5-SYSTEM-TRANSACTIONS"))
+        seen[id] = true
+
+  # ADDRESS HISTORY BELOW THE WINDOW (`addressHistory`, S5-ADDRESS-HISTORY-BELOW-WINDOW).
+  #
+  # Checked whole before anything is written, for the reason the block above is: a
+  # refusal half-way through the address loop would leave a tree with some
+  # addresses' history and not others'. Each entry must sit below the LOWEST
+  # published block, so it can be neither a transaction this window publishes nor
+  # one it skipped, and must not be a row. Newest first, because the page's
+  # "older" link walks segments in that order. The segment each address gets is
+  # BUILT here, where every member is read off the object it belongs to, and kept
+  # by address for the writer below, which reads no snapshot member itself.
+  var historyByAddress = initTable[string, JsonNode]()
+  # EVERY address an `addressHistory` object names, entries or not, in order, for
+  # the check after the transaction loop that each one is an address a row pages.
+  var historyNamed: seq[string]
+  block addressHistory:
+    let ah = snap{"addressHistory"}
+    if ah == nil: break addressHistory
+    if ah.kind != JArray:
+      raise newException(ValueError,
+        RuleAddressHistory & snapPath & " states `addressHistory` as " & $ah.kind &
+        ", which is not an array. " & ruleStatement("S5-ADDRESS-HISTORY-BELOW-WINDOW"))
+    var lowest = high(int)
+    for b in snap["blocks"]: lowest = min(lowest, b["number"].getInt)
+    var rowIds = initTable[string, bool]()
+    for t in snap["transactions"]: rowIds[t["txHash"].getStr] = true
+    for h in ah:
+      let address = h{"address"}.getStr
+      let entries = h{"entries"}
+      let where = "address " & address & " in " & snapPath
+      if address.len == 0 or address in historyNamed or
+         entries == nil or entries.kind != JArray:
+        raise newException(ValueError,
+          RuleAddressHistory & "an `addressHistory` object in " & snapPath &
+          " names no address, names one twice, or has no `entries` array (" &
+          address & "). " & ruleStatement("S5-ADDRESS-HISTORY-BELOW-WINDOW"))
+      historyNamed.add address
+      var prev = high(int)
+      var seenTx = initTable[string, bool]()
+      var lo = high(int)
+      var hi = low(int)
+      var untraced = newJArray()
+      for e in entries:
+        let id = e{"txHash"}.getStr
+        let n = e{"blockNumber"}.getInt(high(int))
+        if id.len == 0 or n >= lowest or id in rowIds or n > prev or id in seenTx:
+          raise newException(ValueError,
+            RuleAddressHistory & where & " lists " & $e & ": it must be a non-empty " &
+            "identifier below block " & $lowest & ", not a row, not listed twice, and " &
+            "no newer than the entry before it. " &
+            ruleStatement("S5-ADDRESS-HISTORY-BELOW-WINDOW"))
+        seenTx[id] = true
+        prev = n
+        lo = min(lo, n)
+        hi = max(hi, n)
+        let ts = e{"timestamp"}
+        untraced.add %*{"txHash": id, "blockNumber": n,
+          "timestamp": (if ts == nil: newJNull() else: ts),
+          "failed": e{"failed"}.getBool}
+      if untraced.len > 0:
+        historyByAddress[address] = %*{"fromBlock": lo, "toBlock": hi,
+          "transactions": newJArray(), "untraced": untraced,
+          "complete": h{"complete"}.getBool, "limit": h{"limit"}.getInt}
 
   let gen = if cfg.generation.len > 0: cfg.generation else: "1"
   let prov = snap["provenance"]
@@ -1120,6 +1247,23 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # declaration and the row it becomes cannot be understood two ways. That is
   # `identifierEncoding`'s arrangement above and for its reason.
   let declaredVm = parseVmIdentity(prov{"vm"})
+  # THE FLOOR'S REASON, WHEN THE PRODUCER STATES ONE. The reader's sentence below says what a
+  # replaying producer observed — the node served prestate from here and not below. A
+  # producer whose history is where its CAPTURE began (`forward-capture`) observed no such
+  # thing, and the reader's sentence would tell a visitor a node limit that does not exist.
+  # So a producer may state the reason in its own words, and this reader carries them
+  # verbatim, as it carries `vm`. Absent, the wrong shape and empty are one answer: none.
+  # …AND HOW ITS TRACES ARE CHECKED, in the same words-of-the-producer form. Only the
+  # producer knows what it compared each trace against and what it did with one it could
+  # not check, so the reader carries the sentence and composes none of it.
+  let declaredVerification =
+    if prov != nil and prov.kind == JObject: parseVerification(prov{"verification"})
+    else: ""
+  let declaredReachReason =
+    if prov != nil and prov.kind == JObject and prov{"reachReason"} != nil and
+        prov{"reachReason"}.kind == JString:
+      prov{"reachReason"}.getStr.strip
+    else: ""
 
   # ---- the artifact-resolution SIDECAR, if this capture has one -------------
   #
@@ -1416,15 +1560,23 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # height→time table read afterwards would be a second answer to "which blocks
   # is this about", which is the disagreement the curated/uncurated arms used to
   # institutionalise.
+  #
+  # `sys` IS THE BLOCK'S SYSTEM TRANSACTIONS, checked above and carried here
+  # verbatim and in order so the block object below can publish them. A block
+  # whose member is absent carries an empty seq, which the block object omits.
   var blockRows: seq[tuple[hash: string, height: int, parent: string,
-                           txs: seq[string], time: int64]]
+                           txs: seq[string], time: int64, sys: seq[string]]]
   var byHeight = initTable[int, string]()
   for b in snap["blocks"]:
     let h = b["number"].getInt
     var txs: seq[string]
     for t in b["transactions"]: txs.add t.getStr
+    var sys: seq[string]
+    let sysNode = b{"systemTransactions"}
+    if sysNode != nil:
+      for x in sysNode: sys.add x.getStr
     blockRows.add (b["hash"].getStr, h, b["parentArchiveRoot"].getStr, txs,
-                   b{"timestamp"}.getBiggestInt)
+                   b{"timestamp"}.getBiggestInt, sys)
     byHeight[h] = b["hash"].getStr
   # Ascending by height: the published maps and the block list are ordered by
   # the chain's own ordering, not by the order the capture happened to walk.
@@ -1562,7 +1714,8 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
   for b in blockRows:
     let bd = BlockDetail(chain: chain, hash: b.hash, height: b.height,
-                         parentHash: b.parent, transactions: b.txs)
+                         parentHash: b.parent, transactions: b.txs,
+                         systemTransactions: b.sys)
     cfg.writeJson(blockPath(chain, b.hash, identifierEncoding), bd.toJson)
 
   # ---- transactions --------------------------------------------------------
@@ -2894,6 +3047,19 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     # `participate` drops the empty string.
     participate(payloadTarget, height, txHash)
 
+  # EVERY HISTORY ADDRESS IS ONE A ROW PAGES (S5-ADDRESS-HISTORY-BELOW-WINDOW).
+  # Checked here because the rows' addresses are only known once the loop above
+  # has walked them, and before `current.json` moves, so a refusal publishes
+  # nothing. Compared by exact spelling: a history address spelled differently
+  # from the rows (an EIP-55 mixed-case one against lowercase rows on a hex
+  # chain) would otherwise lose its history without a word.
+  for address in historyNamed:
+    if address notin addrTxsByHeight:
+      raise newException(ValueError,
+        RuleAddressHistory & "`addressHistory` in " & snapPath & " names address " &
+        address & ", which no row of the published window pages, so its history " &
+        "would have no page. " & ruleStatement("S5-ADDRESS-HISTORY-BELOW-WINDOW"))
+
   # ---- registry row, now that the published set is known -------------------
   # See the block above where `reg` was read and the incumbent pin checked. The
   # WRITE waits until here because `recorders` describes the containers this
@@ -2971,15 +3137,18 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # inputs publishes a row short of the member, and a consumer built before the
   # member existed reads a row carrying it and answers identically.
   var profile = ChainProfile(reach: reachFromWindow(hasBoundary,
-                                                    replayableFromAt, finalizedAt))
+                                                    replayableFromAt, finalizedAt),
+                             verification: declaredVerification)
   if hasBoundary:
     profile.floor = ChainHistoryFloor(stated: true, height: replayableFromAt,
       # The producer's own words, and they state the MEASUREMENT rather than a
       # cause: what this capture observed is that the node served prestate from
       # here and not below, which is what a visitor meeting the refusal needs to
       # know. Why the node draws the line there is a fact about the node.
-      reason: "prestate was obtainable from " & $replayableFromAt &
-        " upward when this generation was captured, and not below it")
+      reason:
+        if declaredReachReason.len > 0: declaredReachReason
+        else: "prestate was obtainable from " & $replayableFromAt &
+          " upward when this generation was captured, and not below it")
   # ONE KIND, OR NOTHING IS DECLARED. A chain that published rows of two
   # ordering kinds has no single answer to "which quantity sequences this
   # chain", and declaring whichever was seen last would be exactly the inference
@@ -3030,6 +3199,19 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       cfg.writeJson(rel, %*{"chain": chain, "address": address,
         "fromBlock": h, "toBlock": h,
         "transactions": addrTxsByHeight[address][h]})
+      segRels.add rel
+    # THE CHAIN'S OWN HISTORY BELOW THE WINDOW, when the producer carried it
+    # (`addressHistory`, §5.3). One segment, listed LAST because it is the
+    # oldest, holding no `transactions` — none of these has a container here —
+    # and the entries as `untraced`, so the page can say what they are rather
+    # than render them as rows that open nothing. Absent: nothing changes.
+    if address in historyByAddress:
+      let seg = historyByAddress[address]
+      let rel = addressSegmentPath(chain, address,
+        $seg["fromBlock"].getInt & "-" & $seg["toBlock"].getInt, identifierEncoding)
+      var obj = %*{"chain": chain, "address": address}
+      for k, v in seg: obj[k] = v
+      cfg.writeJson(rel, obj)
       segRels.add rel
     let rel = addressIndexPath(chain, gen, address, identifierEncoding)
     var segArray = newJArray()

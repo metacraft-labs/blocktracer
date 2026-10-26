@@ -134,6 +134,10 @@ test:
     # missing or broken `nim` would read as a pass on the one line whose whole job
     # is to say which `nim` this is. The extra banner lines are the cost of that.
     nim --version
+    # NO CI JOB RUNS THIS RECIPE. The `contract` job runs `nimble test`, so a Nim
+    # suite added below must also be added to blocktracer.nimble's `test` task, or
+    # it runs only here. `ci/test/ci-coverage.sh` step 1c fails by name on one
+    # that is missing there; four were, and three of them went red unseen.
     nim c -r --hints:off tests/tcontract.nim
     nim c -r --hints:off tests/tpublish.nim
     nim c -r --hints:off tests/tclientsdk.nim
@@ -157,7 +161,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-ONE suites — 105 + 19 + 24 + 24 + 57 + 241 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 9 + 41 + 31 + 6 + 33 + 24 = 1329 counted assertions —
+# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 7 + 30 + 8 + 11 + 10 + 7 + 49 + 33 + 8 + 33 + 24 = 1362 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -451,6 +455,15 @@ chain-selftest:
     # from the committed block listing and transcript under
     # fixtures/chain-inputs/flow-mainnet/, each arm beside its control.
     node tools/chain/flow-producer-facts-selftest.mjs
+    # Offline and toolchain-free: the Flow conformance fixture's four awkward
+    # cases, each shown to be its case from the committed transcripts beside a
+    # control. What the producer publishes for them is `just flow-awkward-cases`,
+    # which needs the recorder.
+    node tools/chain/flow-awkward-cases-selftest.mjs
+    # Offline and toolchain-free: the era expectation judged by fitting yield
+    # against a step at declared boundaries and against a trend with depth, shown
+    # to report a refutation on a fabricated smooth decline.
+    node tools/chain/era-analysis-selftest.mjs
     # Offline and toolchain-free: the Sui producer's facts, its effects
     # comparison and its refusals, driven from literals shaped as Sui's GraphQL
     # service and `sui replay` write them. Traced rows need a container and are
@@ -800,6 +813,24 @@ _compact-build:
     for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
     nim c --hints:off -d:release "${paths[@]}" \
       -o:.compact-container tools/chain/compact_container.nim
+
+# Regenerate `meta.dat` schema-6 containers as schema 7, verified by a full
+# decode (tools/chain/meta_dat_v7.nim says why that is a regeneration and not a
+# guess). FOR THE ENGINE-PIN MOVE ONLY: the engine pinned in
+# client/hydrate/engine-pin.txt reads schema 6 and refuses 7, so the corpus and
+# the pin move in ONE commit. TRACE_FORMAT_NIM is a codetracer-trace-format-nim
+# tree at the revision the new engine's codetracer locks (ffd0554d for
+# codetracer aca163924), because the verifying reader must read 7. Writes in
+# place; deterministic. `--check` reports without writing.
+#   just ct-meta-dat-v7 ../codetracer-trace-format-nim --check
+ct-meta-dat-v7 TRACE_FORMAT_NIM *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    paths=(-p:"{{TRACE_FORMAT_NIM}}/src")
+    IFS=: read -ra extra <<< "${CT_NIM_EXTRA_PATHS:-}"
+    for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
+    nim c --hints:off -d:release "${paths[@]}" -o:.meta-dat-v7 tools/chain/meta_dat_v7.nim
+    ./.meta-dat-v7 {{ARGS}} $(git ls-files '*.ct' | grep -v '^conformance-kit/template/')
 
 # Re-read the census into the committed reading. Run this deliberately, after a
 # corpus change, and say in the commit WHY each delta moved.
@@ -1781,18 +1812,29 @@ sui-range RECORDER COMMIT *ARGS:
     node tools/chain/capture-sui-range.mjs \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} {{ARGS}}
 
-# The same capture with NO network: checkpoint 336,000,001 from its committed GraphQL
-# transcript (fixtures/chain-inputs/sui-mainnet/336000001), served on loopback. The
-# recording ids are derived and the clock readings pinned, so the tree is byte-identical
-# run to run. Needs the recorder and a `sui` with the `tracing` feature.
+# The same capture with NO network, over Sui's committed windows: each is captured from
+# its own GraphQL transcript (fixtures/chain-inputs/sui-mainnet/<window>), served on
+# loopback, and the published tree is their UNION (tools/chain/merge-sui-windows.mjs), as
+# a chain's history accumulates by ranges. 28,845,372..28,845,373 straddles the traced
+# floor — two transactions at protocol 36 are refused, three at 38 are traced — and
+# 336,000,001 is the modern era. Recording ids are derived and clock readings pinned, so
+# the tree is byte-identical run to run. Needs the recorder and a `sui` with `tracing`.
 sui-capture RECORDER COMMIT OUT=".sui-capture/tree" *ARGS:
-    node tools/chain/capture-sui-range.mjs \
-      --transcript fixtures/chain-inputs/sui-mainnet/336000001 \
-      --from 336000001 --to 336000001 --max 1000 \
-      --fixed-time 2026-10-22T00:00:00.000Z \
-      --work .sui-capture/work --out {{OUT}} \
-      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
-      --positions-reader {{RECORDER}} {{ARGS}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    trees=()
+    for w in 28845372-28845373 336000001-336000001; do
+      from="${w%-*}"; to="${w#*-}"
+      dir=fixtures/chain-inputs/sui-mainnet/$w; [ -d "$dir" ] || dir=fixtures/chain-inputs/sui-mainnet/$from
+      node tools/chain/capture-sui-range.mjs \
+        --transcript "$dir" --from "$from" --to "$to" --max 1000 \
+        --fixed-time 2026-10-22T00:00:00.000Z \
+        --work ".sui-capture/work-$w" --out ".sui-capture/w-$w" \
+        --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+        --positions-reader {{RECORDER}} {{ARGS}}
+      trees+=(--tree ".sui-capture/w-$w")
+    done
+    node tools/chain/merge-sui-windows.mjs "${trees[@]}" --out {{OUT}}
 
 # Is the Sui endpoint still serving the object versions it served when the
 # committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed
@@ -2415,6 +2457,15 @@ flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
       --recorder-commit "$commit" \
       --inputs fixtures/chain-inputs/flow-mainnet/{{BLOCK}} \
       --out {{OUT}} --work .flow-capture/work
+
+# Recorder-Flow CXP-FLOW-4's conformance fixture: the blocks
+# fixtures/chain-inputs/flow-mainnet/awkward-cases.json names, each captured from its
+# committed transcripts for only the case and control transactions, and
+# tools/chain/flow-awkward-cases-check.mjs over the trees — in the build, with no
+# network. The trees land in OUT, one directory per block, for
+# `just conformance OUT/<height>`.
+flow-awkward-cases OUT=".flow-awkward-cases":
+    nix build .#flow-awkward-cases --out-link {{OUT}} -L
 
 # ── the RESIDENT follower: ING-1's deployed daemon, runnable locally over a range ──
 #

@@ -72,13 +72,16 @@
 # bundle). The run prints which tiers it asked, so a tier that did not run reads
 # as not-run rather than as passed.
 #
-# No verdict in the register depends on a bundle: the bundle half is measured
-# and deliberately NOT counted as liveness, for the reason the register's header
-# gives at length. To see the third tier filled, run it by hand over a hydrated
-# export:
-#
-#     cd client && just export-hydrated
-#     node tools/ci/check-css-reachable.mjs client/dist --client client
+# AND THE THIRD BUNDLE WHEN THE REGISTER ASKS FOR IT. A bundle token is still
+# not liveness by default, but a row may NAME the bundle as its evidence
+# (`LIVE <kind> <name> bundle`), and since Shared-DOM-Front-Ends Q6 the live
+# panes' rows do: the shared Call Trace, State and Event Log views exist only
+# in `hydrate.js`. Such a row can be checked only against that bundle, so when
+# the register carries one this builds it (`client/hydrate/build.sh`, at the
+# pins, which the dev and CI shells supply) and exports with it. Where no
+# debugger is reachable the run REFUSES (exit 2) rather than skipping those
+# rows, because a gate that passes by not looking is the failure it exists to
+# catch. A register with no such row keeps the debugger-free run above.
 #
 # Exit codes:
 #   0  every row of the register holds
@@ -124,10 +127,25 @@ echo "== building the two Embed-SDK-free bundles =="
 	exit 2
 }
 
+hydration_flag=()
+if grep -qE '^LIVE [a-z]+ [^ ]+ bundle$' "${register}"; then
+	echo "== building the hydration bundle (the register names bundle evidence) =="
+	if ! "${repo_root}/client/hydrate/build.sh" >"${work}/hydrate.log" 2>&1; then
+		echo "ct-css-reachable.sh: the register has LIVE rows on BUNDLE evidence and" >&2
+		echo "  the hydration bundle did not build, so those rows cannot be checked." >&2
+		echo "  remedy: run inside the dev shell (nix develop / nix develop .#ci)," >&2
+		echo "  which puts the pinned CodeTracer on the path for client/hydrate/build.sh." >&2
+		tail -30 "${work}/hydrate.log" >&2
+		exit 2
+	fi
+	hydration_flag=(-d:hydrationBundle=/assets/hydrate.js)
+fi
+
 echo "== exporting the site =="
 (
 	cd "${repo_root}/client" &&
 		nim c --mm:orc -d:isServer -d:release --hints:off \
+			"${hydration_flag[@]}" \
 			-d:searchBundle=/assets/search.js \
 			-d:settingsBundle=/assets/settings.js \
 			--nimcache:"${work}/nimcache" \
@@ -152,7 +170,9 @@ if [ ! -d "${work}/dist" ]; then
 	tail -30 "${work}/export.log" >&2
 	exit 2
 fi
-for bundle in search settings; do
+bundles=(search settings)
+[ "${#hydration_flag[@]}" -gt 0 ] && bundles+=(hydrate)
+for bundle in "${bundles[@]}"; do
 	if [ ! -s "${work}/dist/assets/${bundle}.js" ]; then
 		echo "ct-css-reachable.sh: the export shipped no ${bundle}.js" >&2
 		echo "  without a bundle the decoder validation is skipped rather than run" >&2

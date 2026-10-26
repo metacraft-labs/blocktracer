@@ -34,6 +34,7 @@
 ## walks the generation's own list. The cost of the thousandth page is the cost
 ## of the first.
 
+import std/times
 import isonim/ssr/escape
 import isonim/dsl/ui
 import ../reader
@@ -99,6 +100,32 @@ proc codeSummary(chain: string, address: string,
           a(href = addressCodeUrl(chain, address)):
             text "Browse the verified source →"
 
+proc untracedTable(seg: AddressSegmentRow): string =
+  ## The chain's own history below the window (§5.2 `addressHistory`). Nothing
+  ## here has a container in this tree, so an identifier is TEXT, never a link:
+  ## a link would open a page this tree does not hold.
+  ui:
+    tdiv(class = "tablewrap"):
+      table(class = "tbl txtbl"):
+        thead:
+          tr:
+            th: text "Tx hash"
+            th(class = "num"): text "Block"
+            th: text "Time (UTC)"
+            th: text "Status"
+        tbody:
+          for e in seg.untraced:
+            tr(class = (if e.failed: "reverted" else: "")):
+              td(class = "hash identifier", `data-label` = "Tx hash"): text e.txHash
+              td(class = "num", `data-label` = "Block"): text $e.blockNumber
+              td(`data-label` = "Time (UTC)"):
+                if e.timestamp > 0:
+                  text fromUnix(e.timestamp).utc.format("yyyy-MM-dd HH:mm:ss")
+                else:
+                  span(class = "muted"): text "—"
+              td(`data-label` = "Status"):
+                text (if e.failed: "Failed" else: "Succeeded")
+
 proc addressPage*(chain: string, info: ChainInfo, v: AddressView,
                   rows: seq[TxRow], label: LabelRow,
                   code: seq[SourceBundleView],
@@ -133,7 +160,31 @@ proc addressPage*(chain: string, info: ChainInfo, v: AddressView,
 
         raw degraded.notice(degradation, note)
 
-        if v.indexed:
+        if v.indexed and v.segment.untraced.len > 0:
+          # THE OLDEST SEGMENT OF A CHAIN WHOSE PRODUCER CARRIED ITS HISTORY.
+          # "Complete history" below would be false here twice over: these
+          # transactions were not replayed, and unless the chain was asked for
+          # more than it holds, older ones exist that were not fetched.
+          h2(class = "sec-title next"): text "Earlier transactions"
+          p(class = "lead"):
+            text "Recorded by the chain before this capture began. They were "
+            text "not replayed here, so none of them opens a trace."
+          raw untracedTable(v.segment)
+          if not v.segment.complete:
+            p(class = "muted"):
+              text "Older history was not fetched: the chain was asked for the " &
+                $v.segment.limit & " transactions before this capture began, " &
+                "and it holds more."
+          raw pager(Pager(
+            summary: "Blocks " & $v.segment.toBlock & " to " &
+                     $v.segment.fromBlock & " · segment " &
+                     $(v.index + 1) & " of " & $v.segmentPaths.len,
+            newestHref: (if v.index > 0: addressUrl(chain, v.address) else: ""),
+            olderHref: (if hasOlder:
+                          addressSegmentUrl(chain, v.address,
+                            segmentIdOf(v.segmentPaths[v.index + 1]))
+                        else: "")))
+        elif v.indexed:
           h2(class = "sec-title next"): text "Transactions"
           p(class = "lead"):
             # "no capability to negotiate" and "the pipeline builds this index"

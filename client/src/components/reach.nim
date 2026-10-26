@@ -75,6 +75,10 @@ type
       ## reader is entitled to see which is which.
     isa*: string
       ## The instruction-set sentence, or empty when the row declares none.
+    verification*: string
+      ## The producer's own sentence for how each trace is checked, verbatim, or
+      ## empty. A QUOTATION for `note`'s reason. Unlike `note` it is carried
+      ## whatever the reach, because it is about the traces and not the boundary.
 
 const
   ReachHeading* = "How far back this chain can be debugged"
@@ -90,9 +94,9 @@ const
   BelowTheFloor = "THAT IS A LIMIT ON WHAT CAN BE RECORDED, not on what is " &
     "published here. A transaction already recorded carries its own execution " &
     "and steps from it for good; the boundary says that a transaction below it " &
-    "cannot be recorded NOW, because the state a replay would have to start " &
-    "from is not reachable by the pipeline that records this chain. The " &
-    "sentence below is that pipeline's own record of what it measured."
+    "cannot be recorded NOW by the pipeline that records this chain. Why it " &
+    "cannot is that pipeline's finding and not this page's: the sentence below " &
+    "is its own record of what it measured."
     ## ── THE CLAUSE THAT HAD TO BE CORRECTED BEFORE IT SHIPPED ─────────────
     ##
     ## The first draft read "a transaction below that point is still published
@@ -139,12 +143,33 @@ const
     ## cause: `ingest.nim` states in as many words that "why the node draws
     ## the line there is a fact about the node", and this page had been adding
     ## one.
+    ##
+    ## ── AND THEN WITHOUT ANY CAUSE AT ALL, 2026-10-24 ─────────────────────
+    ##
+    ## "Not reachable by the pipeline" was still a cause, and Sui refutes it:
+    ## its row declares `floor` at checkpoint 28,845,373, and the state below it
+    ## IS reachable by the very pipeline that records the chain — `sui replay`
+    ## fetches the exact object versions a transaction names, and the GraphQL
+    ## service served their contents down to checkpoint 1,000,000
+    ## (`tools/chain/measurements/sui-endpoint-horizon.json`). 28,845,373 is the
+    ## first checkpoint at protocol 38, the first execution layer with trace
+    ## hooks; below it a replay succeeds and writes no trace. The cause is the
+    ## producer's to state, and since `provenance.reachReason` (bt-evm 780ad9e)
+    ## every producer can: so this clause states the limit and the producer's
+    ## quoted sentence states why.
 
-func floorPhrase(f: ChainHistoryFloor): string =
+func floorPhrase(f: ChainHistoryFloor; o: ChainOrdering): string =
   ## "block 67,010 and above", or the honest alternative when the row states no
   ## position. `stated == false` is NOT height zero — a floor of zero is a chain
   ## reachable to genesis, and this is the one place the difference is spent.
-  if f.stated: "block " & $f.height & " and above"
+  ##
+  ## The unit is the row's own: a checkpoint-ordered chain's floor is a
+  ## checkpoint sequence number, and calling it a block names a thing that
+  ## chain does not have. An undeclared ordering is `blockIndex`, as §5.3 says
+  ## an absent member means.
+  let unit = (if o.state == dsDeclared and o.kind == tokCheckpoint: "checkpoint "
+              else: "block ")
+  if f.stated: unit & $f.height & " and above"
   else: "a boundary this chain's registry row does not state the position of"
 
 func reachLead(p: ChainProfile): string =
@@ -182,11 +207,12 @@ func reachLead(p: ChainProfile): string =
         "probe reached genesis and found state, which is a lower bound on the " &
         "reach and not a promise about every block in between."
       else:
-        WhyStateIsNeeded & "On this chain it is obtainable at " &
-        floorPhrase(p.floor) & ", and not below. " & BelowTheFloor
+        WhyStateIsNeeded & "On this chain a transaction can be re-executed " &
+        "and recorded at " & floorPhrase(p.floor, p.ordering) & ", and not " &
+        "below. " & BelowTheFloor
     of rkWindowed:
       WhyStateIsNeeded & "On this chain it is kept for a moving window and was " &
-      "obtainable at " & floorPhrase(p.floor) & " when this generation was " &
+      "obtainable at " & floorPhrase(p.floor, p.ordering) & " when this generation was " &
       "captured. " & BelowTheFloor &
       " And the boundary MOVES UP as the chain advances, so what can be " &
       "recorded shrinks from below while what is already published does not."
@@ -202,7 +228,7 @@ func reachLead(p: ChainProfile): string =
       "however old it is."
     of rkRecentOnly:
       WhyStateIsNeeded & "On this chain it is kept only for recent blocks, at " &
-      floorPhrase(p.floor) & ". " & BelowTheFloor
+      floorPhrase(p.floor, p.ordering) & ". " & BelowTheFloor
 
 func reachStatement*(p: ChainProfile): ReachStatement =
   ## The whole statement, from the registry row and from nothing else.
@@ -218,11 +244,17 @@ func reachStatement*(p: ChainProfile): ReachStatement =
          p.floor.reason else: ""),
     isa:
       (if p.vm.stated and p.vm.instructionSet.len > 0:
-         "Recordings on this chain are written against the " &
-         p.vm.instructionSet & " instruction set. Where a contract's source " &
-         "cannot be resolved, that is the granularity a step is reported at — " &
-         "each transaction's page states which of the two it got."
-       else: ""))
+         # TRUE FOR EVERY KIND OF EXECUTABLE FORMAT, not only a bytecode ISA. The row's `vm`
+         # names the format a program is executed from (Configuration.md §2.1), and on a chain
+         # whose runtime walks an AST (Flow, `cadence-ast`) a step is a statement and there is
+         # no instruction listing to fall back to. The earlier sentence promised that fallback
+         # on every chain, which Flow's landing page then served.
+         "Recordings on this chain are executed from the " & p.vm.instructionSet &
+         " format. Each transaction's page states the granularity its steps " &
+         "are reported at: source lines where the contract's source was " &
+         "resolved, otherwise the format's own units."
+       else: ""),
+    verification: p.verification)
 
 func transactionsPhrase(n: int): string =
   if n == 1: "1 transaction" else: $n & " transactions"
@@ -276,3 +308,8 @@ proc reachSection*(p: ChainProfile, tracesPublished = -1,
           text "”"
       if st.isa.len > 0:
         p(class = "muted measure"): text st.isa
+      if st.verification.len > 0:
+        p(class = "muted measure"):
+          text "How each trace on this chain is checked, in the pipeline's own words: “"
+          text st.verification
+          text "”"

@@ -1,0 +1,37 @@
+{
+  "schema": "blocktracer/flow-awkward-cases@1",
+  "about": "Recorder-Flow CXP-FLOW-4's conformance fixture: one Flow mainnet transaction per case Flow makes awkward, each a committed transcript under the block directory beside this file. tools/chain/flow-awkward-cases-selftest.mjs asserts each is the case it is listed as, from the chain's own record; tools/chain/flow-awkward-cases-check.mjs asserts what the producer published for it.",
+  "cases": [
+    {
+      "case": "three-roles",
+      "block": 168391034,
+      "tx": "c8f9190752baabcbe010c201d4b34bcda9c3de91b53a6fe6accf8d95442e0611",
+      "control": { "block": 168391034, "tx": "73cda1552b11a4d5e4ad3fcbbfbc85d9475f67f0e4b33727e4cfa87dbaef04c4" }
+    },
+    {
+      "case": "nft-across-accounts",
+      "block": 168732821,
+      "tx": "9068ffc49b5a5d02dcf2bec1e3d714eb903463988ee4a08b77d7320318111fa6",
+      "control": { "block": 167993738, "tx": "adc896e37c5fa3385aa3a91e17c6cc1e6ec33397b07d9ac21b57848aa4b53649" }
+    },
+    {
+      "case": "pre-condition-failed",
+      "block": 152000018,
+      "tx": "888f04f1697e84e154214bad764ade256b374b95b15000d4787b0d1ee4e1b1d5",
+      "control": { "block": 168391034, "tx": "73cda1552b11a4d5e4ad3fcbbfbc85d9475f67f0e4b33727e4cfa87dbaef04c4" }
+    },
+    {
+      "case": "contract-updated-after",
+      "block": 167993738,
+      "tx": "adc896e37c5fa3385aa3a91e17c6cc1e6ec33397b07d9ac21b57848aa4b53649",
+      "contract": "A.af49000bf75fe955.Streetball",
+      "update": {
+        "event": "flow.AccountContractUpdated",
+        "height": 168021930,
+        "tx": "d9e8aa67ad81042e85d16d01acca28a775c589e4c99adb11208c45f94b08481f",
+        "codeHash": "7d4a36a4048168b3a292ab2b01350530ebd81092459e8f520f9ba6a40ce65037",
+        "source": "167993738/updated-after/A.af49000bf75fe955.Streetball.cdc"
+      }
+    }
+  ]
+}

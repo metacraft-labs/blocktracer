@@ -71,7 +71,8 @@
 ## publishing every committed capture before and after and diffing every object
 ## path and byte.
 
-import std/[unittest, os, json, strutils, algorithm, osproc, sets, tables]
+import std/[unittest, os, json, strutils, algorithm, osproc, sets, tables,
+            sequtils]
 
 import ../src/blocktracer_client
 import ../src/blocktracer_client/paths
@@ -91,6 +92,18 @@ const
   LiveMainnet = RepoRoot / "tests" / "fixtures" / "chain-snapshots" /
                 "aztec-mainnet-live"
   RegistryRel = "registry/chains.v1.json"
+  # THE REAL NON-HEX SUBJECT. Solana's committed capture window — the inputs the
+  # `sol-capture-tree` derivation builds from, so the producer driven here is the
+  # one that publishes `solana-mainnet`, not a re-declaration of a hex tree.
+  SolanaInputs = RepoRoot / "fixtures" / "chain-inputs" / "solana-mainnet" /
+                 "459262600-459262602"
+  # The one slot that derivation publishes; see `tools/chain/nix/sol.nix`.
+  SolanaPublishedSlot = "459262601"
+  # Solana's System Program: base58 for 32 zero bytes, `1` being base58's zero
+  # digit. The one published identifier whose spelling is also legal hex — see
+  # the address arm of the real-producer round trip for why that matters.
+  SolanaSystemProgram = "11111111111111111111111111111111"
+  FlakeLock = RepoRoot / "flake.lock"
 
 # THIS SUITE REFUSES RATHER THAN SKIPS. Both subjects are committed, and a run
 # that quietly produced no registry would report green having measured nothing —
@@ -106,6 +119,11 @@ doAssert fileExists(SharedSetFile),
   "tools/chain/identifier-encodings.json is missing. It is `staticRead` at " &
   "compile time, so this cannot happen without the build having failed first — " &
   "if it does, the file was deleted after the binary was built."
+doAssert fileExists(SolanaInputs / "results.jsonl"),
+  "fixtures/chain-inputs/solana-mainnet/459262600-459262602 is missing; the " &
+  "only producer in this tree that emits NON-HEX identifiers cannot be driven, " &
+  "and the round trip would fall back to a re-declared hex tree without saying " &
+  "so — which is the silent self-pass this suite exists to refuse."
 
 var asserted = 0
 template ck(condition: untyped) =
@@ -130,6 +148,94 @@ proc buildDemo(tag: string, seed = "identenc"): string =
 proc buildIngest(tag: string): string =
   result = tmpDir(tag)
   discard ingestSnapshot(IngestConfig(outDir: result, snapshotDir: LiveMainnet))
+
+proc solanaSnapshot(tag: string): string =
+  ## THE REAL SOLANA PRODUCER, RUN HERE, over the committed capture window.
+  ##
+  ## ## Why it is produced rather than committed
+  ##
+  ## `LiveMainnet` above is a committed snapshot because it is a frozen
+  ## contract-version artefact that must not move. This one is the opposite: it
+  ## is a DERIVED tree, and the repository's binary-file rule is that a derived
+  ## artefact is produced by the test that needs it so it stays current. The
+  ## inputs are committed; the tree is a pure function of them
+  ## (`tools/chain/nix/sol.nix` builds the same tree in a sandbox from the same
+  ## files), so producing it here costs a `node` run and pins nothing.
+  ##
+  ## ## What differs from `nix build .#sol-capture-tree`, stated because it does
+  ##
+  ## That derivation also replays 60 committed bundles through
+  ## `codetracer-solana-recorder` and publishes 13 CodeTracer containers. No
+  ## recorder is built here, so those 13 rows arrive as `no-container-written`
+  ## refusals and the tree publishes NO trace — exactly the shape
+  ## `aztec-mainnet-live` has (`tracesPublished: 0`). That changes nothing this
+  ## suite measures: an identifier's encoding, its shard path and its key form
+  ## come from the enumeration and the declaration, not from a container, and
+  ## every identifier below is the real one the chain minted. It also keeps the
+  ## rule that no `.ct` is produced into the repository by a test.
+  ##
+  ## NOT A MOCK AND NOT A STAND-IN: this is `produce-sol-snapshot.mjs`, the same
+  ## program the published `solana-mainnet` tree is built with, reading the same
+  ## committed inputs.
+  result = tmpDir(tag)
+  let capture = result / "capture"
+  let snapshot = result / "snapshot"
+  # `runtimeCommit` is provenance only — nothing this suite asserts reads it —
+  # but it must be the revision the window was captured with rather than a
+  # literal that goes stale, so it is read from the lock that pins the recorder.
+  let rev = parseJson(readFile(FlakeLock)){"nodes"}{
+    "codetracer-solana-recorder"}{"locked"}{"rev"}.getStr
+  doAssert rev.len == 40,
+    "flake.lock does not pin codetracer-solana-recorder; the Solana producer " &
+    "cannot be given the revision its capture was taken at."
+  # IT REFUSES RATHER THAN SKIPS if node is not there, for the reason the
+  # JavaScript-half arm at the end of this file gives: a measurement that
+  # quietly did not happen is the silent self-pass the testing policy bans.
+  let unpack = "cd " & quoteShell(RepoRoot) & " && node " &
+               "tools/chain/sol-fixture.mjs unpack --fixture " &
+               quoteShell(SolanaInputs) & " --out " & quoteShell(capture)
+  let (uOut, uCode) = execCmdEx(unpack)
+  doAssert uCode == 0,
+    "the committed Solana window would not unpack (exit " & $uCode & "): " &
+    uOut & " — exit 127 is node missing from PATH, which in this repository " &
+    "means the devshell was not entered."
+  # `$CT_PRINT` when it is set (CI sets it from `.#sol-ct-print`), otherwise the
+  # producer's own default, the sibling checkout a workspace has and a CI runner does not:
+  # without this, the contract job refused here with "ct-print not found".
+  let ctPrintFlag =
+    if getEnv("CT_PRINT").len > 0: " --ct-print " & quoteShell(getEnv("CT_PRINT"))
+    else: ""
+  let produce = "cd " & quoteShell(RepoRoot) & " && node " &
+                "tools/chain/produce-sol-snapshot.mjs --capture " &
+                quoteShell(capture) & ctPrintFlag & " --recorder-commit " & rev &
+                " --from " & SolanaPublishedSlot & " --to " &
+                SolanaPublishedSlot & " --out " & quoteShell(snapshot)
+  let (pOut, pCode) = execCmdEx(produce)
+  doAssert pCode == 0,
+    "the real Solana producer refused the committed window (exit " & $pCode &
+    "): " & pOut
+  result = snapshot
+
+proc removeScratch(dir: string) =
+  ## Remove one per-test scratch directory, with a GUARD rather than a comment.
+  ## The first draft of the Solana arm cleaned up `tree.parentDir.parentDir`,
+  ## which is `getTempDir()` itself — it would have deleted every other process's
+  ## temporary files, and nothing about the expression says so. A `doAssert`
+  ## rather than a `ck` because it is a guard on the test, not a measurement.
+  doAssert dir.len > 0 and dir.lastPathPart.startsWith("bt-identenc-"),
+    "refusing to remove '" & dir & "': a scratch directory this suite made is " &
+    "named `bt-identenc-<tag>-<pid>`, and anything else is a path this test " &
+    "has no business deleting."
+  removeDir dir
+
+proc buildIngestSolana(tag: string): string =
+  ## The REAL ingest producer over the REAL Solana snapshot: a published §5 tree
+  ## whose every identifier is base58 because the chain's are, and whose shard
+  ## paths were derived from the declaration the producer wrote.
+  let snapshot = solanaSnapshot(tag)
+  result = snapshot.parentDir / "tree"
+  createDir result
+  discard ingestSnapshot(IngestConfig(outDir: result, snapshotDir: snapshot))
 
 proc rawRegistry(tree: string): JsonNode =
   ## The registry as BYTES ON DISK, parsed with `std/json` — never through the
@@ -1984,6 +2090,146 @@ suite "the encoding has exactly one source: the registry row":
     ck hexStillThere == 0
     removeDir tree
 
+  test "…and a REAL non-hex PRODUCER does, with the hex control in the same run":
+    # THE SAME CLAIM AS THE TEST ABOVE, AGAINST A PRODUCER INSTEAD OF A
+    # RE-DECLARATION. The arm above moves a hex tree's objects to the paths a
+    # base58 declaration implies, which measures the CLIENT honestly and leaves
+    # the PRODUCER half argued — the objects are placed with the client's own
+    # path function, so two sides of that comparison are one function.
+    #
+    # Here the producer is `produce-sol-snapshot.mjs` over Solana's committed
+    # capture window and the publisher is the real `ingestSnapshot`. Neither is
+    # told anything by this test: the encoding is base58 because
+    # `lib/solana-producer-facts.mjs` says Solana's identifiers are, the
+    # identifiers are the ones the chain minted, and the shard paths are whatever
+    # the producer derived from its own declaration.
+    let tree = buildIngestSolana("roundtrip-real-b58")
+    let slug = onlySlug(rawRegistry(tree))
+    ck slug == "solana-mainnet"
+
+    # THE DECLARATION AS PUBLISHED BYTES, not through the module that wrote it.
+    let declared = rawRegistry(tree)["chains"][slug]["identifierEncoding"]
+    ck declared["transaction"].getStr == "base58"
+    ck declared["address"].getStr == "base58"
+    ck declared["block"].getStr == "base58"
+
+    let opened = openChain(localTree(tree), slug)
+    ck opened.outcome == ooOpened
+    let enc = opened.session.identifierEncoding
+    ck enc.declared
+    ck enc.encodingFor(KindTransaction) == "base58"
+    ck enc.encodingFor(KindAddress) == "base58"
+
+    var hashes: seq[string]
+    for path in walkDirRec(tree / "d" / slug / "tx", relative = true):
+      if path.endsWith(".json"): hashes.add path.splitFile.name
+    # A FLOOR, because a walk that found nothing would satisfy every loop below.
+    # The published slot carries 397 transactions; the floor is deliberately well
+    # under it so a capture-scope change does not read as a regression here.
+    ck hashes.len >= 300
+
+    # THE IDENTIFIERS ARE ACTUALLY NON-HEX, asserted rather than assumed: this is
+    # the clause the milestone's status note said no producer in this tree could
+    # supply. `0x`-prefixed is not merely absent — a character outside hex's
+    # alphabet is PRESENT, so these strings could not be read as hex at all.
+    var nonHex = 0
+    for h in hashes:
+      if not h.startsWith("0x") and h.anyIt(it notin {'0'..'9', 'a'..'f'}):
+        inc nonHex
+    ck nonHex == hashes.len
+
+    # THE ROUND TRIP, through the real SDK read from the session's declaration.
+    let store = localTree(tree)
+    var found = 0
+    for h in hashes:
+      let r = transaction(store = store, session = opened.session, txHash = h)
+      if r.outcome != roFound:
+        checkpoint("real base58 round trip failed for " & h & ": " & $r.outcome)
+      elif r.view.hash != h:
+        checkpoint("resolved to a different identifier: " & r.view.hash)
+      else: inc found
+    ck found == hashes.len
+
+    # THE CONTROL, AND WHERE IT ACTUALLY BITES — which is not where the arm above
+    # put it. A base58 identifier carries no `0x` to strip and base58 FOLDS its
+    # bucket (`shardKey.foldKey`), so base58 and hex derive the SAME shard
+    # DIRECTORY for every one of these: measured, 397 of 397 identical. The two
+    # rules diverge in the LEAF, because base58's key form preserves case and
+    # hex's folds it. So a client that ignored the declaration and assumed hex
+    # would look in the right directory for a filename that does not exist.
+    let hexEnc = hexIdentifierEncoding()
+    var hexResolves, sameShard, vacuous = 0
+    for h in hashes:
+      if fileExists(tree / txFactsPath(slug, h, hexEnc)): inc hexResolves
+      if shardKeyFor("base58", h) == shardKeyFor("hex", h): inc sameShard
+      # An identifier with no uppercase anywhere folds to itself, so for IT the
+      # control could not fail. Counted, and required to be none of them.
+      if not h.anyIt(it in {'A'..'Z'}): inc vacuous
+    ck hexResolves == 0
+    ck sameShard == hashes.len
+    ck vacuous == 0
+
+    # ADDRESSES, the second kind the declaration names, published under their own
+    # base58 key form for the same reason.
+    var addrs: seq[string]
+    let gRoot = tree / "d" / slug / "g"
+    for gen in walkDir(gRoot):
+      if dirExists(gen.path / "addr"):
+        for p in walkDirRec(gen.path / "addr", relative = true):
+          if p.endsWith(".json"): addrs.add p.splitFile.name
+    ck addrs.len >= 200
+    # ONE DELIBERATE EXCEPTION, asserted BY NAME with its reason rather than
+    # waved at with a `>=`, because it is the most interesting identifier in the
+    # tree. Solana's System Program is `1` × 32 — base58 for 32 zero bytes, and
+    # `1` is base58's zero digit. Every character of it is also a hex character,
+    # it carries no `0x` for hex to strip, and it has no uppercase for either
+    # rule to fold. So for THIS identifier the declaration makes no observable
+    # difference at all: base58 and hex derive the same bucket AND the same leaf.
+    # It is published, it is real, and a sweep that asserted "every address is
+    # non-hex" would be false on it — which is why the count is `len - 1` and the
+    # exception is pinned to the one address that may hold it.
+    var addrNonHex, addrPrefixed = 0
+    var hexIndistinguishable: seq[string]
+    for a in addrs:
+      if a.startsWith("0x"): inc addrPrefixed
+      if a.anyIt(it notin {'0'..'9', 'a'..'f'}): inc addrNonHex
+      else: hexIndistinguishable.add a
+    ck addrPrefixed == 0
+    ck hexIndistinguishable == @[SolanaSystemProgram]
+    ck addrNonHex == addrs.len - 1
+
+    # THE HEX CONTROL IN THE SAME RUN, which is what the milestone entry's
+    # `description` asks for: the case that already worked is re-measured beside
+    # the widened one, so a derivation that had broken hex to serve base58 could
+    # not report green here. A hex tree, from a different producer, in this test.
+    let hexTree = buildDemo("roundtrip-real-hexctl")
+    let hexSlug = onlySlug(rawRegistry(hexTree))
+    let hexOpened = openChain(localTree(hexTree), hexSlug)
+    ck hexOpened.outcome == ooOpened
+    ck hexOpened.session.identifierEncoding.encodingFor(KindTransaction) == "hex"
+    # AGGREGATED ON PURPOSE, not one `ck` per transaction: this file's declared
+    # assertion total has twice gone stale because a swept population grew and
+    # the total was not bumped with it (see the two notes at the end). A loop
+    # whose assertion COUNT depends on how many objects a producer happens to
+    # publish is that same trap; counting and asserting once does not have it.
+    let hexStore = localTree(hexTree)
+    var hexChecked, hexFound = 0
+    for path in walkDirRec(hexTree / "d" / hexSlug / "tx", relative = true):
+      if not path.endsWith(".json"): continue
+      let h = path.splitFile.name
+      let r = transaction(store = hexStore, session = hexOpened.session,
+                          txHash = h)
+      if r.outcome == roFound and r.view.hash == h: inc hexFound
+      inc hexChecked
+    ck hexChecked >= 4
+    ck hexFound == hexChecked
+    removeScratch hexTree
+    # The whole per-test scratch directory: `buildIngestSolana` puts the capture,
+    # the produced snapshot and the published tree side by side inside it, so the
+    # parent of the tree is what has to go — and `removeScratch` refuses anything
+    # that is not one of this suite's own scratch directories.
+    removeScratch tree.parentDir
+
   test "the validator reads the tree's declaration, not its own opinion":
     # A validator holding an opinion about the encoding could not catch a producer
     # that declared one thing and keyed another: it would agree with whichever of
@@ -2241,7 +2487,10 @@ suite "the boundary: who knows about each half of the seam":
     # selftest (base58 digests), then Starknet's producer and selftest and Solana's
     # producer. This suite runs in no CI job, which is how the figure stayed at three
     # while the census and its JavaScript twin moved.
-    ck expectedLen("declaration", "tools") == 8
+    #
+    # NINE AND NOT EIGHT (2026-10-26): `merge-sui-windows.mjs`, the union of Sui's
+    # windows, names the member to require every window to agree on it.
+    ck expectedLen("declaration", "tools") == 9
     ck expectedLen("caseRule", "src") == 6
     ck expectedLen("caseRule", "client") == 3
     ck expectedLen("caseRule", "tools") == 1
@@ -2485,4 +2734,19 @@ suite "the boundary: who knows about each half of the seam":
 # wave and the expectation was stale rather than the code being wrong. The suite has been
 # red on `agents` since `c3f33d4`, which is also why nothing caught it: this file runs in
 # no CI job, exactly as the `expectedLen` comment at the sweep arm says.
-expectCount(899)
+# 899 -> 921: MINE, and it is +22 EXACTLY, from one new arm — *…and a REAL non-hex
+# PRODUCER does, with the hex control in the same run*. MEASURED FIRST: the unmodified
+# working tree at `7522463` reports NO count mismatch and 0 failing arms, so 899 was
+# correct before this change and the two notes above are themselves now historical. The
+# 22, itemised so the next reader does not have to re-derive them: 1 slug + 3 declared
+# members read off disk + 1 `opened.outcome` + 1 `declared` + 2 `encodingFor` + 1
+# population floor + 1 non-hex + 1 round trip + 3 control (`hexResolves`, `sameShard`,
+# `vacuous`) + 4 address (floor, no `0x`, the pinned System-Program exception, and the
+# `len - 1` count it explains) + 4 hex control (session outcome, its `hex` declaration, its
+# floor and its aggregate) = 22. EVERY ONE IS A FIXED ASSERTION: nothing in the arm puts a `ck`
+# inside a loop over published objects, which is the shape that made this number stale
+# twice above — so a capture-scope change moves the floors' subjects and not this total.
+# 921 -> 922: MINE. `merge-sui-windows.mjs` joined the `declaration`/`tools` census
+# (2026-10-26), and each `expected` entry contributes one `ck fileExists(...)` in the
+# sweep arm — the arithmetic the 894 -> 899 note above records.
+expectCount(922)

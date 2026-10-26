@@ -181,6 +181,65 @@ let
       runHook postInstall
     '';
   };
+
+  # Recorder-Flow CXP-FLOW-4's conformance fixture: one tree per block that
+  # awkward-cases.json names, each capturing only the case and control transactions
+  # there (`--only`), and then the check that the trees carry each case. The block
+  # list is read from the manifest, so the fixture and its build cannot disagree.
+  casesDir = "fixtures/chain-inputs/flow-mainnet";
+  casesManifest = lib.importJSON (blocktracerRoot + "/${casesDir}/awkward-cases.json");
+  caseRefs = lib.concatMap (c: [ c ] ++ lib.optional (c ? control) c.control)
+    casesManifest.cases;
+  caseBlocks = lib.unique (map (r: toString r.block) caseRefs);
+  onlyFor = b: lib.unique (map (r: r.tx) (lib.filter (r: toString r.block == b) caseRefs));
+  upd = lib.findFirst (c: c.case == "contract-updated-after")
+    (throw "awkward-cases.json names no contract-updated-after case") casesManifest.cases;
+
+  casesSrc = lib.fileset.toSource {
+    root = blocktracerRoot;
+    fileset = lib.fileset.unions ([
+      (blocktracerRoot + "/tools/chain")
+      (blocktracerRoot + "/${casesDir}/awkward-cases.json")
+      (blocktracerRoot + "/client/hydrate/engine-pin.txt")
+    ] ++ map (b: blocktracerRoot + "/${casesDir}/${b}") caseBlocks);
+  };
+
+  flowAwkwardCases = stdenv.mkDerivation {
+    name = "flow-awkward-cases";
+    src = casesSrc;
+    nativeBuildInputs = [ nodejs bash ];
+    CT_PRINT = "${ctPrint}/bin/ct-print";
+    buildPhase = ''
+      runHook preBuild
+      export HOME=$TMPDIR
+    '' + lib.concatMapStrings (b: ''
+      bash tools/chain/flow-capture.sh \
+        --recorder ${flowRecorder}/bin/codetracer-flow-recorder \
+        --helper ${replayHelper}/bin/cadence-replay-helper \
+        --recorder-commit ${recorderRev} \
+        --inputs ${casesDir}/${b} --out $TMPDIR/trees/${b} --work $TMPDIR/work-${b} \
+        ${lib.concatMapStringsSep " " (t: "--only ${t}") (onlyFor b)}
+    '') caseBlocks + ''
+      # Source-Resolution.md §4's discard, exercised: the updated contract's capture
+      # again, with its source file altered so it no longer hashes to the code that
+      # ran. The producer must leave that bundle out and keep the others.
+      cp -r $TMPDIR/work-${toString upd.block}/${upd.tx} $TMPDIR/tamper
+      printf '\n// not the code that ran\n' >> $TMPDIR/tamper/sources/${upd.contract}.cdc
+      node tools/chain/produce-flow-snapshot.mjs \
+        --block ${casesDir}/${toString upd.block}/block.json \
+        --floor-probe ${casesDir}/${toString upd.block}/floor-probe.json \
+        --inputs ${casesDir}/${toString upd.block} --capture $TMPDIR/tamper \
+        --recorder-commit ${recorderRev} --out $TMPDIR/tampered/${toString upd.block}
+      node tools/chain/flow-awkward-cases-check.mjs --trees $TMPDIR/trees \
+        --tampered $TMPDIR/tampered
+      runHook postBuild
+    '';
+    installPhase = ''
+      runHook preInstall
+      cp -r $TMPDIR/trees $out
+      runHook postInstall
+    '';
+  };
 in {
-  inherit flowRecorder replayHelper flowCaptureTree ctPrint;
+  inherit flowRecorder replayHelper flowCaptureTree flowAwkwardCases ctPrint;
 }

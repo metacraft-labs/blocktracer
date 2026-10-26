@@ -139,7 +139,14 @@ jobs:
     # crashed must not read as consent either — that is the shape of gate this
     # campaign keeps finding, one that passes by not running. The publish
     # happens only on an explicit `true` written by the decision function.
-    if: needs.ci-verdict.outputs.publish == 'true'
+    #
+    # NOT ON A PUSH TO `staging`. Staging is served from R2 (staging.blocktracer.org,
+    # .github/workflows/r2-staging.yml), verified from the staging branch at 8ea939c, and the
+    # operator retired the blocktracer-staging Pages deploy on 2026-10-25. The project itself is
+    # left in place; `dev`, `live` and PR previews still deploy to Pages.
+    if: >-
+      needs.ci-verdict.outputs.publish == 'true'
+      && !(github.event_name == 'push' && github.ref_name == 'staging')
     uses: ./.github/workflows/deploy-cloudflare-pages.yml
     permissions:
       contents: read

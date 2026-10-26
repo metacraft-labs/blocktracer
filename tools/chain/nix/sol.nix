@@ -24,9 +24,11 @@
 #
 #   * `codetracer-solana-recorder`: the recorder at the revision that writes the replay
 #     bundles and derived recording ids the committed inputs were captured with.
-#   * `flow-trace-format`: the recorder's Cargo path dependencies. Its revision (3fada0b)
-#     is exactly the one the Solana recorder's own `repro.lock` names, so the input is
-#     shared with chain three rather than declared twice.
+#   * `sol-trace-format`: the recorder's Cargo path dependencies, at exactly the revision
+#     the recorder's own `repro.lock` names (afa4dde since recorder 44628b6). Until the
+#     bump to recorder c3ca118 this was `flow-trace-format` (3fada0b), shared with chain
+#     three; the move changed no trace byte — the writer below decides `meta.dat`, and
+#     afa4dde's `meta.dat` 7 is not reached.
 #   * `codetracer-trace-format-nim`: the writer at `7b8b587`, the last revision that writes
 #     `meta.dat` 6, shared with eth.nix and flow.nix because the engine the site pins reads
 #     6 only.
