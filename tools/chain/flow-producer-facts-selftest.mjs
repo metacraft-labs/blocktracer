@@ -128,9 +128,24 @@ const namesAnExecutor = (isa) => isa.split('-').some((seg) => EXECUTOR_WORDS.has
 // under `evm-disassembly`, `cairo` under `cairo-casm`, `sbf` under `sbf-disassembly`,
 // `move` under `move-disassembly`. A suffix on the token names the FORM the artifact is
 // in, which is why `cairo-casm` is qualified where `cairo` is not.
+//
+// THE ONE QUALIFIER RULE 2 ADMITS: A REGISTERED DIALECT (Configuration.md §2.1, amended
+// 2026-10-26). Where one format family has diverged into dialects that a single mnemonic
+// table cannot serve — Sui's and Aptos's Move bytecode differ in file-format versions and
+// instructions — the token is `<dialect>-<family>`, and the family is still the siblings'
+// stem. The dialect is DECLARED here, per family, rather than inferred from the shape, so
+// `ethereum-evm` stays wrong: the EVM family registers no dialects, and a chain's name in
+// front of a family is a dialect only where the family says it has one.
+const FORMAT_DIALECTS = Object.freeze({ move: Object.freeze(['sui-move', 'aptos-move']) });
 const stemOf = (token) => token.split(/[-/]/)[0];
+const familyOf = (isa) => {
+  for (const [family, dialects] of Object.entries(FORMAT_DIALECTS)) {
+    if (dialects.includes(isa)) return family;
+  }
+  return stemOf(isa);
+};
 const keepsItsStem = (t) => t.isa !== undefined && t.siblings.length > 0
-  && t.siblings.every((sib) => stemOf(sib) === stemOf(t.isa));
+  && t.siblings.every((sib) => stemOf(sib) === familyOf(t.isa));
 
 arm('the declared format names the format and not the executor, and keeps its stem', () => {
   const flow = tokensOf(read('./lib/flow-producer-facts.mjs'));
@@ -159,8 +174,14 @@ arm('control: the token this module used to export fails both rules it is checke
   const flow = tokensOf(read('./lib/flow-producer-facts.mjs'));
   assert.ok(!namesAnExecutor(flow.isa), 'and the live token passes the rule the old one fails');
   // …and a bare-stem token still passes rule 2, so rule 2 is not secretly a ban on bare
-  // tokens: that is how `evm`, `sbf`, `cairo` and `move` are spelled.
+  // tokens: that is how `evm`, `sbf` and `cairo` are spelled.
   assert.ok(keepsItsStem({ isa: 'cadence', siblings: ['cadence-positions/1'] }));
+  // THE DIALECT QUALIFIER, BOTH WAYS. A registered dialect keeps its family's stem; a
+  // chain's name in front of a family with no registered dialects does not, and neither
+  // does an unregistered name in front of one that has them.
+  assert.ok(keepsItsStem({ isa: 'sui-move', siblings: ['move-disassembly-positions/1'] }));
+  assert.ok(!keepsItsStem({ isa: 'ethereum-evm', siblings: ['evm-disassembly'] }));
+  assert.ok(!keepsItsStem({ isa: 'foo-move', siblings: ['move-disassembly-positions/1'] }));
 });
 
 arm('the producer SPELLS the member, through the module rather than as a literal', () => {

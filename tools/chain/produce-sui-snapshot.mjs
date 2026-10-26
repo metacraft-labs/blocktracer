@@ -57,7 +57,8 @@ import {
 } from './lib/producer-runtime.mjs';
 import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL,
-  POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY, RECORDER, VERIFICATION,
+  INSTRUCTION_SET, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY, RECORDER,
+  VERIFICATION,
   costVectorForRow, executionsForRow, payloadForRow, reachReasonFor, rolesForRow,
 } from './lib/sui-producer-facts.mjs';
 import { inputVersionsOf } from './lib/sui-graphql.mjs';
@@ -509,6 +510,7 @@ async function main(argv) {
       tracedFloor: floor,
       reachReason: reachReasonFor(floor.checkpoint, horizonDeepestServed()),
       verification: VERIFICATION,
+      vm: { instructionSet: INSTRUCTION_SET },
       containerVersion: anchor?.c.version ?? null,
       containerFlags: anchor?.c.flags ?? null,
     },

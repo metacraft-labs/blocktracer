@@ -23,6 +23,8 @@
 //       it holds and misses — loudly — what it does not
 //   §7  the floor's reason names the execution layer, not the state, and the
 //       verification sentence names what a mismatch becomes
+//   §8  the union of windows: both windows' history, in any order, and a refusal where
+//       the windows disagree
 //
 // Every arm that asserts a refusal or a distinction has a control beside it that takes
 // the other branch, so the arm measures the rule and not the fixture
@@ -34,10 +36,11 @@ import { join } from 'node:path';
 
 import { graphqlUrlFor, inputVersionsOf } from './lib/sui-graphql.mjs';
 import {
-  CHAIN_SLUG, costVectorForRow, executionsForRow, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL, payloadForRow, PRESTATE_STRATEGY, reachReasonFor, RECORDER, rolesForRow, VERIFICATION,
+  CHAIN_SLUG, INSTRUCTION_SET, costVectorForRow, executionsForRow, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL, payloadForRow, PRESTATE_STRATEGY, reachReasonFor, RECORDER, rolesForRow, VERIFICATION,
 } from './lib/sui-producer-facts.mjs';
 import { ACQUISITION_FORMAT, effectsFacts, main as produce } from './produce-sui-snapshot.mjs';
 import { compareReadings } from './sui-horizon-probe.mjs';
+import { mergeWindows } from './merge-sui-windows.mjs';
 import { isTipDependent, requestKey, startTranscriptServer } from './sui-graphql-transcript.mjs';
 
 let asserted = 0;
@@ -328,14 +331,47 @@ test('§7 the producer\'s own reach and verification sentences');
   ck('CONTROL: with no horizon reading it states no depth, and never the generic prestate cause',
      !/\d{5,}/.test(reachReasonFor(28845373, null).split('GraphQL service')[1])
      && !/prestate was obtainable/.test(r));
+  ck('the declared format names Sui\'s Move dialect, not a bare family or an executor',
+     INSTRUCTION_SET === 'sui-move');
   ck('verification names the compared effects and what a mismatch becomes',
      /events digest/.test(VERIFICATION) && /published as divergent/.test(VERIFICATION));
 }
 
+test('§8 the union of separately captured windows');
+{
+  const win = (from, to, extra = {}) => ({
+    format: 'blocktracer/chain-snapshot@2',
+    provenance: { chain: 'sui', runtimeCommit: 'c0ffee', capturedAt: '2026-10-22T00:00:00.000Z',
+                  ...extra.provenance },
+    window: { tip: 100, finalized: 100, replayableFrom: 50, replayableTo: 100, blocks: 51 },
+    blocks: Array.from({ length: to - from + 1 }, (_, i) => ({
+      number: from + i, hash: extra.hashOf?.(from + i) ?? `cp${from + i}`, transactions: [`t${from + i}`] })),
+    transactions: Array.from({ length: to - from + 1 }, (_, i) => ({
+      txHash: `t${from + i}`, blockNumber: from + i, txIndexInBlock: 0, outcome: 'replayed',
+      container: `ct/t${from + i}.ct`, positions: `positions/t${from + i}.json` })),
+    captures: [{ window: { from, to } }],
+  });
+  const a = { dir: '/a', snap: win(40, 41) };
+  const b = { dir: '/b', snap: win(90, 90) };
+  const ab = mergeWindows([a, b]);
+  ck('the union holds both windows\' checkpoints, rows and artifacts, and names the windows',
+     ab.merged.blocks.map((x) => x.number).join() === '90,41,40'
+     && ab.merged.transactions.length === 3 && ab.artifacts.length === 6
+     && JSON.stringify(ab.merged.provenance.mergedWindows)
+        === JSON.stringify([{ from: 40, to: 41 }, { from: 90, to: 90 }]));
+  ck('the union is the same whichever order the windows are given in',
+     JSON.stringify(mergeWindows([b, a])) === JSON.stringify(ab));
+  const threw = (f) => { try { f(); return false; } catch (e) { return e.refusal === true; } };
+  ck('CONTROL: windows written by different recorder builds are refused, not merged',
+     threw(() => mergeWindows([a, { dir: '/c', snap: win(90, 90, { provenance: { runtimeCommit: 'beef' } }) }])));
+  ck('CONTROL: a checkpoint the two windows describe differently is refused',
+     threw(() => mergeWindows([a, { dir: '/d', snap: win(41, 41, { hashOf: () => 'other' }) }])));
+}
+
 // The count is a LITERAL because `refusal-selftest.mjs` reads it out of this line and
 // cross-checks it against the Justfile header and ci.yml.
-if (asserted !== 44) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 44 — a case was added, removed or skipped.`);
+if (asserted !== 49) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 49 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

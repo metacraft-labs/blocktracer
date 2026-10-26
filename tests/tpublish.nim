@@ -593,3 +593,88 @@ suite "DEL-1b — a local tree advertises Content-Encoding via `_headers`":
     store.putMany(@[BulkItem(key: "d/x/index.json", srcPath: d / "plain",
                              contentEncoding: "")])
     check "/t/aa/bb/compressed/trace.ct" in readFile(d / "out" / "_headers")
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# A POINTER THE STORE COULD NOT READ IS NOT AN EMPTY CHAIN.
+#
+# `publishChain` resumes from `readSyncState`, and reads `present: false` as
+# "first go-live": it builds a fresh generation `1` and flips `current.json`
+# to it. Over an empty chain that is the whole point. Over a chain holding
+# 102,690 blocks it replaces the history the pointer named.
+#
+# Both happened. Run 38524448139 on 2026-10-14 logged `resumed-from
+# generation: (none)` against the live Aztec chains and published the ~560-
+# object fixture tree over them. Nothing was deleted — `raztec00001` and
+# `rtestnet0001` still answer 200 — but the pointer stopped naming them, and
+# blocktracer.org has served the fixture ever since.
+#
+# The cause was one boolean. `ObjectStore.get` answers "did bytes come back",
+# which is `false` both when the store says the key is NOT THERE and when the
+# store does not answer at all; `readSyncState` mapped both to `present:
+# false`, and so did a `current.json` that existed and did not parse.
+#
+# These tests ask the three causes separately, through a stub store that can
+# produce each one on demand. A stub and not a directory, because the point
+# is what `readSyncState` DECIDES when handed each outcome — and `foUnreadable`
+# from a real filesystem means arranging a permission failure, which is a test
+# about the machine's umask rather than about the publisher.
+# ──────────────────────────────────────────────────────────────────────────
+
+type StubStore = ref object of ObjectStore
+  outcome: FetchOutcome
+  body: string
+
+method fetch(s: StubStore, key: string): tuple[data: string, outcome: FetchOutcome] =
+  (s.body, s.outcome)
+
+suite "the publisher refuses to mistake an unreadable pointer for an absent one":
+
+  test "ABSENT — the store answered, and the chain really is new":
+    let s = StubStore(outcome: foAbsent, body: "")
+    let st = readSyncState(s, DemoChain)
+    check st.present == false
+    check st.generation == ""
+
+  test "FOUND — the pointer is read and its generation lifted":
+    let s = StubStore(outcome: foFound,
+      body: """{"generation":"raztec00001","head":{"height":102690,"hash":"0xabc"}}""")
+    let st = readSyncState(s, DemoChain)
+    check st.present
+    check st.generation == "raztec00001"
+    check st.headHeight == 102690
+
+  test "UNREADABLE — the store did not answer, so the publisher STOPS":
+    # The regression itself. Before the fix this returned `present: false`,
+    # which is the publisher's word for "nothing to resume from" — and the
+    # next thing it does with that word is mint a generation `1`.
+    let s = StubStore(outcome: foUnreadable, body: "")
+    expect PublishError:
+      discard readSyncState(s, DemoChain)
+    # …and it says WHICH key, so the operator is not left guessing the chain.
+    try:
+      discard readSyncState(s, DemoChain)
+    except PublishError as e:
+      check ("d" / DemoChain / "current.json") in e.msg
+      check "NOT an empty chain" in e.msg
+
+  test "MALFORMED — a pointer that exists and does not parse is corrupt, not absent":
+    let s = StubStore(outcome: foFound, body: "{ this is not json")
+    expect PublishError:
+      discard readSyncState(s, DemoChain)
+    try:
+      discard readSyncState(s, DemoChain)
+    except PublishError as e:
+      check "not new" in e.msg
+
+  test "MUTATION BITE: the three outcomes are not all the same answer":
+    # Guards the shape of the fix rather than its message. If a later change
+    # collapses `foUnreadable` back into a plain return — the exact regression
+    # — this fails, because the absent case and the unreadable case would then
+    # both produce a value and neither would raise.
+    var raised = 0
+    for outcome in [foAbsent, foUnreadable]:
+      let s = StubStore(outcome: outcome, body: "")
+      try: discard readSyncState(s, DemoChain)
+      except PublishError: raised.inc
+    check raised == 1

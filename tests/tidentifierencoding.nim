@@ -2487,7 +2487,10 @@ suite "the boundary: who knows about each half of the seam":
     # selftest (base58 digests), then Starknet's producer and selftest and Solana's
     # producer. This suite runs in no CI job, which is how the figure stayed at three
     # while the census and its JavaScript twin moved.
-    ck expectedLen("declaration", "tools") == 8
+    #
+    # NINE AND NOT EIGHT (2026-10-26): `merge-sui-windows.mjs`, the union of Sui's
+    # windows, names the member to require every window to agree on it.
+    ck expectedLen("declaration", "tools") == 9
     ck expectedLen("caseRule", "src") == 6
     ck expectedLen("caseRule", "client") == 3
     ck expectedLen("caseRule", "tools") == 1
@@ -2743,4 +2746,7 @@ suite "the boundary: who knows about each half of the seam":
 # floor and its aggregate) = 22. EVERY ONE IS A FIXED ASSERTION: nothing in the arm puts a `ck`
 # inside a loop over published objects, which is the shape that made this number stale
 # twice above — so a capture-scope change moves the floors' subjects and not this total.
-expectCount(921)
+# 921 -> 922: MINE. `merge-sui-windows.mjs` joined the `declaration`/`tools` census
+# (2026-10-26), and each `expected` entry contributes one `ck fileExists(...)` in the
+# sweep arm — the arithmetic the 894 -> 899 note above records.
+expectCount(922)

@@ -5,8 +5,8 @@
 # worked without one. The writer and ct-print derivations are the same expressions as
 # flow.nix's, repeated rather than imported for that reason.
 #
-# WHAT RUNS IN THE SANDBOX. `tools/chain/capture-sui-range.mjs --transcript` serves the
-# committed GraphQL transcript (fixtures/chain-inputs/sui-mainnet/<checkpoint>) on
+# WHAT RUNS IN THE SANDBOX. Per committed window, `tools/chain/capture-sui-range.mjs
+# --transcript` serves that window's GraphQL transcript (fixtures/chain-inputs/sui-mainnet/<window>) on
 # loopback and points everything at it: its own checkpoint and effects reads, and
 # `sui replay --trace --node <loopback>`, which re-executes each transaction from exactly
 # the object versions it consumed. A request the transcript does not hold fails the build.
@@ -130,29 +130,34 @@ let
     '';
   };
 
-  # The one checkpoint the committed inputs describe.
-  checkpoint = "336000001";
-  inputs = "fixtures/chain-inputs/sui-mainnet/${checkpoint}";
+  # The committed windows, each a GraphQL transcript under fixtures/chain-inputs/sui-mainnet.
+  # 28,845,372..28,845,373 straddles the traced floor (protocol 36 below, refused; 38
+  # above, traced); 336,000,001 is the modern era. A chain's history is published as the
+  # UNION of its ranges (tools/chain/merge-sui-windows.mjs), as ingest-range.mjs does.
+  windows = [
+    { from = 28845372; to = 28845373; dir = "28845372-28845373"; }
+    { from = 336000001; to = 336000001; dir = "336000001"; }
+  ];
 
   captureSrc = lib.fileset.toSource {
     root = blocktracerRoot;
-    fileset = lib.fileset.unions [
-      (blocktracerRoot + "/tools/chain")
-      (blocktracerRoot + "/${inputs}")
-    ];
+    fileset = lib.fileset.unions ([ (blocktracerRoot + "/tools/chain") ]
+      ++ map (w: blocktracerRoot + "/fixtures/chain-inputs/sui-mainnet/${w.dir}") windows);
   };
 
-  # `just sui-capture`, inside the sandbox, with no network.
-  suiCaptureTree = stdenv.mkDerivation {
-    name = "sui-mainnet-capture";
+  # `capture-sui-range.mjs --transcript` for ONE window, inside the sandbox, with no
+  # network. Each window is its own derivation, so one window's inputs changing rebuilds
+  # that window and the union, never the others.
+  captureWindow = w: stdenv.mkDerivation {
+    name = "sui-mainnet-capture-${toString w.from}-${toString w.to}";
     src = captureSrc;
     nativeBuildInputs = [ nodejs bash ];
     buildPhase = ''
       runHook preBuild
       export HOME=$TMPDIR
       node tools/chain/capture-sui-range.mjs \
-        --transcript ${inputs} \
-        --from ${checkpoint} --to ${checkpoint} --max 1000 \
+        --transcript fixtures/chain-inputs/sui-mainnet/${w.dir} \
+        --from ${toString w.from} --to ${toString w.to} --max 1000 \
         --fixed-time 2026-10-22T00:00:00.000Z \
         --recorder ${moveRecorder}/bin/codetracer-move-recorder \
         --recorder-commit ${recorderRev} \
@@ -160,6 +165,27 @@ let
         --sui ${sui}/bin/sui \
         --ct-print ${ctPrint}/bin/ct-print \
         --work $TMPDIR/work --out $TMPDIR/tree
+      runHook postBuild
+    '';
+    installPhase = ''
+      runHook preInstall
+      cp -r $TMPDIR/tree $out
+      test -s $out/snapshot.json
+      runHook postInstall
+    '';
+  };
+  windowTrees = map captureWindow windows;
+
+  # `just sui-capture`: the union of the windows, as one §5 snapshot tree.
+  suiCaptureTree = stdenv.mkDerivation {
+    name = "sui-mainnet-capture";
+    src = captureSrc;
+    nativeBuildInputs = [ nodejs ];
+    buildPhase = ''
+      runHook preBuild
+      node tools/chain/merge-sui-windows.mjs \
+        ${lib.concatMapStringsSep " " (t: "--tree ${t}") windowTrees} \
+        --out $TMPDIR/tree
       runHook postBuild
     '';
     installPhase = ''

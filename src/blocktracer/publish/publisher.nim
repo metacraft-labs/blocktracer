@@ -138,19 +138,57 @@ type
     headHeight*: int
     headHash*: string
 
+  PublishError* = object of CatchableError
+    ## Declared HERE and not with `PublishResult` below, because
+    ## `readSyncState` is the first thing in this module that has to raise it.
+
 proc readSyncState*(store: ObjectStore, chain: string): SyncState =
   ## Rebuild the per-chain sync head from published output alone. This is the whole
   ## of the publisher's "memory": there is no local system of record, so a fresh
   ## process resumes exactly where the store says the last one left off.
-  let (data, ok) = store.get("d" / chain / "current.json")
-  if not ok: return SyncState(present: false)
+  ##
+  ## ── `present: false` MEANS "THE STORE SAID THERE IS NOTHING HERE", AND FOR
+  ##    ONE RUN IT MEANT "I COULD NOT TELL". ─────────────────────────────────
+  ##
+  ## `publishChain` reads `present: false` as first go-live and builds a fresh
+  ## generation `1`, then flips `current.json` to it. That is correct over an
+  ## empty chain and catastrophic over a full one, and this proc used to
+  ## produce it for THREE different reasons: the key is absent, the read
+  ## failed, and the bytes did not parse. Only the first is an empty chain.
+  ##
+  ## On 2026-10-14 the second one happened. Run 38524448139 logged `resumed-from
+  ## generation: (none)` against a chain holding 102,690 blocks and published
+  ## the fixture tree over it. Nothing was lost from the bucket — generation
+  ## `raztec00001` still answers 200 — but the pointer stopped naming it.
+  ##
+  ## So the three causes now have three answers. Absence is the only one that
+  ## returns, and the other two raise: a publisher that cannot read a chain's
+  ## pointer must stop, because every path from here either resumes that
+  ## chain or REPLACES it, and it no longer knows which it would be doing.
+  let key = "d" / chain / "current.json"
+  let (data, outcome) = store.fetch(key)
+  case outcome
+  of foAbsent:
+    return SyncState(present: false)
+  of foUnreadable:
+    raise newException(PublishError,
+      "cannot read " & key & " — the store did not answer. This is NOT an " &
+      "empty chain: refusing to resume, because publishing from here would " &
+      "build a fresh generation over whatever history that pointer names.")
+  of foFound:
+    discard
   try:
     let j = parseJson(data)
     SyncState(present: true, generation: j{"generation"}.getStr,
       headHeight: j{"head"}{"height"}.getInt,
       headHash: j{"head"}{"hash"}.getStr)
-  except CatchableError:
-    SyncState(present: false)
+  except CatchableError as e:
+    # A pointer that EXISTS and does not parse is a corrupt pointer, not an
+    # absent one — and the repair for it is a human looking at the bytes, not
+    # a publisher quietly minting a generation `1` beside them.
+    raise newException(PublishError,
+      "malformed " & key & " (" & $data.len & " bytes): " & e.msg &
+      ". Refusing to resume: the pointer exists, so this chain is not new.")
 
 # ---------------------------------------------------------------------------
 # The publish result — the audit trail the milestone's proofs assert against.
@@ -168,8 +206,6 @@ type
     determinismIncidents*: seq[string]  ## input-addressed key present with different bytes
     pointerFlipped*: bool          ## did `current.json` get (re)written this run
     haltedBeforePointer*: bool     ## crash simulated before the visibility flip
-
-  PublishError* = object of CatchableError
 
   PublishOptions* = object
     chain*: string             ## "" ⇒ discover chains under d/

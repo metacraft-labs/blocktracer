@@ -21,11 +21,24 @@ const REPO = resolve(HERE, "..", "..");
 const TOOL = join(HERE, "check-design-parity.mjs");
 const REGISTER = join(REPO, "client", "src", "components", "ct_css_reach.txt");
 
+// THE EVIDENCE COLUMN IS READ, BECAUSE THE BASELINE HAS TO MIRROR A REAL TREE.
+// A row's fourth token is its evidence tier; `bundle` means the hydration
+// bundle writes the class and the served HTML does not carry it. A baseline
+// that put every class in the page's `class` attribute was not a published
+// tree, it was a tree shaped like the checker's old mistake — and it passed
+// for the same reason the checker's old emission arm failed on production.
 const live = [];
 for (const line of readFileSync(REGISTER, "utf8").split("\n")) {
-  const m = /^LIVE\s+(class|classpart|element|id)\s+(\S+)/.exec(line);
-  if (m) live.push({ kind: m[1], name: m[2] });
+  const m = /^LIVE\s+(class|classpart|element|id)\s+(\S+)(?:\s+(\S+))?/.exec(line);
+  if (m) live.push({ kind: m[1], name: m[2], evidence: m[3] ?? "" });
 }
+
+// `*` IS A GLOB IN THE REGISTER, SO THE BASELINE WRITES SOMETHING IT MATCHES.
+// The previous baseline wrote the pattern verbatim — `.ct-input-*` — which is
+// not a selector any tree contains and not a class any page emits. It passed
+// only because the checker searched for the asterisk too.
+const expand = (pattern) => pattern.replace(/\*/g, "selftest");
+const BUNDLE_PATH = "/assets/hydrate.js";
 
 const CSS_NAME = "/_a/aaaabbbbccccdddd.css";
 const write = (root, path, body) => {
@@ -44,15 +57,24 @@ const write = (root, path, body) => {
  */
 function tree(mutate = (p) => p) {
   const root = mkdtempSync(join(tmpdir(), "parity-"));
-  const classes = live.filter((r) => r.kind === "class").map((r) => r.name);
+  const classRows = live.filter((r) => r.kind === "class");
+  // THE SIGIL FOLLOWS THE KIND, the same way the checker's does: an `id` row
+  // is `#name` in a stylesheet and was written `.name` here, so three ids that
+  // a real sheet carries were satisfied by a selector no sheet contains.
+  const sigil = (r) => (r.kind === "element" ? "" : r.kind === "id" ? "#" : ".");
   const parts = {
     cssName: CSS_NAME,
-    css: live.map((r) => (r.kind === "element" ? `${r.name}{color:#fff}` : `.${r.name}{color:#fff}`)).join("\n")
+    css: live.map((r) => `${sigil(r)}${expand(r.name)}{color:#fff}`).join("\n")
        + `\n.pad{background:url(/assets/ct-icons/x.svg)}\n`
        + "/* padding to clear the size floor */\n" + "/*".padEnd(12_000, "x") + "*/\n",
     icon: "<svg/>",
-    pageScript: '<script src="/assets/hydrate.js"></script>',
-    pageClasses: classes.join(" "),
+    pageScript: `<script src="${BUNDLE_PATH}"></script>`,
+    pageClasses: classRows.filter((r) => r.evidence !== "bundle").map((r) => expand(r.name)).join(" "),
+    // The bundle's half of the universe. A string literal per class, which is
+    // what `nim js` emits for most of them; the char-code form the checker also
+    // decodes is upstream's, not something a synthetic tree needs to imitate.
+    bundleClasses: classRows.filter((r) => r.evidence === "bundle").map((r) => expand(r.name)),
+    bundlePath: BUNDLE_PATH,
     withSrctab: true,
     chains: ["aztec", "aztec-testnet"],
   };
@@ -62,6 +84,11 @@ function tree(mutate = (p) => p) {
   // A NULL icon means "do not write the file", which is the 404 arm. Writing
   // `null` would throw inside the harness and report as a bite that did not land.
   if (typeof p.icon === "string") write(root, "/assets/ct-icons/x.svg", p.icon);
+  // A NULL bundlePath means "do not write the bundle", which is the arm for a
+  // script the origin does not serve.
+  if (typeof p.bundlePath === "string")
+    write(root, p.bundlePath,
+      "export const marks = [" + p.bundleClasses.map((c) => JSON.stringify(c)).join(",") + "];\n");
   p.chains.forEach((chain, i) => {
     const tx = `/${chain}/tx/0x${String(i + 1).repeat(8)}`;
     write(root, `/${chain}/index.html`, `<html><body><a href="${tx}">tx</a></body></html>`);
@@ -166,6 +193,28 @@ console.log("");
   rmSync(root, { recursive: true, force: true });
 }
 {
+  // THE BUNDLE TIER BITES TOO. 105 LIVE rows name the bundle as their evidence
+  // and the page HTML never carries them, so if the bundle half of the search
+  // were dropped the checker would go green on a tree whose hydration bundle
+  // writes none of CodeTracer's views.
+  const root = tree((p) => ({ ...p,
+    bundleClasses: p.bundleClasses.filter((c) => c !== "calltrace-row") }));
+  const r = run(root);
+  bite("a class the BUNDLE is the evidence for, missing from the bundle, fails and names it",
+       r.status === 1 && /not emitted anywhere: calltrace-row/.test(r.out));
+  rmSync(root, { recursive: true, force: true });
+}
+{
+  // AND A BUNDLE THAT CANNOT BE READ IS NOT A PASS. With no bundle the rows
+  // that depend on it were not measured, and a verdict over an empty universe
+  // is the silence this tool exists to break.
+  const root = tree((p) => ({ ...p, bundlePath: null }));
+  const r = run(root);
+  bite("a referenced bundle the origin does not serve is refused, not read as an empty universe",
+       r.status === 1 && /name the bundle as their evidence/.test(r.out));
+  rmSync(root, { recursive: true, force: true });
+}
+{
   const r = spawnSync(process.execPath, [TOOL], { encoding: "utf8" });
   bite("neither --origin nor --dir is a usage error (64), not a run that measured nothing",
        r.status === 64 && /exactly one of/.test(`${r.stdout}${r.stderr}`));
@@ -178,7 +227,7 @@ console.log("");
 }
 
 console.log("");
-const EXPECTED = 11;
+const EXPECTED = 13;
 if (asserted !== EXPECTED) {
   console.log(`ASSERTION COUNT IS ${asserted}, EXPECTED ${EXPECTED} — an arm was added, removed or skipped.`);
   failures.push("assertion count");

@@ -51,6 +51,11 @@ lever and no credential to obtain.
 > `R2_ACCESS_KEY_ID`, `R2_BUCKET`, `R2_ENDPOINT` and `R2_SECRET_ACCESS_KEY`, all
 > set 2026-10-12.
 >
+> **WHAT SERVES IT IS NOW WRITTEN DOWN** — `docs/PRODUCTION-DATA-PLANE.md`,
+> measured against the apex on 2026-10-27: the `blocktracer` R2 bucket, written
+> only by `publish-r2.yml`. That file also records which generation each chain
+> serves and what the bucket still holds beside it.
+>
 > What has NOT changed is `live`'s staleness and the fact that nothing here
 > records the binding. `origin/live` is **251 commits behind `agents`** and
 > carries none of `client/src/assets/ct-icons/` (0 of 9 paths), which is why
