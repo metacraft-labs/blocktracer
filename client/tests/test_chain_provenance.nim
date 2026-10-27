@@ -5121,10 +5121,30 @@ suite "a transaction's ordering row is the chain's own coordinate":
     ck blk.len == 1 and blk[0].href == blockUrl(RealChain, "0xabc")
     ck rows.filterIt(it.label == "Checkpoint").len == 0
 
+  test "the debugger's bar names the checkpoint, not block 0":
+    # The same rule on the debug route's bar, which printed `"block " &
+    # $blockHeight` — "block 0" for every Sui transaction on staging.
+    var v: TxView
+    v.hash = "StiTgKUtyMD1bMYjH2qJPWTVsGrrrkNFKrM52iYu8xi"
+    v.positionKnown = false
+    v.orderKind = tokCheckpoint
+    v.orderLabel = "336806210"
+    ck demoSession(RealChain, v, chainInfo(root, RealChain)).blockLabel ==
+      "checkpoint 336806210"
+    # CONTROL: a block-ordered transaction keeps "block N".
+    var b: TxView
+    b.hash = "0xreal"
+    b.positionKnown = true
+    b.orderKind = tokBlockIndex
+    b.height = 19_000_000
+    ck demoSession(RealChain, b, chainInfo(root, RealChain)).blockLabel ==
+      "block 19000000"
+
   test "assertion count":
     #   4 — the checkpoint row: one row, its value, no link, no Block row
     #   4 — the control: one Block row, its value, its link, no Checkpoint row
-    expectCount(4 + 4)
+    #   2 — the debugger's bar: the checkpoint, and the block control
+    expectCount(4 + 4 + 2)
 
 suite "19 — a block's system transactions are listed beside its transactions, unlinked":
   asserted = 0
