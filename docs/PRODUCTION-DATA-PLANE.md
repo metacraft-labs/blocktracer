@@ -142,3 +142,66 @@ worked example — green, and every debug page still serving the old bytes.
 This equivalence is a property of the moment, not a rule. It holds only while
 the pointer names a generation this repository's fixtures produce. Re-measure
 §5 before leaning on it again.
+
+## 6. The 2026-10-27 publish, and what it did and did not move
+
+Run **40441081924** — `publish-r2.yml` on `live` at `3c36fef`, dispatched
+02:53:55Z, started 04:51:20Z, green 05:45:12Z. `render_over_live: false`,
+`refresh: true`, which is §5's conclusion carried out. Steps 5, 7, 8 and 12
+(stage the bucket, pin the pointers, the hash-index floor, break stale leases)
+are **skipped** by construction in that mode; the other fourteen ran and passed.
+
+**What moved: the design, and only the design.** The apex served
+`_a/5ef62087010f62a6.css` before and `_a/c5a2cc03494ee74f.css` after — §4a's
+third era is gone from the entry pages, which is what `refresh: true` is for.
+`tools/deploy/check-design-parity.mjs --origin https://blocktracer.org` reports
+**PASS — 14 check(s)**, 135 LIVE selectors found in the served stylesheet and
+121 LIVE classes emitted across 8 sampled pages and 2 bundles, both controls
+holding.
+
+**What did not move: the pointers.** All four `d/<chain>/current.json` are
+byte-identical to §1 after the publish — `aztec` 68231, `aztec-testnet` 63675,
+`aztec-testnet-frames` 69361/69347 finalized, `demo` 102/100. A publish in this
+mode re-renders pages over the generation the pointer already names; it does not
+author a generation, so §4's trade is untouched and still open.
+
+### 6a. The published Aztec corpus, verified over HTTP
+
+Every transaction in generation 1 of all three Aztec chains — 13 of 13, none
+untraced — measured against its own `manifest.json`:
+
+| chain | txs | CTFS bytes | at rest |
+|---|---:|---:|---:|
+| `aztec` | 2 | 129,519 | 8,847 |
+| `aztec-testnet` | 6 | 418,031 | 32,683 |
+| `aztec-testnet-frames` | 5 | 492,679 | 30,822 |
+| **total** | **13** | **1,040,229** | **72,352** (7.0%, 14.4x) |
+
+Each container is **CTFS container 6, profile 1** — the compact profile, read as
+`compact_container.nim`'s `headerOf` reads it: magic `c0de72ace2`, version at
+byte 5, profile at byte 16. Each is stored **brotli**: the object answers
+`Content-Encoding: br`, and its at-rest length and sha1 equal the manifest's
+`storedBytes` / `storedHash` exactly. Negotiated, it decompresses to `bytes` /
+`hash` with the CTFS magic intact. That is CCP-6 end to end on production bytes.
+
+### 6b. A fetch that negotiates nothing reads as an UNCOMPRESSED corpus
+
+Measuring the above, the first reading was "production stores raw CTFS, the
+brotli work never shipped" — from `curl` without `--compressed`, which sends no
+`Accept-Encoding`. Cloudflare then decompresses at the edge and **strips the
+`Content-Encoding` header**, so the response is 116,387 bytes of CTFS magic with
+no encoding header anywhere: indistinguishable, by inspection, from an object
+that was never compressed.
+
+This is the exact misdiagnosis `contract/container_encoding.nim` was written to
+prevent, arriving from the other direction — that header warns about a file read
+reporting a *short* container, and this is a negotiated fetch reporting a *raw*
+one. Node is worse than curl here: `undici` auto-decodes brotli **even when you
+set `Accept-Encoding: br` by hand**, so a Node harness cannot see the at-rest
+bytes at all and silently compares the wrong pair.
+
+**To measure the object at rest, use `curl --raw -H 'Accept-Encoding: br'` and
+check `storedBytes`/`storedHash`. To measure the container, use
+`curl --compressed` and check `bytes`/`hash`. Never infer compression from the
+bytes** — §"AND THE DIAGNOSIS CANNOT COME FROM THE BYTES" is right there:
+brotli has no magic number.
