@@ -205,3 +205,98 @@ check `storedBytes`/`storedHash`. To measure the container, use
 `curl --compressed` and check `bytes`/`hash`. Never infer compression from the
 bytes** — §"AND THE DIAGNOSIS CANNOT COME FROM THE BYTES" is right there:
 brotli has no magic number.
+
+## 7. What "publish the full chains" actually requires, measured 2026-10-28
+
+The operator's instruction is that the job is done when the FULL chains are
+published. This section is what that costs, and it is NOT what §4 assumed.
+
+### 7a. The full history is ALREADY SERVED — it is just unnamed and undressed
+
+Sampled directly against the apex, five random heights per chain out of the
+orphaned generations' own height maps:
+
+```
+d/aztec/g/raztec00001/height/0.json          heights 1..102,690   (8,514,911 B)
+d/aztec-testnet/g/rtestnet0001/height/0.json heights 1..99,092    (8,213,594 B)
+```
+
+Every sampled block PAGE answers 200 — `/aztec/block/<hash>` for heights
+42,446 · 19,773 · 51,751 · 85,320 · 6,329, and the same for `aztec-testnet` at
+31,191 · 77,679 · 71,334. So the data plane and the pages of the full history
+are in the bucket and reachable RIGHT NOW.
+
+Two things are wrong with them, and neither is absence:
+
+1. **No index links to them**, because `current.json` names generation `1`.
+2. **They wear a design two eras old.** An orphaned `aztec` block page links
+   `_a/145532f4228f84bf.css`; the same height in generation `1` links
+   `_a/c5a2cc03494ee74f.css`, which is what the apex serves. (§4a said this of
+   entry pages; it is true of block pages too.)
+
+**Blocks are addressed by HASH, not height** — `/aztec/block/0x…`. A probe
+built on `/aztec/block/<height>` 404s on BOTH generations, which is a property
+of the route and not a finding about the data. That probe was written first
+here, and the control — the same shape against the SERVED generation — is what
+caught it.
+
+### 7b. Neither publish mode can promote a generation, and that is the gap
+
+* `render-over-live: false` builds from this repository's committed captures.
+  Those are TIP WINDOWS: `client/fixtures/chain/aztec` declares
+  `window {tip: 70183, blocks: 27}`, `aztec-testnet` `{tip: 67058, blocks: 49}`,
+  `aztec-testnet-frames` `{tip: 69361, blocks: 26}`. A build from them can only
+  ever produce a generation of that size.
+* `render-over-live: true` stages the live `d/` and renders over it with
+  `-d:dataOrigin=$LIVE_ORIGIN` — but it enumerates from the staged
+  `d/<chain>/current.json`, which names generation `1`. It therefore re-renders
+  exactly the small window, and the tree it builds carries generation `1`'s
+  pointer straight back out.
+
+So the promotion is circular in both directions, and `Pin the live chain
+pointers` exists specifically to REFUSE a build whose pointers differ from
+production's. Nothing in the current workflow can move a pointer on purpose.
+
+### 7c. The shape of the change
+
+`-d:dataOrigin` is the seam and it already works: "every chain's data comes
+from `<dir>` instead of from the tree this build produced". What is missing is
+one step BETWEEN staging and rendering that rewrites the staged
+`d/<chain>/current.json` to name a chosen generation, plus an input that
+carries the choice and a matching relaxation of the pin guard for that one run.
+With that, the existing machinery does the rest: the render enumerates the full
+history, `ocCurrent` is `stUnconditional` so the new pointer is written last,
+and `refresh: true` re-renders every entry page into the current design.
+
+**A full-history tree also exists on local disk** at
+`~/m/blocktracer-go-live/dist` — 14 GB, whose `current.json` files already name
+`raztec00001` / `rtestnet0001` / `rframes00001`, with 60,846 + 25,421 + 8
+txstate entries and 18,093 trace containers. It is a valid `-d:dataOrigin`, so
+the full render can be REHEARSED locally without touching production. Its own
+pages are older still (`_a/ff9f791dc18a0c25.css`), so it is a data source, not
+a publishable tree.
+
+### 7d. The decision this still needs, and it is the operator's
+
+For `aztec-testnet` the promotion is strictly better on every axis and costs
+nothing: 99,092 blocks against 34, 25,421 transactions against 6, and 18,087
+traces against 6.
+
+For `aztec` it REMOVES THE DEBUGGER. `raztec00001` carries 102,690 blocks,
+60,846 transactions and **zero** traces; generation `1` carries 170 blocks and
+the only two traced transactions the chain has ever published. Promoting it
+publishes the full history and takes away the two pages that open in the IDE.
+
+The union — full range WITH the traces carried over — is an ingest and not a
+pointer write, and it is the only option that loses nothing. Until it exists,
+"publish the full chains" means accepting that trade on `aztec`, or promoting
+`aztec-testnet` alone and leaving `aztec` until the union ingest is built.
+
+### 7e. Scale
+
+271,143 block pages and 86,275 transaction pages across the three chains,
+before entry pages and indexes. The dormant `bt/full-history-backfill` branch
+(last commit 2026-09-29, not on `agents`) carries the performance work sized
+for exactly this — a per-generation height-map index worth 37%, a memoised
+block list, and a `HashSet` dedup that removed 1.05 trillion string
+comparisons. It should land before the first full render, not after it.
