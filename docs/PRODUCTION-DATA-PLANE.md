@@ -84,6 +84,36 @@ encoding this repository now publishes is NOT established here. They were
 captured 2026-09-28, before that encoding landed, so the question has to be
 asked of a container rather than assumed either way.
 
+## 4a. The bucket serves entry pages from THREE design eras
+
+A generation stops being named; its objects do not stop being served. That is
+true of the entry pages too, and it is measurable from outside:
+
+```
+GET /aztec-testnet/tx/0x2b5706691cdbd3f8d479340cdcdd5fc8ae7d279a8c8faccba4d7606849f8419c
+  200, 8,021 bytes, links /_a/145532f4228f84bf.css
+```
+
+That transaction belongs to `rtestnet0001`. Its page is still there, still
+200, and the stylesheet it links is neither the one the apex serves today
+(`5ef62087010f62a6`) nor the one this branch publishes (`c5a2cc03494ee74f`).
+It is older than both.
+
+Such a page is reachable by direct URL and by nothing else: no index the
+current generation renders links to it, because the current generation does
+not contain that transaction. So a visitor browsing the site never sees it,
+and a deep link from elsewhere — a bookmark, a chat message, a search result —
+lands on a page wearing a design two publishes old.
+
+THIS IS NOT A REASON TO PREFER `render-over-live`. That mode enumerates from
+the data origin's `d/<chain>/current.json`, which is the live pointer, which
+names generation `1`. It re-renders exactly the set a `render-over-live:
+false` build renders. Neither mode reaches the orphaned pages, because
+neither mode enumerates the generation that produced them.
+
+The only thing that re-renders them is a build whose pointer names them —
+which is the same union-generation ingest §4 describes, and the same reason.
+
 ## 5. The served data plane is this repository's own fixture tree
 
 Measured by hashing `client/dist` against the apex, after an ordinary export:
