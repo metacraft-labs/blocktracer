@@ -300,3 +300,54 @@ before entry pages and indexes. The dormant `bt/full-history-backfill` branch
 for exactly this — a per-generation height-map index worth 37%, a memoised
 block list, and a `HashSet` dedup that removed 1.05 trillion string
 comparisons. It should land before the first full render, not after it.
+
+## 7f. §4's TRADE DOES NOT EXIST — measured 2026-10-28, and §4 is wrong
+
+§4 says promoting `aztec` to `raztec00001` "would restore the history and
+remove the debugger", because that generation's summary reports
+`tracesPublished: 0` and a refusal ledger accounting for all 60,846
+transactions. **That inference is wrong, and the reason is where trace
+availability actually lives.**
+
+`contract/model.nim:107` states it of `TransactionFacts`
+(`/d/{chain}/tx/{h0h1}/{txHash}.json`): it "deliberately excludes canonicality,
+finality, trace availability and validation: those change after publication and
+live in other layers." The layer it lives in is the §7.0 overlay at
+**`/d/{chain}/ts/{v}/{h0h1}/{txHash}.json`** — keyed by
+`traceSelectionVersion`, **NOT by generation**.
+
+Both generations declare `traceSelectionVersion: "1"`, so they read THE SAME
+overlay rows. Measured against the apex, with a control:
+
+| transaction | in | overlay row |
+|---|---|---|
+| `0x00c6…ed18d` @68,062 | gen `1` AND `raztec00001` | `availability: ready`, 51,002 B |
+| `0x0f19…99dbb` @68,231 | gen `1` AND `raztec00001` | `availability: ready`, 78,517 B |
+| 3 sampled txs only in `raztec00001` | `raztec00001` | `absent` — `not-attempted` ×2, `not-first-in-block` ×1 |
+
+51,002 and 78,517 are exactly the two `aztec` trace containers measured in §6a.
+The control matters: if the overlay were generation-scoped, or if every row
+simply read `ready`, the three far transactions would not come back with honest,
+DIFFERENT refusal reasons.
+
+**So the three layers a traced page needs are all generation-independent:** the
+container (`/t/**`, content-addressed), the availability row (`/d/<chain>/ts/1/**`,
+version-keyed), and the transaction facts (`/d/<chain>/tx/**`,
+content-addressed). The only generation-scoped thing is WHICH transactions the
+generation lists — and `raztec00001`'s txstate map contains both traced
+transactions, verified by searching its 60,846 entries.
+
+**Promoting the full generations therefore publishes the full history AND keeps
+every trace.** No union ingest is required for the traces.
+
+`raztec00001`'s `tracesPublished: 0` is a historical record of its 2026-09-28
+ingest run, written before those containers existed. It is a counter about a
+RUN, and §4 read it as a fact about the TREE. That is the same class of error as
+§6b's: a figure that was true when written, read as a property of what is served
+now.
+
+WHAT IS STILL OWED, and it is smaller than §4 implied: the per-generation
+summary counters would be understated after a promotion — `raztec00001` would
+serve two `ready` transactions while its own `summary.json` claims zero. That is
+a reporting defect in the ingest, not a loss of function, and it does not gate
+the promotion. §7c's workflow change remains the actual blocker.
