@@ -858,7 +858,7 @@ jobs:
         run: node tools/chain/yield-method-selftest.mjs
 
       - name: Does the committed `.ct` corpus census refuse a corpus that moved?
-        # 7 arms on every host, plus two more where a container reader is present.
+        # 17 arms on every host, plus two more where a container reader is present.
         # Two configurations rather than one, for `chain-health-selftest`'s reason:
         # the version census is read from the BYTES and runs anywhere, while
         # readability needs `ct-print`, which is not a dependency of this

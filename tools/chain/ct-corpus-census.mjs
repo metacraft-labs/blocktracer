@@ -144,18 +144,29 @@ export function askReader(reader, abs) {
   };
 }
 
-/** Find `ct-print` by walking up to the sibling checkout, the way the other tools do. */
+/**
+ * Find an explicitly selected reader, or the nearest executable in this
+ * workspace. A different workspace's build must never grade this corpus just
+ * because it happens to live above this checkout on one developer's machine.
+ * Without a workspace marker, retain the ordinary immediate-sibling layout.
+ */
 export function findReader(root = REPO_ROOT) {
   if (process.env.CT_PRINT && existsSync(process.env.CT_PRINT)) return process.env.CT_PRINT;
-  let dir = root;
-  for (;;) {
+  const start = resolve(root);
+  let boundary = dirname(start);
+  for (let dir = start;; dir = dirname(dir)) {
+    if (existsSync(join(dir, 'repro-workspace.toml'))) {
+      boundary = dir;
+      break;
+    }
+    if (dirname(dir) === dir) break;
+  }
+  for (let dir = start;; dir = dirname(dir)) {
     const p = join(dir, 'codetracer-trace-format-nim', 'ct-print');
     if (existsSync(p)) {
       try { if (statSync(p).mode & 0o111) return p; } catch { /* not executable */ }
     }
-    const up = dirname(dir);
-    if (up === dir) return null;
-    dir = up;
+    if (dir === boundary) return null;
   }
 }
 
