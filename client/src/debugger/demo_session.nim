@@ -283,7 +283,7 @@ func entryStepWithin*(steps: int): int =
   ## Where a session with no `?t=` lands, INSIDE the trace it is landing in.
   ##
   ## It was `FixtureStep` — 128 — for every session, which is right for the
-  ## vendored Noir recording (1315 steps) and for any real trace at least that
+  ## prepared Noir recording (1315 steps) and for any real trace at least that
   ## long. A real testnet transaction is 108 steps, and the page served
   ## `step 128 of 1315` for it: a position past the end of its own recording,
   ## and a TOTAL borrowed from a program that never executed under that hash.

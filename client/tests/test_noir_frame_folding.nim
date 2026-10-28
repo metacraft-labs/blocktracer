@@ -26,19 +26,13 @@
 ##
 ## THE FIXTURES, AND WHAT IN THEM IS MEASURED
 ## ------------------------------------------
-## `client/fixtures/noir-frames/` is a container written by
-## `tools/chain/record-noir-frames-fixture.mjs`. Its frame tree is
-## `aztec-avm-runtime`'s own `ContractSourceMap` and `NoirFrameTracker` — the
-## modules both real recorders drive — imported and RUN over the version-matched
-## FeeJuice artifact and the published container's own decoded step positions.
-## Its bytes are the real `CtWriter` driving the real `aztec_ct_writer.wasm`. Its
-## per-step AVM registers are zeros and are declared as such in
-## `provenance.json`; nothing in the call-trace path reads them.
-##
-## It exists because the published transaction CANNOT BE RE-RECORDED: the node
-## serves transaction bodies out of its active pool for about an hour, and that
-## hour is long past. See the tool's header for the full split of what is
-## measured, what is reconstructed, and what is zero.
+## `client/fixtures/noir-frames/` now holds the same real transaction replay
+## as its copy in `client/fixtures/chain/aztec-testnet/`. Both are produced from
+## the original transaction's immutable historical node responses. The former
+## reconstructed fixture was replaced during the October 2026 re-recording;
+## the registers and log events are real measurements, not zero placeholders.
+## The committed call-trace sidecars retain the measured frame tree and the two
+## folding policies this suite compares.
 ##
 ## §1 IS THE CONTROL AND IT IS NOT DECORATION
 ## ------------------------------------------

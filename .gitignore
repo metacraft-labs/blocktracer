@@ -269,3 +269,7 @@ fixtures/chain-health/readable-container/ct/*.ct
 /.eth-follower-proof/
 .compact-container
 .meta-dat-v7
+
+# Test and demo recordings are generated from committed source and chain inputs.
+*.ct
+/.fixture-recordings/

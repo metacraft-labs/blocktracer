@@ -134,111 +134,32 @@
       flake = false;
     };
 
-    # ── The chain follower's two out-of-repo source inputs ──────────────────
-    #
-    # `tools/chain/follow-chain.mjs` is the only thing in this repository that
-    # needs anything from outside it at RUN time: an `aztec-avm-runtime` to
-    # replay with, and the `codetracer-trace-format` revision its `.ct` writer
-    # is built against. Both were, until now, sibling checkouts a developer
-    # happened to have — which is why the follower had never run anywhere but
-    # one workstation. Pinned here so `nix build .#chain-follower` is the whole
-    # answer. See tools/chain/nix/default.nix for what each is used for, and
-    # for the ONE input (avm.wasm) that is still not built here and why.
-    #
-    # `flake = false`: both are consumed as source trees, not as flakes. The
-    # runtime's own flake exposes only a wasi-sdk, which nothing here needs.
-    # MOVED 75d1592a -> f972b415 ON 2026-10-14, AND THE MOVE IS THE DELIVERABLE.
-    # At 75d1592a the `ct-writer` crate had no `[features]` block, no `build.rs`
-    # and no `trace_format_nim_writer` anchor: there was ONE writer, the pure
-    # Rust Path A, built against a `codetracer-trace-format` whose
-    # `codetracer_ctfs/src/header.rs` declares `VERSION = 3` and whose
-    # `meta_dat.rs` declares `META_DAT_VERSION = 3`, and which carries no file
-    # matching "compact" at all.
-    #
-    # So `ctWriterWasm` below produced — measured 2026-10-14, by
-    # `WebAssembly.Module.exports` on the module this flake builds — 38 ABI
-    # functions plus `memory`, 0 imports, and NO
-    # `ct_writer_set_compact_threshold`. Every container this repository has
-    # ever published was written by a writer with no compact lever to pull, which
-    # is the whole reason `ctfs-container.md` §1e's compact profile is unused
-    # here rather than any decision about it.
-    #
-    # THE ANCHOR SET MOVED ON `agents` AND THIS BRANCH'S HOLD YIELDED TO IT.
-    # This branch pinned the runtime at aeb67e6d and read `trace_format` /
-    # `trace_format_nim` out of THAT revision's `pins.json` (3fada0b0 /
-    # 051efd22b0). `agents` advanced the runtime to 75d1592a, whose `pins.json`
-    # anchors `trace_format` at 592fa42c, and advanced the other two inputs
-    # with it; `flake.lock` names that newer trio throughout. A merge cannot
-    # hold half of an anchor set, and the mainline's advance is a decision
-    # rather than drift, so all three follow it here. The paragraph below is
-    # kept because WHY these are anchored together has not changed.
-    #
-    # Checked before following, because the one thing this must not do is
-    # publish containers the deployed engine refuses: `7b8b587c`'s
-    # `src/codetracer_trace_writer/meta_dat.nim` emits `MetaDatVersion = 6`,
-    # and `client/hydrate/engine-pin.txt`'s engine accepts `meta.dat` [6].
-    # Inside the ceiling.
-    #
-    # ONE THING IS LEFT FLAGGED RATHER THAN CHANGED: 75d1592a's `pins.json`
-    # anchors `trace_format_nim` at baea0740 and `agents` pins 7b8b587c, so
-    # that pair does not agree the way the aeb67e6d set did. Both are inside
-    # the engine's ceiling, it is the Flow/EVM work's area and not this
-    # branch's, and reverting it here would break those chains to satisfy a
-    # comment this branch wrote. Raised with that work rather than resolved by
-    # a merge.
-    #
-    # aeb67e6d was `agents` after CCP-6 (the lever reachable from
-    # `replay/tools/replay_settled_transaction.mjs` as `--compact-threshold`) and
-    # CCP-7 (the two hooks that let a nix sandbox build Path B at all — see
-    # `ctWriterWasm`). The default feature there is `path-b`, the NIM writer,
-    # which is a USER DECISION taken on measurement and recorded in
-    # `ct-writer/Cargo.toml`: Path A linked `ruzstd`, which returns 4,194,304
-    # bytes of wrong data where C libzstd refuses a frame corrupted under a
-    # content checksum, and Path A has no in-memory reader. Building Path A to
-    # avoid Path B's toolchain would reverse that decision silently, so this
-    # builds what the runtime ships.
+    # The fixture producer is the version that recorded the existing Aztec
+    # subjects. Its schema-6 writer matches the published replay engine. The
+    # separate Nim input preserves that producer's exact writer anchor while
+    # the other chain packages retain their independently pinned writer.
     aztec-avm-runtime = {
-      url = "github:metacraft-labs/aztec-avm-runtime/75d1592a3d1ab4dc795e04d931c9f268b4973835";
+      url = "github:metacraft-labs/aztec-avm-runtime/238a3a5b9fe9346868cc7fab84a8aa54513287dd";
       flake = false;
     };
-
-    # `pins.json`'s `trace_format` anchor in the runtime revision above. It is
-    # NOT a free choice: the ct-writer's three path dependencies must all come
-    # from one checkout at that anchor, or two copies of `codetracer_trace_types`
-    # become two distinct types that will not unify.
+    noir-fixture-recorder = {
+      url = "github:metacraft-labs/noir/b048e84842cc3ba55568ba7b4354a0c73709c9cc";
+      flake = false;
+    };
+    # The owner maintains the compatible reader separately from its current ABI.
+    # This role reads the generated schema-6 fixtures, including compact CTFS.
+    fixture-container-reader-source = {
+      url = "github:metacraft-labs/codetracer-trace-format-nim/d1d8e98d354fd493ae292c0aefb30851681dfd63";
+      flake = false;
+    };
     codetracer-trace-format = {
-      url = "github:metacraft-labs/codetracer-trace-format/592fa42cbfd759cf13398180798daaf856eb7e9d";
+      url = "github:metacraft-labs/codetracer-trace-format/3fada0b03c3d1a0cbc7c35f278aa639028d702c5";
       flake = false;
     };
-
-    # ── THE WRITER ITSELF, which was never an input and had to become one ────
-    #
-    # `pins.json`'s `trace_format_nim_writer` anchor in the runtime revision
-    # above. A THIRD anchor appeared there on 2026-10-08 and this flake had no
-    # row for it, which is exactly why the paragraph above about
-    # `codetracer-trace-format` stopped being the answer: under `path-b` the Nim
-    # tree is the writer and the Rust one only supplies the path dependencies
-    # the lockfile names.
-    #
-    # `ct-writer/build.rs` materialises it out of a git OBJECT STORE, which a
-    # sandbox does not have. CCP-7 added `CT_TRACE_FORMAT_NIM_SRC` plus
-    # `CT_TRACE_FORMAT_NIM_SRC_REV` for exactly this: a plain tree, with the
-    # revision DECLARED and checked against `pins.json` rather than trusted,
-    # because a tree cannot prove its own provenance. `traceFormatNimRev` below
-    # is that declaration, and a mismatch is refused by the build script.
-    #
-    # HELD AT 051efd22b0 AND NOT FOLLOWED TO `agents`, deliberately and in the
-    # unusual direction. At 051efd22b0 the writer emits container 5
-    # (`CtfsVersion`), container 6 under the compact profile
-    # (`compact.nim` stamps `image[5] = CtfsVersionV6`) and `meta.dat` 6
-    # (`MetaDatVersion* = 6`), and the engine pinned at
-    # `client/hydrate/engine-pin.txt` accepts container {5,6} and `meta.dat`
-    # [6] — both profiles land inside it. That repository's `agents` HEAD is at
-    # `MetaDatVersion* = 7`, which the deployed engine REFUSES: advancing this
-    # pin would produce containers this site's own reader cannot open.
-    # (The input itself is declared once, further down, beside the chain-two
-    # pins that share it. The paragraph above belongs with THIS explanation and
-    # is kept here because it is about why the revision is chosen at all.)
+    aztec-trace-format-nim = {
+      url = "github:metacraft-labs/codetracer-trace-format-nim/051efd22b00ec3b88676fb07755a65c5a4ca8fde";
+      flake = false;
+    };
 
     # ── THE WRITER'S OWN NIM DEPENDENCIES ───────────────────────────────────
     #
@@ -357,7 +278,8 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, isonim-tui, codetracer-design-system, codetracer
-            , aztec-avm-runtime, codetracer-trace-format
+            , aztec-avm-runtime, codetracer-trace-format, aztec-trace-format-nim, noir-fixture-recorder
+            , fixture-container-reader-source
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
             , codetracer-solana-recorder, sol-trace-format
@@ -368,13 +290,55 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
+        fixtureRecorder = import "${noir-fixture-recorder}/nix/fixture-recorder.nix" { inherit pkgs; };
+        fixtureContainerReader = import "${fixture-container-reader-source}/nix/schema6-reader.nix" { inherit pkgs; };
+        fixtureContainerTools = import ./tools/fixtures/compact-container.nix {
+          inherit pkgs;
+          traceFormatNim = codetracer-trace-format-nim;
+          nimDeps = [ nim-stew nim-results nim-unittest2 ];
+        };
+        fixtureAvm = pkgs.fetchurl {
+          name = "blocktracer-fixture-avm.wasm";
+          url = "https://github.com/metacraft-labs/aztec-avm-runtime/releases/download/avm-wasm-41af520a/avm.wasm";
+          hash = "sha256-Qa9SCnKTmv/dnMEof41hpY4hbhJqEffIJMrcw+S5Bac=";
+        };
+        fixtureEnv = {
+          NARGO = "${fixtureRecorder}/bin/nargo";
+          CT_AZTEC_NODE = "${pkgs.nodejs_24}/bin/node";
+          CT_AZTEC_RUNTIME = chain.avmRuntime;
+          CT_AZTEC_WRITER_WASM = "${chain.ctWriterWasm}/lib/aztec_ct_writer.wasm";
+          CT_AZTEC_AVM_WASM = fixtureAvm;
+          CT_COMPACT_CONTAINER = "${fixtureContainerTools}/bin/compact-container";
+          CT_FIXTURE_PRINT = "${fixtureContainerReader}/bin/ct-print";
+        };
+        fixtureRecordings = pkgs.runCommand "blocktracer-fixture-recordings" (fixtureEnv // {
+          nativeBuildInputs = [ pkgs.nodejs_24 ];
+        }) ''
+          export HOME=$TMPDIR
+          cp -r ${./.} source
+          chmod -R u+w source
+          cd source
+          node tools/fixtures/prepare-recordings.mjs --force
+          mkdir -p $out
+          node --input-type=module - "$out" <<'JS'
+          import { readFileSync, mkdirSync, copyFileSync } from 'node:fs';
+          import { dirname, join } from 'node:path';
+          const inventory = JSON.parse(readFileSync('tools/fixtures/recordings.json', 'utf8'));
+          for (const row of inventory.recordings) {
+            const target = join(process.argv[2], row.output);
+            mkdirSync(dirname(target), { recursive: true });
+            copyFileSync(row.output, target);
+          }
+          JS
+        '';
+
         # isonim + nim-everywhere + the design system from the pinned flake
         # inputs. client/src/config.nims adds isonim + nim-everywhere (+ "/src")
         # to the Nim search path; tokens.nim reads the design system from
         # DESIGN_SYSTEM_SRC. So a build is hermetic inside `nix develop` without
         # any sibling checkout. Shared by every dev shell below (mkShell turns
         # these into env vars).
-        srcEnv = {
+        srcEnv = fixtureEnv // {
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
           ISONIM_TUI_SRC = isonim-tui;
@@ -394,9 +358,8 @@
           # codetracer_ctfs/types` — measured, on the first run of
           # `just ct-compact-check`.
           #
-          # The REVISION is the one `ctWriterWasm` builds the shipped writer
-          # from, so a tool that converts a container and the writer that
-          # produces one cannot drift apart: both read this input.
+          # This library converts the container profile without changing its
+          # recorded members. Aztec retains its own exact writer input above.
           CT_TRACE_FORMAT_NIM_SRC = codetracer-trace-format-nim;
           # Its `.nimble` requires, in the order that repository's own flake
           # lists them. Colon-joined because that is the shape
@@ -546,8 +509,8 @@
           avmRuntimeRev = aztec-avm-runtime.rev;
           traceFormatSrc = codetracer-trace-format;
           traceFormatRev = codetracer-trace-format.rev;
-          traceFormatNimSrc = codetracer-trace-format-nim;
-          traceFormatNimRev = codetracer-trace-format-nim.rev;
+          traceFormatNimSrc = aztec-trace-format-nim;
+          traceFormatNimRev = aztec-trace-format-nim.rev;
           traceFormatNimDeps = [ nim-stew nim-results nim-unittest2 ];
         };
 
@@ -691,6 +654,16 @@
           cp -r ${sui.suiCaptureTree} $out/sui-mainnet
         '';
 
+        packages.fixture-recorder6 = fixtureRecorder;
+        packages.fixture-container-tools = fixtureContainerTools;
+        packages.fixture-container-reader = fixtureContainerReader;
+        packages.fixture-recordings = fixtureRecordings;
+        packages.all-produced-recordings = pkgs.runCommand "blocktracer-all-produced-recordings" { } ''
+          mkdir -p $out
+          cp -r ${fixtureRecordings} $out/fixture-recordings
+          cp -r ${self.packages.${system}.produced-captures} $out/chain-captures
+        '';
+
         packages.chain-tools = chain.chainTools;
         packages.chain-runtime = chain.avmRuntime;
         packages.aztec-ct-writer-wasm = chain.ctWriterWasm;
@@ -799,6 +772,10 @@
           NIM_EVERYWHERE_SRC = nim-everywhere;
           ISONIM_TUI_SRC = isonim-tui;
           DESIGN_SYSTEM_SRC = codetracer-design-system;
+          postPatch = ''
+            cp -r ${fixtureRecordings}/. .
+            chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
+          '';
           buildPhase = ''
             export HOME=$TMPDIR
             cd client

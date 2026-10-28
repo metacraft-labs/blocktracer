@@ -238,7 +238,7 @@ suite "M5c — the published traces are the real noir_space_ship execution":
     let want = readFile(fixture)
     for c in cs:
       let got = readFile(c)
-      # Byte-identical to the vendored `nargo trace` output — not merely the same
+      # Byte-identical to the prepared `nargo trace` output — not merely the same
       # size, and not a re-encoding.
       check got == want
       # CTFS container magic (`c0 de 72 ac`), so this is a real container and not
@@ -305,7 +305,7 @@ suite "M5c — the published traces are the real noir_space_ship execution":
       check m["execution"]["languages"].getElems.mapIt(it.getStr) == @["noir"]
       check m["execution"]["sourceLevel"].getBool
       check m["container"]["bytes"].getInt == readFile(fixture).len
-      check m["container"]["bytes"].getInt == 732258
+      check m["container"]["bytes"].getInt == 732257
       # ── AND THIS TREE IS AN IDENTITY TREE, SO IT SAYS NOTHING AT REST ────
       #
       # `generator.nim` omits `encoding`, `storedBytes` and `storedHash`
@@ -498,6 +498,42 @@ suite "M5c — determinism":
       ""
     check oneContainer(a).len > 0
     check oneContainer(a) == oneContainer(other)
+
+suite "generated demo recording input identity":
+  test "changed supplied program inputs move the immutable artifact address":
+    # This checks publication identity over real filesystem input bytes. The
+    # producer/cache integration separately re-records the changed Prover input;
+    # this test does not pretend the unchanged container is that new execution.
+    let work = tmp("program-input-identity")
+    defer: removeDir work
+    let copied = work / "sources"
+    copyDir(sourcesDir, copied)
+    let prover = copied / "Prover.toml"
+    let original = readFile(prover)
+    const seed = "program-input-identity"
+    let tx = synthHash(seed, "tx", 0)
+    proc identity(outDir: string): tuple[execution, artifact: string] =
+      discard generate(DemoConfig(outDir: outDir, seed: seed,
+        traceFixturePath: fixture, traceSourcesDir: copied))
+      for path in walkDirRec(outDir / "t"):
+        if path.extractFilename != "manifest.json": continue
+        let manifest = parseFile(path)
+        if manifest["tx"].getStr == tx:
+          return (manifest["executionInputId"].getStr,
+                  manifest["traceArtifactId"].getStr)
+      raise newException(ValueError, "the real generated transaction has no artifact")
+    let before = identity(work / "before")
+    writeFile(prover, original & "\n# changed supplied prover bytes\n")
+    let changed = identity(work / "changed")
+    check changed.execution != before.execution
+    check changed.artifact != before.artifact
+    writeFile(prover, original)
+    let restored = identity(work / "restored")
+    check restored == before
+    # Existing three-argument callers describe their own chain capsule; a demo
+    # program binding must not change those unrelated real-chain fallback IDs.
+    check demoExecutionInputId("chain", "tx", "call") ==
+      "sha1:" & toLowerAscii($secureHash("chain\x1ftx\x1fcall"))
 
 suite "M5b — the contract names no producer":
   test "a hand-built EVM-shaped tree validates against the same contract version":

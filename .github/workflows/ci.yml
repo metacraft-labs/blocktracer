@@ -290,13 +290,16 @@ jobs:
           # version is pinned twice and the two must not drift.
           node-version: "22"
 
+      - name: Generate the conformance template placeholders
+        run: node tools/fixtures/template-placeholders.mjs
+
       - name: Does the asset gate bite? (existence — every reference resolves)
         # Eleven arms, each a single mutation of a synthetic publish tree, each
         # asserting that the check WRITTEN for it is the one that goes red.
         run: node tools/deploy/check-assets-selftest.mjs
 
       - name: Does the freshness gate bite? (provenance — the bytes are this commit's)
-        # Twenty-one arms. Four of them require the gate to stay GREEN over a
+        # Its controls require the gate to stay GREEN over a
         # legitimately-changed world — a new upstream engine, a new capture, a
         # capture the build produces and declares with --produced, a
         # few KB of engine drift — because a gate that reddens on a normal
@@ -767,15 +770,16 @@ jobs:
         #     a stand-in doing the same must be counted refused, and a reader that
         #     merely mentions the word error and succeeds must not.
         #   * A refused container is a finding ABOUT THE CONTAINER and the reader is
-        #     the witness, not the accused. Over this repository's corpus the refusal
-        #     holds on all 52 TRACKED containers — so a sentence that blamed the
+        #     the witness, not the accused. Historically the refusal
+        #     held on all 52 tracked containers — so a sentence that blamed the
         #     reader would read as a broken tool 52 times over and send an operator
         #     to the wrong repository. (RE-MEASURED 2026-10-04: this said "52 of the
         #     53 … every one but the version-4 subject in
         #     fixtures/chain-health/readable-container". That subject was refused too
         #     from 2026-10-01, when the reader moved to meta.dat schema 6 only, and
         #     its container is now RECORDED at test time rather than committed, so it
-        #     is not in the tracked census. The tracked 52 are unchanged.)
+        #     is not in the tracked census. Those 52 original subjects are now
+        #     generated from immutable inputs and the committed population is zero.)
         #     The arms require the finding to name the container's declared schema
         #     version as the defect, to keep the reader's own sentence, and to carry
         #     the reader's BUILD ID — its own sha256, because the reader states no
@@ -870,12 +874,11 @@ jobs:
         run: node tools/chain/yield-method-selftest.mjs
 
       - name: Does the committed `.ct` corpus census refuse a corpus that moved?
-        # 17 arms on every host, plus two more where a container reader is present.
-        # Two configurations rather than one, for `chain-health-selftest`'s reason:
-        # the version census is read from the BYTES and runs anywhere, while
-        # readability needs `ct-print`, which is not a dependency of this
-        # repository and is not built on this runner. The absent arms are reported
-        # NOT RUN and are not counted as passed.
+        # 20 arms on every host. The actual Git-index census checks that the
+        # committed population stays zero. Disposable Git-index headers exercise
+        # classification, and explicit non-empty comparison inputs exercise
+        # every detector without pretending a header is a readable container.
+        # The engine job separately executes the actual-reader configuration.
         #
         # WHY THE CENSUS IS A GATE. The committed `.ct` corpus was censused by hand
         # three times and the hand census was wrong twice: once on the POPULATION
@@ -887,13 +890,20 @@ jobs:
         # command is committed). The producer is the field that decides the remedy,
         # so getting it wrong sends the next reader to the wrong repository.
         #
-        # The perturbations are applied to the committed READING and not to the
-        # corpus, so this writes no container: `compare()` is a pure function of
-        # (reading, census), which is why it is exported and called directly.
+        # Comparison perturbations use an explicit positive non-empty reading;
+        # `compare()` is a pure function of (reading, census). Identity detection
+        # separately uses real temporary Git indexes with header-only subjects,
+        # and does not call those headers readable containers.
         #
         # Offline and toolchain-free: `git ls-files`, the bytes of files already in
         # this repository, and two committed JSON documents.
         run: node tools/chain/ct-corpus-census-selftest.mjs
+
+      - name: Are fixture recordings generated, with their complete subject population?
+        run: |
+          node tools/fixtures/check-recordings-policy.mjs
+          node tools/fixtures/check-recordings-policy-selftest.mjs
+          node tools/fixtures/prepare-recordings-selftest.mjs
 
       - name: Is the committed Ethereum JSON-RPC input set the input set it claims to be?
         # 30 assertions, host-independent: every arm is offline and needs only node.
@@ -1006,7 +1016,7 @@ jobs:
         run: node tools/chain/solana-producer-selftest.mjs
 
       - name: Is every abstraction DEL-7 extracted reached by two chains?
-        # 36 assertions, host-independent: every arm is offline and needs only node.
+        # 33 assertions, host-independent: every arm is offline and needs only node.
         #
         # Chain-Delivery DEL-7's `test_every_abstraction_has_two_consumers`. Each export of
         # `lib/producer-runtime.mjs` is counted by the producers' and facts modules' own
@@ -2218,9 +2228,9 @@ jobs:
       # §1e at its RECOMMENDED 1 MiB raw ceiling.
       #
       # MOVED 12/43 -> 52/3 ON 2026-10-16, and it is one cause: the FORTY
-      # REMAINING container-3 recordings were re-recorded. Every `.ct` this
-      # repository commits is now container 6 / `meta.dat` 6 / profile 1, and
-      # the pinned engine opens all fifty-two.
+      # REMAINING container-3 recordings were re-recorded. The original52
+      # subjects are now generated as container6 / `meta.dat`6 / profile1,
+      # and the pinned engine opens them all; no `.ct` remains committed.
       #
       # THE THREE REFUSALS ARE NOW A FIXED SET and not a remainder: the
       # conformance kit's 229-byte ASCII placeholders, which are not containers
@@ -2242,6 +2252,13 @@ jobs:
           nix develop .#ci --command node tools/deploy/engine-opens.mjs \
             --engine client/.replay-engine-cache --corpus \
             --expect-opened 52 --expect-refused 3
+
+      - name: Does the census use the actual compatible reader?
+        # In addition to the base comparison controls, this executes the real
+        # producer, indexes its recording and a version-mutated refusal, and
+        # checks the reader's open/refusal attribution through census.
+        run: |
+          nix develop .#ci --command node tools/chain/ct-corpus-census-selftest.mjs
 
       # THE WORKING TREE IS NOT THE NIX BUILD, and the selftest below uses the
       # working tree.

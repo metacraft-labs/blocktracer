@@ -17,12 +17,11 @@
 //
 // ## Why it is a separate, committed derivation and not part of the build
 //
-// Same argument as `client/fixtures/demo-session/extract-flow.mjs`, and the same
-// shape. Reading a `.ct` needs `ct-print`, which is `codetracer-trace-format-nim`'s
-// reader and is NOT a dependency of this repository — the site build is hermetic and
-// has no network, and the containers are vendored precisely because recording is not
-// byte-deterministic. So the derivation runs by hand, its output is committed beside
-// the container it was derived from, and `ingest.nim` publishes whatever it finds.
+// This is an explicit authoring step: `just chain-instructions` prepares the
+// original recordings and selects their compatible reader from the development
+// shell. Its JSON output is committed beside the recording inputs, while the
+// reproducibly generated `.ct` remains ignored. `ingest.nim` publishes the sidecar
+// it finds, without rerunning this derivation during an ordinary site build.
 //
 // A snapshot with no `instructions/` directory is a VALID input and not a broken
 // one: the pane falls back to the prose it has always shown. That is the honest

@@ -429,6 +429,34 @@ const arms = [
     mutateWorld: (w) => { w.fixtures = {}; return w; },
     expect: "F4",
   },
+  {
+    // A fresh checkout carries immutable inputs, while the Nix build exports
+    // the generated recordings separately. No local container can supply an
+    // accidental fallback for the declared build output in this case.
+    name: "9i F4 — generated recordings pass with no containers in the checkout",
+    setup: (w) => {
+      w.produced = Object.fromEntries(Object.entries(w.fixtures).map(([rel, body]) =>
+        [`fixture-recordings/${rel}`, body]));
+      w.fixtures = {};
+      return w;
+    },
+    also: { F4: "PASS" },
+  },
+  {
+    name: "9j F4 — generated recordings still refuse changed published bytes",
+    setup: (w) => {
+      w.produced = Object.fromEntries(Object.entries(w.fixtures).map(([rel, body]) =>
+        [`fixture-recordings/${rel}`, body]));
+      w.fixtures = {};
+      return w;
+    },
+    mutateWorld: (w) => {
+      w.built[CONTAINER] = "CTFMT0\0a changed generated recording\n";
+      return w;
+    },
+    expect: "F4",
+    also: { F1: "PASS", F2: "PASS" },
+  },
 
   // ── CCP-6: THE OBJECT AT REST IS NOT THE CONTAINER ────────────────────
   //
@@ -748,4 +776,4 @@ if (failures.length) {
   process.exit(1);
 }
 console.log("check-freshness-selftest: PASS — every check in check-freshness.mjs was shown to decide, " +
-            "and the three deploys that must NOT break were shown to stay green");
+            "and legitimate deploy variations were shown to stay green");

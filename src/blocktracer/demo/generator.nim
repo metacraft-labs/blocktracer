@@ -1,45 +1,10 @@
-## The Demo Data Generator (M5c).
+## Generate a synthetic demonstration chain using real recorded Noir programs.
 ##
-## A fake chain-extractor and trace-gen that emits the *exact* static-site tree and
-## trace manifests the real pipeline emits, so the front end, publishing and the
-## visual-design campaign can be built and reviewed BEFORE real Aztec ingestion
-## (M6) or real replay (M10) exist. It satisfies the M5b contract; the real
-## producer satisfies the same one; the two are interchangeable behind the seam.
-##
-## The demo data is deliberately **Aztec-shaped**, so the hardest case is exercised
-## from the first render: a transaction's private part is structurally unobservable
-## and carries `availability: absent` with a reason, while its public part carries
-## a trace (Static-Site-Architecture.md §2.3, §2.3a).
-##
-## Determinism (M5c): output is a pure function of the seed. No timestamps, fixed
-## field order, and the trace container bytes are copied verbatim from a fixture,
-## so two runs at the same seed produce a byte-identical tree.
-##
-## THE TRACE IS REAL. Every published (`ready` / `divergent`) execution carries
-## `fixtures/trace/noir_space_ship/zk_shields.ct` — a genuine CTFS container
-## recorded by `nargo trace` from `fixtures/trace/noir_space_ship/sources`
-## (recorder pin `/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir`, nargo
-## 1.0.0-beta.26). Container version 5 / `meta.dat` schema 6. 1315 steps,
-## 81 calls (80 of the program's own plus the writer's `<toplevel>` frame), max
-## program call depth 3, all 22 variables observed, 70 stdout events. See
-## `fixtures/trace/noir_space_ship/README.md` for provenance and `ct-print` output.
-##
-## The container is VENDORED rather than recorded at generation time on purpose:
-## `nargo trace` is not byte-deterministic (it stamps a fresh UUIDv7 recording id
-## into the `CTMD` block on every run), so shelling out to it would break the
-## byte-identical-tree requirement. Checking the bytes in is what makes the demo
-## tree a usable regression fixture.
-##
-## SOURCE IS REFERENCED, NOT EMBEDDED (Trace-Artifacts.md §2.5). The container
-## interns path names and positions but carries no source text
-## (`ct-print --full` reports `source_views: []`), so a viewer given only
-## `trace.ct` can step and show variables but cannot show code. The generator
-## therefore publishes the Noir sources as content-addressed bundles at
-## `/src/{chain}/{codeHash}/{bundleHash}.json` with a `current.json` pointer
-## (Source-Resolution.md §5), and each manifest's `sourceBundles` names the
-## bundle it recommends. The bundle's `sources` keys are exactly the paths the
-## container interns (`src/main.nr`, `src/shield.nr`), which is what lets a step's
-## position resolve to a line of code.
+## The seed and the declared producer inputs determine the published tree.
+## tools/fixtures/prepare-recordings.mjs records each original source program
+## before generation, using a stable UUIDv7 and logical working directory.
+## Containers are copied into the published artifacts and remain untracked.
+## Source bundles expose the exact interned paths beside those artifacts.
 
 import std/[json, os, strutils, sha1, algorithm, tables]
 import ../contract/[model, version, ids, searchidx, identifier_encoding,
@@ -238,19 +203,21 @@ var chain = DemoChainSlug
 # the same id for the real chains. It stays as it is.
 const
   recorderId = "aztec-avm"
-  recorderVersion = "0.0.0-demo"
-  # The schema the vendored container is actually written in. MOVED `ctfs/v4` ->
-  # `ctfs/v5` when the fixture was re-recorded at the 2026-10 trace-format
-  # revision: the container's header version byte is 5 and its `meta.dat` schema
-  # is 6, so leaving this at `v4` would be a producer stating a schema its own
-  # bytes do not carry — `snapshot-contract.json` defines the field as "the
-  # schema this recorder's containers are written in".
-  #
-  # IT IS NOT A FREE LABEL: `deriveTraceArtifactId` hashes it, so moving it
-  # re-addresses every published trace artifact in the demo tree. That is what
-  # version-addressing is for, and it is the correct consequence rather than a
-  # side effect to avoid.
-  traceSchema = "ctfs/v5"
+  fixtureRecorderManifest = staticRead(currentSourcePath().parentDir / "../../../fixtures/trace/tour/manifest.json")
+  tracerCommit = "noir-fixture-recorder-v6@" & parseJson(fixtureRecorderManifest)["recorder"]["fixturePackageRevision"].getStr
+  # Bind addresses to the complete declared producer graph and its invocation,
+  # including platform-specific compilation. A changed producer must not publish
+  # different bytes under the previous recorder's immutable artifact address.
+  recorderBuildInputs =
+    fixtureRecorderManifest & "\0" &
+    staticRead(currentSourcePath().parentDir / "../../../flake.lock") & "\0" &
+    staticRead(currentSourcePath().parentDir / "../../../flake.nix") & "\0" &
+    staticRead(currentSourcePath().parentDir / "../../../tools/fixtures/recordings.json") & "\0" &
+    staticRead(currentSourcePath().parentDir / "../../../tools/fixtures/prepare-recordings.mjs") & "\0" &
+    staticRead(currentSourcePath().parentDir / "../../../tools/fixtures/compact-container.nix") & "\0" &
+    staticRead(currentSourcePath().parentDir / "../../../tools/chain/compact_container.nim") & "\0" & hostOS & "/" & hostCPU
+  # Preparation converts every demo recording to the compact CTFS profile.
+  traceSchema = "ctfs/v6"
   profileName = "default"
   tsv = "1"
 
@@ -272,18 +239,8 @@ const
                             ## ct-print reading, as the comment above requires, so
                             ## it carries the frame.
   traceLanguage = "noir"
-  # Provenance of the vendored container, surfaced in the source bundle's
-  # `compiler` block so a reader can tell which tracer produced the execution.
-  #
-  # `tracerCommit` is a NIX STORE PATH and no longer a git SHA. The 2026-10
-  # recorder is a Nix build and embeds no git hash — its `nargo --version`
-  # answers `git version hash: false` — so a SHA here could only be a guess. A
-  # content-addressed store path names the exact bytes that produced the
-  # container, which is a stronger identity. `fixtures/trace/tour/README.md`
-  # ("The recorder pin") carries the derivation and both of its sources, and
-  # states what is claimed about the noir commit and what is not.
+  # The producer package identity is declared in the shared corpus manifest.
   nargoVersion = "1.0.0-beta.26"
-  tracerCommit = "/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir"
   # Search-index parameters (Search-And-Routing §5.3, §6). Version-addressed and
   # independent of the contract version; the depths are small for the demo's tiny
   # dataset and are recomputable for the real pipeline (documented D4/D5).
@@ -296,6 +253,10 @@ const
     ## every chain at the same path, and two writers disagreeing about the
     ## shard depth would publish a tree where half the shard names are wrong.
   nameShardBits = 1      ## low bits of the term hash that select a name shard (2 shards)
+
+# std/sha1 uses C memory helpers on this compiler, so hash the immutable
+# compile-time inputs once at module initialization rather than in the Nim VM.
+let recorderVersion = "demo-fixture-v6-" & $secureHash(recorderBuildInputs)
 
 proc demoIdentifierEncoding(): ChainIdentifierEncoding =
   ## HOW THIS CHAIN WRITES ITS IDENTIFIERS — ONE DECISION FOR THIS PRODUCER.
@@ -394,15 +355,23 @@ proc readSourceFiles(dir: string): seq[tuple[path, content: string]] =
   for r in rels:
     result.add (path: r, content: readFile(dir / r))
 
+proc programInputsDigest(files: seq[tuple[path, content: string]]): string =
+  ## The actual synthetic program capsule: sorted relative paths and original
+  ## bytes, including Nargo.toml and Prover.toml. No generated container bytes
+  ## participate in execution identity.
+  if files.len == 0: return "" # A generic caller supplied no program capsule.
+  var capsule = newJArray()
+  for file in files:
+    capsule.add %*{"path": file.path, "content": file.content}
+  contentHashSha1($capsule)
+
 proc writeSourceBundle(cfg: DemoConfig, codeHash: string,
                        files: seq[tuple[path, content: string]]): string =
   ## Publish one content-addressed source bundle plus its `current.json` pointer
   ## (Source-Resolution.md §5) and return its `sourceBundleId`.
   ##
-  ## This is what makes the trace *readable*: the CTFS container carries no source
-  ## text (Trace-Artifacts.md §2.5), so without a bundle whose `sources` keys match
-  ## the interned paths, every step resolves to a position in a file the viewer
-  ## cannot display.
+  ## The separate bundle lets clients resolve each interned path without first
+  ## decoding the container's embedded source views.
   var srcs = newJObject()
   for f in files:
     srcs[f.path] = %*{"content": f.content}
@@ -471,7 +440,7 @@ proc writeArtifact(cfg: DemoConfig, rec: Recording, txHash, execInputId: string,
   ## `truncated` is §14's "Trace truncated" row as published data: the recorder
   ## reached the profile's budget, so the recording's ending is the budget
   ## rather than the program's end. It does NOT change `steps` or `frames` —
-  ## those still describe the vendored container exactly (1315 / 81), because
+  ## those still describe the prepared flagship container exactly (1315 / 81), because
   ## the container really does carry that many and a manifest that shrank them
   ## to look truncated would be describing a container that is not the one
   ## beside it. The claim is about where the recording STOPS, not about how big
@@ -482,8 +451,8 @@ proc writeArtifact(cfg: DemoConfig, rec: Recording, txHash, execInputId: string,
   let tid = deriveTraceArtifactId(execInputId, r.id, r.build, p.hash, traceSchema)
   let sh = traceShards(tid)
   let dir = "t" / sh.a / sh.b / tid
-  # THIS transaction's container, copied verbatim. Copying rather than
-  # regenerating is what keeps the tree byte-identical (see the module header).
+  # Publish this transaction's finished producer output verbatim. Recording is
+  # handled by preparation; publication preserves its bytes and measured facts.
   let bytes = readFile(rec.containerPath)
   # AND ENCODED FOR REST, if this publication asks for it. `bytes` stays the RAW
   # container throughout — every figure the manifest publishes about the
@@ -1076,7 +1045,19 @@ proc generate*(cfg: DemoConfig): int =
                   renderBlockPage(chain, b.hash, bdJson))
     hashEntries.add HashEntry(encoding: identifierEncoding.encodingFor(KindBlock),
                               identifier: b.hash, chain: chain, kind: hkBlock)
-  for t in txs:
+  for originalTx in txs:
+    var t = originalTx
+    let rec = if t.tourProgram.len > 0: tourRec[t.tourProgram]
+              else: cfg.fixtureRecording
+    let files = if t.tourProgram.len > 0: readSourceFiles(rec.sourcesDir)
+                else: srcFiles
+    let inputDigest = programInputsDigest(files)
+    for artifact in t.artifacts.mitems:
+      let bound = demoExecutionInputId(chain, t.hash, artifact.selector, inputDigest)
+      artifact.execInputId = bound
+      for execution in t.facts.executions.mitems:
+        if execution.selector == artifact.selector:
+          execution.executionInputId = bound
     let factsJson = t.facts.toJson
     cfg.writeJson(txFactsPath(chain, t.hash, identifierEncoding), factsJson)
     var st = t.txstate
@@ -1093,12 +1074,8 @@ proc generate*(cfg: DemoConfig): int =
       let codeHash = if t.facts.codeEdges.len > 0: t.facts.codeEdges[0].codeHash
                      else: ""
       # A tour transaction publishes ITS program's recording and ITS program's
-      # sources. Everything else publishes the M5c fixture, byte for byte as
-      # before — which is why the ten existing transactions are unchanged.
-      let rec = if t.tourProgram.len > 0: tourRec[t.tourProgram]
-                else: cfg.fixtureRecording
-      let files = if t.tourProgram.len > 0: readSourceFiles(rec.sourcesDir)
-                  else: srcFiles
+      # sources. Other transactions publish the flagship recording generated
+      # from the original M5c program and its prover inputs.
       var bundleId = ""
       if codeHash.len > 0 and files.len > 0:
         bundleId = cfg.writeSourceBundle(codeHash, files)

@@ -5,10 +5,10 @@
 ##                        [--trace-sources DIR]
 ##
 ## Deterministic: the same seed produces a byte-identical tree, so the output is a
-## usable regression fixture. That is why the trace container is a vendored file
-## rather than a fresh `nargo trace` invocation — `nargo trace` stamps a new UUIDv7
-## recording id into every container it writes, so regenerating would change the
-## bytes on each run (fixtures/trace/noir_space_ship/README.md).
+## usable regression fixture. Preparation records the original programs and
+## prover inputs with the pinned compatible recorder, supplied recording identity
+## and logical workdir. The generated containers stay ignored; see
+## fixtures/trace/noir_space_ship/README.md.
 
 import std/[os, parseopt, strutils]
 import blocktracer/demo/generator
@@ -66,8 +66,8 @@ proc main() =
                        traceSourcesDir: sources, tourDir: tourDir)
   let n = generate(cfg)
   echo "Wrote demo tree to " & outDir & " (" & $n & " transactions)."
-  echo "Traces: real CTFS containers recorded by `nargo trace` (recorder pin" &
-       " /nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir), container version 5."
+  echo "Traces: prepared `nargo trace` containers (default CTFS6 compact/meta.dat6;" &
+       " producer declared in fixtures/trace/tour/manifest.json)."
   echo "        M5c tree: " & fixture & " (1315 steps, 81 calls), one container" &
        " behind six executions."
   if tourDir.len > 0:

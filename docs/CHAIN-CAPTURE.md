@@ -1140,33 +1140,38 @@ reads), and an L1 endpoint that serves **both** archival `eth_call` and
 `eth_getLogs` — measured, only `sepolia.gateway.tenderly.co` did both; drpc's
 free tier refuses `eth_getLogs` and publicnode prunes the state.
 
-### 7.2 `ct-print` cannot read what the corpus now is
+### 7.2 Reading compact captures with a compatible inspector
 
-**`derive-calltrace.mjs`, `derive-instructions.mjs` and `derive-positions.mjs`
-all read containers through `ct-print`, and no `ct-print` at any revision of
-`codetracer-trace-format-nim` — including its HEAD — reads a container 6.**
+`derive-calltrace.mjs`, `derive-instructions.mjs` and `derive-positions.mjs`
+read containers through `ct-print`. The development shell supplies
+`CT_FIXTURE_PRINT` for the schema-6 fixture producer. `just chain-instructions`
+and `just chain-calltrace` prepare the original recordings and select this
+reader. For the direct script, select it explicitly:
 
-`codetracer_ctfs/container.nim`'s doors gate on `ctfsVersionError`, which
-accepts version 5 only. That is correct rather than an oversight, and
-`types.nim` says why: a version-6 container's `FileEntry` array starts at
-`24 + R` rather than `16 + R`, so "a reader that accepted the version without
-implementing the body would resolve every `FileEntry` out of the reserved
-bytes". Swapping the gate was tried; the refusal simply moves to the next door.
+```sh
+CT_PRINT="$CT_FIXTURE_PRINT" node tools/chain/derive-positions.mjs \
+  client/fixtures/chain/aztec-testnet
+```
 
-The library already reads version 6 in both profiles through
-`readInternalFile` / `hasInternalFile` / `ctfsReadableVersionError`. Closing
-this gap is a matter of moving `ct-print`'s path onto those doors upstream, and
-until that happens the three derivations above cannot be re-run over a
-re-recorded corpus.
+The inspector's generic layout probe now reads the actual full or compact
+directory and reconstructs whole-file compression before member lookup.
+Materialized recordings therefore reach the split-stream reader instead of
+being refused by the native event decoder's version-5 gate. Metadata schema
+checks and the native decoder's own gate remain in force. The owning package
+is `codetracer-trace-format-nim/nix/schema6-reader.nix`; it does not change the
+current schema used by that repository's default reader.
 
-**What it cost here, exactly:** one calltrace
-(`aztec-testnet/0x12525d6d…`) declared `frames: 2` against a recording that now
-measures `callsOpened: 45` and was removed — a snapshot with no `calltrace/` is
-a valid tree, and `ingest.nim` publishes whatever is there. And one capture
-(the same transaction) measures 86 positioned steps whose `positions.json`
-cannot be derived; `test_instruction_listing.nim` counts it in
-`positionedWithoutSidecar` and asserts it is exactly one, so both a second
-appearing and this reaching zero are findings.
+Measured on arch against `codetracer-trace-format-nim` at `d1d8e98d`, the
+installed schema-6 inspector decoded the real generated
+`fixtures/trace/tour/values/tour_values.ct` through its default `--summary`
+path. The package's production-writer check also compares full, compact and
+compressed compact representations through four inspector views, and requires
+invalid profile and metadata declarations to fail.
+
+Earlier reader limitations left one capture (`aztec-testnet/0x12525d6d…`)
+without a calltrace sidecar and one positioned capture without a positions
+sidecar. Those existing coverage facts are preserved by fixture generation;
+this conversion does not invent the missing derivations.
 
 ---
 
@@ -1242,10 +1247,9 @@ continuable by repeating the command.
 **2. Derive the sidecars.** `just chain-instructions`, `just chain-calltrace`
 and `tools/chain/derive-positions.mjs` (a script, not a recipe — only the first
 two have one) read the containers by hand, ahead of the build, and commit JSON
-— the mechanism §6.6 describes. **Read §7.2 first on a compact
-corpus:** `ct-print` reads container 5 only, so these three cannot be re-run
-over a re-recorded tree until that gate moves upstream. A tree with no
-`calltrace/` is valid and `ingest.nim` publishes what is there.
+— the mechanism §6.6 describes. Use the compatible fixture inspector as
+shown in §7.2. A tree with no `calltrace/` is valid and `ingest.nim` publishes
+what is there.
 
 **3. Turn the snapshot into the published layout.**
 
