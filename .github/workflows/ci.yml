@@ -979,9 +979,9 @@ jobs:
         run: node tools/chain/sui-producer-selftest.mjs
 
       - name: Does the Starknet producer state its chain's facts and refuse what it cannot publish?
-        # 33 assertions, host-independent: every arm is offline and needs only node.
+        # 36 assertions, host-independent: every arm is offline and needs only node.
         #
-        # The Starknet producer's three-dimension cost vector and fee, the roles each
+        # The Starknet producer's floor cause and verification sentence, its three-dimension cost vector and fee, the roles each
         # transaction type has (none for an L1 handler), the multicall payload, and the
         # producer over container-free captures: a refused era published as refusals,
         # and refusals for a missing or uncontrolled floor probe, a foreign report
@@ -1006,7 +1006,7 @@ jobs:
         run: node tools/chain/solana-producer-selftest.mjs
 
       - name: Is every abstraction DEL-7 extracted reached by two chains?
-        # 33 assertions, host-independent: every arm is offline and needs only node.
+        # 36 assertions, host-independent: every arm is offline and needs only node.
         #
         # Chain-Delivery DEL-7's `test_every_abstraction_has_two_consumers`. Each export of
         # `lib/producer-runtime.mjs` is counted by the producers' and facts modules' own
