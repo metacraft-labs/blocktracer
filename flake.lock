@@ -227,17 +227,17 @@
     "fixture-container-reader-source": {
       "flake": false,
       "locked": {
-        "lastModified": 1793193268,
-        "narHash": "sha256-Ugrbl7Hm6lUG+5GAObwZBzLwo+XCX3OygUTpOujZ1ZU=",
+        "lastModified": 1793211260,
+        "narHash": "sha256-zJO/tiW+lCpV9FnrLlCja3Aa8vZgAkMFru0nFXDoQFw=",
         "owner": "metacraft-labs",
         "repo": "codetracer-trace-format-nim",
-        "rev": "d1d8e98d354fd493ae292c0aefb30851681dfd63",
+        "rev": "e15374866665556eae3eeecd34e6add476c98cb0",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-trace-format-nim",
-        "rev": "d1d8e98d354fd493ae292c0aefb30851681dfd63",
+        "rev": "e15374866665556eae3eeecd34e6add476c98cb0",
         "type": "github"
       }
     },

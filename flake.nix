@@ -149,7 +149,7 @@
     # The owner maintains the compatible reader separately from its current ABI.
     # This role reads the generated schema-6 fixtures, including compact CTFS.
     fixture-container-reader-source = {
-      url = "github:metacraft-labs/codetracer-trace-format-nim/d1d8e98d354fd493ae292c0aefb30851681dfd63";
+      url = "github:metacraft-labs/codetracer-trace-format-nim/e15374866665556eae3eeecd34e6add476c98cb0";
       flake = false;
     };
     codetracer-trace-format = {
