@@ -18,7 +18,7 @@
     # got sha256-L+Cy…; the CI runners got sha256-qNVe…). GitHub archive tarball unpacks the same
     # under every Nix version measured, to sha256-qNVe….
     isonim = {
-      url = "https://github.com/metacraft-labs/isonim/archive/3b3d356c17d65ae385350fe70e7235e5527c70c0.tar.gz";
+      url = "https://github.com/metacraft-labs/isonim/archive/bc0a4edd91937d3b731ec9e3b04799b2cf2b9197.tar.gz";
       flake = false;
     };
     nim-everywhere = {
@@ -31,7 +31,7 @@
     # names at `ci/embed-sdk-pin.env`'s CODETRACER_REF — the same three values
     # that file records, so the bundle nix builds is the one the pin names.
     isonim-tui = {
-      url = "github:metacraft-labs/isonim-tui/594398d5962a911f89f18d77cc1794404858283d";
+      url = "github:metacraft-labs/isonim-tui/70124210a3e72a2687bcbc646de296ddd71f2efd";
       flake = false;
     };
 
@@ -130,7 +130,7 @@
     codetracer = {
       # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
       # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/agents&rev=aca163924c79d9f1219ccd3c585f82f123842a27&submodules=0";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=c0408ecadd28772a027168e447485863f26e9ef7&submodules=0";
       flake = false;
     };
 
