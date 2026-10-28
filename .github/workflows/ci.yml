@@ -304,6 +304,18 @@ jobs:
         # was written for ships with it nominally in place.
         run: node tools/deploy/check-freshness-selftest.mjs
 
+      - name: Does the promotion derive the right pointer? (which HISTORY gets published)
+        # Twelve arms. The pointer this writes is what every later reader
+        # resolves a chain through, and the publisher writes it LAST and
+        # unconditionally, so a wrong one is not a rendering bug — it renames
+        # the chain's whole history. Two arms carry the defects that would not
+        # announce themselves: the head must be the greatest height NUMERICALLY
+        # (a string max picks "9" over "10" and publishes a tip 100,000 blocks
+        # short), and an empty height map must be REFUSED rather than pointed
+        # at. The rest refuse malformed pairs, because `chain=` and `=gen` both
+        # parse to something under a looser reading.
+        run: node tools/deploy/promote-generation.mjs --selftest
+
       - name: Does the engine pin bite? (identity — WHICH engine, not merely a fresh one)
         # The gate freshness could not give. `check-freshness.mjs` asks whether
         # the staged engine is the one THIS RUN fetched; it cannot ask whether
