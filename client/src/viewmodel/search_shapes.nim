@@ -4,6 +4,14 @@
 ##
 ## ## Why this is its own module
 ##
+## Census figures in the historical defect explanations below describe the
+## pre-widening table at e8d74ce7 (base58 public keys 43–44 characters).
+## The current table admits 32–44; `tests/tcontract.nim` prints both current
+## own-alphabet and cross-alphabet censuses on every run.
+## At e8d74ce7 plus that widening, the unchanged 53,935-candidate own-alphabet
+## sweep yields 1,096 table overlaps and 1,204 ambiguous probes (916 base58 ×
+## bech32, 180 bech32 × ss58, 90 hex × base58, 18 hex × ss58), maximum two.
+##
 ## §2's classification is "run on every keystroke", and it is the one part of
 ## search that both halves of the product need: `SearchVM` classifies to pick a
 ## mechanism, and the browser bundle that actually resolves `?q=` on the static
@@ -93,7 +101,9 @@ type
     qsEmpty
     qsDecimal
       ## A block number, slot or checkpoint. §3: "numeric search is entirely
-      ## local" — it costs no request at all.
+      ## local" — this reading costs no request. An overlapping encoded address
+      ## reading (for example Solana's 32-character System Program) is retained
+      ## and resolved through the index independently.
     qsHash32
       ## `0x` + 64 hex. Both a plausible transaction hash and a plausible block
       ## hash; both are tried.
@@ -454,7 +464,7 @@ func indexProbesOf*(raw: string): seq[IndexProbe] =
   ## OTHER half; it has nothing to do on this one.
   ##
   ## `addr1` followed by 38 `q`s is 43 characters, which is inside `base58`'s
-  ## 43–44 band and written entirely in base58's alphabet, and it carries
+  ## 32–44 band and written entirely in base58's alphabet, and it carries
   ## `bech32`'s `addr1` prefix with a 38-character data part. Both members are
   ## `pathSafe`, so neither is skipped: the two payloads are the whole string and
   ## the part after the last `1`, and the two shards are `addr` and `qqqq`. A
