@@ -311,7 +311,24 @@ export async function run({ browser, site, j }) {
         : null;
       if (target$) {
         await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: "center" }), target$);
-        await page.waitForTimeout(600);
+        // SETTLED, NOT TIMED. The scroll makes the shared view load the window
+        // around the new viewport, and it REUSES its row elements: the node that
+        // shows call 18 now can show call 19 after the reload lands. A fixed
+        // 600 ms wait lost that race about one run in four (measured: every red
+        // was this journey's second click, `18 -> 19`), so the click hit a row
+        // that had already been re-bound to its neighbour. Wait until the target
+        // row has kept its call key and its place for three consecutive reads.
+        await page.waitForFunction((sel) => {
+          const el = document.querySelector(sel);
+          if (!el) return false;
+          const box = el.getBoundingClientRect();
+          const now = `${el.getAttribute("data-call-key")}@${Math.round(box.top)}`;
+          const w = window;
+          if (w.__ctSettleKey !== now) { w.__ctSettleKey = now; w.__ctSettleCount = 0; return false; }
+          w.__ctSettleCount = (w.__ctSettleCount ?? 0) + 1;
+          return w.__ctSettleCount >= 3;
+        }, target$, { polling: 150, timeout: 15000 }).catch(() => {});
+        await page.evaluate(() => { delete window.__ctSettleKey; delete window.__ctSettleCount; });
       } else {
         await page.evaluate(
           ([sel, i]) => document.querySelectorAll(sel)[i].scrollIntoView({ block: "center" }),
