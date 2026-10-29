@@ -1341,6 +1341,33 @@ jobs:
           substituters: ${{ vars.SUBSTITUTERS }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # ── The 55 recordings are GENERATED, not tracked ─────────────────────
+      #
+      # 647283f removed every tracked `.ct` and made each one the output of a
+      # pinned real producer, wiring `prepare-recordings` into the Justfile
+      # recipes. The three steps below do NOT go through those recipes — they
+      # invoke `nim c -r` on a test binary directly — so on a fresh checkout
+      # they ran against a tree with no recordings in it and died on the first
+      # `open`:
+      #
+      #     Error: unhandled exception: No such file or directory
+      #     Additional info: .../fixtures/trace/noir_space_ship/zk_shields.ct
+      #
+      # NOT `just prepare-recordings`, which would run the producers in-job.
+      # `packages.fixture-recordings` (flake.nix:669) is the same work as a
+      # derivation — `prepare-recordings.mjs --force` over the pinned inputs —
+      # so it comes from the binary cache after the first build instead of
+      # re-recording 55 containers on every job of every run. This is the
+      # pattern `packages.site` already uses at flake.nix:785; the `chmod` is
+      # copied from there, because store paths arrive read-only and the
+      # exporter writes beside its fixtures.
+      - name: Materialise the generated recordings these steps read
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
+          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
+
       # No Embed SDK / IsoNim / nim-everywhere checkouts: `.#ci` exports
       # CODETRACER_SRC, ISONIM_SRC and NIM_EVERYWHERE_SRC from pinned flake
       # inputs, and the codetracer input is the WHOLE tree rather than a sparse
@@ -1606,6 +1633,33 @@ jobs:
           trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
           substituters: ${{ vars.SUBSTITUTERS }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── The 55 recordings are GENERATED, not tracked ─────────────────────
+      #
+      # 647283f removed every tracked `.ct` and made each one the output of a
+      # pinned real producer, wiring `prepare-recordings` into the Justfile
+      # recipes. The three steps below do NOT go through those recipes — they
+      # invoke `nim c -r` on a test binary directly — so on a fresh checkout
+      # they ran against a tree with no recordings in it and died on the first
+      # `open`:
+      #
+      #     Error: unhandled exception: No such file or directory
+      #     Additional info: .../fixtures/trace/noir_space_ship/zk_shields.ct
+      #
+      # NOT `just prepare-recordings`, which would run the producers in-job.
+      # `packages.fixture-recordings` (flake.nix:669) is the same work as a
+      # derivation — `prepare-recordings.mjs --force` over the pinned inputs —
+      # so it comes from the binary cache after the first build instead of
+      # re-recording 55 containers on every job of every run. This is the
+      # pattern `packages.site` already uses at flake.nix:785; the `chmod` is
+      # copied from there, because store paths arrive read-only and the
+      # exporter writes beside its fixtures.
+      - name: Materialise the generated recordings these steps read
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
+          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
 
       - name: What the pinned capture environment fixes
         # Printed before anything is captured, so the run's log carries the
@@ -1886,6 +1940,33 @@ jobs:
           trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
           substituters: ${{ vars.SUBSTITUTERS }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── The 55 recordings are GENERATED, not tracked ─────────────────────
+      #
+      # 647283f removed every tracked `.ct` and made each one the output of a
+      # pinned real producer, wiring `prepare-recordings` into the Justfile
+      # recipes. The three steps below do NOT go through those recipes — they
+      # invoke `nim c -r` on a test binary directly — so on a fresh checkout
+      # they ran against a tree with no recordings in it and died on the first
+      # `open`:
+      #
+      #     Error: unhandled exception: No such file or directory
+      #     Additional info: .../fixtures/trace/noir_space_ship/zk_shields.ct
+      #
+      # NOT `just prepare-recordings`, which would run the producers in-job.
+      # `packages.fixture-recordings` (flake.nix:669) is the same work as a
+      # derivation — `prepare-recordings.mjs --force` over the pinned inputs —
+      # so it comes from the binary cache after the first build instead of
+      # re-recording 55 containers on every job of every run. This is the
+      # pattern `packages.site` already uses at flake.nix:785; the `chmod` is
+      # copied from there, because store paths arrive read-only and the
+      # exporter writes beside its fixtures.
+      - name: Materialise the generated recordings these steps read
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
+          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
 
       # As in `client-sdk`: the Embed SDK, IsoNim and nim-everywhere come from
       # the flake's pinned inputs, not from hand-rolled sibling checkouts.
