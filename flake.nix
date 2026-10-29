@@ -343,7 +343,7 @@
     # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chains two and three.
     codetracer-cairo-recorder = {
-      url = "github:metacraft-labs/codetracer-cairo-recorder/d13bba54f5e75ae10d8b04503623d20af47e71fb";
+      url = "github:metacraft-labs/codetracer-cairo-recorder/1b780d7e9ac40a7749ce1c30c3733f0b79e6e60a";
       flake = false;
     };
     cairo-trace-format = {

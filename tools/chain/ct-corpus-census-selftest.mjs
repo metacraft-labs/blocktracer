@@ -7,7 +7,7 @@
 // that it REFUSES, and that it refuses on each field independently rather than
 // on one coarse "something changed".
 //
-// Every arm perturbs the COMMITTED READING and leaves the tree alone. That is
+// The comparison arms perturb the COMMITTED READING and leave the tree alone. That is
 // the deliberate direction: mutating the corpus would mean writing containers,
 // and a selftest that rewrites 52 committed files to prove a comparison works
 // is a worse trade than one that rewrites a JSON object. The two are equivalent
@@ -20,7 +20,8 @@
 // they would both be satisfied by a comparison that refuses everything.
 
 import { census, compare, loadRegistry, findReader, requireReader, trackedCtPaths, readIdentity, REPO_ROOT } from './ct-corpus-census.mjs';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
@@ -37,7 +38,7 @@ import { join } from 'node:path';
 // A SUITE THAT RAN FEWER ARMS THAN IT DECLARES IS A FAILURE, not a quieter
 // pass. An arm that silently stopped running is the failure mode a count exists
 // to catch, and the two configurations are exactly where one could hide.
-const BASE_ARMS = 7;
+const BASE_ARMS = 17;
 const READER_ARMS = 2;
 
 let pass = 0, fail = 0;
@@ -207,6 +208,59 @@ export async function selftest() {
         && /--reader \/nonexistent-reader does not exist/.test(said)
         && /not a NOT MEASURED/.test(said)) ok(claim);
     else bad(claim, `exit=${r.status}, said: ${said.split('\n').filter((l) => l.trim()).slice(-1)[0] ?? '(nothing)'}`);
+  }
+
+  // Reader discovery uses real filesystem trees. The executable placeholders
+  // below are never run: this tests which path is selected, not container parsing.
+  // An outer reader recreates the stale-build trap independently of host layout.
+  {
+    const scratch = mkdtempSync(join(tmpdir(), 'ct-corpus-reader-'));
+    const saved = process.env.CT_PRINT;
+    const expectReader = (what, root, want) => {
+      const got = findReader(root);
+      if (got === want) ok(what);
+      else bad(what, `expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`);
+    };
+    const readerAt = (dir) => {
+      const path = join(dir, 'codetracer-trace-format-nim', 'ct-print');
+      mkdirSync(join(dir, 'codetracer-trace-format-nim'), { recursive: true });
+      writeFileSync(path, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+      return path;
+    };
+    try {
+      delete process.env.CT_PRINT;
+      const workspace = join(scratch, 'workspace');
+      const repo = join(workspace, 'blocktracer');
+      mkdirSync(repo, { recursive: true });
+      writeFileSync(join(workspace, 'repro-workspace.toml'), '');
+      const outer = readerAt(scratch);
+      expectReader('reader discovery stops at the workspace instead of selecting an ancestor build', repo, null);
+      expectReader('starting at the workspace root still respects its boundary', workspace, null);
+      const sibling = readerAt(workspace);
+      expectReader('the workspace root itself is searched for a sibling reader', repo, sibling);
+      const local = readerAt(repo);
+      expectReader('the nearest reader inside the workspace wins', repo, local);
+      chmodSync(local, 0o644);
+      expectReader('a non-executable candidate falls back to the workspace sibling', repo, sibling);
+      const nested = join(repo, 'nested');
+      mkdirSync(nested);
+      writeFileSync(join(nested, 'repro-workspace.toml'), '');
+      expectReader('the nearest workspace boundary excludes a containing workspace reader', nested, null);
+      const standalone = join(scratch, 'standalone', 'blocktracer');
+      mkdirSync(standalone, { recursive: true });
+      const standaloneSibling = readerAt(join(scratch, 'standalone'));
+      expectReader('a standalone checkout can discover its immediate sibling reader', standalone, standaloneSibling);
+      rmSync(standaloneSibling);
+      expectReader('a standalone checkout never searches beyond its immediate parent', standalone, null);
+      process.env.CT_PRINT = outer;
+      expectReader('CT_PRINT explicitly selects an outside reader ahead of local discovery', repo, outer);
+      process.env.CT_PRINT = join(scratch, 'missing-reader');
+      expectReader('a missing CT_PRINT retains automatic workspace discovery', repo, sibling);
+    } finally {
+      if (saved === undefined) delete process.env.CT_PRINT;
+      else process.env.CT_PRINT = saved;
+      rmSync(scratch, { recursive: true, force: true });
+    }
   }
 
   const ran = pass + fail;

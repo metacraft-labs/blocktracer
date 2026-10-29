@@ -82,6 +82,41 @@ export const CALLTRACE_STREAM_SCHEMA = 'cairo-call-frames/1';
 export const INSTRUCTION_SET = 'cairo';
 
 /**
+ * `provenance.reachReason` — why history starts at `replayableFrom`. On Starknet the floor
+ * is the EXECUTOR's, not the node's: blockifier carries versioned constants only from a
+ * given Starknet version, while the node still serves state below it. Both halves are the
+ * floor probe's own readings (`executorFloor`, `nodeState.belowFloor`), so the sentence is
+ * computed from the measurement it explains. The node half is stated only when the probe
+ * found state there; the reader's generic sentence ("prestate was obtainable from N
+ * upward") would name the node's limit, which is the wrong cause.
+ */
+export const reachReasonFor = (probe, executor) => {
+  const ex = probe.executorFloor;
+  const below = probe.nodeState?.belowFloor;
+  const name = String(executor ?? '').replace(/\s*\(.*$/, '') || 'the executor';
+  return `transactions are recorded from block ${ex.block}, the first block of Starknet `
+    + `${ex.version}: that is the oldest protocol version the executor this pipeline runs `
+    + `(${name}) carries constants for, and it refuses ${ex.versionBelow ?? 'every older version'}`
+    + (below?.answer
+      ? `. The node serves the state below it (at block ${below.block} it answered), so the `
+        + 'limit is the executor\'s, not where the chain\'s state or history ends'
+      : '');
+};
+
+/**
+ * `provenance.verification` — what each trace is checked against, where its source comes
+ * from, and what becomes of a transaction that cannot be checked (Source-Resolution.md §4:
+ * a source whose class hash is not the chain's is discarded).
+ */
+export const VERIFICATION = 'each transaction is re-executed in StarkWare\'s own executor on '
+  + 'the state it ran against and compared with what the chain recorded (execution status, '
+  + 'the actual fee, the three gas amounts, every event, every L2-to-L1 message and the call '
+  + 'tree entry point by entry point), and one that does not match is published as divergent, '
+  + 'never as a trace of the chain. A class\'s Cairo source is shown only when building it '
+  + 'reproduces the class the chain stores, compared felt for felt with its class hash '
+  + 'recomputed; any other source is discarded and the class stays at its CASM';
+
+/**
  * `transactions[].executions` — one entry, `transaction`: a Starknet transaction is one
  * account-mediated execution (validate, execute, fee transfer — all recorded in the one
  * container), with no public/private split for a selector to name. A row this producer did

@@ -626,6 +626,64 @@ proc curationWindow*(blockHeights: seq[int];
          " — which keeps the promise that every transaction here opens, and " &
          "keeps it without publishing a transaction that does not.")
 
+func isStatedRefusal*(t: JsonNode): bool =
+  ## A row the capture REFUSED and said why: `outcome` `refused` with the
+  ## producer's sentence in `reason`. It publishes no container, and it is not a
+  ## row the capture skipped — it is the chain's own boundary, stated.
+  t{"outcome"}.getStr == "refused" and t{"reason"}.getStr.len > 0
+
+proc extendOverStatedRefusals*(w: CurationWindow; blockHeights: seq[int];
+                               allStated, withRows: seq[int]): CurationWindow =
+  ## A curated window, widened over the adjacent blocks whose EVERY transaction
+  ## was refused with a stated reason (operator decision, 2026-10-27).
+  ##
+  ## THE PROMISE CHANGES BY EXACTLY ONE CLAUSE: every transaction on a curated
+  ## chain opens a container that steps, OR SAYS WHY IT CANNOT. A refusal with a
+  ## sentence is the chain's boundary made visible — Sui's protocol-36 rows say
+  ## the execution layer has no trace hooks — and hiding it hid the floor the
+  ## Debug control enforces. A row with no sentence (not attempted, pruned) is
+  ## still a delimiter: "we did not look" is not a boundary.
+  ##
+  ## EXTENDED, NEVER RE-CHOSEN. The run is chosen exactly as before, by
+  ## `curationWindow`, and only its edges move. Treating stated refusals as
+  ## non-delimiters instead was simulated and REJECTED: on `aztec-testnet` it
+  ## merged two runs across the refusal at 67019, the merged run won, and the
+  ## published window jumped from 63642–63675 to 67010–67055 — every page of the
+  ## old window a 404 on a chain production serves. Walking outward cannot move
+  ## a window away from where it was, only grow it.
+  ##
+  ## Blocks with no row are crossed on the way to a stated block and never
+  ## form an edge on their own, so a widened window still ends on a block that
+  ## settled something. The walk stops at the first block holding any row that
+  ## is not a stated refusal, a recording included: a recording beyond the edge
+  ## belongs to another run.
+  result = w
+  if not w.found or blockHeights.len == 0: return
+  var stated = initTable[int, bool]()
+  for h in allStated: stated[h] = true
+  var rows = initTable[int, bool]()
+  for h in withRows: rows[h] = true
+  let loIdx = blockHeights.find(w.lo)
+  let hiIdx = blockHeights.find(w.hi)
+  if loIdx < 0 or hiIdx < 0: return
+  var i = loIdx - 1
+  while i >= 0:
+    let h = blockHeights[i]
+    if stated.getOrDefault(h, false): result.lo = h
+    elif rows.getOrDefault(h, false): break
+    dec i
+  i = hiIdx + 1
+  while i < blockHeights.len:
+    let h = blockHeights[i]
+    if stated.getOrDefault(h, false): result.hi = h
+    elif rows.getOrDefault(h, false): break
+    inc i
+  if result.lo != w.lo or result.hi != w.hi:
+    result.why = w.why & " The span is widened to blocks " & $result.lo &
+      "–" & $result.hi & " over the adjacent blocks where every transaction " &
+      "was refused with a stated reason, so each of those says why it has no " &
+      "trace instead of being left out."
+
 proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   ## Read the snapshot and write the real chain's whole generation.
   let snapPath = cfg.snapshotDir / "snapshot.json"
@@ -1624,6 +1682,17 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
     else: tracelessHeights.add t["blockNumber"].getInt
   var allHeights: seq[int]
   for b in blockRows: allHeights.add b.height
+  # The heights whose every row is a stated refusal, and the heights with any
+  # row at all — `extendOverStatedRefusals`'s two inputs.
+  var statedHeights, rowHeights: seq[int]
+  block:
+    var allStated = initTable[int, bool]()
+    for t in snap["transactions"]:
+      let h = t["blockNumber"].getInt
+      allStated[h] = allStated.getOrDefault(h, true) and isStatedRefusal(t)
+    for h, v in allStated:
+      rowHeights.add h
+      if v: statedHeights.add h
   var window = CurationWindow(lo: (if allHeights.len > 0: allHeights[0] else: 0),
                               hi: (if allHeights.len > 0: allHeights[^1] else: 0),
                               found: true, why: "")
@@ -1651,23 +1720,27 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   var scope = cfg.scope
   var scopeFellBack = false
   if cfg.scope == isCuratedIfWhole:
-    let probe = curationWindow(allHeights, recordedHeights, tracelessHeights,
-                               positionedHeights)
+    let probe = extendOverStatedRefusals(
+      curationWindow(allHeights, recordedHeights, tracelessHeights,
+                     positionedHeights),
+      allHeights, statedHeights, rowHeights)
     var whole = probe.found
     if whole:
       for t in snap["transactions"]:
         let h = t["blockNumber"].getInt
         if h < probe.lo or h > probe.hi: continue
         let o = t["outcome"].getStr
-        if o != "replayed" and o != "divergent":
+        if o != "replayed" and o != "divergent" and not isStatedRefusal(t):
           whole = false
           break
     scope = if whole: isCurated else: isFull
     scopeFellBack = not whole
 
   if scope == isCurated:
-    window = curationWindow(allHeights, recordedHeights, tracelessHeights,
-                            positionedHeights)
+    window = extendOverStatedRefusals(
+      curationWindow(allHeights, recordedHeights, tracelessHeights,
+                     positionedHeights),
+      allHeights, statedHeights, rowHeights)
     if not window.found:
       raise newException(ValueError,
         "a curated ingest of '" & chain & "' found no window in which every " &
@@ -1696,12 +1769,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       let h = t["blockNumber"].getInt
       if h < window.lo or h > window.hi: continue
       let o = t["outcome"].getStr
-      if o != "replayed" and o != "divergent":
+      if o != "replayed" and o != "divergent" and not isStatedRefusal(t):
         raise newException(ValueError,
           "the curated window " & $window.lo & "–" & $window.hi & " for '" &
           chain & "' contains transaction " & shortHash(t["txHash"].getStr) &
           " in block " & $h & " with outcome '" & o & "', which publishes no " &
-          "container. A curated chain promises every transaction on it opens.")
+          "container and states no reason. A curated chain promises every " &
+          "transaction on it opens or says why it cannot.")
 
   # `byHeight` MAPS ONLY PUBLISHED BLOCKS, and it is rebuilt here rather than
   # populated during enumeration. It answers two questions further down — which

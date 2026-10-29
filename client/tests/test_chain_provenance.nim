@@ -1436,7 +1436,7 @@ suite "7 — a slug belongs to one producer":
 # So the first test establishes that the SAME captures under `isFull` publish
 # transactions that do not open, and the control counts what the curated tree
 # published rather than asserting over whatever it happens to hold.
-suite "8 — a curated chain publishes only transactions that open":
+suite "8 — a curated chain publishes only transactions that open, or say why they cannot":
   asserted = 0
 
   proc capturedChains(r: DataRoot): seq[string] =
@@ -1840,6 +1840,30 @@ suite "8 — a curated chain publishes only transactions that open":
     ck w.lo == 120
     ck w.hi == 135
 
+  test "a curated window widens over stated refusals, and never moves":
+    # Operator decision 2026-10-27: a curated chain also publishes the adjacent
+    # blocks whose every transaction was refused WITH A STATED REASON. Sui's
+    # shape: a traced run at 120..135, a below-floor block 119 whose rows say
+    # why they have no trace, an empty block 118, and a stated block 117.
+    var heights: seq[int]
+    for n in 110 .. 140: heights.add n
+    let w = curationWindow(heights, @[120, 135], @[115, 117, 119])
+    ck w.found and w.lo == 120 and w.hi == 135
+    let wide = extendOverStatedRefusals(w, heights, @[117, 119], @[115, 117, 119, 120, 135])
+    # Down over 119, across the empty 118, to 117; it stops at 115, which is a
+    # traceless row that states nothing (not attempted).
+    ck wide.lo == 117
+    ck wide.hi == 135
+    ck "refused with a stated reason" in wide.why
+    # CONTROL: with no stated block beside it the window is the run's, exactly,
+    # and its words are unchanged.
+    let same = extendOverStatedRefusals(w, heights, @[], @[115, 117, 119, 120, 135])
+    ck same.lo == w.lo and same.hi == w.hi and same.why == w.why
+    # CONTROL: a stated block beyond a NON-stated one is not reached — the walk
+    # stops at the first row that does not say why.
+    let blocked = extendOverStatedRefusals(w, heights, @[117], @[117, 119, 120, 135])
+    ck blocked.lo == w.lo
+
   test "a tie between runs is broken by recency, not by order":
     var heights: seq[int]
     for n in 100 .. 140: heights.add n
@@ -1919,7 +1943,9 @@ suite "8 — a curated chain publishes only transactions that open":
   test "assertion count":
     # 87 + 1: the testnet arm now asserts BOTH spans, because the two trees
     # differ there and the difference has to be named at both ends.
-    expectCount(93)
+    # +6 (2026-10-27): the widening arm — the run's window, its two widened edges,
+    # its words, and two controls (no stated block; a non-stated row in the way).
+    expectCount(99)
 
 # ── 9 — the home page features a session that can actually be shown ──────────
 #
@@ -5095,10 +5121,30 @@ suite "a transaction's ordering row is the chain's own coordinate":
     ck blk.len == 1 and blk[0].href == blockUrl(RealChain, "0xabc")
     ck rows.filterIt(it.label == "Checkpoint").len == 0
 
+  test "the debugger's bar names the checkpoint, not block 0":
+    # The same rule on the debug route's bar, which printed `"block " &
+    # $blockHeight` — "block 0" for every Sui transaction on staging.
+    var v: TxView
+    v.hash = "StiTgKUtyMD1bMYjH2qJPWTVsGrrrkNFKrM52iYu8xi"
+    v.positionKnown = false
+    v.orderKind = tokCheckpoint
+    v.orderLabel = "336806210"
+    ck demoSession(RealChain, v, chainInfo(root, RealChain)).blockLabel ==
+      "checkpoint 336806210"
+    # CONTROL: a block-ordered transaction keeps "block N".
+    var b: TxView
+    b.hash = "0xreal"
+    b.positionKnown = true
+    b.orderKind = tokBlockIndex
+    b.height = 19_000_000
+    ck demoSession(RealChain, b, chainInfo(root, RealChain)).blockLabel ==
+      "block 19000000"
+
   test "assertion count":
     #   4 — the checkpoint row: one row, its value, no link, no Block row
     #   4 — the control: one Block row, its value, its link, no Checkpoint row
-    expectCount(4 + 4)
+    #   2 — the debugger's bar: the checkpoint, and the block control
+    expectCount(4 + 4 + 2)
 
 suite "19 — a block's system transactions are listed beside its transactions, unlinked":
   asserted = 0

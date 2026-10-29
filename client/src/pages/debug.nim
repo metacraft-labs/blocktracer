@@ -168,7 +168,7 @@ proc identityBar(s: DebugSessionView): string =
       span(class = "dbgid identifier", title = s.txHash,
            `data-copy` = s.txHash): text truncatedHash(s.txHash)
       span(class = "badge " & s.outcomeBadge): text s.outcomeLabel
-      span(class = "dbgblock num"): text "block " & $s.blockHeight
+      span(class = "dbgblock num"): text s.blockLabel
       # Trace-Artifacts.md §2.3a: a trace can be `ready` AND heuristically
       # reconstructed, and "presenting the second as a native execution trace
       # is the confident lie". So it is stated on the bar, beside the identity,

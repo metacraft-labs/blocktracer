@@ -443,6 +443,9 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
   result.chain = chain
   result.txHash = v.hash
   result.blockHeight = v.height
+  result.blockLabel =
+    if v.positionKnown: "block " & $v.height
+    else: orderRowLabel(v.orderKind).toLowerAscii & " " & v.orderLabel
   result.blockHash = v.blockHash
   result.outcomeLabel = outcomeLabel(v.outcome)
   result.outcomeBadge = outcomeClass(v.outcome)
