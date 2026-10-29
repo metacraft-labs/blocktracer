@@ -2370,6 +2370,23 @@ export const EXPECTATIONS = [
   // `Not traced yet` with an explicit denial of permanence for a repairable
   // one, and a claim-nothing wording for a member this build does not know.
   //
+  // THERE IS NOW A FOURTH BRANCH, AND IT IS WHY THE MAPPING IS NOT PER-MEMBER.
+  // Measured 2026-10-28: both Aztec rollups were RESTARTED. The endpoints
+  // answer — at their own low block numbers, so a request for a low height
+  // returns a plausible header belonging to a different chain — while
+  // `node_getBlock` at any height inside the captured range returns `Unknown
+  // block`. 24,609 rows on `aztec` and 1,565 on `aztec-testnet` carry a
+  // repairable member, truthfully recorded at the time, and `Not traced yet`
+  // promises a later that no longer exists for them.
+  //
+  // So durability is read off the PAIR (member, chain): `refusal-reasons.json`
+  // is untouched, because the member really is repairable on a chain that is
+  // still up — Sui's refused rows are the live case — and
+  // `tools/chain/retired-networks.json` carries the other half. `akStranded`
+  // is the result, and it words the absence as permanent WITHOUT claiming the
+  // obstacle always was, which would make the page read as though the producer
+  // had misreported its own refusal.
+  //
   // (a) — stop asserting durability at all — was not taken, and the reason is
   // the word in the BADGE. `Not observable` asserts the same thing the note was
   // to stop asserting, once per row, and it was the part a visitor actually

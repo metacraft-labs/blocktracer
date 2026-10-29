@@ -708,7 +708,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
       result.timeCoordinate = result.controls.step
   of taOnDemand:
     result.phase = spAwaitingGeneration
-    result.unavailableReason = availabilityNote(taOnDemand, "")
+    result.unavailableReason = availabilityNote(taOnDemand, "", isRetiredNetwork(v.chain))
     result.editor = EditorPane(availability: srcUnverified,
       reason: "Source is resolved from the trace, and no trace has been " &
               "recorded for this transaction yet.")
@@ -725,7 +725,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
     # is the single derivation (reader.nim) rather than a second copy here, for
     # §7.1's reason: the transaction page and the session must say one thing.
     let absence = headlineRefusal(v)
-    result.unavailableReason = availabilityNote(v.headline, absence)
+    result.unavailableReason = availabilityNote(v.headline, absence, isRetiredNetwork(v.chain))
     # The published reason for THIS execution, where there is exactly one and
     # the tree carried words for it. `pages/tx.nim` renders the same value in
     # the same position on the metadata page — §7.1's rule that the transaction
@@ -734,7 +734,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
     if v.executions.len == 1:
       result.unavailableDetail = v.executions[0].reason
     result.editor = EditorPane(availability: srcAbsent,
-      reason: availabilityNote(v.headline, absence))
+      reason: availabilityNote(v.headline, absence, isRetiredNetwork(v.chain)))
     result.controls = fixtureControls(positioned = false, live = false, steps = 0)
 
 proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =

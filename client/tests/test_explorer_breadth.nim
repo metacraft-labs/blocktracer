@@ -648,12 +648,12 @@ suite "M9 — the two product rules, over every rendered page":
       let cell = debugCells(viewTables.txTable(Chain, @[row], "x"))[0]
       check "<a " notin cell            # no link
       check "<button" notin cell        # and no button, disabled or otherwise
-      check availabilityState(a, row.refusalReason) in cell
+      check availabilityState(a, row.refusalReason, isRetiredNetwork(Chain)) in cell
     for a in [taReady, taDivergent, taOnDemand]:
       let row = TxRow(hash: "0x" & repeat("b", 40), availability: a)
       let cell = debugCells(viewTables.txTable(Chain, @[row], "x"))[0]
       check "<a class=\"btn" in cell
-      check availabilityLabel(a, row.refusalReason) in cell
+      check availabilityLabel(a, row.refusalReason, isRetiredNetwork(Chain)) in cell
 
 # ──────────────────────────────────────────────────────────────────────────
 # §14 as enum values, rendered through one component
