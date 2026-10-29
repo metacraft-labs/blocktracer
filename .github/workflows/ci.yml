@@ -2639,6 +2639,28 @@ jobs:
           substituters: ${{ vars.SUBSTITUTERS }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # ── THIS JOB REBUILDS IN THE WORKING TREE, SO IT NEEDS THE RECORDINGS ──
+      #
+      # `journeys` above does NOT, and the difference is worth stating because
+      # it is why this was missed: that job runs `nix build .#default` and
+      # drives the journeys over the built artefact, so the recordings reach it
+      # inside the derivation and its working tree never needs them.
+      # `selftest.mjs` here rebuilds the tree three times per arm — before,
+      # mutated, after — with the working-tree `static_export`, which opens
+      # `client/fixtures/chain/**/*.ct` directly.
+      #
+      # Since 647283f those are generated, not tracked, so all eight shards
+      # scored `RESULT: DID NOT RUN — the unmutated tree does not build` on
+      # `cannot open: client/fixtures/chain/aztec/ct/0x00c67f…ct`. They were
+      # invisible until now because this job `needs: journeys`, and `journeys`
+      # was red, so every shard was SKIPPED rather than failing.
+      - name: Materialise the generated recordings the mutation rebuilds read
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
+          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
+
       - name: What the pinned browser environment fixes
         run: nix run .#capture-env -- --print-pin
 
