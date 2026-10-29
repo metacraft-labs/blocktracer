@@ -1779,6 +1779,17 @@ proc paint(h: Hydration) =
         h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
   h.mountSharedPanes(view)
   renderPanes(h.ui, view, h.latch, h.keymap)
+  # THE VISITOR'S `:target` SURVIVES THE PAINT. `renderPanes` has just replaced
+  # the element an element fragment (`#L-src-shield-nr-4`, `#D-src-main-nr`)
+  # pointed at, and `:target` does not follow an id to a new element — so the
+  # document, tab or view the visitor chose by link fell back to its default on
+  # the first live paint (`retargetFragment` has the measurement). A payload
+  # fragment (`#v=1&t=…`) names no element and is spent; it is left alone.
+  let fragment = locationHash()
+  if fragment.len > 1 and not carriesPayload(fragment):
+    # The ids this page emits are URL-safe by construction (`docAnchor`,
+    # `lineAnchor`), so the fragment IS the id.
+    discard retargetFragment(fragment[1 .. ^1])
   # A DRAG OWNS THE HANDLE UNTIL IT IS RELEASED.
   #
   # `renderPanes` has just drawn the handle where the ENGINE is, which during a

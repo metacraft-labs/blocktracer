@@ -403,6 +403,50 @@ proc linkPayload*(): string =
   let q = $locationSearchImpl()
   if q.len > 1: q else: $locationHashImpl()
 
+proc retargetFragmentImpl(id: cstring): bool {.importjs: """
+(function(id){
+  try {
+    var el = document.getElementById(id);
+    if (!el || document.querySelector(':target') === el) return false;
+    var saved = [];
+    for (var e = el.parentElement; e; e = e.parentElement) {
+      saved.push([e, e.scrollTop, e.scrollLeft]);
+    }
+    var wx = window.scrollX, wy = window.scrollY;
+    location.replace('\u0023' + encodeURIComponent(id));
+    for (var i = 0; i < saved.length; i++) {
+      saved[i][0].scrollTop = saved[i][1];
+      saved[i][0].scrollLeft = saved[i][2];
+    }
+    window.scrollTo(wx, wy);
+    return true;
+  } catch (e) { return false; }
+})(#)
+""".}
+
+proc retargetFragment*(id: string): bool =
+  ## Make the element named `id` the document's `:target` again, moving nothing.
+  ##
+  ## WHY. `:target` is a pointer to one ELEMENT, set by fragment navigation and
+  ## by nothing else. `renderPanes` replaces the panes' markup on every paint,
+  ## so the element the visitor's fragment targeted is removed, and its
+  ## replacement — same id, same place — is not the target: the address bar
+  ## still says `#L-src-shield-nr-4` and `:target` matches nothing. Every
+  ## `:target`-driven choice in a repainted pane (which source document is
+  ## shown, a line link into another document, the self-cost view, the loop
+  ## rail rung) reverted to its default on the first live paint. Measured
+  ## 2026-10-29 on `/demo/tx/0xb636…/debug#L-src-shield-nr-4`: `:target` was
+  ## that line until `data-session-phase` became `ready`, and null after, with
+  ## the hash unchanged. `replaceState` cannot repair it; it does not touch the
+  ## target element.
+  ##
+  ## HOW. A fragment navigation to the same fragment (`location.replace`, so no
+  ## history entry) re-points `:target`. It also scrolls the target's ancestors,
+  ## which is not this proc's business — the page did not move, it only
+  ## repainted — so every ancestor's offsets and the window's are put back in
+  ## the same task, before anything is painted. Returns whether it re-pointed.
+  retargetFragmentImpl(id.cstring)
+
 proc replaceQuery*(query: string) =
   ## Debugger-Integration §6.3: "`t` updates on **every** navigation via
   ## `history.replaceState`, so the back button stays a page-level control

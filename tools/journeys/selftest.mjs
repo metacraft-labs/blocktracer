@@ -142,6 +142,35 @@ const ARMS = [
     assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
   },
   {
+    id: "Z/live-paint-drops-the-target",
+    why:
+      "Stop re-pointing `:target` after a live paint. `renderPanes` replaces the" +
+      " element the visitor's `#L-src-shield-nr-4` named, and `:target` does not" +
+      " follow an id to a new element: the address bar keeps the fragment and" +
+      " `:target` matches nothing. Measured 2026-10-29 on 98fa6fd and on the meta.dat 7" +
+      " engine alike — the live session lands on `src/main.nr`, and the line the link" +
+      " promised is in a document that is no longer shown. It was green only while the" +
+      " engine was slow enough for the journey to read the served frame instead.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: `    discard retargetFragment(fragment[1 .. ^1])`,
+    replace: `    discard fragment`,
+    journey: "a-link-to-a-line-arrives-at-that-line",
+    assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
+  },
+  {
+    id: "Z/line-link-cannot-select-its-document",
+    why:
+      "Remove the rule that shows an alternate source document when a LINE in it is" +
+      " the `:target`. Only the document's own id selected it, so a link to a line of" +
+      " any document other than the active one arrived at an element with an all-zero" +
+      " rect: present, targeted, and invisible.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `.srcdoc.alt:has(:target){display:flex}`,
+    replace: `.srcdoc.alt:has(:target){}`,
+    journey: "a-link-to-a-line-arrives-at-that-line",
+    assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
+  },
+  {
     id: "A/no-position-mark",
     why:
       "Remove the class that marks the execution position. This is the shape of the" +

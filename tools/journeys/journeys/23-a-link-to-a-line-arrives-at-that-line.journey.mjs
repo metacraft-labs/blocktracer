@@ -52,13 +52,32 @@
 // `history.scrollRestoration = "manual"`, parked at the top and settled across
 // two animation frames, so a delta is attributable.
 
-import { visit } from "../lib/probe.mjs";
+// BOTH READINGS ARE OF THE LIVE PAGE, AND "NOT RENDERED" IS "NOT ON SCREEN"
+// -------------------------------------------------------------------------
+// Until 2026-10-29 the control was read 400ms after `load`, whatever the
+// session was doing. On the destination the SERVED frame stands at step 128 in
+// `src/shield.nr`, and the live session lands on step 5 in `src/main.nr`, which
+// hides `shield.nr`. So the control read one of two pages depending on how fast
+// the engine went live — on 98fa6fd's engine, `ready` came ~1.1s after load
+// (after the probe: green 10 of 10); on the meta.dat 7 engine ~0.5-0.7s (before
+// it, sometimes: red 2 of 10). And when it read the live page, the hidden line
+// had an all-zero rect, which `0 >= 0` called "in the viewport".
+//
+// Read on the live page, deterministically, the journey was red 10 of 10 on
+// BOTH engines, and that was the product's defect, not the harness's: a live
+// paint replaced the element `#L-src-shield-nr-4` targeted, `:target` did not
+// follow the id to its replacement, and a line link could not select its own
+// document in any case. `hydrate.retargetFragment` and the `.srcdoc.alt:has(
+// :target)` rule fix the two halves; `tools/journeys/selftest.mjs` has an arm
+// for each.
+
+import { visit, waitForFacts } from "../lib/probe.mjs";
 
 export const id = "a-link-to-a-line-arrives-at-that-line";
 export const claim =
   "A link the page renders to a specific line of source arrives at that line — the line is on the screen afterwards, and it was not before.";
 export const spec = "Page-Descriptions.md §13 — BlockTracer";
-export const assertions = 9; // eight `expect`s plus the `subjects` count
+export const assertions = 10; // nine `expect`s plus the `subjects` count
 
 /**
  * Every scroll offset on the page, plus where the named line is.
@@ -79,9 +98,13 @@ const PROBE = (targetId) => {
   const t = document.getElementById(targetId);
   if (t) {
     const r = t.getBoundingClientRect();
+    // A line in a document the pane is not showing has an all-zero rect, and
+    // `0 >= 0` would call it on screen. Not rendered is not on screen.
+    const rendered = r.width > 0 && r.height > 0;
     out.target = {
       top: Math.round(r.top),
-      inViewport: r.top >= 0 && r.bottom <= window.innerHeight,
+      rendered,
+      inViewport: rendered && r.top >= 0 && r.bottom <= window.innerHeight,
       text: (t.innerText || "").replace(/\s+/g, " ").trim().slice(0, 60),
     };
   }
@@ -102,6 +125,9 @@ const parkAtTop = async (page) => {
   );
 };
 
+/** The state a visitor settles on: the live session, positioned, controls live. */
+const LIVE = (f) => f.phase === "ready" && f.controlsLive > 0;
+
 /** Let a fragment jump finish. NOT a navigation wait: a dead link never navigates. */
 const settleJump = async (page) => {
   await page.waitForTimeout(1200);
@@ -115,6 +141,7 @@ export async function run({ browser, site, j }) {
   let promisedId = null;
   let landedUrl = null;
   let afterClick = null;
+  let afterLive = null;
 
   try {
     // The subject: the rail's link to the loop header, as the home page ships
@@ -178,6 +205,8 @@ export async function run({ browser, site, j }) {
 
     await home.page.locator("a.frline").first().click();
     await settleJump(home.page);
+    afterLive = await waitForFacts(home.page, LIVE, 60000);
+    await settleJump(home.page);
     afterClick = await home.page.evaluate(PROBE, promisedId);
     landedUrl = afterClick.url.split("#")[0];
 
@@ -202,7 +231,7 @@ export async function run({ browser, site, j }) {
   // could be true because the line is near the top of the file and would have
   // been visible whether or not anything scrolled.
   const destPath = landedUrl ? new URL(landedUrl).pathname : "/";
-  const plain = await visit(browser, site.origin, destPath);
+  const plain = await visit(browser, site.origin, destPath, { settle: LIVE });
   let control = null;
   try {
     await parkAtTop(plain.page);
@@ -212,10 +241,17 @@ export async function run({ browser, site, j }) {
   }
 
   j.expect(
+    afterLive !== null && afterLive.reached && plain.settled,
+    "CONTROL: both readings are of the page a visitor settles on — the live session, positioned",
+    `with the fragment: phase=${afterLive?.facts?.phase} controls=${afterLive?.facts?.controlsLive}; `
+      + `without: phase=${plain.facts?.phase} controls=${plain.facts?.controlsLive}`,
+  );
+
+  j.expect(
     control.target !== null && control.target.inViewport === false,
     "CONTROL: on the same page WITHOUT the fragment, that line is off the screen",
     control.target
-      ? `rect top ${control.target.top} (viewport starts at 0)`
+      ? `rect top ${control.target.top}, rendered=${control.target.rendered} (viewport starts at 0)`
       : "the line is not on the destination at all — the arm above cannot be a measurement",
   );
 
