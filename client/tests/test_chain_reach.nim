@@ -257,10 +257,23 @@ suite "the chain landing page states the debug tier as a count":
     check "none steps" notin absent
     check tierStatement(-1, -1) != tierStatement(0, 0)
 
-  test "a chain with no recordings is told there is no tier to state":
+  test "a zero tally is reported as one run's count, not as a fact about the chain":
+    # This arm required "No transaction published here has a recording yet",
+    # which is a claim about the whole chain made from one generation's
+    # `summary.json`. The availability overlay is keyed by
+    # `traceSelectionVersion` and SHARED by every generation declaring that
+    # version, so a later ingest can publish a trace an earlier generation's
+    # summary never counted — and on production it has: `aztec`'s
+    # `raztec00001` reports zero while two of its transactions read `ready`.
     let none = tierStatement(0, 0)
-    check "has a recording yet" in none
+    check "counted no recordings" in none
+    check "rather than a property of the chain" in none
+    # THE UNIVERSAL NEGATIVE IS GONE, which is the property this arm now holds.
+    check "has a recording yet" notin none
     check "Of the" notin none
+    # …and it is still a DIFFERENT sentence from the no-figure case above,
+    # which is the distinction the arm before this one exists to keep.
+    check tierStatement(0, 0) != tierStatement(-1, -1)
 
   test "the distribution is stated exactly, in both directions":
     # The Ethereum capture's real figures: one recording, at instruction level.
