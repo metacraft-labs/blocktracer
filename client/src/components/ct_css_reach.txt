@@ -251,7 +251,6 @@ LIVE class past bundle
 LIVE class future bundle
 LIVE class custom-tooltip bundle
 LIVE class ct-input-* bundle
-LIVE element line bundle
 LIVE id category-image bundle
 LIVE class event-log-marker-empty bundle
 LIVE class rr-ticks-* bundle
@@ -586,14 +585,18 @@ INERT class ct-selected-outline
     new dock. There is no drag, for the reason `.lm_splitter.lm_dragging` is
     in `Dropped`.
 
-INERT element circle
-INERT element ellipse
-INERT element polygon
-INERT element polyline
-INERT element rect
-    The SVG primitives those three outline rules are written against. They
-    are the one place in this register where an ELEMENT is inert, and they are
-    inert for the same reason the classes above them are.
+    The SVG primitives those outline rules are written against USED to be
+    listed here, as five bare `INERT element` rows — the only elements this
+    register ever called inert. They were an artefact. `shared_widgets.styl`
+    writes the group on one line, and the port carried a comma-separated
+    selector line as a single member, so `compose` prefixed the ancestor onto
+    the first member only and emitted `circle`, `ellipse`, `polygon`,
+    `polyline` and `rect` as TOP-LEVEL element selectors — rules that styled
+    every such element on the page rather than the outline's own. The register
+    then recorded those five as names in their own right.
+
+    With the group split properly they are `.ct-control-mark <element>` and
+    the bare rows cover nothing, so they are gone.
 
 # ── upstream's desktop shell ─────────────────────────────────────────────
 

@@ -711,6 +711,45 @@ proc interpolate(n: Node; v, value: string): Node =
                 text: n.text.replace("{" & v & "}", value))
   for k in n.kids: result.kids.add interpolate(k, v, value)
 
+proc splitSelectorGroup*(s: string): seq[string] =
+  ## A selector line's TOP-LEVEL comma members.
+  ##
+  ## THIS WAS NOT DONE AND IT SHIPPED. Stylus lets a nested rule's selector
+  ## group sit on one line — `calltrace.styl:214` writes
+  ## `.call-text:focus-visible, .toggle-call:focus-visible` — and the whole
+  ## line was carried as ONE member, so `compose` prefixed the parent onto the
+  ## first and nothing onto the rest:
+  ##
+  ##   .calltrace-view .call-text:focus-visible, .toggle-call:focus-visible
+  ##
+  ## The second member lost `.calltrace-view`. That is not a near miss: it
+  ## matches in places the rule was never meant to reach, and it carries one
+  ## class less of specificity, so where it IS meant to apply another rule now
+  ## outranks it. Nine such lines are in the vendored set, in the Call Trace,
+  ## the Event Log, the State pane and the menus.
+  ##
+  ## Commas inside `:not(…)`, `:is(…)` and `[attr="a,b"]` are NOT separators,
+  ## so depth and quotes are tracked rather than a bare `split(',')`.
+  var depth = 0
+  var quote = '\0'
+  var cur = ""
+  for c in s:
+    if quote != '\0':
+      cur.add c
+      if c == quote: quote = '\0'
+    elif c == '\'' or c == '"':
+      quote = c; cur.add c
+    elif c == '(' or c == '[':
+      inc depth; cur.add c
+    elif c == ')' or c == ']':
+      dec depth; cur.add c
+    elif c == ',' and depth == 0:
+      if cur.strip.len > 0: result.add cur.strip
+      cur = ""
+    else:
+      cur.add c
+  if cur.strip.len > 0: result.add cur.strip
+
 proc compose(parents, kids: seq[string]): seq[string] =
   ## Stylus nesting: `&` is the parent, otherwise a descendant.
   if parents.len == 0:
@@ -960,7 +999,8 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
           src.origin & ":" & $n.line & ": stylus `" & kw.strip &
           "` outside the subset: " & n.text &
           "\n(implement it in ct_styl.nim, or drop the rule with a reason)")
-    group.add n.text.strip(leading = false, chars = {',', ' '})
+    for member in splitSelectorGroup(n.text.strip(leading = false, chars = {',', ' '})):
+      group.add member
     if n.kids.len > 0:
       flushDecls()
       emitBlock(n.kids, compose(parents, group), src, port, env, rep, body,
