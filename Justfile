@@ -2521,6 +2521,8 @@ prepare-recordings:
 recordings-test:
     node tools/fixtures/check-recordings-policy-selftest.mjs
     node tools/fixtures/prepare-recordings-selftest.mjs
+    node tools/fixtures/check-recordings-wiring.mjs --selftest
+    node tools/fixtures/check-recordings-wiring.mjs
 
 prepare-template:
     node tools/fixtures/template-placeholders.mjs

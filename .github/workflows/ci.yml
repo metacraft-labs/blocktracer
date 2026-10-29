@@ -910,6 +910,23 @@ jobs:
           node tools/fixtures/check-recordings-policy-selftest.mjs
           node tools/fixtures/prepare-recordings-selftest.mjs
 
+      - name: And does every job that needs them actually materialise them?
+        # The policy check above proves the recordings are GENERATED rather
+        # than tracked. It says nothing about whether the jobs that read them
+        # ask for them, and that gap was found three times by a red run: in
+        # `client-sdk`/`viewmodels`/`visual-design-canary`, then in
+        # `journeys-bite` (invisible until `journeys` went green, because its
+        # eight shards were SKIPPED until then), then in `publish-r2.yml` —
+        # that one only after a production run had staged 460k objects and
+        # promoted three generations, and then died on `cannot open …/*.ct`.
+        #
+        # Here, in `deploy-gates`, because it is seconds of node over the
+        # workflow YAML and this is the job that already answers questions of
+        # that shape.
+        run: |
+          node tools/fixtures/check-recordings-wiring.mjs --selftest
+          node tools/fixtures/check-recordings-wiring.mjs
+
       - name: Is the committed Ethereum JSON-RPC input set the input set it claims to be?
         # 30 assertions, host-independent: every arm is offline and needs only node.
         #
