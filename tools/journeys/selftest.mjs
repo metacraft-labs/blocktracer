@@ -1696,8 +1696,12 @@ const ARMS = [
       " the flag, so nothing looks missing; it only declines to write the" +
       " pointer, which is the shape the defect actually had.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: "    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)",
-    replace: "    h.frameSeeded = true  # MUTATED: the landing selects no frame",
+    // RE-AIMED 2026-10-29: the landing is seeded by `selectCalltraceFrame`
+    // over the held rows, with `selectLandingFrame` only as the fallback,
+    // since the shared call trace landed on the frame a link names (3943455).
+    // Neither runs under this mutation, so no frame is selected.
+    find: "      let named = h.landingAnchor.len > 0 and\n        h.session.selectCalltraceFrame(h.landingAnchor)\n      if not named:\n        discard h.session.selectLandingFrame(\"\")",
+    replace: "      let named = true  # MUTATED: the landing selects no frame",
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     // RE-AIMED, and the move is the point rather than a detail. This arm used
     // to name the CONTROL assertion, which reads the pane before the engine —
@@ -1726,8 +1730,10 @@ const ARMS = [
       " identity, not the index, is the thing that must survive the change of" +
       " numbering between 47 served rows and 48 live ones.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: "    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)",
-    replace: "    h.frameSeeded = h.session.selectLandingFrame(\"\")  # MUTATED: the anchor is dropped",
+    // RE-AIMED 2026-10-29: the anchor is resolved by `selectCalltraceFrame`
+    // since 3943455; dropping it falls back to the landing frame.
+    find: "        h.session.selectCalltraceFrame(h.landingAnchor)",
+    replace: "        h.session.selectCalltraceFrame(\"\")  # MUTATED: the anchor is dropped",
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     assertion: "and it is STILL the frame the link named, carried across by anchor",
   },
