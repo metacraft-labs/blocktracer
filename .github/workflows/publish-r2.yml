@@ -110,7 +110,9 @@ on:
           expired on 2026-10-12: it no longer holds that the engine cannot open
           those 15. The pin moved to `9f332ae0ddfabe6b…`, container {5,6} with
           all four CCP-5 loader strings present, and that engine has been
-          watched opening a compact container. What still argues for OFF is a
+          watched opening a compact container. (It moved again on 2026-10-28,
+          to `be148ba358bcddcb…`, which reads `meta.dat` 7 only; preparation
+          regenerates the demo containers at 7 to match.) What still argues for OFF is a
           product decision rather than a format one: the live bucket serves no
           `demo` chain, so turning this on ADDS a chain rather than refreshing
           one. See `client/hydrate/engine-pin.txt`'s 2026-10-12 section.

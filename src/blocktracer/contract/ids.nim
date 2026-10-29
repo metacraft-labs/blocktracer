@@ -53,13 +53,20 @@ proc sha1LowerHex(s: string): string =
 
 const idSep = "\x1f"  ## unit separator; unambiguous field join for hashing
 
-proc demoExecutionInputId*(chain, txHash, selector: string): string =
+proc demoExecutionInputId*(chain, txHash, selector: string,
+                           programInputsDigest = ""): string =
   ## Deterministic stand-in for the execution capsule hash (Trace-Artifacts.md
   ## §2.0). Real pipeline: `BLAKE3(canonical execution capsule)`. This is a pure
   ## function of consensus-ish inputs, so it belongs in the immutable transaction
   ## facts (Static-Site-Architecture.md §2.3b) — which is exactly where the demo
   ## generator puts it, under `executions[].executionInputId`.
-  "sha1:" & sha1LowerHex(chain & idSep & txHash & idSep & selector)
+  # Synthetic recorded programs also carry their supplied source/prover capsule.
+  # Existing chain callers retain the three-field identity: source resolution
+  # must not reinterpret a real transaction's execution inputs.
+  var material = chain & idSep & txHash & idSep & selector
+  if programInputsDigest.len > 0:
+    material.add idSep & "recorded-program-inputs-v1" & idSep & programInputsDigest
+  "sha1:" & sha1LowerHex(material)
 
 proc deriveTraceArtifactId*(executionInputId, recorderId, recorderBuild,
                             profileHash, traceSchema: string): string =

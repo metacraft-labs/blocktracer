@@ -29,8 +29,8 @@
 ##
 ## The subject is BlockTracer's own fixture,
 ## `fixtures/trace/noir_space_ship/zk_shields.ct` — the same `noir_space_ship`
-## program the desktop GUI test debugs, recorded by `nargo trace` and vendored
-## because that recorder is not byte-deterministic.
+## program the desktop GUI test debugs, generated from its original inputs with
+## the compatible `nargo trace` fixture recorder and deterministic identity.
 ##
 ## ## The rule every assertion here obeys
 ##

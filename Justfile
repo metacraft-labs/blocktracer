@@ -109,7 +109,7 @@
 # thing that makes a gate worth having is that nobody had to decide to run the
 # expensive part. A fast gate that OMITS the landing assertions is the defect
 # above with a friendlier name.
-test:
+test: recordings-test prepare-recordings
     # WHICH TOOLCHAIN THIS RAN ON, printed FIRST and on purpose. Every suite below
     # is `--hints:off`, so without this line a full log contains no evidence of the
     # compiler that produced it — and the distinction is not academic: an ambient
@@ -161,7 +161,7 @@ test:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 17 + 30 + 8 + 11 + 10 + 7 + 49 + 33 + 8 + 33 + 24 = 1372 counted assertions —
+# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 49 + 36 + 8 + 33 + 24 = 1378 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -434,11 +434,11 @@ chain-selftest:
     node tools/chain/snapshot-contract-selftest.mjs
     node tools/chain/chain-health-selftest.mjs
     node tools/chain/yield-method-selftest.mjs
-    # Needs nothing but files already in this repository: the perturbations are
-    # applied to the committed READING and not to the corpus, so no container is
-    # written. Without a `ct-print` two of its eight arms SKIP, are reported as
-    # SKIP and are NOT counted as passed, and the version census still runs —
-    # it is read from the bytes.
+    # The real Git census checks the empty committed recording population.
+    # Disposable Git-index headers and explicit non-empty comparison inputs
+    # exercise every detector without a recorder or container reader.
+    # With CT_FIXTURE_PRINT, extra integration arms prepare and read a genuine
+    # recording plus a corrupted version copy; these are counted separately.
     node tools/chain/ct-corpus-census-selftest.mjs
     # Offline and toolchain-free like the rest: the committed input set under
     # fixtures/chain-inputs/ is read off disk, and the twenty mechanism arms
@@ -537,7 +537,8 @@ readable-container:
 #
 # ── OPENING THE CONTAINERS, AND WHAT IT FINDS ──────────────────────────────
 #
-#     just chain-health-corpus --container-reader ../codetracer-trace-format-nim/ct-print
+#     just prepare-recordings
+#     just chain-health-corpus --container-reader "$CT_FIXTURE_PRINT"
 #
 # THE FLAG NAMES THE PROGRAM AND NOT A MODE. The reader's modes are a fact about
 # the reader's own interface, so they live in `tools/chain/health-checks.json`
@@ -545,14 +546,13 @@ readable-container:
 # name, because `--meta-json --events <path>` leaves the reader printing one
 # shape and the tool parsing another while every other clause looks right.
 #
-# The reader is `codetracer-trace-format-nim`'s `ct-print`, which is not a
-# dependency of this repository and is not built in CI — the same seam
-# `just chain-instructions` and `just chain-positions` already use. Build it in
-# a sibling checkout with `nimble buildCtPrint`, inside that repository's own
-# devshell: a plain `nim c` outside it fails on `zstd.h`.
+# The development shell supplies the fixture reader as `CT_FIXTURE_PRINT`: the
+# `ct-print` of the flake's `codetracer-trace-format-nim` input, which reads
+# `meta.dat` 7 — what preparation produces since 2026-10-28 (it was a separately
+# pinned schema-6 reader until then). Select the reader explicitly for the
+# population being measured.
 #
-# WHAT IT REPORTS OVER THIS REPOSITORY'S CORPUS IS THAT ALMOST NOTHING OPENS, and
-# that is a true finding rather than a broken tool. Measured 2026-09-28 with a
+# HISTORICAL MEASUREMENT BEFORE THE GENERATED FIXTURE CONVERSION. Measured 2026-09-28 with a
 # reader built from a current checkout: of the 46 containers named by a committed
 # snapshot row, 45 are REFUSED and the one that opens is
 # `fixtures/chain-health/readable-container`, which this repository added for the
@@ -591,7 +591,9 @@ readable-container:
 # replay engine this repository ships to a visitor — pinned by sha256 in
 # `client/hydrate/engine-pin.txt` — accepts [3]. So the same corpus is unreadable
 # to one and readable to the other, and picking which one matters is not a
-# decision a sweep gets to make.
+# decision a sweep gets to make. (SUPERSEDED FIGURES, the rule stands: the
+# shipped engine accepted [6] from 2026-10-12 and accepts [7] since 2026-10-28 —
+# `tools/chain/health-checks.json` `shipped-engine` is where the set is kept.)
 #
 # ── WHAT AN OPENED CONTAINER IS COMPARED AGAINST ───────────────────────────
 #
@@ -764,13 +766,10 @@ chain-health-check *ARGS:
 # READING. A corpus change is allowed; a corpus change that leaves the reading
 # stale is a red gate naming every delta.
 #
-# THREE-STATE ON THE READER, like every other optional-reader gate here: no
-# `ct-print` is exit 2 and reports readability as NOT MEASURED while still
-# measuring the version census from the bytes; a reading that disagrees is
-# exit 1; agreement is 0. A REFUSAL IS NOT A FAILURE — the 42 chain containers
-# are expected to be refused at `meta.dat` schema 3, the reading says so by
-# name, and one of them suddenly opening is as much a skew as one of the ten
-# that stopped.
+# The historical 55 paths are now generated from `tools/fixtures/recordings.json`;
+# the committed population must stay zero. This Git-index census remains an
+# independent gate against accidentally committing a prepared recording. Real
+# readability is checked against the generated inventory by `engine-opens`.
 ct-corpus-check *ARGS:
     node tools/chain/ct-corpus-census.mjs \
       --expect tools/chain/measurements/ct-corpus.json {{ARGS}}
@@ -798,11 +797,11 @@ ct-corpus-check *ARGS:
 # `$CT_TRACE_FORMAT_NIM_SRC` and `$CT_NIM_EXTRA_PATHS` come from the dev shell —
 # see `flake.nix`, where the revision is the one the shipped writer is built
 # from, so this tool and that writer cannot drift apart.
-ct-compact threshold: (_compact-build)
-    ./.compact-container --threshold {{threshold}} $(git ls-files '*.ct')
+ct-compact threshold: prepare-recordings (_compact-build)
+    ./.compact-container --threshold {{threshold}} $(node tools/fixtures/list-recordings.mjs)
 
-ct-compact-check threshold: (_compact-build)
-    ./.compact-container --threshold {{threshold}} --check $(git ls-files '*.ct')
+ct-compact-check threshold: prepare-recordings (_compact-build)
+    ./.compact-container --threshold {{threshold}} --check $(node tools/fixtures/list-recordings.mjs)
 
 _compact-build:
     #!/usr/bin/env bash
@@ -816,21 +815,18 @@ _compact-build:
 
 # Regenerate `meta.dat` schema-6 containers as schema 7, verified by a full
 # decode (tools/chain/meta_dat_v7.nim says why that is a regeneration and not a
-# guess). FOR THE ENGINE-PIN MOVE ONLY: the engine pinned in
-# client/hydrate/engine-pin.txt reads schema 6 and refuses 7, so the corpus and
-# the pin move in ONE commit. TRACE_FORMAT_NIM is a codetracer-trace-format-nim
-# tree at the revision the new engine's codetracer locks (ffd0554d for
-# codetracer aca163924), because the verifying reader must read 7. Writes in
-# place; deterministic. `--check` reports without writing.
-#   just ct-meta-dat-v7 ../codetracer-trace-format-nim --check
-ct-meta-dat-v7 TRACE_FORMAT_NIM *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    paths=(-p:"{{TRACE_FORMAT_NIM}}/src")
-    IFS=: read -ra extra <<< "${CT_NIM_EXTRA_PATHS:-}"
-    for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
-    nim c --hints:off -d:release "${paths[@]}" -o:.meta-dat-v7 tools/chain/meta_dat_v7.nim
-    ./.meta-dat-v7 {{ARGS}} $(git ls-files '*.ct' | grep -v '^conformance-kit/template/')
+# guess). SINCE 2026-10-28 PREPARATION DOES THIS ITSELF: the engine pinned in
+# client/hydrate/engine-pin.txt reads schema 7 only, both fixture producers
+# write 6, and `prepare-recordings.mjs` runs `$CT_META_DAT_V7` (built by the
+# flake against the `codetracer-trace-format-nim` input, which reads 7) after
+# each producer. This recipe runs the same binary over the prepared corpus, so
+# it reports "already meta.dat 7" for each container; it is for checking that,
+# or a container from elsewhere. Writes in place; deterministic. `--check`
+# reports without writing.
+#   just ct-meta-dat-v7 --check
+ct-meta-dat-v7 *ARGS: prepare-recordings
+    "${CT_META_DAT_V7:?run this inside the dev shell: nix develop .#ci --command just …}" \
+      {{ARGS}} $(node tools/fixtures/list-recordings.mjs --containers)
 
 # Re-read the census into the committed reading. Run this deliberately, after a
 # corpus change, and say in the commit WHY each delta moved.
@@ -946,15 +942,10 @@ chain-frozen-artifacts runtime:
 # instruction listing, which is the honest floor for a recording no source
 # resolved for.
 #
-# DELIBERATELY NOT PART OF ANY BUILD, and not part of `just test`. Reading a
-# `.ct` needs `ct-print` from a `codetracer-trace-format-nim` checkout, and this
-# repository does not depend on that one: nothing here imports it, `flake.nix`
-# does not name it, and adding it would put a Nim library on the site build's
-# source-dependency graph for the sake of an offline derivation. Same standing
-# as `fixtures/trace/tour/record.sh` and
-# `client/fixtures/demo-session/extract-flow.mjs`: run by hand, output
-# committed, and a snapshot with none is a valid tree that renders the state it
-# always did.
+# This sidecar derivation remains an explicit authoring command. Preparation
+# supplies the original recordings and the development shell supplies their
+# compatible reader. The generated containers stay ignored; the JSON sidecars
+# remain committed inputs. A snapshot without a sidecar is still valid.
 #
 # THIS COMMENT USED TO SAY THE DEPENDENCY "CANNOT BE ONE — the site build is
 # hermetic", and that overstatement is worth correcting where it stood, because
@@ -964,8 +955,8 @@ chain-frozen-artifacts runtime:
 # `nix build` REALLY IS HERMETIC — sandboxed, no network — and that is not what
 # was wrong. What was wrong was reasoning from it to what the SITE MAY CONTAIN.
 # This derivation does not run in the build at all: it runs here, by hand, and
-# commits a JSON file that is then an ordinary source input, exactly like the
-# vendored `.ct` containers beside it. Hermeticity constrains what the build may
+# commits a JSON file that is then an ordinary source input. The containers are
+# independently generated from immutable inputs. Hermeticity constrains what the build may
 # REACH FOR; it says nothing about what a committed input may hold.
 #
 # The deploy makes the same distinction and states it: the workflow adds the
@@ -976,17 +967,15 @@ chain-frozen-artifacts runtime:
 # build could compute" was already drawn correctly elsewhere in this repository,
 # and only §6.6 crossed it.
 #
-# The rule that IS real here is source-dependency hygiene, stated in the
-# paragraph above. `chain-calltrace` below is the same argument taken to its
-# conclusion.
+# `chain-calltrace` below uses the same explicit sidecar authoring process.
 #
 #     CT_PRINT=../codetracer-trace-format-nim/ct-print just chain-instructions
-chain-instructions:
+chain-instructions: prepare-recordings
     #!/usr/bin/env bash
     set -euo pipefail
     for d in client/fixtures/chain/*/; do
       [ -f "$d/snapshot.json" ] || continue
-      node tools/chain/derive-instructions.mjs "$d"
+      CT_PRINT="${CT_PRINT:-${CT_FIXTURE_PRINT:?enter the development shell}}" node tools/chain/derive-instructions.mjs "$d"
     done
 
 # ── ingest ONE NAMED RANGE of historic blocks, end to end ───────────────────
@@ -1129,7 +1118,7 @@ verify-published *ARGS:
 # refuse. Runs offline: an in-process HTTP fixture on 127.0.0.1 provides the one
 # backend that can answer the cache-header question and impersonate a host that
 # answers 200 for every path.
-verify-published-selftest:
+verify-published-selftest: prepare-recordings
     nim c -r --hints:off --path:src tests/tverifypublished.nim
     bash ci/test/verify-published-readonly.sh
     bash ci/test/verify-published-readonly-test.sh
@@ -1163,40 +1152,27 @@ cache-policy-drift *ARGS:
 # `chain-instructions` above for the correction to the reasoning that had this
 # recorded as impossible.
 #
-# SAME STANDING AS `chain-instructions`, in every respect: not part of any build
-# and not part of `just test`, needs `ct-print` from a
-# `codetracer-trace-format-nim` checkout, run by hand, output committed. A
+# SAME STANDING AS `chain-instructions`: an explicit sidecar authoring command
+# using the prepared recordings and the development shell's reader. A
 # snapshot with no `calltrace/` is a VALID tree — `ingest.nim` publishes
 # whatever is there and the pane falls back to the note it always showed.
 #
 #     CT_PRINT=../codetracer-trace-format-nim/ct-print just chain-calltrace
-chain-calltrace:
+chain-calltrace: prepare-recordings
     #!/usr/bin/env bash
     set -euo pipefail
     for d in client/fixtures/chain/*/; do
       [ -f "$d/snapshot.json" ] || continue
-      node tools/chain/derive-calltrace.mjs "$d"
+      CT_PRINT="${CT_PRINT:-${CT_FIXTURE_PRINT:?enter the development shell}}" node tools/chain/derive-calltrace.mjs "$d"
     done
 
 # ── the Noir-frame fixture, and its two derivations ─────────────────────────
 #
-# `client/fixtures/noir-frames/` is the container the NEW recorder would have
-# written for the transaction this repository publishes. It exists because that
-# transaction cannot be re-recorded — the node serves bodies out of its active
-# pool for about an hour and that hour is long past — and because the view side
-# needed a Noir call tree to be built against before one could be published.
-#
-# Its frame tree is `aztec-avm-runtime`'s own `ContractSourceMap` and
-# `NoirFrameTracker`, imported and RUN; its bytes are the real `CtWriter` driving
-# the real `aztec_ct_writer.wasm`. Its per-step AVM registers are ZERO and say so
-# in `provenance.json`. Read `tools/chain/record-noir-frames-fixture.mjs`'s header
-# before trusting any number out of it — the split between what is measured, what
-# is reconstructed and what is zero is the whole honesty of the fixture.
-#
-# NEEDS AN aztec-avm-runtime CHECKOUT at 26cac14 or later with the wasm built
-# (`just ct-writer-build` there), a version-matched FeeJuice artifact, and node
-# >= 22 for the TypeScript imports. Same standing as `chain-calltrace`: not part
-# of any build, not part of `just test`, run by hand, output committed.
+# `client/fixtures/noir-frames/` now uses the same genuine replay as the matching
+# testnet transaction. Its immutable input includes the actual historical state
+# witnesses. The former reconstruction helper remains separately available for
+# explicitly synthetic experiments; this recipe must preserve the real fixture.
+# Preparation uses the development shell's pinned runtime, writer and reader.
 #
 # BOTH DERIVATIONS ARE COMMITTED and both are asserted. `calltrace/` is the
 # default view and `calltrace-unfolded/` is the same container with the policy
@@ -1204,13 +1180,13 @@ chain-calltrace:
 # carrying the same forty-six frames is what makes "folded, not elided" a
 # measurement rather than a claim.
 #
-#     just noir-frames-fixture ../aztec-avm-runtime <path>/FeeJuice.json
-noir-frames-fixture avm artifact:
+#     just noir-frames-fixture
+noir-frames-fixture:
     #!/usr/bin/env bash
     set -euo pipefail
     out=client/fixtures/noir-frames
-    node tools/chain/record-noir-frames-fixture.mjs \
-      --avm-runtime "{{avm}}" --artifact "{{artifact}}" --out "$out"
+    node tools/fixtures/prepare-recordings.mjs --producer aztec --force
+    export CT_PRINT="${CT_PRINT:-${CT_FIXTURE_PRINT:?enter the development shell}}"
     node tools/chain/derive-calltrace.mjs "$out"
     rm -rf "$out/calltrace-unfolded"
     tmp="$(mktemp -d)"
@@ -1226,7 +1202,7 @@ noir-frames-fixture avm artifact:
 
 # The consumer-side conformance suite. Deliberately needs NO debugger on the
 # Nim path: that the chain half compiles without one is the layering.
-sdk-test:
+sdk-test: prepare-recordings
     nim c -r --hints:off tests/tclientsdk.nim
 
 # The bidirectional import lint (Client-SDK.md §1.1), plus its own self-test —
@@ -1240,7 +1216,7 @@ sdk-boundary:
 # The handoff: compile and run tests/tembedhandoff.nim against the real Embed
 # SDK, so "a TraceSource the Embed SDK accepts" is checked by the Embed SDK.
 # Needs CODETRACER_SRC or a ../codetracer checkout (ci/embed-sdk-pin.env).
-sdk-test-embed:
+sdk-test-embed: prepare-recordings
     ci/test/embed-handoff-test.sh --require
 
 # ── BlockTracer's own ViewModel layer (M12) ─────────────────────────────────
@@ -1248,7 +1224,7 @@ sdk-test-embed:
 # on the Nim path (`cd client && just test-viewmodels`); this is the other
 # half — the degraded-state seam, compiled against the real Embed SDK, so the
 # wire spellings the panes parse cannot drift from the ones this layer emits.
-viewmodel-seam:
+viewmodel-seam: prepare-recordings
     ci/test/viewmodel-seam-test.sh --require
 
 # ── The debug route (M8a/M8b) ──────────────────────────────────────────────
@@ -1258,7 +1234,7 @@ viewmodel-seam:
 
 # The five panes rendered over the Embed SDK's OWN five ViewModels, driven
 # through MockBackendService. Needs CODETRACER_SRC or a ../codetracer checkout.
-debug-panes:
+debug-panes: prepare-recordings
     ci/test/debug-panes-test.sh --require
 
 # The VENDORED copies of CodeTracer modules: their bytes still hash to their
@@ -1371,7 +1347,7 @@ ct-css-reachable:
 # Both sets, checked against what the toolchain actually does — including the
 # KNOWN FAILURES, which report loudly when they start passing rather than
 # asserting that a broken thing stays broken.
-corpus-check args="":
+corpus-check args="": prepare-noir-recordings
     fixtures/trace/tour/check-corpus.sh {{args}}
 
 # Proof that the known-failure mechanism decides in BOTH directions: an entry
@@ -1380,8 +1356,7 @@ corpus-check args="":
 corpus-selftest:
     fixtures/trace/tour/check-corpus.sh --selftest
 
-# Re-record every container. DELIBERATELY, not on every build: `nargo trace` is
-# not byte-deterministic. Pass an id to re-record one.
+# Regenerate the complete Noir fixture population through the canonical producer.
 corpus-record args="":
     fixtures/trace/tour/record.sh {{args}}
 
@@ -1413,7 +1388,7 @@ corpus-coverage-doc:
 # **rc 124 means a request the engine never answered.** Not a slow test, not a
 # broken one: a dropped request, which is what a pane spinning forever looks
 # like from this side.
-noir-engine-dap:
+noir-engine-dap: prepare-recordings
     ci/test/noir-engine-dap.sh
 
 # The self-test: every rule above driven against a deliberately broken input,
@@ -1421,11 +1396,11 @@ noir-engine-dap:
 # plus the control that matters for a suite whose deliverable is failures, that
 # each red check goes green on the engine's own reported values and so is not
 # stuck red.
-noir-engine-dap-test:
+noir-engine-dap-test: prepare-recordings
     ci/test/noir-engine-dap-test.sh
 
 # Generate a demo static tree into ./demo-site.
-demo-gen out="demo-site" seed="blocktracer-demo-0":
+demo-gen out="demo-site" seed="blocktracer-demo-0": prepare-recordings
     nim c -r --hints:off src/blocktracer_demo_gen.nim --out:{{out}} --seed:{{seed}}
 
 # Validate a static tree against the contract.
@@ -1500,7 +1475,7 @@ client-conformance dir="demo-site":
 #
 # The default subject is the shipped template, so `just conformance` with no
 # argument is the kit checking itself.
-conformance dir="conformance-kit/template/complete":
+conformance dir="conformance-kit/template/complete": prepare-template
     nim c -r --hints:off src/blocktracer_conformance.nim --snapshot {{dir}}
 
 # Build the kit as a RELEASED ARTIFACT: the three binaries, the template and the
@@ -1553,7 +1528,7 @@ conformance dir="conformance-kit/template/complete":
 # became reachable: the README now tells a recorder to pick an encoding token out
 # of a closed set, and a closed set named in a README that does not travel with
 # the README is a set the recipient cannot read.
-conformance-kit-release out="conformance-kit-release":
+conformance-kit-release out="conformance-kit-release": prepare-template
     #!/usr/bin/env bash
     set -euo pipefail
     out="$(realpath -m '{{out}}')"
@@ -2536,3 +2511,19 @@ eth-follow RECORDER COMMIT *ARGS:
 #     just eth-follower-proof --span 4 --capacity 2 --keep
 eth-follower-proof *ARGS:
     bash tools/chain/eth-follower-proof.sh {{ARGS}}
+
+# Prepare the complete historical fixture population with pinned real producers.
+# The index check catches old recordings an additions-only hook cannot see.
+prepare-recordings:
+    node tools/fixtures/check-recordings-policy.mjs
+    node tools/fixtures/prepare-recordings.mjs
+
+recordings-test:
+    node tools/fixtures/check-recordings-policy-selftest.mjs
+    node tools/fixtures/prepare-recordings-selftest.mjs
+
+prepare-template:
+    node tools/fixtures/template-placeholders.mjs
+
+prepare-noir-recordings:
+    node tools/fixtures/prepare-recordings.mjs --producer noir

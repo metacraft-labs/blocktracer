@@ -7,7 +7,7 @@
   "endpoint": "https://aztec.drpc.org",
   "recorder": {
    "id": "aztec-avm",
-   "traceSchema": "ctfs/v4"
+   "traceSchema": "ctfs/v6"
   },
   "prestateStrategy": "hydrated-from-node",
   "capturedAt": "2026-09-02T21:06:58.386Z",
@@ -57,7 +57,14 @@
     },
     "url": "https://aztec.drpc.org"
    }
-  ]
+  ],
+  "generatedRecordings": {
+   "preparation": "tools/fixtures/prepare-recordings.mjs",
+   "runtimeCommit": "238a3a5b9fe9346868cc7fab84a8aa54513287dd",
+   "writerCommit": "051efd22b00ec3b88676fb07755a65c5a4ca8fde",
+   "inputs": "fixtures/chain-inputs/aztec",
+   "note": "Original transaction identities, outcomes and recording semantics are retained. Byte counts include the captured archive endpoint in the provenance event."
+  }
  },
  "window": {
   "tip": 70183,
@@ -39195,7 +39202,7 @@
      "reason": "absent-on-chain-at-parent"
     }
    ],
-   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
+   "recordedBy": "238a3a5b9fe9346868cc7fab84a8aa54513287dd"
   },
   {
    "txHash": "0x0f191b2da9d6f4ccdb1711dd015edb8755bf551933a74b509860307ee8699dbb",
@@ -39360,7 +39367,7 @@
      "reason": "emitted-by-this-transaction"
     }
    ],
-   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
+   "recordedBy": "238a3a5b9fe9346868cc7fab84a8aa54513287dd"
   },
   {
    "txHash": "0x1c7d63a22c19da8abbdc3531c947f0fdb1b0aed9d36c3311de1155bff49974d5",

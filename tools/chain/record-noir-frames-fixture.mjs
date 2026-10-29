@@ -1,4 +1,16 @@
 #!/usr/bin/env node
+// Historical frame reconstruction utility for explicit investigations.
+//
+// The current 0x20ed5b91 fixtures in client/fixtures/noir-frames and
+// client/fixtures/chain/aztec-testnet come from genuine transaction replay,
+// including measured registers and logs. Regenerate them with:
+//   node tools/fixtures/prepare-recordings.mjs --producer aztec --force
+//
+// The design notes below describe the superseded October 2026 reconstruction
+// workflow. Its writer and pre-state blockers were subsequently resolved; its
+// statements about the published corpus describe that historical state.
+// This utility still reconstructs frame data and must be treated as such.
+//
 // Author the FIXTURE CONTAINER that carries a Noir call tree, so this repository
 // can develop and test the folded Call Trace against a real `.ct` rather than
 // against a hand-written JSON that only claims to be one.

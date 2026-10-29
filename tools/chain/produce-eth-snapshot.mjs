@@ -55,7 +55,11 @@
 // ── THE SEQUENCING FACT THIS TOOL SURFACES RATHER THAN HIDES ──────────────────────────
 //
 // The container this producer consumes is container version 5 with `meta.dat` schema 6.
+// [2026-10-28: schema 7. The writer pin moved with the engine pin, which now reads 7
+// only; the skew note reads the schema off the container instead of assuming it.]
 //
+// [SUPERSEDED 2026-10-28: the pin below is no longer `9f332ae0…`. It is `be148ba3…`,
+// which reads `meta.dat` 7 only, and this producer's writer moved to 7 with it.]
 // RESOLVED FOR THIS PRODUCER ON 2026-10-12, AND THE OLD READING IS KEPT BECAUSE THE SKEW
 // MOVED RATHER THAN VANISHED. The engine pin is now `9f332ae0…`, which accepts container
 // {5, 6} and `meta.dat` 6 only — exactly what this tool emits. So an Ethereum page
@@ -167,6 +171,7 @@ import { promisify } from 'node:util';
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
+import { versionsOf } from './lib/container-versions.mjs';
 import {
   CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
   refuseOperation as refuse,
@@ -510,6 +515,10 @@ async function readContainer(ctPrint, file) {
     callEntries,
     ioEvents,
     version: containerVersion(file, { note: CTFS_NOTE }),
+    // The `meta.dat` member's own version, read off the bytes. It used to be the
+    // constant 6 at the skew note's call site, true only for as long as the writer
+    // pin wrote 6; the writer moved to 7 with the engine on 2026-10-28.
+    metaDat: versionsOf(readFileSync(file)).metaDat,
   };
 }
 
@@ -664,7 +673,7 @@ export function parseListingCensus(text) {
  * The skew between the container this producer emits and the engine a visitor runs,
  * READ from the two files that state each half.
  */
-function engineSkew(repoRoot, containerVer, ctPrintReadsSchema) {
+function engineSkew(repoRoot, containerVer, metaDatVersion) {
   const pinText = readFileSync(join(repoRoot, ENGINE_PIN_FILE), 'utf8');
   const rec = pinText.split('\n')
     .filter((l) => l.trim().length > 0 && !l.trimStart().startsWith('#'))
@@ -676,7 +685,7 @@ function engineSkew(repoRoot, containerVer, ctPrintReadsSchema) {
     .find((x) => x.id === 'shipped-engine');
   return {
     containerVersion: containerVer,
-    containerSchema: ctPrintReadsSchema,
+    containerSchema: metaDatVersion,
     enginePin: rec ? rec[2] : null,
     engineAccepts: shipped?.accepts ?? null,
     // THE CONTAINER-VERSION AXIS, which the verdict below needs and which the old
@@ -1850,7 +1859,7 @@ async function main() {
   }
 
   if (skewNote) {
-    const skew = engineSkew(repoRoot, anchor.c.version, 6);
+    const skew = engineSkew(repoRoot, anchor.c.version, anchor.c.metaDat);
     // ── THE VERDICT IS DERIVED, AND THAT IS A CORRECTION ─────────────────────────────
     //
     // This block used to STATE its conclusion: "so a published page RENDERS and its

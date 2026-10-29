@@ -19,7 +19,7 @@
 //
 // So the question is asked WITHOUT the transaction. Three facts survive pruning:
 //
-//   1. the committed `.ct` container, which interned the address of every contract the
+//   1. the prepared `.ct` container, which interned the address of every contract the
 //      execution entered;
 //   2. the contract INSTANCE at that address, which the node still serves — instances are
 //      world state, not mempool;

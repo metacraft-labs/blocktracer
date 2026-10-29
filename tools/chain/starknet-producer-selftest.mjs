@@ -31,8 +31,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  CHAIN_SLUG, IDENTIFIER_ENCODING, PRESTATE_STRATEGY, RECORDER,
-  costVectorForRow, executionsForRow, l1MessageForRow, payloadForRow, rolesForRow,
+  CHAIN_SLUG, IDENTIFIER_ENCODING, PRESTATE_STRATEGY, RECORDER, VERIFICATION,
+  costVectorForRow, executionsForRow, l1MessageForRow, payloadForRow, reachReasonFor, rolesForRow,
 } from './lib/starknet-producer-facts.mjs';
 import { BLOCK_REPORT_FORMAT, artifactRow, main as produce } from './produce-starknet-snapshot.mjs';
 
@@ -43,7 +43,7 @@ const ck = (label, cond) => {
   if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`);
 };
 const test = (name) => console.error(`\n${name}`);
-const DECLARED = 33;
+const DECLARED = 36;
 
 const SENDER = '0x48ddc53f41523d2a6b40c3dff7f69f4bbac799cd8b2e3fc50d3de1d4119441f';
 const TARGET = '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
@@ -145,6 +145,20 @@ test('§1 the facts module');
      h.target === TARGET && h.selector === SEL);
   ck('an untraced row\'s single execution carries its reason; a traced row\'s carries none',
      executionsForRow('why')[0].reason === 'why' && executionsForRow(null)[0].reason === undefined);
+
+  // The floor's cause, from the probe's readings (bt-evm 780ad9e's `provenance.reachReason`).
+  const exec = 'blockifier 0.20.0-rc.1 (crates.io) + blockifier-patch';
+  const probed = { executorFloor: { block: 501514, version: '0.13.0', versionBelow: '0.12.3' },
+                   nodeState: { belowFloor: { block: 300000, answer: '0x5ffbcfe' } } };
+  const why = reachReasonFor(probed, exec);
+  ck('reachReason names the executor\'s floor from the probe: block, version, executor, the version refused, and the node serving below it',
+     /block 501514, the first block of Starknet 0\.13\.0/.test(why) && /\(blockifier 0\.20\.0-rc\.1\)/.test(why)
+     && /refuses 0\.12\.3/.test(why) && /at block 300000 it answered/.test(why)
+     && /the limit is the executor's/.test(why));
+  const unserved = reachReasonFor({ ...probed, nodeState: { belowFloor: { block: 300000, answer: null } } }, exec);
+  ck('CONTROL: a probe that found no state below the floor gets no claim that the node serves it',
+     !/node serves/.test(unserved) && unserved.startsWith(why.split('. The node')[0])
+     && reachReasonFor({ ...probed, executorFloor: { ...probed.executorFloor, block: 600000 } }, exec) !== why);
 }
 
 // ── §2 the producer, end to end, over container-free captures ─────────────────────────
@@ -217,6 +231,9 @@ test('§2 the producer end to end, over captures with no container in them');
   ck('…the floor is the probe\'s, not a typed number, and the window is derived from it',
      s.window?.replayableFrom === 501514 && s.window?.blocks === 16667292 - 501514 + 1
      && s.provenance?.floorProbe?.binds === 'executor');
+  ck('…and the provenance carries the floor\'s cause computed from that probe, and the verification sentence',
+     s.provenance?.reachReason === reachReasonFor(FLOOR, 'blockifier 0.20.0-rc.1 (crates.io) + blockifier-patch')
+     && s.provenance?.verification === VERIFICATION && VERIFICATION.length > 0);
   ck('…and the provenance states the recorder, the strategy and the encoding from the facts module',
      s.provenance?.recorder?.id === RECORDER.id
      && s.provenance?.prestateStrategy === PRESTATE_STRATEGY

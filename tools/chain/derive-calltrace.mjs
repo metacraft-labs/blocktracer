@@ -7,8 +7,8 @@
 // CHAIN-CAPTURE.md §6.6 recorded the Call Trace pane's emptiness as a property
 // of the STATIC EXPORT: "they are absent from the statically exported page only
 // because that page has no CTFS reader — the site build is hermetic". Every
-// clause of that is true and the conclusion did not follow. `instructions/` and
-// `positions/` are also read out of a `.ct` by a reader the build does not have;
+// clause described the historical build and the conclusion did not follow.
+// `instructions/` and `positions/` were also read out of a `.ct` by a reader;
 // they reach the page because the read happens BY HAND, ahead of the build, and
 // the result is committed. The frames were the one stream nobody had pointed
 // that same, already-accepted mechanism at.
@@ -21,7 +21,7 @@
 //
 // Two shapes, and this tool reads both.
 //
-// THE AVM-CONTEXT SHAPE, which every container committed under
+// THE AVM-CONTEXT SHAPE, which every container prepared under
 // `client/fixtures/chain/` has: two `Function` events (`<toplevel>` and
 // `enqueued-call-0`), two `Call` events, one `Return`. Both calls open before
 // step 0 and the return lands after the last step — a two-deep stack open for

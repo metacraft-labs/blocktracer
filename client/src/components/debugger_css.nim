@@ -653,6 +653,16 @@ a.lm_title{display:block;line-height:inherit}
 .srcdoc.alt{display:none}
 .srcdoc.alt:target{display:flex}
 .srcdoc.alt:target ~ .srcdoc.def{display:none}
+/* A link to a LINE of an alternate document (`#L-<doc>-<n>`) selects that
+   document too. Without these two rules the line was the `:target` and its
+   document stayed `display:none`: the link arrived at an element with an
+   all-zero rect, so it did nothing a visitor could see. It used to look as if
+   it worked only while the active document happened to be the one the link
+   named — on the served frame of `/demo/tx/0xb636…/debug` it is, and once the
+   live session lands on another document it is not (measured 2026-10-29,
+   journey 23). */
+.srcdoc.alt:has(:target){display:flex}
+.srcdoc.alt:has(:target) ~ .srcdoc.def{display:none}
 /* IT NO LONGER WRAPS — IT IS ONE ROW THAT SCROLLS, AND THE OVERFLOW IS A
    DROPDOWN MENU.
 

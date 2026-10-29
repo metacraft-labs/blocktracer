@@ -19,9 +19,9 @@
 #     transcript format the committed inputs are in.
 #   * `flow-trace-format`: the recorder's Cargo path dependencies, at the revision the
 #     recorder's own `repro.lock` names.
-#   * `codetracer-trace-format-nim`: the writer at `7b8b587`, the last revision that
-#     writes `meta.dat` 6 — shared with eth.nix through flake.nix, because the engine the
-#     site pins reads 6 only. The recorder's own lock names a newer writer.
+#   * `codetracer-trace-format-nim`: the writer at `e15374866`, which writes `meta.dat`
+#     7 — shared with eth.nix through flake.nix, because the engine the site pins reads
+#     7 only since 2026-10-28 (it was `7b8b587`, the last writer of 6, until then).
 { lib, stdenv, runCommand, rustPlatform, buildGoModule, go_1_26, pkg-config, capnproto
 , openssl, zstd, pcre, nim, nodejs, bash
 , recorderSrc, recorderRev, flowTraceFormatSrc, writerSrc, writerNimDeps

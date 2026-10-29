@@ -10,7 +10,7 @@
 # server never sees `?q=` — so the search bundle is built first and this export
 # names it. Unlike hydration, this is NOT optional and takes no Embed SDK: a
 # build that skipped it would ship the search form that was the defect.
-export: search-bundle settings-bundle
+export: prepare-recordings search-bundle settings-bundle
     nim c -r --mm:orc -d:isServer -d:release \
       -d:searchBundle=/assets/search.js \
       -d:settingsBundle=/assets/settings.js src/static_export.nim
@@ -94,7 +94,7 @@ hydrate:
 # `flake.nix` cannot disagree about what the deployed shape contains — which is
 # tools/journeys/README.md rule 1, the rule that gives a local journey run any
 # authority over what a visitor gets.
-export-hydrated: hydrate search-bundle settings-bundle
+export-hydrated: prepare-recordings hydrate search-bundle settings-bundle
     nim c -r --mm:orc -d:isServer -d:release \
       -d:hydrationBundle=/assets/hydrate.js \
       -d:searchBundle=/assets/search.js \
@@ -122,7 +122,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-chain-reach test-capability-tour test-instruction-listing test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-address-history test-searchboot
+test: prepare-recordings test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-chain-reach test-capability-tour test-instruction-listing test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-address-history test-searchboot
 
 # The browser's half of search, run without a browser: `nim js -r`, which is how
 # `searchboot.nim` can be tested at all. Its `importjs` boundary procs make the
@@ -156,7 +156,7 @@ test-searchboot:
 # The static-export round-trip test: compile + run the real exporter into a
 # temp dir, then assert the three view types render for the demo entities and
 # reference real /d demo data, and that the design-system token layer resolved.
-test-export:
+test-export: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_static_export.nim
 
 # Tier-1 tests for BlockTracer's OWN ViewModels (Front-End-Architecture.md §3):
@@ -164,7 +164,7 @@ test-export:
 # from a mock chain and walked exhaustively. Needs no debugger on the Nim path
 # at all — the half of the seam that does is `just viewmodel-seam` in the repo
 # root's Justfile.
-test-viewmodels:
+test-viewmodels: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_chain_viewmodels.nim
 
 # M8a/M8b: the `/{chain}/tx/{hash}/debug` route — the arrangement walked off
@@ -186,7 +186,7 @@ test-viewmodels:
 test-ct-components-css:
     nim c -r --mm:orc --hints:off tests/test_ct_components_css.nim
 
-test-debug-route:
+test-debug-route: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_debug_route.nim
 
 # The scrubber's coalescing rule (`ScrubQueue`) is the Embed SDK's now
@@ -202,7 +202,7 @@ test-debug-route:
 # nothing. The behaviour had no working guard at any layer. This suite is the
 # layer that does not depend on a journey and a harness string both staying
 # alive. See its header.
-test-selection-detail:
+test-selection-detail: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_selection_detail.nim
 
 # Does that suite BITE? Two sweeps: every `ck` negated in turn (proving none is
@@ -212,7 +212,7 @@ test-selection-detail:
 # NOT in `just test` — it is ~100 compiles and takes minutes. It is the same
 # relation `ci/test/<subject>-test.sh` has to `ci/test/<subject>.sh`, and it is
 # here because the guard this suite replaces was one whose bite nobody checked.
-test-selection-detail-selftest:
+test-selection-detail-selftest: prepare-recordings
     node tests/selection-detail-selftest.mjs
 
 # How a session BECOMES positioned, as opposed to how a positioned one renders.
@@ -224,7 +224,7 @@ test-selection-detail-selftest:
 # and it did not. Nothing in this suite may name a path or a line as the
 # expected answer — every expectation is a RELATION over the session's own
 # reported position.
-test-entry-state:
+test-entry-state: prepare-recordings
     nim c -r --mm:orc -d:isServer --hints:off tests/test_entry_state.nim
 
 # The two-producer honesty contract: a rung-3 recording never renders as
@@ -233,7 +233,7 @@ test-entry-state:
 # data are tellable apart ON THE PAGE. Built over the committed chain capture
 # by the REAL producers, and it refuses rather than skips when the capture is
 # missing — every arm would otherwise pass vacuously on a one-chain tree.
-test-chain-provenance:
+test-chain-provenance: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_chain_provenance.nim
 
 # tests/test_chain_reach.nim — the chain landing page's Chain-Support-Matrix §4
@@ -246,14 +246,14 @@ test-chain-provenance:
 # note quoted under a paragraph saying there is no stated boundary, and a bare
 # `block 0 and above` rendered for a row that stated no floor. Needs no tree,
 # so there is nothing here to skip.
-test-chain-reach:
+test-chain-reach: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_chain_reach.nim
 
 # tests/test_capability_tour.nim — that every entry of the demo chain's tour is a
 # real recording of ITS OWN program: distinct containers, per-transaction source
 # bundles, published counts that match the bytes beside them, and no page that
 # shows two programs at once. Builds the tree with the real `generate`.
-test-capability-tour:
+test-capability-tour: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_capability_tour.nim
 
 # tests/test_instruction_listing.nim — the Code pane's honest floor. A real
@@ -266,7 +266,7 @@ test-capability-tour:
 # the corrected prose sits beside the rows, that a source-level session is
 # untouched, and that the island a hydrated session re-renders from carries the
 # whole listing rather than the served window.
-test-instruction-listing:
+test-instruction-listing: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_instruction_listing.nim
 
 # The hydration bundle's <script> is EMITTED when one is declared. Compiled
@@ -275,7 +275,7 @@ test-instruction-listing:
 # declared bundle is actually referenced. (Corrected 2026-08-30: this recipe
 # used to say a top-level `if` inside `ui:` had dropped the tag in production.
 # It had not — see the correction in src/components/layout.nim.)
-test-hydration-tag:
+test-hydration-tag: prepare-recordings
     nim c -r --mm:orc --hints:off -d:hydrationBundle=/assets/hydrate.js tests/test_hydration_tag.nim
 
 # M9: the explorer breadth slice — the milestone's three named verifications
@@ -284,7 +284,7 @@ test-hydration-tag:
 # product rules asserted over EVERY rendered page. Built with -d:release: one
 # of them walks a synthetic address with a hundred thousand transactions from
 # its first page to its last.
-test-explorer-breadth:
+test-explorer-breadth: prepare-recordings
     nim c -r --mm:orc -d:release --hints:off tests/test_explorer_breadth.nim
 
 # Build and preview the static site locally on :8080.
@@ -319,7 +319,7 @@ clean:
 #
 # The offline half — the fold policy itself, and the six arms that prove its
 # gates can go red — is `just chain-selftest`.
-test-noir-frame-folding:
+test-noir-frame-folding: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_noir_frame_folding.nim
 
 # Which FRAME a call-trace row names, and whether a click can land on it.
@@ -329,7 +329,7 @@ test-noir-frame-folding:
 # so a jump keyed on the coordinate has one destination for six different
 # functions and can mark none of them. The anchors ARE injective on the same
 # pane, and this suite is what holds the seam that uses them.
-test-frame-identity-jump:
+test-frame-identity-jump: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_frame_identity_jump.nim
 
 # PER-CHAIN DATA ORIGIN — which STORE answered for a chain, and which one was
@@ -349,12 +349,15 @@ test-frame-identity-jump:
 # serve one origin's transaction under another's generation.
 #
 # In-memory closures, no fixtures, no filesystem — the question is routing.
-test-chain-origins:
+test-chain-origins: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_chain_origins.nim
 
 # tests/test_address_history.nim — an address's chain history below the window
 # (§5.2 `addressHistory`, Recorder-Solana spine need (f)): the oldest segment
 # lists the chain's entries in full and links none, and the page does not call it
 # complete history unless the chain said nothing older exists.
-test-address-history:
+test-address-history: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_address_history.nim
+
+prepare-recordings:
+    cd .. && just prepare-recordings

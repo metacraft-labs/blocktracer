@@ -29,8 +29,9 @@
 #   * `cairo-trace-format`: the recorder's Cargo path dependencies, at the revision its
 #     own `repro.lock` names (3fada0b — the same revision `flow-trace-format` pins, kept as
 #     a separate input on purpose).
-#   * `codetracer-trace-format-nim`: the writer, SHARED with chains two and three, at the
-#     last revision that writes `meta.dat` 6 — what the engine this site pins reads.
+#   * `codetracer-trace-format-nim`: the writer, SHARED with chains two and three, at
+#     `e15374866`, which writes `meta.dat` 7 — what the engine this site pins reads since
+#     2026-10-28 (it was `7b8b587`, the last writer of 6, until then).
 { lib, stdenv, runCommand, rustPlatform, fetchurl, python3, pkg-config, capnproto, openssl
 , zstd, pcre, nim, nodejs, bash
 , recorderSrc, recorderRev, cairoTraceFormatSrc, writerSrc, writerNimDeps

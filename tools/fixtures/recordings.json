@@ -1,0 +1,430 @@
+{
+  "format": "blocktracer/generated-recordings/v1",
+  "baseline": {
+    "commit": "b56d6e786870e833bddec5288ab9700d7dc1f4e9",
+    "trackedPaths": 55
+  },
+  "recordings": [
+    {
+      "output": "client/fixtures/chain/aztec-testnet-frames/ct/0x00689495de42670d932a5722e480f6bd7513825e27ecfc73065346060197285d.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet-frames/snapshot.json",
+      "transaction": "0x00689495de42670d932a5722e480f6bd7513825e27ecfc73065346060197285d",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x00689495de42670d932a5722e480f6bd7513825e27ecfc73065346060197285d.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet-frames/ct/0x04a620e2b845ac6627d2eda7d2d8f286f4a8ee727f8f6990e7b34218a9fbbfb8.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet-frames/snapshot.json",
+      "transaction": "0x04a620e2b845ac6627d2eda7d2d8f286f4a8ee727f8f6990e7b34218a9fbbfb8",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x04a620e2b845ac6627d2eda7d2d8f286f4a8ee727f8f6990e7b34218a9fbbfb8.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet-frames/ct/0x0843f42e2d1624f2b0566c73e16a88265e645a7957282ce228b91bd20b07f9cf.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet-frames/snapshot.json",
+      "transaction": "0x0843f42e2d1624f2b0566c73e16a88265e645a7957282ce228b91bd20b07f9cf",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x0843f42e2d1624f2b0566c73e16a88265e645a7957282ce228b91bd20b07f9cf.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet-frames/ct/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet-frames/snapshot.json",
+      "transaction": "0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet-frames/ct/0x27e48c9c66661851a5437df2a8b8155877af1f1ceb34c2407f66fa7789f09b14.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet-frames/snapshot.json",
+      "transaction": "0x27e48c9c66661851a5437df2a8b8155877af1f1ceb34c2407f66fa7789f09b14",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x27e48c9c66661851a5437df2a8b8155877af1f1ceb34c2407f66fa7789f09b14.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet-frames/ct/0x2a9eb99835b8ab098bd9880bbba92ebf840e251d9c44c51eb737ceb032490863.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet-frames/snapshot.json",
+      "transaction": "0x2a9eb99835b8ab098bd9880bbba92ebf840e251d9c44c51eb737ceb032490863",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x2a9eb99835b8ab098bd9880bbba92ebf840e251d9c44c51eb737ceb032490863.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x009fb0c0fc8ef1d2ea15322e0f9b57b3d40bd5e3cbecb91a307d2ae9fb6ef53a.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x009fb0c0fc8ef1d2ea15322e0f9b57b3d40bd5e3cbecb91a307d2ae9fb6ef53a",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x009fb0c0fc8ef1d2ea15322e0f9b57b3d40bd5e3cbecb91a307d2ae9fb6ef53a.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x02f7fc42d3090fdf535a16ff969410c8aec7afc4ff9524232de84d52ed8f6b18.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x02f7fc42d3090fdf535a16ff969410c8aec7afc4ff9524232de84d52ed8f6b18",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x02f7fc42d3090fdf535a16ff969410c8aec7afc4ff9524232de84d52ed8f6b18.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x03076d112320c93b3a3ae07a1b84590be7cd7ef0cc761f839b1ab6c7ed40512e.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x03076d112320c93b3a3ae07a1b84590be7cd7ef0cc761f839b1ab6c7ed40512e",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x03076d112320c93b3a3ae07a1b84590be7cd7ef0cc761f839b1ab6c7ed40512e.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x06a360069f3559b71a30ec624e8eb374935052d44d8c101ed0c9d76c46272dbb.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x06a360069f3559b71a30ec624e8eb374935052d44d8c101ed0c9d76c46272dbb",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x06a360069f3559b71a30ec624e8eb374935052d44d8c101ed0c9d76c46272dbb.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x073f3dcc6e49572930d1e5f40deb56390b2f6bec642ab921191fbff4df7b0112.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x073f3dcc6e49572930d1e5f40deb56390b2f6bec642ab921191fbff4df7b0112",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x073f3dcc6e49572930d1e5f40deb56390b2f6bec642ab921191fbff4df7b0112.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x0858d644c60851824141160a69391e304430aabc06ef9ace18d8024b22e67fb2.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x0858d644c60851824141160a69391e304430aabc06ef9ace18d8024b22e67fb2",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x0858d644c60851824141160a69391e304430aabc06ef9ace18d8024b22e67fb2.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x08f8ab52d0960e45e0a88e65b3f55a9c4960eb5040afa43b47e285b8f0c11f35.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x08f8ab52d0960e45e0a88e65b3f55a9c4960eb5040afa43b47e285b8f0c11f35",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x08f8ab52d0960e45e0a88e65b3f55a9c4960eb5040afa43b47e285b8f0c11f35.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x09497f8e778e67fdf221acf22e8a5c0b6fe9fd6447048ad7179534229d2b3508.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x09497f8e778e67fdf221acf22e8a5c0b6fe9fd6447048ad7179534229d2b3508",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x09497f8e778e67fdf221acf22e8a5c0b6fe9fd6447048ad7179534229d2b3508.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x099baa002af07624ee622e06f0c38b1fcb756311377d7c599e05010bf4256063.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x099baa002af07624ee622e06f0c38b1fcb756311377d7c599e05010bf4256063",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x099baa002af07624ee622e06f0c38b1fcb756311377d7c599e05010bf4256063.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x0b1df658f22bccd7c0576dcdcd8afb3fd4b7850b35cfd905c78bbb6c76efdffb.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x0b1df658f22bccd7c0576dcdcd8afb3fd4b7850b35cfd905c78bbb6c76efdffb",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x0b1df658f22bccd7c0576dcdcd8afb3fd4b7850b35cfd905c78bbb6c76efdffb.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x0d56d91b5096219def8c9e6bf05bd5ab476901ddf322ea228973fcd141f84f35.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x0d56d91b5096219def8c9e6bf05bd5ab476901ddf322ea228973fcd141f84f35",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x0d56d91b5096219def8c9e6bf05bd5ab476901ddf322ea228973fcd141f84f35.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x0ef558688f6cb48ff944c1d586de667e802a7fbd52e2fc46714084b32531efa9.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x0ef558688f6cb48ff944c1d586de667e802a7fbd52e2fc46714084b32531efa9",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x0ef558688f6cb48ff944c1d586de667e802a7fbd52e2fc46714084b32531efa9.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x11274b64b0b71aebc39145f1d08ec4d63c5a94a1187f22785e08daf2f668ae05.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x11274b64b0b71aebc39145f1d08ec4d63c5a94a1187f22785e08daf2f668ae05",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x11274b64b0b71aebc39145f1d08ec4d63c5a94a1187f22785e08daf2f668ae05.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x12525d6d2a629f908a9d68aade391624eda2bfe38866d00c06233be7810e795f.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x12525d6d2a629f908a9d68aade391624eda2bfe38866d00c06233be7810e795f",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x12525d6d2a629f908a9d68aade391624eda2bfe38866d00c06233be7810e795f.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x13bb999979d59c1bb83be2a1b96a1755d84de3db91ac6831d87073015ce054bb.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x13bb999979d59c1bb83be2a1b96a1755d84de3db91ac6831d87073015ce054bb",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x13bb999979d59c1bb83be2a1b96a1755d84de3db91ac6831d87073015ce054bb.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x1a064089da812e9b42ad53ef7f3765bcd3a2ceb7a0c3b85b6ee68d1d7799a8e8.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x1a064089da812e9b42ad53ef7f3765bcd3a2ceb7a0c3b85b6ee68d1d7799a8e8",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x1a064089da812e9b42ad53ef7f3765bcd3a2ceb7a0c3b85b6ee68d1d7799a8e8.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x1ceda53e94bf491bbc5ffe4a0153251de3f990724e035dc78eafafe8c64c354e.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x1ceda53e94bf491bbc5ffe4a0153251de3f990724e035dc78eafafe8c64c354e",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x1ceda53e94bf491bbc5ffe4a0153251de3f990724e035dc78eafafe8c64c354e.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x1d82a85bc32b566430e0ffe18b2ee467fcb91b18b3f80e870cbefbddef13aa9a.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x1d82a85bc32b566430e0ffe18b2ee467fcb91b18b3f80e870cbefbddef13aa9a",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x1d82a85bc32b566430e0ffe18b2ee467fcb91b18b3f80e870cbefbddef13aa9a.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x1d8942ed6d4c54f9cd0ae4797596f277588bd51e2b9699934346398980b948f0.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x1d8942ed6d4c54f9cd0ae4797596f277588bd51e2b9699934346398980b948f0",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x1d8942ed6d4c54f9cd0ae4797596f277588bd51e2b9699934346398980b948f0.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x1ea0937d725ea16a04f54caa62f58ea792cab64346936407c77a9bdedbbbd808.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x1ea0937d725ea16a04f54caa62f58ea792cab64346936407c77a9bdedbbbd808",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x1ea0937d725ea16a04f54caa62f58ea792cab64346936407c77a9bdedbbbd808.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x1f1c3008ed59245c4ffd33621e54617e9bdeefbe03b836d17b3697d6760c0e06.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x1f1c3008ed59245c4ffd33621e54617e9bdeefbe03b836d17b3697d6760c0e06",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x1f1c3008ed59245c4ffd33621e54617e9bdeefbe03b836d17b3697d6760c0e06.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x27d610455b1e99c5a0e7f943a4b763e71426931d22c2c461b5b3e723de2a91fb.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x27d610455b1e99c5a0e7f943a4b763e71426931d22c2c461b5b3e723de2a91fb",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x27d610455b1e99c5a0e7f943a4b763e71426931d22c2c461b5b3e723de2a91fb.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x2a8c1516fb7e4ff8171b03412a4edb250a0920d441930bda2cc768afae0a1d06.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x2a8c1516fb7e4ff8171b03412a4edb250a0920d441930bda2cc768afae0a1d06",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x2a8c1516fb7e4ff8171b03412a4edb250a0920d441930bda2cc768afae0a1d06.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec-testnet/ct/0x2cda2117f68c2028e8ab99eed9a57ed8733f1e762ee615ecd8feb46b14322933.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec-testnet/snapshot.json",
+      "transaction": "0x2cda2117f68c2028e8ab99eed9a57ed8733f1e762ee615ecd8feb46b14322933",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x2cda2117f68c2028e8ab99eed9a57ed8733f1e762ee615ecd8feb46b14322933.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec/ct/0x00c67f6f41a5870eb280120ccc6e9288a876bc38630aa7a36346cc47753ed18d.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec/snapshot.json",
+      "transaction": "0x00c67f6f41a5870eb280120ccc6e9288a876bc38630aa7a36346cc47753ed18d",
+      "rollupVersion": 4248422647,
+      "input": "fixtures/chain-inputs/aztec/4248422647/0x00c67f6f41a5870eb280120ccc6e9288a876bc38630aa7a36346cc47753ed18d.json"
+    },
+    {
+      "output": "client/fixtures/chain/aztec/ct/0x0f191b2da9d6f4ccdb1711dd015edb8755bf551933a74b509860307ee8699dbb.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/chain/aztec/snapshot.json",
+      "transaction": "0x0f191b2da9d6f4ccdb1711dd015edb8755bf551933a74b509860307ee8699dbb",
+      "rollupVersion": 4248422647,
+      "input": "fixtures/chain-inputs/aztec/4248422647/0x0f191b2da9d6f4ccdb1711dd015edb8755bf551933a74b509860307ee8699dbb.json"
+    },
+    {
+      "output": "client/fixtures/noir-frames/ct/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.ct",
+      "kind": "aztec",
+      "snapshot": "client/fixtures/noir-frames/snapshot.json",
+      "transaction": "0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json"
+    },
+    {
+      "output": "conformance-kit/template/complete/ct/0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.ct",
+      "kind": "placeholder",
+      "snapshot": "conformance-kit/template/complete/snapshot.json"
+    },
+    {
+      "output": "conformance-kit/template/complete/ct/0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2.ct",
+      "kind": "placeholder",
+      "snapshot": "conformance-kit/template/complete/snapshot.json"
+    },
+    {
+      "output": "conformance-kit/template/complete/ct/0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3.ct",
+      "kind": "placeholder",
+      "snapshot": "conformance-kit/template/complete/snapshot.json"
+    },
+    {
+      "output": "fixtures/chain-artifacts/aztec-testnet/ct/0x0b2eee5f7c7f57a3b1eabdf9b52b448a4d9030407c4ce77108580b9a2c6101f1.ct",
+      "kind": "aztec",
+      "snapshot": "fixtures/chain-artifacts/aztec-testnet/snapshot.json",
+      "transaction": "0x0b2eee5f7c7f57a3b1eabdf9b52b448a4d9030407c4ce77108580b9a2c6101f1",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x0b2eee5f7c7f57a3b1eabdf9b52b448a4d9030407c4ce77108580b9a2c6101f1.json"
+    },
+    {
+      "output": "fixtures/chain-artifacts/aztec-testnet/ct/0x0bfaca33e34bb27689896568f5eb3a631c0d202cbe3a0055b3182b30fee8145f.ct",
+      "kind": "aztec",
+      "snapshot": "fixtures/chain-artifacts/aztec-testnet/snapshot.json",
+      "transaction": "0x0bfaca33e34bb27689896568f5eb3a631c0d202cbe3a0055b3182b30fee8145f",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x0bfaca33e34bb27689896568f5eb3a631c0d202cbe3a0055b3182b30fee8145f.json"
+    },
+    {
+      "output": "fixtures/chain-artifacts/aztec-testnet/ct/0x1029a76600a30fd1faaa8f67825e002a6eea112662748e8203bbe0b97990726c.ct",
+      "kind": "aztec",
+      "snapshot": "fixtures/chain-artifacts/aztec-testnet/snapshot.json",
+      "transaction": "0x1029a76600a30fd1faaa8f67825e002a6eea112662748e8203bbe0b97990726c",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x1029a76600a30fd1faaa8f67825e002a6eea112662748e8203bbe0b97990726c.json"
+    },
+    {
+      "output": "fixtures/chain-artifacts/aztec-testnet/ct/0x113b1d870995d53463dd4a4f7c24c1277d53df37f181e364d9a248a74aa7bf37.ct",
+      "kind": "aztec",
+      "snapshot": "fixtures/chain-artifacts/aztec-testnet/snapshot.json",
+      "transaction": "0x113b1d870995d53463dd4a4f7c24c1277d53df37f181e364d9a248a74aa7bf37",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x113b1d870995d53463dd4a4f7c24c1277d53df37f181e364d9a248a74aa7bf37.json"
+    },
+    {
+      "output": "fixtures/chain-artifacts/aztec-testnet/ct/0x12495b2b5c99d5e7d4ab37ae084845bf81a8f8302872d60bcc0351c2df02ee00.ct",
+      "kind": "aztec",
+      "snapshot": "fixtures/chain-artifacts/aztec-testnet/snapshot.json",
+      "transaction": "0x12495b2b5c99d5e7d4ab37ae084845bf81a8f8302872d60bcc0351c2df02ee00",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x12495b2b5c99d5e7d4ab37ae084845bf81a8f8302872d60bcc0351c2df02ee00.json"
+    },
+    {
+      "output": "fixtures/chain-artifacts/aztec-testnet/ct/0x13b4009bc90f4455805a6731ce63508f3b70d72ca9945bf07fa9ab4d373f0da8.ct",
+      "kind": "aztec",
+      "snapshot": "fixtures/chain-artifacts/aztec-testnet/snapshot.json",
+      "transaction": "0x13b4009bc90f4455805a6731ce63508f3b70d72ca9945bf07fa9ab4d373f0da8",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x13b4009bc90f4455805a6731ce63508f3b70d72ca9945bf07fa9ab4d373f0da8.json"
+    },
+    {
+      "output": "fixtures/chain-artifacts/aztec-testnet/ct/0x1d577f351f6c3334730a6a0ff4150fd3fbb00306eb89add8c2a0f5208ae3d822.ct",
+      "kind": "aztec",
+      "snapshot": "fixtures/chain-artifacts/aztec-testnet/snapshot.json",
+      "transaction": "0x1d577f351f6c3334730a6a0ff4150fd3fbb00306eb89add8c2a0f5208ae3d822",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x1d577f351f6c3334730a6a0ff4150fd3fbb00306eb89add8c2a0f5208ae3d822.json"
+    },
+    {
+      "output": "fixtures/chain-artifacts/aztec-testnet/ct/0x2fc91663cb5ee6429d0cedac99a0283f9c2a50775e8260110e58c2c91ea141a1.ct",
+      "kind": "aztec",
+      "snapshot": "fixtures/chain-artifacts/aztec-testnet/snapshot.json",
+      "transaction": "0x2fc91663cb5ee6429d0cedac99a0283f9c2a50775e8260110e58c2c91ea141a1",
+      "rollupVersion": 1821665230,
+      "input": "fixtures/chain-inputs/aztec/1821665230/0x2fc91663cb5ee6429d0cedac99a0283f9c2a50775e8260110e58c2c91ea141a1.json"
+    },
+    {
+      "output": "fixtures/trace/noir_space_ship/zk_shields.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/noir_space_ship/sources",
+      "package": "zk_shields",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/noir_space_ship"
+    },
+    {
+      "output": "fixtures/trace/tour/branches/tour_branches.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/tour/branches/sources",
+      "package": "tour_branches",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/tour/branches"
+    },
+    {
+      "output": "fixtures/trace/tour/calls/tour_calls.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/tour/calls/sources",
+      "package": "tour_calls",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/tour/calls"
+    },
+    {
+      "output": "fixtures/trace/tour/constraints/tour_constraints.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/tour/constraints/sources",
+      "package": "tour_constraints",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/tour/constraints"
+    },
+    {
+      "output": "fixtures/trace/tour/events/tour_events.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/tour/events/sources",
+      "package": "tour_events",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/tour/events"
+    },
+    {
+      "output": "fixtures/trace/tour/generics/tour_generics.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/tour/generics/sources",
+      "package": "tour_generics",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/tour/generics"
+    },
+    {
+      "output": "fixtures/trace/tour/limits/tour_limits.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/tour/limits/sources",
+      "package": "tour_limits",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/tour/limits"
+    },
+    {
+      "output": "fixtures/trace/tour/loops/tour_loops.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/tour/loops/sources",
+      "package": "tour_loops",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/tour/loops"
+    },
+    {
+      "output": "fixtures/trace/tour/mutation/tour_mutation.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/tour/mutation/sources",
+      "package": "tour_mutation",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/tour/mutation"
+    },
+    {
+      "output": "fixtures/trace/tour/values/tour_values.ct",
+      "kind": "noir",
+      "sources": "fixtures/trace/tour/values/sources",
+      "package": "tour_values",
+      "recordingWorkdir": "/blocktracer/fixtures/trace/tour/values"
+    }
+  ]
+}
