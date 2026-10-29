@@ -390,10 +390,82 @@ proc resolveByMode(value: string; env: Table[string, string];
                else: dark)
     i = j + 1
 
+proc isNumericLiteral(s: string): bool =
+  ## A bare CSS length/number: optional sign, digits with at most one dot, and
+  ## an optional alphabetic unit or `%`. Deliberately narrow — anything richer
+  ## is left alone for `foldNegation` to refuse rather than mangle.
+  if s.len == 0: return false
+  var i = 0
+  if s[i] in {'+', '-'}: inc i
+  var digits = 0
+  var dots = 0
+  while i < s.len and (s[i] in {'0'..'9'} or s[i] == '.'):
+    if s[i] == '.':
+      inc dots
+      if dots > 1: return false
+    else: inc digits
+    inc i
+  if digits == 0: return false
+  if i < s.len and s[i] == '%': inc i
+  else:
+    while i < s.len and s[i] in {'a'..'z', 'A'..'Z'}: inc i
+  i == s.len
+
+proc foldNegation*(value: string): string =
+  ## Stylus's unary minus on a parenthesised value: `-(0.25rem)` -> `-0.25rem`.
+  ##
+  ## THIS SHIPPED WRONG. `golden_layout.styl:371` writes
+  ## `margin-top: -(LAYOUT_TAB_TOP)`, which real Stylus folds to `-0.25rem`.
+  ## This transpiler substitutes identifiers TEXTUALLY and had no arithmetic,
+  ## so it emitted the literal `margin-top:-(0.25rem)` — not a valid CSS value,
+  ## so every browser dropped the declaration and every stack after a splitter
+  ## kept the 0.25rem the rule exists to remove. The string was in the
+  ## stylesheet blocktracer.org served.
+  ##
+  ## THE FIX IS HERE AND NOT IN THE VENDORED BYTES, which are verbatim copies
+  ## hashed against the pinned commit by `ci/test/ct-styles-vendor.sh`: that
+  ## line is upstream's own source and is correct Stylus. The same reasoning
+  ## the `url()` port already records.
+  ##
+  ## CONSERVATIVE ON PURPOSE. Only a `-(` that opens a value position — start
+  ## of the value, or after whitespace, `,` or `(` — and only when the contents
+  ## are one bare numeric literal. `calc(100% - (2px))` has a space before its
+  ## paren and does not match; `-(calc(…))` is not a literal and is left for
+  ## the emitted-value gate to report rather than silently rewritten.
+  var i = 0
+  var quote = '\0'
+  while i < value.len:
+    let c = value[i]
+    if quote != '\0':
+      result.add c
+      if c == quote: quote = '\0'
+      inc i
+      continue
+    if c == '\'' or c == '"':
+      quote = c
+      result.add c
+      inc i
+      continue
+    let opensValue = i == 0 or value[i - 1] in {' ', '\t', ',', '('}
+    if c == '-' and i + 1 < value.len and value[i + 1] == '(' and opensValue:
+      let close = value.find(')', i + 2)
+      if close > 0:
+        let inner = value[i + 2 ..< close].strip
+        if isNumericLiteral(inner):
+          if inner.startsWith('-'): result.add inner[1 .. ^1]
+          elif inner.startsWith('+'): result.add '-' & inner[1 .. ^1]
+          else: result.add '-' & inner
+          i = close + 1
+          continue
+    result.add c
+    inc i
+
 proc substituteValue(value: string; env: Table[string, string];
                      bridge: OrderedTable[string, string]): string =
-  ## `substitute`, with the `by-mode` build switch resolved first.
-  substitute(resolveByMode(value, env, bridge), env, bridge)
+  ## `substitute`, with the `by-mode` build switch resolved first, and Stylus's
+  ## unary minus folded AFTER substitution — the operand is a variable, so
+  ## there is nothing to negate until it has been replaced.
+  foldNegation(substitute(resolveByMode(value, env, bridge), env, bridge))
 
 proc residualToken(value: string): string =
   ## The first identifier left over that was meant to resolve, or "".
