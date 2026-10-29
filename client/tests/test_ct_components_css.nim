@@ -429,10 +429,11 @@ suite "url() — the nine icons that shipped as 404s":
         echo "  unplaced url: ", payload
       i = close + 1
     check relatives == 0
-    # At least one placement per vendored icon: the nine that published broken
-    # before this change, and the eleven the live panes brought (one of them,
-    # the active call dot, is named by two rules).
-    check placed >= 20
+    # At least one placement per vendored icon, stated against the table
+    # rather than as a number: the nine that published broken before this
+    # change, the eleven the live panes brought (one of them, the active call
+    # dot, is named by two rules) and the three search-box magnifiers.
+    check placed >= CtVendoredIcons.len
 
   test "every placed url names a row of the vendored-icon table":
     ## The two halves have to agree: `ctIconUrls()` is what the port was built
@@ -442,7 +443,13 @@ suite "url() — the nine icons that shipped as 404s":
       var s: seq[string] = @[]
       for _, url in ctIconUrls().pairs: s.add url
       s
-    check published.len == 20
+    ## ONE URL PER ROW, asserted against the table and not as a literal. This
+    ## read `== 20`, and a magic number here is the second copy of the
+    ## inventory — it fails for the one change it should be silent about
+    ## (vendoring an icon) and says nothing about the thing worth catching,
+    ## which is two rows collapsing to one url. The equality against
+    ## `CtVendoredIcons.len` catches exactly that and nothing else.
+    check published.len == CtVendoredIcons.len
     for url in published:
       check url.startsWith("data:image/svg+xml;base64,")
       check ("url(\"" & url & "\")") in debugRouteCss

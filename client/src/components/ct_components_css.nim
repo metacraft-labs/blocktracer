@@ -195,7 +195,7 @@ const
     ## halves are checked against each other by `tools/deploy/check-assets.mjs`
     ## A6 over the published bytes, which is the only place that can.
 
-  CtVendoredIcons: array[20, tuple[group, file: string]] = [
+  CtVendoredIcons*: array[23, tuple[group, file: string]] = [
     # `origin-icons/` — `button.styl`'s `.ct-origin-icon-*` badge masks.
     (group: "origin-icons", file: "clock-rewind.svg"),
     (group: "origin-icons", file: "door.svg"),
@@ -208,6 +208,13 @@ const
     # `shared_widgets.styl`'s `.custom-noir-icon::before`.
     (group: "shared", file: "history_value_view_toggle_dark.svg"),
     (group: "shared", file: "noir_logo_dark_theme.svg"),
+    # `input.styl`'s `.ct-input-search-image` — the magnifier in the Call
+    # Trace's and the Event Log's filter boxes. Three files, identical paths,
+    # differing only in `fill`: #F3F3F3 typed, #919191 empty, #818181
+    # disabled.
+    (group: "shared", file: "input_default_search_icon_dark.svg"),
+    (group: "shared", file: "input_empty_search_icon_dark.svg"),
+    (group: "shared", file: "input_disabled_search_icon_dark.svg"),
     # The live panes' icons (Shared-DOM-Front-Ends Q6): the call trace's
     # toggles and markers (`calltrace.styl`), and the State pane's value
     # toggles and current-line arrow (`state.styl`), at their dark-theme
@@ -529,6 +536,20 @@ const Bridge*: seq[(string, string)] = @[
   ("CALLTRACE_ACTIVE_DOT_IMG", "\"../../public/resources/calltrace/dot-active-call-calltrace-dark.svg\""),
   ("CALLTRACE_EOP_IMG", "\"../../public/resources/calltrace/end-of-program-dark.svg\""),
   ("CALLTRACE_EOP_ERROR_IMG", "\"../../public/resources/calltrace/end-of-program-error-dark.svg\""),
+  # `ct-images-*-search-icon` — the Call Trace's and the Event Log's filter
+  # boxes. These are assigned in `default_dark_theme.styl`, which this port
+  # does not vendor, so they resolved to nothing and `background-image` was
+  # dropped from all four `.ct-input-search-image` rules.
+  #
+  # WHAT THAT LOOKED LIKE, and why it is a defect rather than a missing
+  # nicety: the base rule's OTHER four declarations survived, so the shipped
+  # rule reserved `padding-left:1.875em` for an icon it then never drew, and
+  # set `background-position`, `background-size` and `background-repeat` for
+  # a background that did not exist. Both filter boxes rendered with a 30px
+  # empty gutter and no magnifier.
+  ("ct-images-default-search-icon", "url(\"../../public/resources/shared/input_default_search_icon_dark.svg\")"),
+  ("ct-images-empty-search-icon", "url(\"../../public/resources/shared/input_empty_search_icon_dark.svg\")"),
+  ("ct-images-disabled-search-icon", "url(\"../../public/resources/shared/input_disabled_search_icon_dark.svg\")"),
   ("SHARED_OPEN_FA_ICON", "url(\"../../public/resources/shared/filesystem/filesystem_open_toggle_dark.svg\")"),
   ("SHARED_CLOSE_FA_ICON", "url(\"../../public/resources/shared/filesystem/filesystem_close_toggle_dark.svg\")"),
   ("HIGHLIGHT_LINE_ARROW", "url(\"../../public/resources/shared/highlight_line_arrow.svg\")"),
