@@ -685,21 +685,37 @@ proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
   ## than by coincidence, which is the property `withCallAnchors` exists to
   ## guarantee; if this derived them a second way, a click could disagree with
   ## the row it clicked.
-  let lines = s.calltrace.visibleLines.val
-  var probe = CallTracePane(frames: newSeq[CallFrame](lines.len))
-  for k in 0 ..< lines.len:
-    probe.frames[k].depth = lines[k].depth
-  withCallAnchors(probe)
-  let i = frameOfAnchor(probe.frames, anchor)
+  # THE ANCHOR IS RESOLVED OVER THE HELD ROWS, by each row's logical address
+  # (`CalltraceVM.rowAddress`, codetracer Shared-DOM-Front-Ends D10) -- the
+  # same call path this page's row links are built from (`rowLinksFor`) and
+  # the static export numbers its rows by. It used to be re-derived here from
+  # `visibleLines`' depths, which numbers paths from the first VISIBLE row: a
+  # viewport window that does not start at the root (nine rows around step 59
+  # on the deep capture) numbered every frame wrongly, so no link's anchor ever
+  # matched and every landing fell back to the position's frame.
+  #
+  # The paths are computed ONCE over the held rows (`callPathsOf`, the function
+  # `rowAddress` itself numbers by): `rowAddress(row)` recounts the prefix up
+  # to its row on every call, so asking it row by row made this quadratic in
+  # the rows held, on a proc the landing calls on every render until its frame
+  # is found.
+  let held = s.store.calltrace.lines.val
+  let paths = callPathsOf(held)
+  var i = -1
+  for row in 0 ..< held.len:
+    var segs: seq[string]
+    for seg in paths[row]: segs.add $seg
+    if segs.len > 0 and "call:" & segs.join(".") == anchor:
+      i = row
+      break
   if i < 0:
     s.calltrace.selectEntry(none(int64))
     return false
-  # `visibleLines` is what the anchors were derived from just above, so frame
-  # `i` IS line `i`. The index is read off the line rather than carried on the
-  # frame because `CallFrame` has no entry index and must not grow one: it is
-  # the live ViewModel's private numbering, and putting it on the shared pane
-  # type would hand the static producer a field it can only fill with a lie.
-  if i >= lines.len: return false
+  # The index is read off the held line rather than carried on the frame
+  # because `CallFrame` has no entry index and must not grow one: it is the
+  # live ViewModel's private numbering, and putting it on the shared pane type
+  # would hand the static producer a field it can only fill with a lie.
+  let lines = held
   # THE SDK'S SETTER, AND IT COSTS 140,588 BYTES OF BUNDLE — 8% — WHICH IS
   # ACCEPTED RATHER THAN UNNOTICED.
   #

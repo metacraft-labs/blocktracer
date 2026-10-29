@@ -1418,12 +1418,26 @@ type
       ## before hydration replaced them. See `servedLandingAnchor` for why the
       ## index cannot be carried instead.
     frameSeeded: bool
-      ## Whether the landing's call-trace selection has been written.
+      ## Whether the landing's call-trace selection is settled.
       ##
       ## Once, and only once: `selectLandingFrame` re-derived on every stop
       ## would overwrite a frame the visitor chose with the innermost frame at
       ## that coordinate, which is the collision `Click-Navigation.md` §2.2
       ## says a coordinate cannot decide.
+      ##
+      ## "Once" is once the LINK'S frame is selected, not once anything is. The
+      ## first render with rows can come before the landing seek: the window
+      ## then holds the entry frames, the link's anchor is not among them, and
+      ## the position fallback marks a step-1 frame. Settling there marked
+      ## that frame for good — on the deep capture all six links sharing step
+      ## 59 arrived at `enqueued-call-0` (journey 26, read off the shared Call
+      ## Trace view). So a link that names a frame keeps being resolved on
+      ## each render until its anchor is found, or until the visitor selects a
+      ## frame (`seededEntry`); a link that names none settles at once.
+    seededEntry: Option[int64]
+      ## The selection this page last wrote while settling the landing. A
+      ## different `selectedEntry` means the visitor chose a frame, which ends
+      ## the settling: the page never overwrites a visitor's choice.
     breakpoints: BreakpointSet
       ## The lines the visitor has marked, and the ONLY copy of them on this
       ## page that anything reads.
@@ -1758,7 +1772,16 @@ proc paint(h: Hydration) =
   # session whose phase moved was left with its controls never enabled.
   if h.session.calltrace.isNil: return
   if not h.frameSeeded and h.session.calltrace.visibleLines.val.len > 0:
-    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)
+    let selected = h.session.calltrace.selectedEntry.val
+    if h.seededEntry.isSome and selected != h.seededEntry:
+      h.frameSeeded = true    # the visitor chose a frame; keep it
+    else:
+      let named = h.landingAnchor.len > 0 and
+        h.session.selectCalltraceFrame(h.landingAnchor)
+      if not named:
+        discard h.session.selectLandingFrame("")
+      h.seededEntry = h.session.calltrace.selectedEntry.val
+      h.frameSeeded = named or h.landingAnchor.len == 0
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
   # THE MARKS GO ON HERE, INSIDE THE RENDER, and that placement is the whole
   # reason they survive.
