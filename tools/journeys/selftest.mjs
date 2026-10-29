@@ -230,21 +230,12 @@ const ARMS = [
     journey: "stepping-moves-the-position",
     assertion: "the session's reported step advanced",
   },
-  {
-    id: "J/the-locals-reply-is-discarded-again",
-    why:
-      "Throw the ct/load-locals reply away, which is what the pinned Embed SDK's" +
-      " own `requestLocals` does: it sends the request and drops the response" +
-      " through a private `onComplete` wrapper written to discard the result" +
-      " value. That is the defect journey 11 exists for, and it is the one shape" +
-      " of it a row count cannot see — the pane keeps saying something, every" +
-      " step keeps moving the position, and the values never change.",
-    file: join(CLIENT, "hydrate", "live_locals.nim"),
-    find: `feed.store.updateLocals(variablesOf(body))`,
-    replace: `feed.store.updateLocals(variablesOf(newJObject()))`,
-    journey: "a-stepped-session-shows-the-values-it-is-at",
-    assertion: "the values the pane shows change as the session moves",
-  },
+  // `J/the-locals-reply-is-discarded-again` MOVED TO CODETRACER, 2026-10-29. The code it mutated
+  // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
+  // was removed when the live session became the Embed SDK's
+  // DebuggerSession; the job is the SDK's now, so the claim is graded
+  // there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm J — `sdk/stop_loader.loadLocals` throws the `ct/load-locals` answer away — killed by test_stop_loader "one stop issues the locals once; a closed pane's load is not issued".
   {
     id: "K/the-served-values-stand",
     why:
@@ -262,40 +253,12 @@ const ARMS = [
     journey: "a-stepped-session-shows-the-values-it-is-at",
     assertion: "no reading of the Values pane is the SERVED frame's values",
   },
-  {
-    id: "L/the-value-kind-is-misread",
-    why:
-      "Render one wire kind as the empty string. The engine's `Value` is a flat" +
-      " tagged record whose `kind` is a NUMERIC ordinal, and getting one wrong" +
-      " produces rows with names, types and no values — which every count of the" +
-      " pane survives. This is a mistake with a precedent in the tree rather than" +
-      " a hypothetical: the pinned SDK's `headless_session.nim` lists the ordinals" +
-      " in a comment and six of the ten are wrong, so a parser written by copying" +
-      " it renders every string, bool, char, array and tuple exactly this way.",
-    file: join(CLIENT, "hydrate", "live_locals.nim"),
-    find: `  of tkInt: node{"i"}.getStr("")`,
-    replace: `  of tkInt: ""`,
-    journey: "a-stepped-session-shows-the-values-it-is-at",
-    // THE *REAL* ARM, AND THE MUTATION ONLY REACHES THAT ONE. This named the
-    // synthetic arm's copy of the claim — "every row the pane draws carries
-    // both a name and a value" — and SURVIVED on CI run 38918156174, shard 8.
-    //
-    // Not because the assertion is weak: because no value it quantifies over
-    // is an integer. MEASURED by asking the engine for the locals of both
-    // subjects this journey drives and reading `value.kind` off the wire:
-    //
-    //   demo  `kc5nqr…`  kind 0 (Seq), 12 (Bool), 9 (String)
-    //   chain `um3w46…`  kind 7 (INT), 9 (String)
-    //
-    // `tkInt` is 7, so blanking it changes nothing a demo-only walk can see,
-    // and the one surface that would see it is the chain capture — whose
-    // `contextId` is an integer. The claim is made there too, a few lines
-    // down, under the "REAL: " prefix this file's own ambiguity note warns
-    // about. Pointing the arm at that copy is the whole repair; the two
-    // strings are not substrings of each other, so the match stays exactly
-    // one.
-    assertion: "REAL: every row carries both a name and a value",
-  },
+  // `L/the-value-kind-is-misread` MOVED TO CODETRACER, 2026-10-29. The code it mutated
+  // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
+  // was removed when the live session became the Embed SDK's
+  // DebuggerSession; the job is the SDK's now, so the claim is graded
+  // there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm L — `json_adapter.toPValue` reads an Int from the wrong field — killed by "an Int local is drawn with its value".
   {
     id: "C/phase-renamed",
     why:
@@ -373,6 +336,7 @@ const ARMS = [
   {
     id: "M/the-calltrace-reply-is-discarded-again",
     why:
+      "RE-AIMED 2026-10-29. `live_navigation.nim`, which this arm used to mutate, was deleted when the live session became the Embed SDK's DebuggerSession. The session view now takes its call trace from one assignment in `session_project`; replacing it with an empty pane discards the engine's answer for the REAL subject the way dropping `updateCalltraceSection` did." +
       "Drop the `ct/updated-calltrace` payload on the floor, which is exactly what" +
       " the pinned store does with it: `requestCalltraceSection`'s `onComplete` takes" +
       " no response argument and only sets `loadingState` idle, and" +
@@ -415,9 +379,9 @@ const ARMS = [
       " against 6. With the reply discarded the pane holds exactly the row set" +
       " the exporter wrote, which is the defect stated as an equality. Same" +
       " shape as arm O's CONTROL, per region instead of over the union.",
-    file: join(CLIENT, "hydrate", "live_navigation.nim"),
-    find: `  feed.store.updateCalltraceSection(`,
-    replace: `  if false: feed.store.updateCalltraceSection(`,
+    file: join(CLIENT, "hydrate", "session_project.nim"),
+    find: `  result.calltrace = projectCalltrace(s.calltrace, base.traceContentHash)`,
+    replace: `  result.calltrace = CallTracePane(costLabel: "ACIR")`,
     journey: "a-jump-moves-the-position",
     assertion: "REAL: the CALL TRACE is the engine's answer, not the row set the export shipped",
   },
@@ -442,6 +406,7 @@ const ARMS = [
   {
     id: "O/the-export-answers-for-the-live-path",
     why:
+      "RE-AIMED 2026-10-29. `live_navigation.nim`, which this arm used to mutate, was deleted when the live session became the Embed SDK's DebuggerSession; the engine's call trace now reaches the page only through `session_project.projectCalltrace`, whose frames decide whether the shared view is mounted at all. Projecting no frames leaves the pane holding the rows the exporter wrote, which is the state this arm exists for." +
       "Ignore BOTH navigation events, so the panes fall back to whatever the static" +
       " export drew. On the demo chain that is 12 call-trace rows and 8 event rows —" +
       " a full, plausible, clickable pane that no engine reply touched. This is the" +
@@ -463,9 +428,11 @@ const ARMS = [
       " with the call trace showing the exporter's rows. The control now asks each" +
       " region against its OWN served baseline and requires BOTH, which is the" +
       " same repair arm M's reading forced on the real assertion one screen down.",
-    file: join(CLIENT, "hydrate", "live_navigation.nim"),
-    find: `  if feed == nil or event == nil or event.kind != JObject: return`,
-    replace: `  if true: return`,
+    file: join(CLIENT, "hydrate", "session_project.nim"),
+    find: `  for line in vm.visibleLines.val:
+    result.frames.add CallFrame(`,
+    replace: `  for line in vm.visibleLines.val[0 ..< 0]:
+    result.frames.add CallFrame(`,
     journey: "a-jump-moves-the-position",
     assertion: "CONTROL: the navigation rows are the engine's, not the export's",
   },
@@ -687,62 +654,24 @@ const ARMS = [
     journey: "a-step-repaints-only-what-it-changed",
     assertion: "no painted frame showed an empty Values pane at a position that has values",
   },
-  {
-    id: "VD1/the-mark-follows-the-selection-again",
-    why:
-      "Restore `changed: vm.selectedPath.val == v.name` — the projection that" +
-      " shipped. It is a different fact wearing this one's name: the pane's only" +
-      " colour said 'selected' while its stylesheet said 'changed'. The arm is the" +
-      " reason the verdict is an equality of sets rather than 'a highlight class is" +
-      " present', because with this in place a class IS present, on a row, on every" +
-      " position — and it is on the wrong row.",
-    file: join(CLIENT, "hydrate", "session_project.nim"),
-    find: `      changed: diff == dvChanged,`,
-    replace: `      changed: vm.selectedPath.val == v.name,`,
-    journey: "a-motion-says-which-values-it-changed",
-    // AIMED AT THE CHAIN ARM, and that is a finding rather than a preference.
-    // The source-level walk changes no value in place — every mark it produces
-    // is a name arriving — so the identical SOURCE-LEVEL assertion quantifies
-    // over an empty set and this mutation SURVIVED it. It did so correctly, and
-    // the journey now prints the size of the set each arm judged so the zero is
-    // legible. A rung-3 capture reports the machine's own state, whose rows
-    // persist and change a few at a time, so it is the arm where "a changed
-    // value must be marked" has subjects.
-    assertion: "CHAIN: every row whose value differs from the previous position carries a mark",
-  },
-  {
-    id: "VD2/every-value-is-marked-changed",
-    why:
-      "Mark every value that was in scope at the previous position, whether or not" +
-      " it changed. A blanket highlight passes 'the highlight is present', passes" +
-      " 'a marked row is on screen', and passes any step on which everything" +
-      " happened to change — which is why the verdict is taken on a MIXED step and" +
-      " compares two sets. This arm is that argument made falsifiable.",
-    file: join(CLIENT, "hydrate", "live_locals.nim"),
-    find: `      return if prior.value == value: dvUnchanged else: dvChanged`,
-    replace: `      return dvChanged`,
-    journey: "a-motion-says-which-values-it-changed",
-    assertion: "on every mixed step the marks are on exactly the values that changed",
-  },
-  {
-    id: "VD3/an-arrival-reads-as-a-change",
-    why:
-      "Collapse 'this name was not in scope where you came from' into 'this value" +
-      " changed'. Both are true statements about a motion and they are not the same" +
-      " statement: a reader told a value CHANGED goes looking for what it changed" +
-      " from, and on a step into a call there is nothing to find. The arm is" +
-      " surgical — every changed/unchanged assertion stays green, because the only" +
-      " rows it misdescribes are the ones that arrived.",
-    file: join(CLIENT, "hydrate", "live_locals.nim"),
-    find: `  dvAppeared
-
-proc noteFor*`,
-    replace: `  dvChanged
-
-proc noteFor*`,
-    journey: "a-motion-says-which-values-it-changed",
-    assertion: "a name that was not in scope at the previous position is marked as arriving, not as changed",
-  },
+  // `VD1/the-mark-follows-the-selection-again` MOVED TO CODETRACER, 2026-10-29. The code it mutated
+  // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
+  // was removed when the live session became the Embed SDK's
+  // DebuggerSession; the job is the SDK's now, so the claim is graded
+  // there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm VD1 — `StateVM.isChanged` follows the selection — killed by "the changed mark follows the value, not the selection".
+  // `VD2/every-value-is-marked-changed` MOVED TO CODETRACER, 2026-10-29. The code it mutated
+  // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
+  // was removed when the live session became the Embed SDK's
+  // DebuggerSession; the job is the SDK's now, so the claim is graded
+  // there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm VD2 — `value_changes.diffAt` marks every value present at the anchor — killed by "an unchanged value is not marked changed".
+  // `VD3/an-arrival-reads-as-a-change` MOVED TO CODETRACER, 2026-10-29. The code it mutated
+  // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
+  // was removed when the live session became the Embed SDK's
+  // DebuggerSession; the job is the SDK's now, so the claim is graded
+  // there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm VD3 — `value_changes.diffAt` records an arrival as a modification (drawn alike by design; the model keeps the distinction) — killed by "a name new in scope is recorded as added, not modified".
   {
     id: "O3/an-unexplained-absence",
     why:
@@ -1613,52 +1542,19 @@ proc noteFor*`,
   // the arm that would have proved journey 18 could see it is exactly the arm
   // that proves journey 18 cannot. Journey 19 exists because of it.
 
-  {
-    id: "F1/an-overlay-of-names-with-no-values",
-    why:
-      "Render every recorded value as the empty string. The overlay keeps its shape" +
-      " — the right labels, in the right places, on the right lines — and says" +
-      " nothing. This is not hypothetical: `live_locals`' own header records that" +
-      " the pinned SDK's `extractValueText` has the wrong ordinal for seven of" +
-      " eleven kinds and renders every string, bool, char, array and tuple as the" +
-      " empty string, which is why the ordinals here were derived against the" +
-      " engine rather than borrowed. A count cannot see it.",
-    // A KIND THIS JOURNEY'S SUBJECT ACTUALLY RENDERS. This blanked `tkInt`
-    // and SURVIVED on CI run 38918156174, shard 5 — not because the overlay
-    // is unguarded but because nothing it draws is an integer. Measured by
-    // asking the engine for the locals of the capture this journey walks and
-    // reading `value.kind` off the wire: kind 0 (Seq), 12 (Bool), 9 (String),
-    // and `tkInt` is 7.
-    //
-    // `tkString` is the kind the overlay draws most of, and it is present on
-    // both this subject and the chain captures. Blanking it is the same
-    // defect class the `why` above describes — a mis-read ordinal rendering a
-    // whole kind as the empty string — aimed at a value the overlay puts on a
-    // line. `L/the-value-kind-is-misread` keeps `tkInt`, against the Values
-    // pane's chain arm where integers do appear, so the two arms stay
-    // distinct defects rather than one mutation named twice.
-    file: join(CLIENT, "hydrate", "live_locals.nim"),
-    find: `  of tkString: "\\"" & node{"text"}.getStr("") & "\\""`,
-    replace: `  of tkString: ""`,
-    journey: "a-stepped-session-shows-the-values-recorded-on-its-lines",
-    assertion: "every value label carries a value and not just a name",
-  },
+  // `F1/an-overlay-of-names-with-no-values` MOVED TO CODETRACER, 2026-10-29. The code it mutated
+  // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
+  // was removed when the live session became the Embed SDK's
+  // DebuggerSession; the job is the SDK's now, so the claim is graded
+  // there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm F1 — `flow_vm.flowValueOf` draws a recorded string blank — killed by "a recorded string is drawn with its text".
 
-  {
-    id: "F2/the-engine-window-never-reaches-the-pane",
-    why:
-      "Refuse every parsed window where the projection asks for it. The session still" +
-      " asks, the engine still answers, the answer is still parsed — and the pane" +
-      " falls back to the loop rail with no values, which is EXACTLY the state `dev`" +
-      " was in before this work and exactly the state a visitor reported. The arm" +
-      " proves the overlay on screen is the live one and not the exporter's, which" +
-      " is the one thing a presence check cannot establish.",
-    file: join(CLIENT, "hydrate", "live_flow.nim"),
-    find: `  feed != nil and feed.window.steps.len > 0`,
-    replace: `  feed != nil and feed.window.steps.len > 0 and false`,
-    journey: "a-stepped-session-shows-the-values-recorded-on-its-lines",
-    assertion: "a live session is given a values overlay at all",
-  },
+  // `F2/the-engine-window-never-reaches-the-pane` MOVED TO CODETRACER, 2026-10-29. The code it mutated
+  // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
+  // was removed when the live session became the Embed SDK's
+  // DebuggerSession; the job is the SDK's now, so the claim is graded
+  // there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm F2 — `flow_vm.applyFlowUpdate` refuses every window — killed by test_stop_loader "one stop asks for its flow window once, and the window is adopted".
 
   // A THIRD ARM WAS TRIED AND WITHDRAWN TOO — `flow_view.applyFlow`'s rule 1,
   // `if pane.availability != srcSourceLevel: return`, aimed at what is now the
@@ -1717,43 +1613,12 @@ proc noteFor*`,
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "and each control names the origin it would trace to",
   },
-  {
-    id: "R/the-landing-position-is-never-asked-about",
-    why:
-      "Remove the re-issue of the locals request at the position the session LANDS" +
-      " on. This is the defect exactly as it shipped, not an analogue of it: the" +
-      " request `StateVM`'s effect issues at construction is dropped before the" +
-      " worker exists and stays pending, the one store write that would re-run that" +
-      " effect happens BEFORE `goLive` clears the tracker so its send is skipped as" +
-      " a duplicate, and every write after the clear names the same coordinate and" +
-      " changes no signal. The pane then says 'Reading the values at this position…'" +
-      " for as long as the tab is open, and one step repairs it — which is why" +
-      " journeys 11, 16 and 18 were green through it for a week: every one of them" +
-      " steps before it reads, and journey 11's landing reading accepts any" +
-      " sentence, so a pane that never stops promising satisfied the check written" +
-      " to catch a pane that says nothing.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  h.session.requestLandingLocals()`,
-    replace: `  discard  # MUTATED: the landing locals request is not issued`,
-    journey: "a-session-shows-the-values-it-landed-on",
-    // THE EQUALITY CANNOT SEE THIS DEFECT, AND THE NON-VACUITY CONTROL CAN.
-    //
-    // This named "the Values pane at the landing position says what it says on
-    // returning to it" and SURVIVED on CI run 38918156174, shard 8. Remove
-    // `requestLandingLocals()` and the landing has no values until the visitor
-    // steps — so the landing reading is empty, the returned reading is empty,
-    // and an equality over two empty sets is satisfied. The assertion is
-    // correct and simply cannot be the one that sees this: it compares two
-    // readings, and the mutation empties both.
-    //
-    // The journey already carries the reading that can. Unmutated it counts
-    // four: "at least one session paints Values rows at the position it landed
-    // on, before any motion" — which is the arm's own title stated as a
-    // verdict, and which the mutation takes to zero by construction.
-    assertion:
-      "at least one session paints Values rows at the position it landed on, " +
-      "before any motion",
-  },
+  // `R/the-landing-position-is-never-asked-about` MOVED TO CODETRACER, 2026-10-29. The code it mutated
+  // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
+  // was removed when the live session became the Embed SDK's
+  // DebuggerSession; the job is the SDK's now, so the claim is graded
+  // there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm R — `stop_loader.follow` takes the landing stop as already loaded — killed by "a loader that starts following at a stop asks about that stop".
   {
     id: "S/the-file-list-unfolds-in-place",
     why:
