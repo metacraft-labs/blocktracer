@@ -873,7 +873,6 @@ INERT class inactive-trace
 INERT class inactive-dialog
 INERT class expandable-value
 INERT class expandable-child
-INERT class 100-
 INERT class value-expanded-atom
 INERT class atom-even
 INERT class atom-odd
@@ -916,8 +915,45 @@ INERT class ct-hscrubber-thumb
     would come back with a mounted view that does.
 
 INERT id dialog
-INERT class expanded
+INERT class expanded-0
+INERT class expanded-1*
+INERT class expanded-2*
+INERT class expanded-3*
+INERT class expanded-4*
+INERT class expanded-5*
+INERT class expanded-6*
+INERT class expanded-7*
+INERT class expanded-8*
+INERT class expanded-9*
 INERT class edit
     Names the port's rules use that the mounted views do not write as these
-    selectors: no `#dialog`, and no `.expanded` or `.edit` class (the bundle carries the words, as text, which is not class
+    selectors: no `#dialog`, and no `.edit` class (the bundle carries the words, as text, which is not class
     evidence). They belong to desktop panes this page does not mount.
+
+    The bare `class expanded` row that stood here is GONE rather than kept,
+    and its absence is the evidence: `.expanded` is a Stylus parent block with
+    no declarations of its own, so a correct port emits no rule for it. It was
+    only ever reachable as wreckage.
+
+    TEN ROWS AND NOT ONE `expanded-*`, which is what this first said: that
+    glob also swallows `expanded-call-args`, which has a row of its own, and
+    the register requires exactly one row per selector. `*` is the only
+    metacharacter, so the rows are anchored on the first DIGIT — nothing
+    generated is `expanded-c…`, and together they cover 0 through 100.
+
+    These are the 101 rules `calltrace.styl:665` generates with
+    `for i in 0..100`, and it is listed here because of what it REPLACED. The
+    loop was not expanded at all: the port emitted one rule selected by
+    `.expanded for i in 0..100-{i}` — the loop header flattened into a
+    selector, `{i}` unresolved, `margin-left:0.625em * i` inside it. That
+    reached production. Two rows of this register, `class 100-` and the
+    `class expanded` above, were that wreckage read back as class names, so
+    the register was describing the defect as though it were the design.
+
+    The rules are now emitted as upstream emits them, and are INERT for the
+    ordinary reason: CodeTracer writes `expanded-<n>` as an element ID keyed
+    on a source line (`renderer.nim:607`), not as a depth class, so no
+    `.expanded-N` CLASS is written by the views this page mounts. Correcting
+    the port therefore changed what the stylesheet SAYS and not what the page
+    looks like — worth stating plainly, because a reader could otherwise read
+    the fix as a visual one.
