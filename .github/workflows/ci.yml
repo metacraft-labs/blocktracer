@@ -1006,7 +1006,7 @@ jobs:
         run: node tools/chain/solana-producer-selftest.mjs
 
       - name: Is every abstraction DEL-7 extracted reached by two chains?
-        # 36 assertions, host-independent: every arm is offline and needs only node.
+        # 33 assertions, host-independent: every arm is offline and needs only node.
         #
         # Chain-Delivery DEL-7's `test_every_abstraction_has_two_consumers`. Each export of
         # `lib/producer-runtime.mjs` is counted by the producers' and facts modules' own
