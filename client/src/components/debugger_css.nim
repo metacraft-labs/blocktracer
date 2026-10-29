@@ -801,7 +801,13 @@ a.lm_title{display:block;line-height:inherit}
   font-size:inherit;font-weight:600;
   color:var(--bt-text-default);
   padding:0 var(--bt-space-xs);
-  border:none;border-radius:var(--bt-radius-xs);
+  /* THE PANEL TAB'S CORNERS, not a pill. `--bt-radius-xs` (4px, all four)
+     left the source tabs reading as standalone chips while every panel tab
+     beside them is a tab — rounded on top and square where it meets the
+     surface below. Measured in Chromium against the served page: `.lm_tab`
+     computes `6px 6px 0px 0px`, and these sit in exactly the same
+     relationship to the body under them. `--bt-radius-sm` is that 6px. */
+  border:none;border-radius:var(--bt-radius-sm) var(--bt-radius-sm) 0 0;
   background:var(--bt-surface-sunken);
   transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 [data-register="debugger"] .srctab.ct-tab:hover:not([data-selected="true"]){
