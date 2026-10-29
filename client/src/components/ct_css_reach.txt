@@ -326,7 +326,6 @@ LIVE class value-components-container bundle
 LIVE class state-component bundle
 LIVE class isonim-state bundle
 LIVE id gdb-evaluate bundle
-LIVE class state-tabs bundle
 LIVE class loading-indicator bundle
 LIVE class value-view bundle
 LIVE class code-state-arrow bundle
@@ -345,11 +344,20 @@ LIVE class history-location bundle
 LIVE class history-value bundle
 LIVE class value-changed bundle
 LIVE class border-value-* bundle
+LIVE class variables-toolbar bundle
+LIVE class hide-other-process-watches bundle
+LIVE class watch-invalid bundle
+LIVE class watch-pending bundle
     THE SHARED STATE VIEW, MOUNTED BY THE LIVE BUILD, for the reason the call
     trace rows above give: `renderStatePanel` from `views/isonim_state_view.
     nim`, in `hydrate.js` only. `border-value-*` is a pattern because the view
     writes `"border-value-" & depth`; the bundle carries the prefix, and the
-    port emits the depths `state.styl` draws.
+    port emits the depths `state.styl` draws. The four rows above
+    `border-value-*`'s reason came with the Embed SDK pin at c0408ecad: the
+    view's variables toolbar, its "hide other processes' watches" toggle and
+    a watch's invalid and pending states, which that `state.styl` styles and
+    the view writes. `state-tabs` left with the same re-vendor: upstream's
+    stylesheet no longer names it and no view writes it.
 
 LIVE class eventLog bundle
 LIVE class ct-flex bundle

@@ -1,30 +1,40 @@
 {
- "format": "noir-frames-fixture-container/1",
+ "format": "aztec-replay-fixture/1",
  "tx": "0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f",
  "container": {
   "file": "ct/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.ct",
-  "bytes": 172032,
-  "sha1": "sha1:95391c45b30360fb9bdbdfb327be97a47b0facb2"
+  "bytes": 42664,
+  "sha1": "sha1:571b7e7f303a1c32b75f582a9b30253314a3b574"
  },
- "measured": {
-  "frameLogic": "aztec-avm-runtime ct-host/src/{source_map,noir_frames}.ts, imported and RUN",
-  "artifact": "npm:@aztec/protocol-contracts@5.3.0-nightly.20260819 FeeJuice",
-  "stepPositions": "aztec-avm-runtime replay/fixtures/published_snapshot_step_positions.json, decoded from the published container",
-  "pathTable": "the published container's twelve interned paths, in its own order, then the files only the frame tree reaches",
-  "containerBytes": "the real CtWriter driving the real aztec_ct_writer.wasm"
+ "producer": {
+  "runtimeCommit": "238a3a5b9fe9346868cc7fab84a8aa54513287dd",
+  "writerCommit": "051efd22b00ec3b88676fb07755a65c5a4ca8fde",
+  "avmSha256": "41af520a72939affdd9cc1287f8d61a58e216e126a11f7c824cadcc3e4b905a7"
  },
- "reconstructed": {
-  "programCounters": "the 86 positioned steps, under the smallest-candidate-greater-than-previous rule aztec-avm-runtime states and asserts is over-determined"
- },
- "notMeasured": {
-  "perStepAvmRegisters": "contextId, pc, opcode, l2Gas, daGas and contractAddress are written as ZERO. The published fixture does not carry them and this tool does not invent them. Nothing in the call-trace path reads them."
- },
+ "inputs": "fixtures/chain-inputs/aztec/1821665230/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json",
  "recording": {
+  "bytes": 42663,
+  "events": 108,
   "steps": 108,
   "callsOpened": 45,
-  "noirFramesOpened": 44,
-  "noirMaxDepth": 9,
-  "distinctNoirFunctions": 33,
-  "pathsInterned": 18
- }
+  "logEvents": 6,
+  "declaredRung": 2,
+  "distinctOpcodes": 21,
+  "contexts": 1,
+  "stepsPositioned": 86,
+  "stepsUnpositioned": 22,
+  "sourceLevel": false,
+  "contractRungs": [
+   {
+    "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+    "rung": 2,
+    "reason": "86 of 108 executed step(s) of this contract resolve to a source position; the remaining 22 are in regions the artifact's brillig_locations does not key — compiled procedures are appended after the main body (avm-transpiler transpile.rs:489,505), SOURCE-MAPPING.md section 2.4 hole 2 — first at pc 0. The artifact itself is rung 1: 314 pc(s) in [130, 1785] map to source spans over 32 file(s), and avm-transpiler re-keys brillig_locations by AVM byte offset (transpile.rs:1803), so each is a real (path, line, column)",
+    "steps": 108,
+    "positioned": 86,
+    "firstUnpositionedPc": 0,
+    "resolved": true
+   }
+  ]
+ },
+ "note": "This is the real transaction replay, including measured AVM registers and log events. It replaced the former reconstructed frame fixture on 2026-10-16 and is identical to its copy in the testnet capture."
 }

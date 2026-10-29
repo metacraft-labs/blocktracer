@@ -788,10 +788,11 @@ console.error('\n§8 — the container opens, or it does not, and the reader is 
     + 'cannot be read.\\n"); process.exit(1);\n');
   const REFUSES_V3 = refusesAt(3);
   const REFUSES_V4 = refusesAt(4);
-  // v6 discriminates the pair the other way round since the 2026-10-12 engine re-pin: the
-  // shipped engine accepts 6 and the pinned reader does not. See the rewritten
-  // H-CONTAINER-SCHEMA-SKEW block below for why the discriminator had to move.
-  const REFUSES_V6 = refusesAt(6);
+  // v7 discriminates the pair the other way round since the 2026-10-28 engine re-pin: the
+  // shipped engine accepts 7 and the pinned reader does not. (It was v6 from the 2026-10-12
+  // re-pin until then.) See the H-CONTAINER-SCHEMA-SKEW block below for why the
+  // discriminator has to move with the registry.
+  const REFUSES_V7 = refusesAt(7);
   // A refusal that names NO version — the shape the conformance template's ASCII placeholders
   // produce ("not a recognised .ct file"), which is a different measurement from v3.
   const REFUSES_NAMELESS = stub(
@@ -913,13 +914,15 @@ console.error('\n§8 — the container opens, or it does not, and the reader is 
   // refuse it now. The pair is therefore v4 and v6, and the arm that would have gone green on
   // a stale discriminator is replaced rather than relaxed. Asserted from the registry below
   // so the next set change fails here with the reason rather than passing vacuously.
+  // IT DID, ON 2026-10-28: the re-pin to the `meta.dat` 7 engine moved `shipped-engine` to
+  // `accepts: [7]`, the assertion below went red naming both sets, and the pair is now v4/v7.
   const PINNED = CONS.find((c) => c.id === 'pinned-reader');
   const SHIPPED = CONS.find((c) => c.id === 'shipped-engine');
   ck('the version each arm below picks really does separate the two consumers, read from the '
      + `registry rather than assumed — pinned-reader ${JSON.stringify(PINNED.accepts)}, `
      + `shipped-engine ${JSON.stringify(SHIPPED.accepts)}`,
      PINNED.accepts.includes(4) && !SHIPPED.accepts.includes(4)
-     && SHIPPED.accepts.includes(6) && !PINNED.accepts.includes(6));
+     && SHIPPED.accepts.includes(7) && !PINNED.accepts.includes(7));
 
   const m4Rep = JSON.parse(run([dir, '--container-reader', REFUSES_V4, '--quiet']).out);
   const s4 = skewOf(m4Rep);
@@ -927,16 +930,16 @@ console.error('\n§8 — the container opens, or it does not, and the reader is 
        s4.includes('shipped-engine@v4'));
   bite('mutation: …and does NOT skew the pinned reader, which does — so the two arms are not '
      + 'one finding wearing two names', !s4.includes('pinned-reader@v4'));
-  const m6Rep = JSON.parse(run([dir, '--container-reader', REFUSES_V6, '--quiet']).out);
-  const s6 = skewOf(m6Rep);
-  bite('mutation: the SAME tree declaring v6 instead skews the pinned reader',
-       s6.includes('pinned-reader@v6'));
+  const m7Rep = JSON.parse(run([dir, '--container-reader', REFUSES_V7, '--quiet']).out);
+  const s7 = skewOf(m7Rep);
+  bite('mutation: the SAME tree declaring v7 instead skews the pinned reader',
+       s7.includes('pinned-reader@v7'));
   bite('mutation: …and no longer skews the shipped engine — the pair moves in opposite '
      + 'directions, which one combined verdict could not report',
-       !s6.includes('shipped-engine@v6'));
+       !s7.includes('shipped-engine@v7'));
 
   // AND THE VERSION BOTH REFUSE SKEWS BOTH, which is what the published corpus now is: the
-  // 42 container-3 chain recordings are outside [4, 5] and outside [6] alike. Before the
+  // 42 container-3 chain recordings are outside [4, 5] and outside [6] (now [7]) alike. Before the
   // re-pin no version had this property, so the arm could not have been written.
   const s3 = skewOf(m3Rep);
   bite('mutation: a container declaring v3 — the published corpus\'s own version — skews BOTH '

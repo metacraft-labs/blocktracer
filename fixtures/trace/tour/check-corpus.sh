@@ -37,39 +37,21 @@
 #   fixtures/trace/tour/check-corpus.sh [id ...]
 #   fixtures/trace/tour/check-corpus.sh --selftest
 #
-# Env: NARGO, CT_PRINT — found by walking up to the sibling checkouts.
+# Env: NARGO and CT_FIXTURE_PRINT from the development shell. CT_PRINT may
+# explicitly select another compatible reader.
 
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST="${MANIFEST:-$HERE/manifest.json}"
 
-find_sibling() {
-  local rel="$1" dir="$HERE"
-  while [ "$dir" != "/" ]; do
-    if [ -e "$dir/$rel" ]; then echo "$dir/$rel"; return 0; fi
-    dir="$(dirname "$dir")"
-  done
-  return 1
-}
-NARGO="${NARGO:-$(find_sibling noir/target/release/nargo || true)}"
-CT_PRINT="${CT_PRINT:-$(find_sibling codetracer-trace-format-nim/ct-print || true)}"
-
-# THE PINNED RECORDER IS THE FALLBACK, and that is what makes the pin
-# load-bearing rather than documentary. The sibling walk above finds a nargo
-# somebody BUILT; the pin names the one this corpus was recorded by. Preferring
-# the sibling keeps a developer's own build in charge, and falling back to the
-# pin means a host that has the store path — which is every host the corpus was
-# recorded on, and CI once it substitutes it — runs these checks instead of
-# skipping them. `manifest.json`'s `recorder` block is where this value comes
-# from; a bump belongs in both places.
-PINNED_NARGO="/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir/bin/nargo"
-if [ -z "${NARGO:-}" ] || [ ! -x "${NARGO:-}" ]; then
-  if [ -x "$PINNED_NARGO" ]; then NARGO="$PINNED_NARGO"; fi
-fi
+# The development shell supplies the compatible fixture recorder. A random
+# sibling build can use a different trace-format ABI, so it is not a fallback.
+NARGO="${NARGO:-}"
+CT_PRINT="${CT_PRINT:-${CT_FIXTURE_PRINT:-}}"
 
 if [ -z "$NARGO" ] || [ ! -x "$NARGO" ]; then
-  echo "no nargo found in any parent of $HERE — set NARGO=/path/to/nargo" >&2
+  echo "compatible fixture recorder missing — enter the development shell or set NARGO" >&2
   exit 2
 fi
 
@@ -181,7 +163,7 @@ run_toolchain() {
 
 # ── set 2: known failures visible in a RECORDING ───────────────────────────
 #
-# These read the vendored container rather than re-recording it, so the check is
+# These read the prepared container rather than re-recording it, so the check is
 # over the bytes the demo chain actually publishes. Needs `ct-print`, which is
 # not a build dependency of this repository — without it the checks are reported
 # as NOT RUN rather than skipped silently, because a known-failure register that

@@ -110,7 +110,9 @@ on:
           expired on 2026-10-12: it no longer holds that the engine cannot open
           those 15. The pin moved to `9f332ae0ddfabe6b…`, container {5,6} with
           all four CCP-5 loader strings present, and that engine has been
-          watched opening a compact container. What still argues for OFF is a
+          watched opening a compact container. (It moved again on 2026-10-28,
+          to `be148ba358bcddcb…`, which reads `meta.dat` 7 only; preparation
+          regenerates the demo containers at 7 to match.) What still argues for OFF is a
           product decision rather than a format one: the live bucket serves no
           `demo` chain, so turning this on ADDS a chain rather than refreshing
           one. See `client/hydrate/engine-pin.txt`'s 2026-10-12 section.
@@ -150,6 +152,30 @@ on:
           local fixture, which is this workflow's missing capability.
         type: boolean
         default: false
+      promote-generation:
+        description: >-
+          Promote a chain to a DIFFERENT generation that is already in the
+          bucket. A comma-separated `chain=generation` list, e.g.
+          `aztec=raztec00001,aztec-testnet=rtestnet0001`. Empty (the default)
+          changes nothing and this workflow behaves exactly as before.
+          REQUIRES render-over-live, because the thing it edits is the staged
+          data plane: after the sync and before the build, each named chain's
+          staged `d/<chain>/current.json` is rewritten to name the chosen
+          generation, so the render enumerates THAT generation instead of the
+          one the bucket currently points at. Without it the promotion is
+          circular — `render-over-live` enumerates from the staged pointer,
+          which names the generation already live, and carries it back out.
+          The pointer's head/finalized are DERIVED from the generation's own
+          height map (its greatest height and that height's hash), never
+          typed in, and the step refuses a generation whose `root.json` is not
+          staged. The pointer-pin step below needs no exception and gets none:
+          it pins the built tree to the STAGED pointer, which is the one this
+          step just rewrote, so the promotion propagates through it rather
+          than being caught by it. Use it to publish a full history that was
+          ingested into the bucket but never named: see
+          docs/PRODUCTION-DATA-PLANE.md §7.
+        type: string
+        default: ''
       break-stale-leases:
         description: >-
           Delete every `_leases/<chain>.lock` in the bucket before publishing.
@@ -484,6 +510,60 @@ jobs:
       # on the runner the sandbox does not and should not see. The ordinary
       # path is untouched — same `nix build .#default`, same `result` ->
       # `site` copy — so this is purely additive.
+      # ── PROMOTE A GENERATION THAT IS ALREADY IN THE BUCKET ────────────────
+      #
+      # The full history of both Aztec chains is IN the bucket and serving —
+      # every sampled block page of `raztec00001` and `rtestnet0001` answers
+      # 200 — but `current.json` names a much smaller generation, so no index
+      # links any of it. docs/PRODUCTION-DATA-PLANE.md §7a measures that.
+      #
+      # WHY THIS STEP EXISTS AT ALL, AND WHY IT IS HERE AND NOT ELSEWHERE.
+      # Neither publish mode can move a pointer on purpose. The ordinary build
+      # ingests the committed captures, which are TIP WINDOWS — 27, 49 and 26
+      # blocks — so it can only ever produce the small generation.
+      # `render-over-live` enumerates from the STAGED `d/<chain>/current.json`,
+      # which is the bucket's, which names the generation already live; it
+      # therefore re-renders exactly that window and writes the same pointer
+      # back out. The promotion is circular in both directions, and the one
+      # place the cycle can be cut is between the sync that produced the staged
+      # pointer and the build that reads it. That is exactly here.
+      #
+      # THE POINTER IS DERIVED, NEVER TYPED IN. head and finalized come from
+      # the generation's OWN height map: its greatest height, and that height's
+      # hash. A hand-written pointer is a hash nobody checked, and this
+      # workflow already refuses a tree whose pointers it cannot account for.
+      # Historic generations here are fully finalized, so finalized == head;
+      # a generation whose tip is not final is NOT promotable this way and the
+      # step says so rather than guessing a finalized height.
+      #
+      # IT REFUSES RATHER THAN SKIPS. A generation whose `root.json` is not in
+      # the staged tree, or whose height map is missing or empty, fails the
+      # step. The failure mode this avoids is the expensive one: a silent skip
+      # would render the OLD generation over a 357,000-page build and report
+      # success, and nobody would know which history they published until they
+      # browsed for it.
+      #
+      # THE PIN STEP NEEDS NO EXCEPTION, and that is worth stating because the
+      # obvious reading of it is the opposite. `Pin the live chain pointers`
+      # does not COMPARE the built pointer against the bucket's and refuse a
+      # difference — it `cp`s the staged pointer over the built one and then
+      # compares the copy, so its verdict is about whether the copy succeeded.
+      # Its pin SOURCE is `$LIVE_ORIGIN/d/<chain>/current.json`, which is the
+      # file this step just rewrote. So the promotion propagates THROUGH that
+      # step by construction. An earlier draft of this change added a relaxation
+      # list to it; that would have been code answering a problem that does not
+      # exist, which is why the mechanism is spelled out here instead.
+      - name: Promote a staged chain to another generation
+        if: ${{ inputs.render-over-live == true && inputs.promote-generation != '' }}
+        env:
+          PROMOTE: ${{ inputs.promote-generation }}
+        run: |
+          set -euo pipefail
+          LIVE_ORIGIN="${LIVE_ORIGIN:?promote-generation needs the staging step to have run}"
+          export LIVE_ORIGIN PROMOTE
+          nix develop .#ci --command node tools/deploy/promote-generation.mjs \
+            --origin "$LIVE_ORIGIN" --promote "$PROMOTE"
+
       - name: Build the site tree
         env:
           RENDER_OVER_LIVE: ${{ inputs.render-over-live }}

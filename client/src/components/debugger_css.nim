@@ -653,6 +653,16 @@ a.lm_title{display:block;line-height:inherit}
 .srcdoc.alt{display:none}
 .srcdoc.alt:target{display:flex}
 .srcdoc.alt:target ~ .srcdoc.def{display:none}
+/* A link to a LINE of an alternate document (`#L-<doc>-<n>`) selects that
+   document too. Without these two rules the line was the `:target` and its
+   document stayed `display:none`: the link arrived at an element with an
+   all-zero rect, so it did nothing a visitor could see. It used to look as if
+   it worked only while the active document happened to be the one the link
+   named — on the served frame of `/demo/tx/0xb636…/debug` it is, and once the
+   live session lands on another document it is not (measured 2026-10-29,
+   journey 23). */
+.srcdoc.alt:has(:target){display:flex}
+.srcdoc.alt:has(:target) ~ .srcdoc.def{display:none}
 /* IT NO LONGER WRAPS — IT IS ONE ROW THAT SCROLLS, AND THE OVERFLOW IS A
    DROPDOWN MENU.
 
@@ -727,14 +737,67 @@ a.lm_title{display:block;line-height:inherit}
    one was reachable. `flex:0 0 auto` and `nowrap` because a flex item in a
    scrolling row shrinks to nothing rather than overflowing by default, which
    would turn 32 tabs into 32 slivers instead of a row that scrolls. */
-.srctab{flex:0 0 auto;white-space:nowrap;
-  font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
-  font-size:var(--bt-type-label-size);color:var(--bt-text-subtle);
-  padding:var(--bt-space-3xs) var(--bt-space-xs);
-  border-radius:var(--bt-radius-xs);
-  border-bottom:var(--bt-stroke-thick) solid transparent;
+/* IT WEARS THE PANEL TAB, NOT THE RAIL, AND THAT IS THE WHOLE OF THIS RULE.
+
+   CodeTracer has TWO tab components and this strip was wearing the wrong one.
+   `components/tab.styl` (`.ct-tab`) is a RAIL — transparent box, no side or
+   top edges, a two-hairline underline carrying the state — and upstream
+   spends it on the bottom dock, `BUILD / PROBLEMS / FIND IN FILES /
+   REQUESTS`. `components/golden_layout.styl` (`.lm_tab`) is the PANEL tab,
+   and an open SOURCE FILE is one of those: upstream's editor names its
+   document `#untitled0` in an `.lm_tab`, in the same strip vocabulary as
+   `FILES`, `VCS` and `CONSTRAINTS`.
+
+   This strip names open source files, so it is the second kind. Measured on
+   the live page before this rule, against `ide.codetracer.com` measured the
+   same way: half again as tall, a lighter type weight, a mono face against a
+   sans one, and an accent pair — indigo text over an indigo underline — that
+   no `.lm_tab` in either product carries at any state. The operator's report
+   was that the source area "uses a completely different style of tabs", which
+   is exactly what those four readings say.
+
+   So the box, the type and the surface below are `.lm_tab`'s, read off the
+   served page rather than retyped from the theme: the panel tab's own height
+   token, its horizontal padding, its weight, the sunken surface, and the
+   corner that is round on all four sides at rest and square along the bottom
+   when the tab is the open one — which is how a panel tab joins the body
+   beneath it. No length is spelled here: this comment SHIPS, inlined into
+   every page, and A2 reads the emitted string.
+
+   WHAT DOES NOT COME ACROSS IS THE CONNECTOR CURVES. `.lm_tab`'s active state
+   draws two `::before`/`::after` boxes that bridge the tab to the panel, and
+   they are anchored on `.lm_stack`/`.lm_items` structure this strip does not
+   have. Importing them would mean importing that structure; the square bottom
+   corners carry the same reading without it.
+
+   `flex:0 0 auto` and `nowrap` stay, and are NOT `.lm_tab`'s `flex:1`: that
+   one stretches a handful of panel tabs across a header, while this row holds
+   up to 32 file names and SCROLLS. A flex item in a scrolling row shrinks to
+   nothing rather than overflowing by default, which would turn 32 tabs into
+   32 slivers instead of a row that scrolls.
+
+   THE SELECTOR CARRIES `.ct-tab` AND THE REGISTER, AND IT HAS TO. The class
+   stays in the markup — it is the ONLY emission of `ct-tab` in the published
+   sample, so `check-design-parity`'s "every LIVE class is emitted" reads it
+   from here and nowhere else — which means the rail's own declarations are
+   still in the cascade and still have to be answered. The component layer is
+   emitted FIRST so BlockTracer's rules can override it by being later at
+   equal specificity, and the rail is prefixed with the register, so matching
+   it takes the register plus both classes. `:not([data-selected])` on the
+   hover arm is there for the same arithmetic, not for behaviour: upstream's
+   hover arm carries two such guards and would otherwise outrank this one. */
+[data-register="debugger"] .srctab.ct-tab{flex:0 0 auto;white-space:nowrap;
+  display:flex;align-items:center;justify-content:flex-start;
+  height:var(--bt-layout-tabstrip-row-min);
+  font-family:var(--bt-font-sans),var(--bt-font-sans-fallback);
+  font-size:inherit;font-weight:600;
+  color:var(--bt-text-default);
+  padding:0 var(--bt-space-xs);
+  border:none;border-radius:var(--bt-radius-xs);
+  background:var(--bt-surface-sunken);
   transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
-.srctab:hover{color:var(--bt-text-default);background:var(--bt-surface-hover)}
+[data-register="debugger"] .srctab.ct-tab:hover:not([data-selected="true"]){
+  color:var(--bt-text-strong);background:var(--bt-surface-hover);border:none}
 /* THE ACTIVE TAB IS STICKY, AND THAT IS THE WHOLE GUARANTEE THAT THE FILE YOU
    ARE READING IS NAMED ON SCREEN.
 
@@ -781,10 +844,22 @@ a.lm_title{display:block;line-height:inherit}
    order not to cut the tab passing beneath it mid-glyph. If that need goes
    away — a tab strip that cannot overflow, or a pin that is not sticky — this
    goes with it rather than becoming a house style. */
-.srctab.on{position:sticky;left:0;right:0;z-index:1;
+/* THE OPEN TAB IS SQUARE ALONG THE BOTTOM, which is how `.lm_tab` says "this
+   one is open" and is the state this rule used to say with an indigo
+   underline instead. `--bt-mark-view` is gone from here for that reason: it
+   is an ACCENT, upstream's panel tabs carry none at any state, and it was the
+   single loudest thing making this strip read as another product's control.
+   The open tab is now the brighter label on the square-bottomed corner, which
+   is the whole of upstream's own distinction once the connector curves above
+   are set aside. */
+[data-register="debugger"] .srctab.ct-tab.on,
+[data-register="debugger"] .srctab.ct-tab[data-selected="true"]{
+  position:sticky;left:0;right:0;z-index:1;
   background:var(--bt-surface-sunken);
   box-shadow:0 0 var(--bt-space-xs) var(--bt-space-3xs) var(--bt-surface-sunken);
-  color:var(--bt-text-strong);border-bottom-color:var(--bt-mark-view)}
+  color:var(--bt-text-strong);
+  border:none;
+  border-radius:var(--bt-radius-xs) var(--bt-radius-xs) 0 0}
 /* THE TRIGGER. The checkbox is the state and the label is the control; the
    input is zero-sized rather than `display:none` because a hidden input is not
    focusable and this has to stay operable from the keyboard. Bare `0` is not a
@@ -872,8 +947,15 @@ a.lm_title{display:block;line-height:inherit}
   border:var(--bt-stroke-hairline) solid var(--bt-border-default);
   border-radius:var(--bt-radius-sm);
   box-shadow:var(--bt-elevation-overlay)}
+/* `border-bottom-color` is GONE from this rule rather than left inert: the
+   rail it used to neutralise is no longer drawn, now that the resting tab is
+   the panel tab rather than `ct-tab`. A declaration answering a property
+   nothing sets is the kind of line that outlives the rule it was written
+   against and then reads as intent. `height:auto` IS needed, though — the
+   open list is a column of rows, not a strip, and the tab now carries the
+   panel tab's fixed height. */
 .srcallt:checked ~ .srctabs > .srctab{position:static;box-shadow:none;
-  background:none;border-bottom-color:transparent;
+  background:none;height:auto;
   border-left:var(--bt-stroke-thick) solid transparent;
   border-radius:var(--bt-radius-xs);
   overflow:hidden;text-overflow:ellipsis}

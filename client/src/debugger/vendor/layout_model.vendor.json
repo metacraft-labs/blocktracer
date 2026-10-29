@@ -69,13 +69,13 @@
     "real upstream change with a diff to read."
   ],
   "upstream": "metacraft-labs/codetracer",
-  "branch": "agents",
-  "commit": "aca163924c79d9f1219ccd3c585f82f123842a27",
+  "branch": "dev",
+  "commit": "c0408ecadd28772a027168e447485863f26e9ef7",
   "files": [
     {
       "path": "src/frontend/headless_app/layout_model.nim",
       "local": "frontend/headless_app/layout_model.nim",
-      "sha256": "3b6b2e35c088e7cd45bcb5bfd575c9c90b8f9af0f3d59972f0bbbaf4336fe9b1"
+      "sha256": "9e590a9af11838f90d6f5d59fc53deaffe0aeadf6de3823ca9ac6fb784b1079d"
     },
     {
       "path": "src/common/contributed_pane_id.nim",

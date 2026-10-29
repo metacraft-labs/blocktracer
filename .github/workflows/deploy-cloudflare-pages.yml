@@ -63,7 +63,7 @@ on:
         default: "default"
         type: string
       produced-target:
-        description: "Flake package holding the chain captures the build PRODUCES rather than commits (one directory per chain). Empty: none. Handed to check-freshness.mjs record --produced, so F4 holds those containers to the build's own output."
+        description: "Flake package holding the fixture and chain recordings the build produces. Empty: none. Handed to check-freshness.mjs record --produced, so F4 holds those containers to the build's own output."
         required: false
         default: ""
         type: string

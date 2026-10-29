@@ -51,9 +51,9 @@ servable recording at all belong in the other set.
 
 ```
 manifest.json              the two sets: what each program demonstrates, and what its recording must contain
-record.sh                  re-record every container manifest.json names, from a pinned workdir
+record.sh                  regenerate Noir fixtures through the canonical preparer
 check-corpus.sh            both sets, checked against what the toolchain actually does (+ --selftest)
-<id>/<package>.ct          the recording — VENDORED, see below
+<id>/<package>.ct          the generated recording — ignored by Git
 <id>/sources/              the package: Nargo.toml, Prover.toml, src/**.nr
 toolchain/<id>/sources/    the non-recordable set — no container, by definition
 ```
@@ -109,86 +109,39 @@ writer's layout). Nine programs, and not one checked fact among them moved —
 which is the same separation `codetracer-specs`' `CTFS-Reader-Revision-Rollout`
 CRR-4 measured independently on a different recording.
 
-## Why the containers are vendored rather than built
+## Generated recordings and determinism
 
-`nargo trace` is **not byte-deterministic**. `meta.dat` carries a UUIDv7
-recording id minted when the container closes, and the embedded `workdir`
-string is wherever the recording ran. Everything else — every step, call and
-value — is identical between runs.
+The containers are ignored outputs. Tests and the site build prepare them from
+these committed source programs and prover inputs with
+`tools/fixtures/prepare-recordings.mjs`. The compatible recorder accepts a
+supplied UUIDv7 bound to each row, its sorted source/prover inputs and the
+actual recorder/compactor binaries, plus a logical working directory. Separate
+invocations produce identical bytes regardless of workspace root or producer
+selection. Its default behavior still mints fresh recording identifiers.
 
-**RE-MEASURED at the 2026-10 recorder rather than carried over**, because this
-is the whole reason the containers are committed and a figure taken against a
-retired recorder would not support it: two runs of `values` at the same producer
-produce two 77,824-byte containers that differ in **22 bytes**.
-
-The demo tree must be byte-identical for a given seed (CI generates it twice
-and diffs), so a generator that shelled out to `nargo trace` could not satisfy
-that. `record.sh` pins the workdir to `/tmp/blocktracer-tour-rec/<id>/pkg` so
-that re-recording changes only the recording id, and not also a path that names
-whoever ran it.
-
-Re-record deliberately, not on every build, and expect the ids to change.
-
-**AND THIS IS WHY THESE NINE ARE NOT MOVED TO ON-THE-FLY RECORDING.**
-`metacraft-dev-guidelines/policies/repo-requirements.md` §4.3 says a test that
-needs a recording should record it on the fly, and that is the route
-`fixtures/chain-health/readable-container` took. It is refused here by the 22
-bytes above: a non-deterministic producer cannot feed a tree that CI regenerates
-and diffs. The policy's objection is that a committed recording goes stale
-against its recorder; the answer taken here is the other one §4.3 leaves open —
-the recorder is named exactly, its re-record command is committed, and the
-corpus is re-recorded when the recorder moves. This is that re-recording.
+The demo generator consumes those prepared bytes. Its artifact identity binds
+the declared producer graph, invocation and platform, so a producer change
+cannot overwrite another producer's immutable recording address. Each program's
+execution identity also binds its sorted relative source paths and original
+Nargo/prover input bytes, so an input change receives a new artifact address.
 
 ## The recorder pin
 
-```
-nargo 1.0.0-beta.26
-noirc 1.0.0-beta.26+unknown           ← the binary self-reports `git version hash: false`
-/nix/store/ps7kg504y4hw4jns6c6ccsy5jfmmq71s-Noir   ← THE PIN
-```
+`manifest.json` declares the complete producer role. The package is maintained
+by the Noir repository at `b048e84842cc3ba55568ba7b4354a0c73709c9cc` and builds
+compiler `875ee4855112922d4526c5f3e97448386dfc76f6`, Rust trace format
+`1eae5894ce97001f4b013e50767cc2243a1ed47f`, and Nim writer
+`051efd22b00ec3b88676fb07755a65c5a4ca8fde`. Its identity-option and deterministic debug-binding-order backports are
+hashed individually and together in the manifest. It preserves the historical schema-6 writer ABI while
+the main recorder continues to follow its current format dependencies.
 
-One pin for the whole corpus: a corpus recorded by two tracers is two corpora.
-`record.sh` warns if the binary it finds is not the pinned one.
-
-**THE PIN IS A STORE PATH RATHER THAN A COMMIT, AND THAT IS NOT A WEAKENING.**
-This recorder is a Nix build and embeds no git hash — `nargo --version` answers
-`git version hash: false`, which `record.sh`'s old SHA check could not even
-parse (it extracted the two hex characters `fa` out of the word `false` and
-warned by accident). A content-addressed store path identifies the exact bytes
-that produced this corpus, which a branch SHA does not. The derivation names its
-inputs, and `manifest.json`'s `recorder` block carries all of them:
-
-| what | where |
-|---|---|
-| derivation | `/nix/store/k72k7g9g4yjlzkl5fmx3qx7z41axspya-Noir.drv` |
-| noir source | `/nix/store/c8xl12ywhj1g6761y7sljs2lx2j64ifl-source` |
-| writer source | `/nix/store/vr9mll4gqpjsxnmfqqz0yffbxjz9jvif-source` (`codetracer-trace-format-nim`, the `b8db98c` 2026-10 revision) |
-| trace-format rev | `1eae5894ce97001f4b013e50767cc2243a1ed47f` (2026-10-02), from the noir source's own `Cargo.toml` |
-
-**What IS claimed and what is not.** The writer source's
-`src/codetracer_trace_writer/meta_dat.nim` is byte-identical to the tip of the
-`codetracer-trace-format-nim` checkout whose `ct-print` reads these containers,
-so the producer and the reader are the same revision — that is measured, not
-inferred. The exact noir COMMIT is **not** claimed: the source's `Cargo.toml`
-matches noir@`875ee4855112` (*feat(tracer): record traces in the 2026-10 CTFS
-format*) and its `Cargo.lock` does not match that commit or any other one
-searched, so naming a SHA would be a guess and the store path is named instead.
-
-**Why the corpus moved off the previous pin.** At `906af2f42d` every container
-was at container version 4 / `meta.dat` schema 3, and the current reader refused
-all nine:
-
-```
-Error: meta.dat present but corrupt: meta.dat: schema version 3 is not supported;
-this reader reads version 6 only. Re-record the trace with a current recorder
-```
-
-That refusal is not a deprecation: schema 3 packed line-only step positions one
-line HIGHER than schema 4 on, both land inside the trace's own address space,
-and nothing else in the container tells them apart — so a reader that answered a
-schema-3 container would place every step one line high and report success. No
-gate widening could have reached these bytes. Re-recording was the only route,
-and it is the one `ctfs-container.md` §2 prescribes.
+The recorder writes CTFS version 6, compact profile 1, and meta.dat schema 6.
+Since 2026-10-28 the pinned replay engine reads meta.dat schema 7 only, so
+preparation regenerates each container at schema 7 (the version field and
+nothing else, verified by a full decode; `tools/fixtures/README.md`), and the
+prepared containers are CTFS version 6, compact profile 1, meta.dat schema 7. Older recorded UUID and store
+path measurements explain the former committed corpus; they are not the
+identity of this generated producer.
 
 ## What this recorder cannot do, and what the programs do about it
 
@@ -232,17 +185,13 @@ Named so a partial tour is not mistaken for a complete one:
 
 ## Re-recording
 
-```sh
-fixtures/trace/tour/record.sh            # every program manifest.json names
-fixtures/trace/tour/record.sh loops      # one
-```
-
-It finds `nargo` and `ct-print` by walking up from this directory to the
-sibling checkouts; override with `NARGO=` and `CT_PRINT=`.
-
-Verify a container by hand with:
+Inside the development shell:
 
 ```sh
-ct-print --summary fixtures/trace/tour/loops/tour_loops.ct
-ct-print fixtures/trace/tour/constraints/tour_constraints.ct | tail -5
+fixtures/trace/tour/record.sh
 ```
+
+This delegates to the canonical preparer and regenerates the complete Noir
+fixture population, including `noir_space_ship`. The development shell supplies
+`NARGO` and the compatible container compactor. A missing producer fails
+explicitly; no machine-specific store-path fallback is used.

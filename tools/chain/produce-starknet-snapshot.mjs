@@ -60,7 +60,8 @@ import {
 import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, INSTRUCTION_SET,
   INSTRUCTION_STREAM_SCHEMA, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY,
-  RECORDER, costVectorForRow, executionsForRow, l1MessageForRow, payloadForRow, rolesForRow,
+  RECORDER, VERIFICATION, costVectorForRow, executionsForRow, l1MessageForRow, payloadForRow,
+  reachReasonFor, rolesForRow,
 } from './lib/starknet-producer-facts.mjs';
 
 // WHAT THE RECORDER PROVED ABOUT A CLASS'S SOURCE, republished. A class the recorder ran
@@ -531,6 +532,8 @@ export async function main(argv) {
       // below the floor (`nodeState.belowFloor`), and the executor carries no constants
       // for any Starknet version older than the floor block's.
       floorProbe,
+      reachReason: reachReasonFor(floorProbe, newest.recorder?.executor),
+      verification: VERIFICATION,
       containerVersion: containerVersions.length === 1 ? containerVersions[0] : null,
     },
     window: {

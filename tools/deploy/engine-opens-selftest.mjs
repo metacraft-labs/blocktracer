@@ -14,10 +14,14 @@
 // engine report NOT MEASURED with the remedy — they are not counted as passed,
 // and the figure for the configuration that ran is checked exactly. A skip
 // folded into a pass is how a dark suite looks green.
+// The deliberately broken engine and tiny subject below isolate setup-error
+// handling without requiring a replay toolchain on the Node-only runner.
+// Acceptance and refusal by a real engine use actual generated recordings.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, mkdirSync, existsSync, copyFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, existsSync, copyFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { prepareRecordings } from "../fixtures/prepare-recordings.mjs";
 
 const HERE = new URL(".", import.meta.url).pathname;
 const REPO = resolve(HERE, "..", "..");
@@ -27,6 +31,7 @@ const HAVE_ENGINE = existsSync(join(ENGINE, "pkg", "db_backend.js"))
                  && existsSync(join(ENGINE, "pkg", "db_backend_bg.wasm"));
 
 const tmp = mkdtempSync(join(tmpdir(), "engine-opens-selftest-"));
+process.on("exit", () => rmSync(tmp, { recursive: true, force: true }));
 let failures = [];
 let asserted = 0;
 let notMeasured = [];
@@ -71,8 +76,13 @@ const FAKE = join(tmp, "fake-engine");
 mkdirSync(join(FAKE, "pkg"), { recursive: true });
 writeFileSync(join(FAKE, "pkg", "db_backend.js"), "export const initSync = () => {};\n");
 writeFileSync(join(FAKE, "pkg", "db_backend_bg.wasm"), "not wasm");
+// This arm judges the engine's own setup, so a missing corpus file must not
+// supply the failure it expects. The header is deliberately not a replay
+// subject; the real-engine arms below use an actual generated recording.
+const FAKE_SUBJECT = join(tmp, "subject.ct");
+writeFileSync(FAKE_SUBJECT, Buffer.from("c0de72ace206", "hex"));
 {
-  const r = run(["--engine", FAKE, join(REPO, "fixtures/trace/tour/values/tour_values.ct")]);
+  const r = run(["--engine", FAKE, FAKE_SUBJECT]);
   bite("a directory with the right file NAMES and the wrong bytes fails loudly rather than reporting every container refused",
        r.status !== 0 && !/0 opened, 1 refused/.test(r.out));
 }
@@ -104,6 +114,7 @@ if (!HAVE_ENGINE) {
   console.log("  remedy: ./client/hydrate/fetch-engine.sh client/.replay-engine-cache");
   console.log("          or ENGINE_DIR=<dir> to point at one already staged.");
 } else {
+  prepareRecordings();
   const OPENABLE = join(REPO, "fixtures/trace/tour/values/tour_values.ct");
   // ── THE REFUSED SUBJECT IS MADE HERE, NOT BORROWED FROM THE CORPUS ───────
   //
@@ -124,7 +135,8 @@ if (!HAVE_ENGINE) {
   // byte stamped to 3. The engine refuses it on the version, which is exactly
   // the axis this arm is about, and the subject cannot be repaired out from
   // under it. Byte 5 is the container version (`ctfs-container.md` §1).
-  const stubDir = mkdtempSync(join(tmpdir(), "engine-opens-selftest-"));
+  const stubDir = join(tmp, "stamped");
+  mkdirSync(stubDir);
   const REFUSED = join(stubDir, "stamped-v3.ct");
   {
     const bytes = Buffer.from(readFileSync(OPENABLE));
@@ -134,16 +146,17 @@ if (!HAVE_ENGINE) {
   {
     const r = run(["--engine", ENGINE, OPENABLE]);
     bite("a container the engine opens is reported OPENED, with both version axes",
-         r.status === 0 && /OPENED\s+container=6 meta\.dat=6/.test(r.out));
+         r.status === 0 && /OPENED\s+container=6 meta\.dat=7/.test(r.out));
   }
   {
-    // `meta.dat=6` and not 3: only the CONTAINER version is stamped, so the
-    // member still reads 6. That the two axes disagree is the point — §1c's
+    // `meta.dat=7` and not 3: only the CONTAINER version is stamped, so the
+    // member still reads 7 (6 until preparation began regenerating every
+    // container at `meta.dat` 7 on 2026-10-28). That the two axes disagree is the point — §1c's
     // rule is per FIELD, and this proves the tool refuses on the container
     // version while still reading the member's own.
     const r = run(["--engine", ENGINE, REFUSED]);
     bite("a container the engine refuses is reported REFUSED",
-         r.status === 0 && /REFUSED\s+container=3 meta\.dat=6/.test(r.out));
+         r.status === 0 && /REFUSED\s+container=3 meta\.dat=7/.test(r.out));
   }
   {
     // THE DISCRIMINATION ARM. Both subjects in one run: if the tool answered

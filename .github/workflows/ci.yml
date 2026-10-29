@@ -290,19 +290,39 @@ jobs:
           # version is pinned twice and the two must not drift.
           node-version: "22"
 
+      - name: Generate the conformance template placeholders
+        run: node tools/fixtures/template-placeholders.mjs
+
       - name: Does the asset gate bite? (existence — every reference resolves)
         # Eleven arms, each a single mutation of a synthetic publish tree, each
         # asserting that the check WRITTEN for it is the one that goes red.
         run: node tools/deploy/check-assets-selftest.mjs
 
       - name: Does the freshness gate bite? (provenance — the bytes are this commit's)
-        # Twenty-one arms. Four of them require the gate to stay GREEN over a
+        # Its controls require the gate to stay GREEN over a
         # legitimately-changed world — a new upstream engine, a new capture, a
         # capture the build produces and declares with --produced, a
         # few KB of engine drift — because a gate that reddens on a normal
         # deploy is a gate that gets switched off, and then the staleness it
         # was written for ships with it nominally in place.
         run: node tools/deploy/check-freshness-selftest.mjs
+
+      - name: Does the promotion derive the right pointer? (which HISTORY gets published)
+        # Sixteen arms. The pointer this writes is what every later reader
+        # resolves a chain through, and the publisher writes it LAST and
+        # unconditionally, so a wrong one is not a rendering bug — it renames
+        # the chain's whole history. Two arms carry the defects that would not
+        # announce themselves: the head must be the greatest height NUMERICALLY
+        # (a string max picks "9" over "10" and publishes a tip 100,000 blocks
+        # short), and an empty height map must be REFUSED rather than pointed
+        # at. Four more hold the FINALIZED height, which the first version got
+        # wrong by writing `finalized: head`: that is true of two of the three
+        # real chains and false of aztec-testnet-frames, captured at head 69,361
+        # with 69,335 finalized, so promoting it would have published "69,361 is
+        # final" about a block the capture never saw settle. The rest refuse
+        # malformed pairs, because `chain=` and `=gen` both parse to something
+        # under a looser reading.
+        run: node tools/deploy/promote-generation.mjs --selftest
 
       - name: Does the engine pin bite? (identity — WHICH engine, not merely a fresh one)
         # The gate freshness could not give. `check-freshness.mjs` asks whether
@@ -755,15 +775,16 @@ jobs:
         #     a stand-in doing the same must be counted refused, and a reader that
         #     merely mentions the word error and succeeds must not.
         #   * A refused container is a finding ABOUT THE CONTAINER and the reader is
-        #     the witness, not the accused. Over this repository's corpus the refusal
-        #     holds on all 52 TRACKED containers — so a sentence that blamed the
+        #     the witness, not the accused. Historically the refusal
+        #     held on all 52 tracked containers — so a sentence that blamed the
         #     reader would read as a broken tool 52 times over and send an operator
         #     to the wrong repository. (RE-MEASURED 2026-10-04: this said "52 of the
         #     53 … every one but the version-4 subject in
         #     fixtures/chain-health/readable-container". That subject was refused too
         #     from 2026-10-01, when the reader moved to meta.dat schema 6 only, and
         #     its container is now RECORDED at test time rather than committed, so it
-        #     is not in the tracked census. The tracked 52 are unchanged.)
+        #     is not in the tracked census. Those 52 original subjects are now
+        #     generated from immutable inputs and the committed population is zero.)
         #     The arms require the finding to name the container's declared schema
         #     version as the defect, to keep the reader's own sentence, and to carry
         #     the reader's BUILD ID — its own sha256, because the reader states no
@@ -858,12 +879,11 @@ jobs:
         run: node tools/chain/yield-method-selftest.mjs
 
       - name: Does the committed `.ct` corpus census refuse a corpus that moved?
-        # 7 arms on every host, plus two more where a container reader is present.
-        # Two configurations rather than one, for `chain-health-selftest`'s reason:
-        # the version census is read from the BYTES and runs anywhere, while
-        # readability needs `ct-print`, which is not a dependency of this
-        # repository and is not built on this runner. The absent arms are reported
-        # NOT RUN and are not counted as passed.
+        # 20 arms on every host. The actual Git-index census checks that the
+        # committed population stays zero. Disposable Git-index headers exercise
+        # classification, and explicit non-empty comparison inputs exercise
+        # every detector without pretending a header is a readable container.
+        # The engine job separately executes the actual-reader configuration.
         #
         # WHY THE CENSUS IS A GATE. The committed `.ct` corpus was censused by hand
         # three times and the hand census was wrong twice: once on the POPULATION
@@ -875,13 +895,20 @@ jobs:
         # command is committed). The producer is the field that decides the remedy,
         # so getting it wrong sends the next reader to the wrong repository.
         #
-        # The perturbations are applied to the committed READING and not to the
-        # corpus, so this writes no container: `compare()` is a pure function of
-        # (reading, census), which is why it is exported and called directly.
+        # Comparison perturbations use an explicit positive non-empty reading;
+        # `compare()` is a pure function of (reading, census). Identity detection
+        # separately uses real temporary Git indexes with header-only subjects,
+        # and does not call those headers readable containers.
         #
         # Offline and toolchain-free: `git ls-files`, the bytes of files already in
         # this repository, and two committed JSON documents.
         run: node tools/chain/ct-corpus-census-selftest.mjs
+
+      - name: Are fixture recordings generated, with their complete subject population?
+        run: |
+          node tools/fixtures/check-recordings-policy.mjs
+          node tools/fixtures/check-recordings-policy-selftest.mjs
+          node tools/fixtures/prepare-recordings-selftest.mjs
 
       - name: Is the committed Ethereum JSON-RPC input set the input set it claims to be?
         # 30 assertions, host-independent: every arm is offline and needs only node.
@@ -967,9 +994,9 @@ jobs:
         run: node tools/chain/sui-producer-selftest.mjs
 
       - name: Does the Starknet producer state its chain's facts and refuse what it cannot publish?
-        # 33 assertions, host-independent: every arm is offline and needs only node.
+        # 36 assertions, host-independent: every arm is offline and needs only node.
         #
-        # The Starknet producer's three-dimension cost vector and fee, the roles each
+        # The Starknet producer's floor cause and verification sentence, its three-dimension cost vector and fee, the roles each
         # transaction type has (none for an L1 handler), the multicall payload, and the
         # producer over container-free captures: a refused era published as refusals,
         # and refusals for a missing or uncontrolled floor probe, a foreign report
@@ -1314,6 +1341,33 @@ jobs:
           substituters: ${{ vars.SUBSTITUTERS }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # ── The 55 recordings are GENERATED, not tracked ─────────────────────
+      #
+      # 647283f removed every tracked `.ct` and made each one the output of a
+      # pinned real producer, wiring `prepare-recordings` into the Justfile
+      # recipes. The three steps below do NOT go through those recipes — they
+      # invoke `nim c -r` on a test binary directly — so on a fresh checkout
+      # they ran against a tree with no recordings in it and died on the first
+      # `open`:
+      #
+      #     Error: unhandled exception: No such file or directory
+      #     Additional info: .../fixtures/trace/noir_space_ship/zk_shields.ct
+      #
+      # NOT `just prepare-recordings`, which would run the producers in-job.
+      # `packages.fixture-recordings` (flake.nix:669) is the same work as a
+      # derivation — `prepare-recordings.mjs --force` over the pinned inputs —
+      # so it comes from the binary cache after the first build instead of
+      # re-recording 55 containers on every job of every run. This is the
+      # pattern `packages.site` already uses at flake.nix:785; the `chmod` is
+      # copied from there, because store paths arrive read-only and the
+      # exporter writes beside its fixtures.
+      - name: Materialise the generated recordings these steps read
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
+          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
+
       # No Embed SDK / IsoNim / nim-everywhere checkouts: `.#ci` exports
       # CODETRACER_SRC, ISONIM_SRC and NIM_EVERYWHERE_SRC from pinned flake
       # inputs, and the codetracer input is the WHOLE tree rather than a sparse
@@ -1579,6 +1633,33 @@ jobs:
           trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
           substituters: ${{ vars.SUBSTITUTERS }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── The 55 recordings are GENERATED, not tracked ─────────────────────
+      #
+      # 647283f removed every tracked `.ct` and made each one the output of a
+      # pinned real producer, wiring `prepare-recordings` into the Justfile
+      # recipes. The three steps below do NOT go through those recipes — they
+      # invoke `nim c -r` on a test binary directly — so on a fresh checkout
+      # they ran against a tree with no recordings in it and died on the first
+      # `open`:
+      #
+      #     Error: unhandled exception: No such file or directory
+      #     Additional info: .../fixtures/trace/noir_space_ship/zk_shields.ct
+      #
+      # NOT `just prepare-recordings`, which would run the producers in-job.
+      # `packages.fixture-recordings` (flake.nix:669) is the same work as a
+      # derivation — `prepare-recordings.mjs --force` over the pinned inputs —
+      # so it comes from the binary cache after the first build instead of
+      # re-recording 55 containers on every job of every run. This is the
+      # pattern `packages.site` already uses at flake.nix:785; the `chmod` is
+      # copied from there, because store paths arrive read-only and the
+      # exporter writes beside its fixtures.
+      - name: Materialise the generated recordings these steps read
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
+          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
 
       - name: What the pinned capture environment fixes
         # Printed before anything is captured, so the run's log carries the
@@ -1859,6 +1940,33 @@ jobs:
           trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
           substituters: ${{ vars.SUBSTITUTERS }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── The 55 recordings are GENERATED, not tracked ─────────────────────
+      #
+      # 647283f removed every tracked `.ct` and made each one the output of a
+      # pinned real producer, wiring `prepare-recordings` into the Justfile
+      # recipes. The three steps below do NOT go through those recipes — they
+      # invoke `nim c -r` on a test binary directly — so on a fresh checkout
+      # they ran against a tree with no recordings in it and died on the first
+      # `open`:
+      #
+      #     Error: unhandled exception: No such file or directory
+      #     Additional info: .../fixtures/trace/noir_space_ship/zk_shields.ct
+      #
+      # NOT `just prepare-recordings`, which would run the producers in-job.
+      # `packages.fixture-recordings` (flake.nix:669) is the same work as a
+      # derivation — `prepare-recordings.mjs --force` over the pinned inputs —
+      # so it comes from the binary cache after the first build instead of
+      # re-recording 55 containers on every job of every run. This is the
+      # pattern `packages.site` already uses at flake.nix:785; the `chmod` is
+      # copied from there, because store paths arrive read-only and the
+      # exporter writes beside its fixtures.
+      - name: Materialise the generated recordings these steps read
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
+          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
 
       # As in `client-sdk`: the Embed SDK, IsoNim and nim-everywhere come from
       # the flake's pinned inputs, not from hand-rolled sibling checkouts.
@@ -2206,9 +2314,16 @@ jobs:
       # §1e at its RECOMMENDED 1 MiB raw ceiling.
       #
       # MOVED 12/43 -> 52/3 ON 2026-10-16, and it is one cause: the FORTY
-      # REMAINING container-3 recordings were re-recorded. Every `.ct` this
-      # repository commits is now container 6 / `meta.dat` 6 / profile 1, and
-      # the pinned engine opens all fifty-two.
+      # REMAINING container-3 recordings were re-recorded. The original52
+      # subjects are now generated as container6 / `meta.dat`6 / profile1,
+      # and the pinned engine opens them all; no `.ct` remains committed.
+      #
+      # UNMOVED BY THE 2026-10-28 RE-PIN, and that is the point of it. The
+      # engine moved to codetracer `cloud` c0408ecad, which reads `meta.dat` 7
+      # only; measured at blocktracer 98fa6fd, it opened 0 and refused 55 of
+      # the generated corpus (every container `meta.dat` 6). Preparation now
+      # regenerates each container at `meta.dat` 7, and the same 52 / 3 is
+      # re-measured on container6 / `meta.dat`7 / profile1 with that engine.
       #
       # THE THREE REFUSALS ARE NOW A FIXED SET and not a remainder: the
       # conformance kit's 229-byte ASCII placeholders, which are not containers
@@ -2230,6 +2345,13 @@ jobs:
           nix develop .#ci --command node tools/deploy/engine-opens.mjs \
             --engine client/.replay-engine-cache --corpus \
             --expect-opened 52 --expect-refused 3
+
+      - name: Does the census use the actual compatible reader?
+        # In addition to the base comparison controls, this executes the real
+        # producer, indexes its recording and a version-mutated refusal, and
+        # checks the reader's open/refusal attribution through census.
+        run: |
+          nix develop .#ci --command node tools/chain/ct-corpus-census-selftest.mjs
 
       # THE WORKING TREE IS NOT THE NIX BUILD, and the selftest below uses the
       # working tree.
@@ -2516,6 +2638,28 @@ jobs:
           trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
           substituters: ${{ vars.SUBSTITUTERS }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── THIS JOB REBUILDS IN THE WORKING TREE, SO IT NEEDS THE RECORDINGS ──
+      #
+      # `journeys` above does NOT, and the difference is worth stating because
+      # it is why this was missed: that job runs `nix build .#default` and
+      # drives the journeys over the built artefact, so the recordings reach it
+      # inside the derivation and its working tree never needs them.
+      # `selftest.mjs` here rebuilds the tree three times per arm — before,
+      # mutated, after — with the working-tree `static_export`, which opens
+      # `client/fixtures/chain/**/*.ct` directly.
+      #
+      # Since 647283f those are generated, not tracked, so all eight shards
+      # scored `RESULT: DID NOT RUN — the unmutated tree does not build` on
+      # `cannot open: client/fixtures/chain/aztec/ct/0x00c67f…ct`. They were
+      # invisible until now because this job `needs: journeys`, and `journeys`
+      # was red, so every shard was SKIPPED rather than failing.
+      - name: Materialise the generated recordings the mutation rebuilds read
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
+          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
 
       - name: What the pinned browser environment fixes
         run: nix run .#capture-env -- --print-pin

@@ -429,6 +429,34 @@ const arms = [
     mutateWorld: (w) => { w.fixtures = {}; return w; },
     expect: "F4",
   },
+  {
+    // A fresh checkout carries immutable inputs, while the Nix build exports
+    // the generated recordings separately. No local container can supply an
+    // accidental fallback for the declared build output in this case.
+    name: "9i F4 — generated recordings pass with no containers in the checkout",
+    setup: (w) => {
+      w.produced = Object.fromEntries(Object.entries(w.fixtures).map(([rel, body]) =>
+        [`fixture-recordings/${rel}`, body]));
+      w.fixtures = {};
+      return w;
+    },
+    also: { F4: "PASS" },
+  },
+  {
+    name: "9j F4 — generated recordings still refuse changed published bytes",
+    setup: (w) => {
+      w.produced = Object.fromEntries(Object.entries(w.fixtures).map(([rel, body]) =>
+        [`fixture-recordings/${rel}`, body]));
+      w.fixtures = {};
+      return w;
+    },
+    mutateWorld: (w) => {
+      w.built[CONTAINER] = "CTFMT0\0a changed generated recording\n";
+      return w;
+    },
+    expect: "F4",
+    also: { F1: "PASS", F2: "PASS" },
+  },
 
   // ── CCP-6: THE OBJECT AT REST IS NOT THE CONTAINER ────────────────────
   //
@@ -685,13 +713,17 @@ for (const arm of arms) {
 //
 // `approxMegabytes` is reimplemented in JS because this file cannot run Nim,
 // and a mirror without a test is two implementations waiting to disagree.
-// These seven numbers are real: the constant in replay_engine.nim as it now
-// stands (the pinned wasm, re-pinned 2026-10-12 to the first published engine
-// carrying CCP-5's compact loader), the wasm pinned before that from
+// These eight numbers are real: the constant in replay_engine.nim as it now
+// stands (the pinned wasm, re-pinned 2026-10-28 to the `meta.dat` 7 engine), the
+// wasm pinned from 2026-10-12 (the first published engine carrying CCP-5's
+// compact loader), the wasm pinned before that from
 // 2026-09-16, the one pinned until CodeTracer published `ed9aa650`, what that
 // constant said before `tools/deploy/engine-pin-selftest.mjs` reconciled it to
 // the pin, the engine blocktracer.org served on 2026-09-01, the engine
 // web-codetracer published that morning, and the older build it replaced.
+//
+// The constant moved again on 2026-10-28, 17,821,148 -> 18,049,772 (the
+// `meta.dat` 7 engine), and the old figure stays below as its own row.
 //
 // NOTE THE DIRECTION OF THE 2026-10-12 MOVE: the engine got SMALLER, 18,096,653
 // to 17,821,148. Every number here still renders "18 MB", so F5 is as blind to a
@@ -703,7 +735,8 @@ for (const arm of arms) {
 // could never have caught the constant being wrong by 163,703 bytes. That is a
 // different claim and it has its own gate now.
 const mirror = [
-  [17_821_148, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm"],
+  [18_049_772, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm (re-pinned 2026-10-28)"],
+  [17_821_148, "18 MB", "the wasm pinned from the CCP-5 re-pin until the meta.dat 7 re-pin"],
   [18_096_653, "18 MB", "the wasm pinned from 2026-09-16 until the CCP-5 re-pin"],
   [18_117_658, "18 MB", "the wasm pinned until CodeTracer published ed9aa650"],
   [18_281_361, "18 MB", "what that constant said before the pin reconciled it"],
@@ -748,4 +781,4 @@ if (failures.length) {
   process.exit(1);
 }
 console.log("check-freshness-selftest: PASS — every check in check-freshness.mjs was shown to decide, " +
-            "and the three deploys that must NOT break were shown to stay green");
+            "and legitimate deploy variations were shown to stay green");

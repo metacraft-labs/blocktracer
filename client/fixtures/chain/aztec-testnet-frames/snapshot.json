@@ -7,7 +7,7 @@
   "endpoint": "https://aztec-testnet.drpc.org",
   "recorder": {
    "id": "aztec-avm",
-   "traceSchema": "ctfs/v4"
+   "traceSchema": "ctfs/v6"
   },
   "prestateStrategy": "hydrated-from-node",
   "capturedAt": "2026-09-04T16:44:45.318Z",
@@ -44,7 +44,14 @@
     },
     "url": "http://127.0.0.1:8098"
    }
-  ]
+  ],
+  "generatedRecordings": {
+   "preparation": "tools/fixtures/prepare-recordings.mjs",
+   "runtimeCommit": "238a3a5b9fe9346868cc7fab84a8aa54513287dd",
+   "writerCommit": "051efd22b00ec3b88676fb07755a65c5a4ca8fde",
+   "inputs": "fixtures/chain-inputs/aztec",
+   "note": "Original transaction identities, outcomes and recording semantics are retained. Byte counts include the captured archive endpoint in the provenance event."
+  }
  },
  "window": {
   "tip": 69361,
@@ -422,7 +429,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592.ct",
-   "containerBytes": 116387,
+   "containerBytes": 116388,
    "l2BlockNumber": 69361,
    "preStateReadAt": 69360,
    "contractReferenceBlock": 69361,
@@ -441,7 +448,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 116387,
+    "bytes": 116388,
     "events": 459,
     "steps": 459,
     "callsOpened": 46,
@@ -687,7 +694,7 @@
     }
    ],
    "sourceBundles": "sources/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592.json",
-   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
+   "recordedBy": "238a3a5b9fe9346868cc7fab84a8aa54513287dd"
   },
   {
    "txHash": "0x0843f42e2d1624f2b0566c73e16a88265e645a7957282ce228b91bd20b07f9cf",
@@ -725,7 +732,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x0843f42e2d1624f2b0566c73e16a88265e645a7957282ce228b91bd20b07f9cf.ct",
-   "containerBytes": 42745,
+   "containerBytes": 42746,
    "l2BlockNumber": 69360,
    "preStateReadAt": 69359,
    "contractReferenceBlock": 69360,
@@ -744,7 +751,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 42745,
+    "bytes": 42746,
     "events": 169,
     "steps": 169,
     "callsOpened": 1,
@@ -826,7 +833,7 @@
      "reason": "absent-on-chain-at-parent"
     }
    ],
-   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
+   "recordedBy": "238a3a5b9fe9346868cc7fab84a8aa54513287dd"
   },
   {
    "txHash": "0x04a620e2b845ac6627d2eda7d2d8f286f4a8ee727f8f6990e7b34218a9fbbfb8",
@@ -864,7 +871,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x04a620e2b845ac6627d2eda7d2d8f286f4a8ee727f8f6990e7b34218a9fbbfb8.ct",
-   "containerBytes": 79676,
+   "containerBytes": 79677,
    "l2BlockNumber": 69358,
    "preStateReadAt": 69357,
    "contractReferenceBlock": 69358,
@@ -883,7 +890,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 79676,
+    "bytes": 79677,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -969,7 +976,7 @@
      "reason": "emitted-by-this-transaction"
     }
    ],
-   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
+   "recordedBy": "238a3a5b9fe9346868cc7fab84a8aa54513287dd"
   },
   {
    "txHash": "0x00689495de42670d932a5722e480f6bd7513825e27ecfc73065346060197285d",
@@ -1007,7 +1014,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x00689495de42670d932a5722e480f6bd7513825e27ecfc73065346060197285d.ct",
-   "containerBytes": 174195,
+   "containerBytes": 174196,
    "l2BlockNumber": 69357,
    "preStateReadAt": 69356,
    "contractReferenceBlock": 69357,
@@ -1026,7 +1033,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 174195,
+    "bytes": 174196,
     "events": 790,
     "steps": 790,
     "callsOpened": 2,
@@ -1141,7 +1148,7 @@
      "reason": "emitted-by-this-transaction"
     }
    ],
-   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
+   "recordedBy": "238a3a5b9fe9346868cc7fab84a8aa54513287dd"
   },
   {
    "txHash": "0x2a9eb99835b8ab098bd9880bbba92ebf840e251d9c44c51eb737ceb032490863",
@@ -1179,7 +1186,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x2a9eb99835b8ab098bd9880bbba92ebf840e251d9c44c51eb737ceb032490863.ct",
-   "containerBytes": 79676,
+   "containerBytes": 79677,
    "l2BlockNumber": 69347,
    "preStateReadAt": 69346,
    "contractReferenceBlock": 69347,
@@ -1198,7 +1205,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 79676,
+    "bytes": 79677,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -1284,7 +1291,7 @@
      "reason": "emitted-by-this-transaction"
     }
    ],
-   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
+   "recordedBy": "238a3a5b9fe9346868cc7fab84a8aa54513287dd"
   },
   {
    "txHash": "0x1f9b05bbd01097f9585afa11a60950823815ef587fe30e5b0cfabf58eacdf98f",
@@ -1398,7 +1405,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x27e48c9c66661851a5437df2a8b8155877af1f1ceb34c2407f66fa7789f09b14.ct",
-   "containerBytes": 79676,
+   "containerBytes": 79677,
    "l2BlockNumber": 69336,
    "preStateReadAt": 69335,
    "contractReferenceBlock": 69336,
@@ -1417,7 +1424,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 79676,
+    "bytes": 79677,
     "events": 345,
     "steps": 345,
     "callsOpened": 1,
@@ -1503,7 +1510,7 @@
      "reason": "emitted-by-this-transaction"
     }
    ],
-   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
+   "recordedBy": "238a3a5b9fe9346868cc7fab84a8aa54513287dd"
   }
  ],
  "captures": [

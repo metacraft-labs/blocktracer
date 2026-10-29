@@ -28,6 +28,9 @@
 ## `blockPath` — the real contract derivations, the same ones the producer and the
 ## validator call — rather than against strings written out here, because a test
 ## spelling the layout itself would pass while the layout drifted.
+## Index cases construct shard bytes with the real `encodeHashShard` codec and
+## read them with the shipping probe planner and scanner. These are pure codec
+## inputs, not mocked fetches; the browser journey covers the published tree.
 ##
 ## What is NOT tested here is the DOM and the fetching, which is the other side of
 ## the module's stated split and needs a browser.
@@ -295,7 +298,7 @@ suite "the index path still works, and is unchanged by the encoding":
 
   test "AN AMBIGUOUS QUERY PLANS TWO FETCHES — the false absence, at the seam":
     # THE DEFECT THIS ARM CLOSES. `addr1` + 38 `q`s is 43 characters: inside
-    # base58's 43–44 band, written entirely in base58's alphabet, and carrying
+    # base58's 32–44 band, written entirely in base58's alphabet, and carrying
     # bech32's `addr1` human-readable part. Both members are `pathSafe`, so
     # neither is skipped, and the two payloads are the whole string and the part
     # after the last `1` — shards `addr` and `qqqq`.
@@ -504,7 +507,7 @@ suite "the index path still works, and is unchanged by the encoding":
     # ── THE CONTROL, so the widening did not simply stop filtering. ─────────────
     # A producer declaring `base58` for the 48-character TON string keys the same
     # shard — `E`, `Q` and `A` are all in base58's alphabet — but 48 is outside
-    # base58's 43–44 and 87–88 bands, so the query does NOT admit base58 and the
+    # base58's 32–44 and 87–88 bands, so the query does NOT admit base58 and the
     # entry is not an answer. The shard is reached and the entry is excluded: that
     # is the false-presence filter still doing its job at the same payload.
     ck hitsEndToEnd(Ton, "base58", Ton, "eqaa") == 0
@@ -531,6 +534,41 @@ suite "the index path still works, and is unchanged by the encoding":
     let a46Probes = indexProbesOf(A46)
     ck a46Probes.len == 1
     ck a46Probes[0].encodings == @["hex", "ss58"]
+
+suite "short Solana public keys remain reachable through search":
+  test "the published System Program reaches its address page, despite its decimal reading":
+    const Address = "11111111111111111111111111111111"
+    ck shapesOf(Address) == {qsDecimal, qsEncodedId}
+    ck isHashLike(shapesOf(Address))
+    let plan = parseMeta("2|2|11").indexPlanFor(indexProbesOf(Address))
+    ck plan.requests.len == 1
+    let shard = encodeHashShard(@[HashEntry(encoding: "base58", identifier: Address,
+      chain: "solana-mainnet", kind: hkAddress)], 2)
+    var found: seq[IndexHit]
+    for req in plan.requests:
+      for reading in req.readings:
+        found.add hitsFor(shard, reading.encodings, reading.payload)
+    ck found.len == 1
+    if found.len == 1:
+      ck found[0].route == "/solana-mainnet/address/" & Address & "/"
+
+  test "the complete public-key band preserves both hex and base58 readings":
+    for length in 32 .. 44:
+      let address = "A".repeat(length)
+      ck isHashLike(shapesOf(address))
+      let probes = indexProbesOf(address)
+      ck probes.len == 2
+      var encodings: seq[string]
+      for p in probes: encodings.add p.encodings
+      ck "base58" in encodings
+      ck "hex" in encodings
+    # Ordinary block heights still cost no request. Adjacent lengths are not
+    # admitted as base58 public keys by the widened band.
+    ck shapesOf("68231") == {qsDecimal}
+    ck indexProbesOf("68231").len == 0
+    for length in [31, 45]:
+      for p in indexProbesOf("A".repeat(length)):
+        ck "base58" notin p.encodings
 
 suite "a Flow account address resolves through the index, on the one chain that holds it":
   # Recorder-Flow CXP-FLOW-6, `test_a_flow_address_dispatches_a_flow_lookup`. §2's
@@ -590,5 +628,5 @@ suite "a Flow account address resolves through the index, on the one chain that 
     ck "starknet-mainnet" in [hits[0].chain, hits[1].chain]
 
 echo "assertion count: ", asserted
-doAssert asserted == 164,
-  "assertion count is " & $asserted & ", expected 164 — a case was added or removed."
+doAssert asserted == 225,
+  "assertion count is " & $asserted & ", expected 225 — a case was added or removed."

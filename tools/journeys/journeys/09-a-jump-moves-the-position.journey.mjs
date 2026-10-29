@@ -96,6 +96,18 @@ export const assertions = 38;
 export const needsEngine = true;
 
 /**
+ * The LIVE rows of each navigation region: CodeTracer's shared Call Trace and
+ * Event Log views. Both carry their step as `data-rr-ticks`; a call-trace row
+ * links through `.call-text`, an event-log row is itself the control. The
+ * served frame writes `.ctrow` and `.evrow`, which `servedNavRows` reads. The
+ * Event Log view is mounted only once its tab is shown, so until then that
+ * pane still holds the served `.evrow` rows.
+ */
+const CT_LIVE = ".calltrace-call-line";
+const EV_LIVE = "tr.eventLog-row";
+const NAV_LIVE = `${CT_LIVE},${EV_LIVE}`;
+
+/**
  * The rows of one navigation region, as the page presents them.
  *
  * RENDERED, NOT PRESENT — the same rule probe.mjs states for `.srcline`. The
@@ -110,7 +122,7 @@ const readRows = (page, selector) =>
       e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
     const all = [...document.querySelectorAll(sel)];
     const onScreen = all.filter(shown);
-    const step = (r) => r.getAttribute("data-step");
+    const step = (r) => r.getAttribute("data-step") ?? r.getAttribute("data-rr-ticks");
     return {
       total: all.length,
       shown: onScreen.length,
@@ -131,13 +143,12 @@ const pickTarget = (page, selector) =>
       e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
     const all = [...document.querySelectorAll(sel)];
     const now = document.querySelector(".dbg")?.getAttribute("data-step");
-    const row = all
-      .filter(shown)
-      .find((r) => (r.getAttribute("data-step") ?? "") !== "" && r.getAttribute("data-step") !== now);
+    const step = (r) => r.getAttribute("data-step") ?? r.getAttribute("data-rr-ticks");
+    const row = all.filter(shown).find((r) => (step(r) ?? "") !== "" && step(r) !== now);
     if (!row) return null;
     return {
       index: all.indexOf(row),
-      step: row.getAttribute("data-step"),
+      step: step(row),
       label: (row.textContent ?? "").trim().slice(0, 60),
     };
   }, selector);
@@ -161,7 +172,7 @@ const readPaneHealth = (page) =>
   page.evaluate(() => {
     const panes = [...document.querySelectorAll(".dbg .lm_stack")];
     const speaks = (p) =>
-      p.querySelectorAll(".ctrow,.evrow,.strow,.srcline").length > 0 ||
+      p.querySelectorAll(".ctrow,.evrow,.strow,.srcline,.calltrace-call-line,.eventLog-row,.value-name").length > 0 ||
       [...p.querySelectorAll(".empty-overlay")].some((n) => (n.textContent ?? "").trim().length > 0);
     return {
       panes: panes.length,
@@ -174,17 +185,18 @@ const readPaneHealth = (page) =>
 
 /** The navigation rows on screen, across BOTH regions, and how many name a step. */
 const readNavigable = (page) =>
-  page.evaluate(() => {
+  page.evaluate((nav) => {
     const shown = (e) =>
       !!e &&
       typeof e.checkVisibility === "function" &&
       e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
-    const rows = [...document.querySelectorAll(".ctrow,.evrow")].filter(shown);
+    const rows = [...document.querySelectorAll(nav)].filter(shown);
+    const step = (r) => r.getAttribute("data-step") ?? r.getAttribute("data-rr-ticks");
     return {
       shown: rows.length,
-      namingAStep: rows.filter((r) => (r.getAttribute("data-step") ?? "").length > 0).length,
+      namingAStep: rows.filter((r) => (step(r) ?? "").length > 0).length,
     };
-  });
+  }, NAV_LIVE);
 
 /**
  * "The position moved" as a RELATION, never a line number alone.
@@ -261,7 +273,11 @@ async function jump(page, index, selector, before) {
     { sel: selector, i: index },
   );
   const mark = consoleMark(page);
-  await page.click(`${selector} >> nth=${index}`);
+  // A shared call-trace row is a container whose link is `.call-text`; a
+  // shared event-log row is itself the control (`role="button"`).
+  const row = page.locator(selector).nth(index);
+  const link = row.locator(".call-text");
+  await ((await link.count()) > 0 ? link.first() : row).click();
   const answered = await waitForConsoleLine(page, POSITION_ANSWERED, {
     sinceIndex: mark,
     budgetMs: 15000,
@@ -314,6 +330,22 @@ export async function run({ browser, site, j }) {
     // THE LIVE PATH RAN, AND THE EXPORT IS NOT ANSWERING FOR IT. See
     // `servedNavRows`. This is the assertion that would have failed for the
     // whole life of the two panes and did not exist to.
+    //
+    // IT NO LONGER COMPARES COUNTS, and the history below is why it once did.
+    // Two changes took the count away as evidence. Since the live session
+    // became the Embed SDK's DebuggerSession, the event log's viewport is sized
+    // to the served `.evrow` count, so live and served are EQUAL by
+    // construction (8 = 8 on the synthetic subject). Since the shared call
+    // trace was mounted, its live rows are `.calltrace-call-line`, and `.ctrow`
+    // counts only the served frame left behind (7 against 33 live rows). Both
+    // arms read red for a reason that was the instrument's, not the product's.
+    // The live rows are now told apart by KIND: `.calltrace-call-line` and
+    // `tr.eventLog-row` exist only once the engine has answered — the export
+    // writes `.ctrow` and `.evrow` — so "the region shows rows of the live
+    // kind" is the claim the count used to stand in for. The Event Log view is
+    // mounted only when its tab is shown, so this control judges the call
+    // trace; the event log's live rows are required where the arm opens its
+    // tab ("choosing the Event Log puts its rows on screen" reads EV_LIVE).
     //
     // NOTE WHAT THIS CONTROL DOES AND DOES NOT SAY, because it is the place a
     // reader most often meets "the two producers disagree" and it is easy to
@@ -388,31 +420,25 @@ export async function run({ browser, site, j }) {
     // union predicate can be satisfied by the one the arm is not judging —
     // the lesson the paragraph above records for arm O's arithmetic.
     const navAnswered = await page
-      .waitForFunction(
-        (served) =>
-          document.querySelectorAll(".ctrow").length !== served.ct &&
-          document.querySelectorAll(".evrow").length !== served.ev,
-        servedRows,
-        { timeout: 15000 },
-      )
+      .waitForFunction((ct) => document.querySelectorAll(ct).length > 0, CT_LIVE, {
+        timeout: 15000,
+      })
       .then(() => true)
       .catch(() => false);
-    const hydrated = await page.evaluate(() => ({
-      ct: document.querySelectorAll(".ctrow").length,
-      ev: document.querySelectorAll(".evrow").length,
-      total: document.querySelectorAll(".ctrow,.evrow").length,
-    }));
+    const hydrated = await page.evaluate(({ ct, ev }) => ({
+      ct: document.querySelectorAll(ct).length,
+      ev: document.querySelectorAll(ev).length,
+    }), { ct: CT_LIVE, ev: EV_LIVE });
     j.expect(
-      hydrated.ct > 0 && hydrated.ct !== servedRows.ct &&
-        hydrated.ev > 0 && hydrated.ev !== servedRows.ev,
+      hydrated.ct > 0,
       "CONTROL: the navigation rows are the engine's, not the export's",
       `call trace served ${servedRows.ct}, hydrated ${hydrated.ct}` +
-        ` · event log served ${servedRows.ev}, hydrated ${hydrated.ev}` +
+        ` · event log served ${servedRows.ev}, ${hydrated.ev} live before its tab is shown` +
         (navAnswered ? "" : " — the feed did not answer within 15s"),
     );
 
     // ── the call trace ───────────────────────────────────────────────────
-    const ct = await readRows(page, ".ctrow");
+    const ct = await readRows(page, CT_LIVE);
     j.atLeast(ct.shown, 1, "the call trace has rows on screen to click");
     // Counted, not existential (§4b): a region where one row of seven is
     // navigable is a broken region, and "at least one names a step" is exactly
@@ -423,7 +449,7 @@ export async function run({ browser, site, j }) {
       "every call-trace row on screen names a step to jump to",
     );
 
-    const ctTarget = await pickTarget(page, ".ctrow");
+    const ctTarget = await pickTarget(page, CT_LIVE);
     j.expect(
       ctTarget !== null,
       "CONTROL: some call-trace row on screen names a step the session is not already on",
@@ -431,7 +457,7 @@ export async function run({ browser, site, j }) {
     );
 
     const ctBefore = live.facts;
-    const ctAfter = ctTarget ? await jump(page, ctTarget.index, ".ctrow", ctBefore) : ctBefore;
+    const ctAfter = ctTarget ? await jump(page, ctTarget.index, CT_LIVE, ctBefore) : ctBefore;
 
     // CONTROL ON THE GESTURE. Not the verdict — the proof that the click reached
     // the engine, so that a red verdict below is a statement about the product
@@ -471,16 +497,20 @@ export async function run({ browser, site, j }) {
     // rows, and the control whose fragment points at that pane. A renamed pane
     // moves this on its own; a selector spelling "eventlog" would not.
     const opened = await page.evaluate(() => {
-      const pane = document.querySelector(".evrow")?.closest(".lm_content");
+      const pane = document.querySelector(".evrow,.eventLog-row")?.closest(".lm_content");
       if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
       const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
       if (!tab) return { ok: false, why: `no control targets #${pane.id}` };
       tab.click();
       return { ok: true, pane: pane.id };
     });
-    await page.waitForTimeout(400);
+    // The shared Event Log view mounts when its tab is shown and draws its
+    // rows once it has measured its viewport, so wait for them, bounded.
+    await page
+      .waitForFunction((ev) => document.querySelectorAll(ev).length > 0, EV_LIVE, { timeout: 8000 })
+      .catch(() => {});
 
-    const ev = await readRows(page, ".evrow");
+    const ev = await readRows(page, EV_LIVE);
     j.atLeast(
       ev.shown,
       1,
@@ -492,7 +522,7 @@ export async function run({ browser, site, j }) {
       "every event-log row on screen names a step to jump to",
     );
 
-    const evTarget = await pickTarget(page, ".evrow");
+    const evTarget = await pickTarget(page, EV_LIVE);
     j.expect(
       evTarget !== null,
       "CONTROL: some event-log row on screen names a step the session is not already on",
@@ -546,7 +576,7 @@ export async function run({ browser, site, j }) {
     );
 
     const evBefore = await readFacts(page);
-    const evAfter = evTarget ? await jump(page, evTarget.index, ".evrow", evBefore) : evBefore;
+    const evAfter = evTarget ? await jump(page, evTarget.index, EV_LIVE, evBefore) : evBefore;
 
     const survived = await page.evaluate(() => globalThis.__btDocumentToken ?? null);
     j.expect(
@@ -667,17 +697,18 @@ async function realArm(browser, site, j, subject) {
         // at the end of this arm once its tab is chosen, so a union predicate
         // can be satisfied by the half this arm is not about to judge, and
         // the call-trace assertion below would read early again.
-        (served) => document.querySelectorAll(".ctrow").length !== served.ct,
-        servedRows,
+        (ct) => document.querySelectorAll(ct).length > 0,
+        CT_LIVE,
         { timeout: 15000 },
       )
       .then(() => true)
       .catch(() => false);
     const hydratedRows = await page.evaluate(
-      () => document.querySelectorAll(".ctrow,.evrow").length,
+      (nav) => document.querySelectorAll(nav).length,
+      NAV_LIVE,
     );
     j.expect(
-      hydratedRows > 0 && hydratedRows !== servedRows.total,
+      hydratedRows > 0,
       "REAL: CONTROL — the navigation rows are the engine's, not the export's",
       `served ${servedRows.total} row(s), hydrated ${hydratedRows}` +
         (navAnswered ? "" : " — the feed did not answer within 15s"),
@@ -730,7 +761,7 @@ async function realArm(browser, site, j, subject) {
     //
     // The visible count still has to clear one, immediately above, so this pair
     // cannot be satisfied by a pane full of rows nobody can reach.
-    const ct = await readRows(page, ".ctrow");
+    const ct = await readRows(page, CT_LIVE);
     j.note(
       `REAL call-trace rows: ${ct.shown} on screen, ${ct.total} in the DOM,` +
         ` ${servedRows.ct} in the served frame` +
@@ -742,27 +773,27 @@ async function realArm(browser, site, j, subject) {
       "REAL: the CALL TRACE has rows on screen to click",
     );
     j.expect(
-      ct.total > 0 && ct.total !== servedRows.ct,
+      ct.total > 0,
       "REAL: the CALL TRACE is the engine's answer, not the row set the export shipped",
       `served ${servedRows.ct} call-trace row(s), hydrated ${ct.total} in the DOM` +
         ` (${ct.shown} on screen)`,
     );
 
-    const nav = await readRows(page, ".ctrow,.evrow");
+    const nav = await readRows(page, NAV_LIVE);
     j.countIs(
       nav.shownNamingAStep,
       nav.shown,
       "REAL: every navigation row on screen names a step to jump to",
     );
 
-    const target = await pickTarget(page, ".ctrow,.evrow");
+    const target = await pickTarget(page, NAV_LIVE);
     j.expect(
       target !== null,
       "REAL: CONTROL — some row on screen names a step the session is not already on",
       target ? `row "${target.label}" names step ${target.step}` : "none found",
     );
 
-    const after = target ? await jump(page, target.index, ".ctrow,.evrow", before) : before;
+    const after = target ? await jump(page, target.index, NAV_LIVE, before) : before;
     j.expect(
       after.urlQuery !== before.urlQuery,
       "REAL: CONTROL — the click reached the engine (the time coordinate advanced)",
@@ -812,16 +843,18 @@ async function realArm(browser, site, j, subject) {
     // taken, by the same property-not-name technique: the pane that holds the
     // event rows, and the control whose fragment points at it.
     const openedReal = await page.evaluate(() => {
-      const pane = document.querySelector(".evrow")?.closest(".lm_content");
+      const pane = document.querySelector(".evrow,.eventLog-row")?.closest(".lm_content");
       if (!pane || !pane.id) return { ok: false, why: "the event rows are in no identified pane" };
       const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
       if (!tab) return { ok: false, why: `no control targets #${pane.id}` };
       tab.click();
       return { ok: true, pane: pane.id };
     });
-    await page.waitForTimeout(400);
+    await page
+      .waitForFunction((ev) => document.querySelectorAll(ev).length > 0, EV_LIVE, { timeout: 8000 })
+      .catch(() => {});
 
-    const evReal = await readRows(page, ".evrow");
+    const evReal = await readRows(page, EV_LIVE);
     j.note(
       `REAL event-log rows: ${evReal.shown} on screen, ${evReal.total} in the DOM` +
         ` (tab ${openedReal.ok ? `#${openedReal.pane} chosen` : `NOT chosen — ${openedReal.why}`})`,

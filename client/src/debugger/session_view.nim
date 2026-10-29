@@ -1538,6 +1538,10 @@ type
     chain*: string
     txHash*: string
     blockHeight*: int
+    blockLabel*: string
+      ## The bar's ordering coordinate, in the chain's own unit: "block 19000000",
+      ## or "checkpoint 336806210" on a checkpoint-ordered chain, whose
+      ## `blockHeight` is the zero default and printed "block 0".
     blockHash*: string
     outcomeLabel*: string
     outcomeBadge*: string

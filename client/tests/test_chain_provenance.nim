@@ -476,7 +476,8 @@ suite "2 — past the retention horizon, and saying so":
     # test — the generic line names no CAUSE — has to hold in all of them, or a
     # branch added later could reintroduce exactly the claim this arm removed.
     for rr in ["", "not-attempted", "not-first-in-block", "no-such-member"]:
-      check "no call structure" notin availabilityNote(taAbsent, rr)
+      check "no call structure" notin availabilityNote(taAbsent, rr, false)
+      check "no call structure" notin availabilityNote(taAbsent, rr, true)
     check "publishes no call structure" notin markup(body)
     # ── AND IT NO LONGER ASSERTS PERMANENCE ON THIS ROW, WHICH THIS ARM USED
     #    TO REQUIRE OF IT ───────────────────────────────────────────────────
@@ -498,19 +499,34 @@ suite "2 — past the retention horizon, and saying so":
     # wording. It is INVERTED rather than deleted, so the property stays
     # gated in the direction that is now true.
     check "permanent answer rather than a failed fetch" notin body
-    check "this is not a permanent answer" in body
+    # ── AND THEN THE NETWORK WENT AWAY, WHICH MOVED THIS ARM A SECOND TIME ──
+    #
+    # This read `check "this is not a permanent answer" in body`, and that was
+    # the corrected wording right up until the chain it is about stopped
+    # existing. `RealChain` is `aztec-testnet`, measured 2026-10-28 as a
+    # RESTARTED rollup — tip 9,405 against our captured head of 99,092, and
+    # `Unknown block` at every height this corpus covers. So the repair the
+    # sentence promised is no longer available to anyone, and the page says so.
+    #
+    # The member is untouched and must stay untouched: `not-attempted` is still
+    # `repairable`, because on a chain that still exists it still is. What
+    # changed is the PAIR (member, chain) — see `viewutil.absenceKind` and the
+    # suite at the foot of this file, which pins both halves including that Sui
+    # and Ethereum are unaffected.
+    check "has since been retired" in body
+    check "this is not a permanent answer" notin body
     # §14.1a cuts both ways, so the OTHER surface is pinned too: the trace-fed
-    # section stubs must not say "permanently" on a repairable row either.
-    # Fixing the hero alone left the page denying permanence in one paragraph
-    # and asserting it two sections below, on the same transaction.
-    check "empty permanently, not yet" notin body
-    check "empty for now and not permanently" in body
+    # section stubs must agree with the hero rather than contradict it two
+    # sections below, on the same transaction. They did when the claim was
+    # "not permanently", and they do now that it is the opposite.
+    check "empty for now and not permanently" notin body
+    check "empty permanently" in body
     # AND THE PERMANENT CASE IS STILL REACHABLE, so neither check above is
     # passing because the wording was simply removed from the product.
     check "permanent answer rather than a failed fetch" in
-      availabilityNote(taAbsent, "not-first-in-block")
+      availabilityNote(taAbsent, "not-first-in-block", false)
     check "permanent answer rather than a failed fetch" in
-      availabilityNote(taAbsent, "")
+      availabilityNote(taAbsent, "", false)
 
   test "no trace is offered, and none is named":
     let m = markup(body)
@@ -1436,7 +1452,7 @@ suite "7 — a slug belongs to one producer":
 # So the first test establishes that the SAME captures under `isFull` publish
 # transactions that do not open, and the control counts what the curated tree
 # published rather than asserting over whatever it happens to hold.
-suite "8 — a curated chain publishes only transactions that open":
+suite "8 — a curated chain publishes only transactions that open, or say why they cannot":
   asserted = 0
 
   proc capturedChains(r: DataRoot): seq[string] =
@@ -1840,6 +1856,30 @@ suite "8 — a curated chain publishes only transactions that open":
     ck w.lo == 120
     ck w.hi == 135
 
+  test "a curated window widens over stated refusals, and never moves":
+    # Operator decision 2026-10-27: a curated chain also publishes the adjacent
+    # blocks whose every transaction was refused WITH A STATED REASON. Sui's
+    # shape: a traced run at 120..135, a below-floor block 119 whose rows say
+    # why they have no trace, an empty block 118, and a stated block 117.
+    var heights: seq[int]
+    for n in 110 .. 140: heights.add n
+    let w = curationWindow(heights, @[120, 135], @[115, 117, 119])
+    ck w.found and w.lo == 120 and w.hi == 135
+    let wide = extendOverStatedRefusals(w, heights, @[117, 119], @[115, 117, 119, 120, 135])
+    # Down over 119, across the empty 118, to 117; it stops at 115, which is a
+    # traceless row that states nothing (not attempted).
+    ck wide.lo == 117
+    ck wide.hi == 135
+    ck "refused with a stated reason" in wide.why
+    # CONTROL: with no stated block beside it the window is the run's, exactly,
+    # and its words are unchanged.
+    let same = extendOverStatedRefusals(w, heights, @[], @[115, 117, 119, 120, 135])
+    ck same.lo == w.lo and same.hi == w.hi and same.why == w.why
+    # CONTROL: a stated block beyond a NON-stated one is not reached — the walk
+    # stops at the first row that does not say why.
+    let blocked = extendOverStatedRefusals(w, heights, @[117], @[117, 119, 120, 135])
+    ck blocked.lo == w.lo
+
   test "a tie between runs is broken by recency, not by order":
     var heights: seq[int]
     for n in 100 .. 140: heights.add n
@@ -1919,7 +1959,9 @@ suite "8 — a curated chain publishes only transactions that open":
   test "assertion count":
     # 87 + 1: the testnet arm now asserts BOTH spans, because the two trees
     # differ there and the difference has to be named at both ends.
-    expectCount(93)
+    # +6 (2026-10-27): the widening arm — the run's window, its two widened edges,
+    # its words, and two controls (no stated block; a non-stated row in the way).
+    expectCount(99)
 
 # ── 9 — the home page features a session that can actually be shown ──────────
 #
@@ -5095,10 +5137,30 @@ suite "a transaction's ordering row is the chain's own coordinate":
     ck blk.len == 1 and blk[0].href == blockUrl(RealChain, "0xabc")
     ck rows.filterIt(it.label == "Checkpoint").len == 0
 
+  test "the debugger's bar names the checkpoint, not block 0":
+    # The same rule on the debug route's bar, which printed `"block " &
+    # $blockHeight` — "block 0" for every Sui transaction on staging.
+    var v: TxView
+    v.hash = "StiTgKUtyMD1bMYjH2qJPWTVsGrrrkNFKrM52iYu8xi"
+    v.positionKnown = false
+    v.orderKind = tokCheckpoint
+    v.orderLabel = "336806210"
+    ck demoSession(RealChain, v, chainInfo(root, RealChain)).blockLabel ==
+      "checkpoint 336806210"
+    # CONTROL: a block-ordered transaction keeps "block N".
+    var b: TxView
+    b.hash = "0xreal"
+    b.positionKnown = true
+    b.orderKind = tokBlockIndex
+    b.height = 19_000_000
+    ck demoSession(RealChain, b, chainInfo(root, RealChain)).blockLabel ==
+      "block 19000000"
+
   test "assertion count":
     #   4 — the checkpoint row: one row, its value, no link, no Block row
     #   4 — the control: one Block row, its value, its link, no Checkpoint row
-    expectCount(4 + 4)
+    #   2 — the debugger's bar: the checkpoint, and the block control
+    expectCount(4 + 4 + 2)
 
 suite "19 — a block's system transactions are listed beside its transactions, unlinked":
   asserted = 0
@@ -5212,3 +5274,100 @@ suite "a transaction list's Block cell is the chain's own coordinate":
     #   3 — the checkpoint row: its sequence number, no 0:0, no block link
     #   2 — the control: the height:index, and its link
     expectCount(3 + 2)
+
+suite "a retired upstream makes a repairable refusal unrepairable":
+  asserted = 0
+  ## Measured 2026-10-28, and the measurement is in
+  ## `tools/chain/retired-networks.json` so a reader can re-run it: both Aztec
+  ## rollups were RESTARTED. The endpoints answer — `aztec.drpc.org` at tip
+  ## 3,403 against our captured head of 102,690 — and `node_getBlock` at any
+  ## height inside the captured range returns `Unknown block`. A request for a
+  ## LOW height even returns a plausible header, belonging to the new chain,
+  ## which is how this stayed invisible.
+  ##
+  ## 24,609 rows on `aztec` and 1,565 on `aztec-testnet` are published with a
+  ## member `refusal-reasons.json` classifies `repairable`, which was TRUE WHEN
+  ## WRITTEN — `bt-historic-replay` replayed 206 transactions into 211 traces at
+  ## blocks 1-200, 24.7k, 45k, 68k and 75.7k, which is where 18,087 of this
+  ## corpus's traces come from. The page read that as "not a permanent answer".
+  ## It no longer is, and promoting the full history would have put that
+  ## sentence on ~26,000 pages.
+
+  test "the member's own classification is UNCHANGED, which other chains rely on":
+    # The fix must not touch `refusal-reasons.json`. Sui's refused rows are
+    # repairable for a reason that still holds — a Sui build with trace hooks in
+    # pre-38 layers would trace them — so a change to the MEMBER would reword a
+    # live chain's rows to say its traces can never arrive.
+    ck refusalReasonDurability("not-attempted") == "repairable"
+    ck refusalReasonDurability("runtime-refused") == "repairable"
+    ck refusalReasonDurability("not-first-in-block") == "permanent"
+    # And the registry names chains, not members.
+    ck isRetiredNetwork("aztec")
+    ck isRetiredNetwork("aztec-testnet")
+    ck isRetiredNetwork("aztec-testnet-frames")
+    ck not isRetiredNetwork("sui")
+    ck not isRetiredNetwork("ethereum")
+    ck not isRetiredNetwork("demo")
+
+  test "durability is a property of the PAIR, not of the member":
+    # The same member, the same row, two chains: one still up, one retired.
+    for member in ["not-attempted", "runtime-refused"]:
+      ck absenceKind(member, false) == akNotAttempted
+      ck absenceKind(member, true) == akStranded
+    # A PERMANENT member is unmoved by retirement — it was never repairable,
+    # so there is nothing for the retirement to overrule.
+    ck absenceKind("not-first-in-block", false) == akUnobservable
+    ck absenceKind("not-first-in-block", true) == akUnobservable
+    # A chain-absent execution carries no member and keeps claiming nothing
+    # about us; the Aztec private half is a statement about the CHAIN.
+    ck absenceKind("", true) == akUnobservable
+    # An id this build does not recognise still claims nothing. The retirement
+    # overrules a durability this build READ; it cannot supply one it never had.
+    ck absenceKind("no-such-member", true) == akUnstated
+
+  test "the page stops promising a later it cannot deliver":
+    let live = availabilityNote(taAbsent, "not-attempted", false)
+    let dead = availabilityNote(taAbsent, "not-attempted", true)
+    ck live != dead
+    # THE EXACT CLAIM THAT WENT FALSE.
+    ck "not a permanent answer" in live
+    ck "not a permanent answer" notin dead
+    # And the badge, which is the half a visitor actually reads — `yet`
+    # promises a later, and there is no later once the network is gone.
+    ck availabilityState(taAbsent, "not-attempted", false) == "Not traced yet"
+    ck availabilityState(taAbsent, "not-attempted", true) != "Not traced yet"
+    ck availabilityLabel(taAbsent, "not-attempted", true) != "Not traced yet"
+
+  test "the retired sentence dates the published reason, it does not deny it":
+    # The row says this run did not try, and that is still true. A sentence
+    # implying the producer misreported its own refusal would trade one false
+    # claim for another, so the order is: what the run did, then what the
+    # network did.
+    let dead = availabilityNote(taAbsent, "not-attempted", true)
+    ck "retired" in dead
+    ck "this run did not do" in dead
+    # It must NOT claim the obstacle was always permanent — that is
+    # `akUnobservable`'s sentence and a different fact.
+    ck "permanent answer rather than a failed fetch" notin dead
+
+  test "every retired entry carries the measurement behind it":
+    # The file overrules what a row published about its own durability, which
+    # is a strong thing to do quietly. `retired_networks.nim` fails the BUILD
+    # on an entry with no evidence; this asserts the shipped list is populated
+    # rather than merely parseable.
+    ck retiredNetworkChains().len == 3
+    for chain in retiredNetworkChains():
+      ck retiredNetworkNote(chain).len > 0
+
+  test "assertion count":
+    # Counted off the code rather than predicted: the first write of this block
+    # said 34 and the run said 30, and the four were in the arithmetic here,
+    # not in a skipped assertion. Both loops are expanded below, because a loop
+    # over a set that turned out to be empty is exactly what this counter is
+    # for (Verification-Harness-Traps §4b).
+    #   9 — 3 member classifications + 6 chains in/out of the registry
+    #   8 — the pair: 4 (2 members x live/retired) + 2 permanent + absent + unstated
+    #   6 — live/dead differ, the claim present then absent, 3 badge readings
+    #   3 — the retired sentence's shape
+    #   4 — the registry is populated: 1 length + 3 notes, one per chain
+    expectCount(9 + 8 + 6 + 3 + 4)

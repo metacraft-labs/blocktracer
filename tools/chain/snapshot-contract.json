@@ -324,6 +324,7 @@
       "src/blocktracer/chain/ingest.nim",
       "src/blocktracer/chain/contract_rules.nim",
       "src/blocktracer/chain/refusal_reasons.nim",
+      "src/blocktracer/chain/retired_networks.nim",
       "src/blocktracer/chain/snapshot_format.nim",
       "src/blocktracer_chain_ingest.nim",
       "src/blocktracer_conformance.nim",

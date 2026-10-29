@@ -1,4 +1,18 @@
-# Why this capture exists beside `aztec-testnet`, and what it proves that the other cannot
+# Historical capture comparison: why this directory was introduced
+
+The measurements below describe the earlier reconstructed `0x20ed5b91…` fixture,
+before its replacement with a genuine replay on 2026-10-16. The zero-register
+table, quoted `notMeasured` provenance and session-specific recorder pins are
+historical evidence, not descriptions of the current generated fixtures.
+
+Both current populations are generated from the original transactions and
+immutable historical RPC inputs by runtime
+`238a3a5b9fe9346868cc7fab84a8aa54513287dd`. The `noir-frames` counterpart is the
+same genuine replay as `0x20ed5b91…` under `aztec-testnet`, including its measured
+AVM registers and logs. Its current provenance is in
+`client/fixtures/noir-frames/provenance.json`; no reconstruction is used by
+fixture preparation. The separate slug still preserves the curated publication
+window described below.
 
 This directory publishes `/aztec-testnet-frames`: fifteen blocks of Aztec testnet
 (69347–69361) holding five transactions, every one of which opens a container that

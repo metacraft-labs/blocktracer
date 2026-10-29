@@ -21,9 +21,9 @@
 #   * `flow-trace-format`: its Cargo path dependencies — `3fada0b`, exactly the revision
 #     the recorder's own `repro.lock` names (sol.nix takes the same input for the same
 #     reason).
-#   * `codetracer-trace-format-nim`: the writer at `7b8b587`, the last revision that writes
-#     `meta.dat` 6, shared with eth.nix and flow.nix, because the engine the site pins reads
-#     6 only.
+#   * `codetracer-trace-format-nim`: the writer at `e15374866`, which writes `meta.dat` 7,
+#     shared with eth.nix and flow.nix, because the engine the site pins reads 7 only since
+#     2026-10-28 (it was `7b8b587`, the last writer of 6, until then).
 #   * `sui`: the official MystenLabs release binary, built with the `tracing` feature that
 #     `sui replay --trace` needs, at the version the transcript was recorded with (1.81.1).
 #     nix-blockchain-development packages `sui` for Linux only and at 1.68.1, which predates

@@ -1418,12 +1418,26 @@ type
       ## before hydration replaced them. See `servedLandingAnchor` for why the
       ## index cannot be carried instead.
     frameSeeded: bool
-      ## Whether the landing's call-trace selection has been written.
+      ## Whether the landing's call-trace selection is settled.
       ##
       ## Once, and only once: `selectLandingFrame` re-derived on every stop
       ## would overwrite a frame the visitor chose with the innermost frame at
       ## that coordinate, which is the collision `Click-Navigation.md` §2.2
       ## says a coordinate cannot decide.
+      ##
+      ## "Once" is once the LINK'S frame is selected, not once anything is. The
+      ## first render with rows can come before the landing seek: the window
+      ## then holds the entry frames, the link's anchor is not among them, and
+      ## the position fallback marks a step-1 frame. Settling there marked
+      ## that frame for good — on the deep capture all six links sharing step
+      ## 59 arrived at `enqueued-call-0` (journey 26, read off the shared Call
+      ## Trace view). So a link that names a frame keeps being resolved on
+      ## each render until its anchor is found, or until the visitor selects a
+      ## frame (`seededEntry`); a link that names none settles at once.
+    seededEntry: Option[int64]
+      ## The selection this page last wrote while settling the landing. A
+      ## different `selectedEntry` means the visitor chose a frame, which ends
+      ## the settling: the page never overwrites a visitor's choice.
     breakpoints: BreakpointSet
       ## The lines the visitor has marked, and the ONLY copy of them on this
       ## page that anything reads.
@@ -1661,6 +1675,11 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
   ## Mount each of the three shared views the first time the projection has
   ## content for its pane — the condition `writePane` latches on.
   let r = WebRenderer()
+  # Each row of the shared Call Trace and Event Log links to its §6.0a URL
+  # (Shared-DOM-Front-Ends D10): the views draw the link, `rowLinksFor` builds
+  # it from the row's address. Open in a new tab, copy link and the status bar
+  # are the browser's again; a plain click still seeks in place.
+  let links = h.session.rowLinksFor(h.base.traceContentHash)
   if not h.latch.calltrace.mounted and view.calltrace.frames.len > 0:
     ensureContextMenuHost()
     h.ui.calltrace.innerHTML =
@@ -1668,7 +1687,7 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
     let vm = h.session.calltrace
     mountInto(h.ui.calltrace, ("." & panes.CallTraceMountClass).cstring,
       proc(): idom.Element =
-        renderCalltracePanel[WebRenderer, idom.Element](r, vm))
+        renderCalltracePanel[WebRenderer, idom.Element](r, vm, links))
     h.latch.calltrace.mounted = true
     h.latch.calltrace.latched = true
     h.latch.calltraceSelfCost.written =
@@ -1704,7 +1723,7 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
     let vm = h.session.eventLog
     mountInto(h.ui.eventLog, ("." & panes.LiveMountClass).cstring,
       proc(): idom.Element =
-        renderEventLogPanel[WebRenderer, idom.Element](r, vm))
+        renderEventLogPanel[WebRenderer, idom.Element](r, vm, links))
     h.latch.eventLog.mounted = true
     h.latch.eventLog.latched = true
     h.measureMounted(h.ui.eventLog, ".eventLog-scroll-body", ".eventLog-row",
@@ -1753,7 +1772,16 @@ proc paint(h: Hydration) =
   # session whose phase moved was left with its controls never enabled.
   if h.session.calltrace.isNil: return
   if not h.frameSeeded and h.session.calltrace.visibleLines.val.len > 0:
-    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)
+    let selected = h.session.calltrace.selectedEntry.val
+    if h.seededEntry.isSome and selected != h.seededEntry:
+      h.frameSeeded = true    # the visitor chose a frame; keep it
+    else:
+      let named = h.landingAnchor.len > 0 and
+        h.session.selectCalltraceFrame(h.landingAnchor)
+      if not named:
+        discard h.session.selectLandingFrame("")
+      h.seededEntry = h.session.calltrace.selectedEntry.val
+      h.frameSeeded = named or h.landingAnchor.len == 0
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
   # THE MARKS GO ON HERE, INSIDE THE RENDER, and that placement is the whole
   # reason they survive.
@@ -1779,6 +1807,17 @@ proc paint(h: Hydration) =
         h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
   h.mountSharedPanes(view)
   renderPanes(h.ui, view, h.latch, h.keymap)
+  # THE VISITOR'S `:target` SURVIVES THE PAINT. `renderPanes` has just replaced
+  # the element an element fragment (`#L-src-shield-nr-4`, `#D-src-main-nr`)
+  # pointed at, and `:target` does not follow an id to a new element — so the
+  # document, tab or view the visitor chose by link fell back to its default on
+  # the first live paint (`retargetFragment` has the measurement). A payload
+  # fragment (`#v=1&t=…`) names no element and is spent; it is left alone.
+  let fragment = locationHash()
+  if fragment.len > 1 and not carriesPayload(fragment):
+    # The ids this page emits are URL-safe by construction (`docAnchor`,
+    # `lineAnchor`), so the fragment IS the id.
+    discard retargetFragment(fragment[1 .. ^1])
   # A DRAG OWNS THE HANDLE UNTIL IT IS RELEASED.
   #
   # `renderPanes` has just drawn the handle where the ENGINE is, which during a

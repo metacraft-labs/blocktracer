@@ -84,6 +84,36 @@ encoding this repository now publishes is NOT established here. They were
 captured 2026-09-28, before that encoding landed, so the question has to be
 asked of a container rather than assumed either way.
 
+## 4a. The bucket serves entry pages from THREE design eras
+
+A generation stops being named; its objects do not stop being served. That is
+true of the entry pages too, and it is measurable from outside:
+
+```
+GET /aztec-testnet/tx/0x2b5706691cdbd3f8d479340cdcdd5fc8ae7d279a8c8faccba4d7606849f8419c
+  200, 8,021 bytes, links /_a/145532f4228f84bf.css
+```
+
+That transaction belongs to `rtestnet0001`. Its page is still there, still
+200, and the stylesheet it links is neither the one the apex serves today
+(`5ef62087010f62a6`) nor the one this branch publishes (`c5a2cc03494ee74f`).
+It is older than both.
+
+Such a page is reachable by direct URL and by nothing else: no index the
+current generation renders links to it, because the current generation does
+not contain that transaction. So a visitor browsing the site never sees it,
+and a deep link from elsewhere — a bookmark, a chat message, a search result —
+lands on a page wearing a design two publishes old.
+
+THIS IS NOT A REASON TO PREFER `render-over-live`. That mode enumerates from
+the data origin's `d/<chain>/current.json`, which is the live pointer, which
+names generation `1`. It re-renders exactly the set a `render-over-live:
+false` build renders. Neither mode reaches the orphaned pages, because
+neither mode enumerates the generation that produced them.
+
+The only thing that re-renders them is a build whose pointer names them —
+which is the same union-generation ingest §4 describes, and the same reason.
+
 ## 5. The served data plane is this repository's own fixture tree
 
 Measured by hashing `client/dist` against the apex, after an ordinary export:
@@ -112,3 +142,212 @@ worked example — green, and every debug page still serving the old bytes.
 This equivalence is a property of the moment, not a rule. It holds only while
 the pointer names a generation this repository's fixtures produce. Re-measure
 §5 before leaning on it again.
+
+## 6. The 2026-10-27 publish, and what it did and did not move
+
+Run **40441081924** — `publish-r2.yml` on `live` at `3c36fef`, dispatched
+02:53:55Z, started 04:51:20Z, green 05:45:12Z. `render_over_live: false`,
+`refresh: true`, which is §5's conclusion carried out. Steps 5, 7, 8 and 12
+(stage the bucket, pin the pointers, the hash-index floor, break stale leases)
+are **skipped** by construction in that mode; the other fourteen ran and passed.
+
+**What moved: the design, and only the design.** The apex served
+`_a/5ef62087010f62a6.css` before and `_a/c5a2cc03494ee74f.css` after — §4a's
+third era is gone from the entry pages, which is what `refresh: true` is for.
+`tools/deploy/check-design-parity.mjs --origin https://blocktracer.org` reports
+**PASS — 14 check(s)**, 135 LIVE selectors found in the served stylesheet and
+121 LIVE classes emitted across 8 sampled pages and 2 bundles, both controls
+holding.
+
+**What did not move: the pointers.** All four `d/<chain>/current.json` are
+byte-identical to §1 after the publish — `aztec` 68231, `aztec-testnet` 63675,
+`aztec-testnet-frames` 69361/69347 finalized, `demo` 102/100. A publish in this
+mode re-renders pages over the generation the pointer already names; it does not
+author a generation, so §4's trade is untouched and still open.
+
+### 6a. The published Aztec corpus, verified over HTTP
+
+Every transaction in generation 1 of all three Aztec chains — 13 of 13, none
+untraced — measured against its own `manifest.json`:
+
+| chain | txs | CTFS bytes | at rest |
+|---|---:|---:|---:|
+| `aztec` | 2 | 129,519 | 8,847 |
+| `aztec-testnet` | 6 | 418,031 | 32,683 |
+| `aztec-testnet-frames` | 5 | 492,679 | 30,822 |
+| **total** | **13** | **1,040,229** | **72,352** (7.0%, 14.4x) |
+
+Each container is **CTFS container 6, profile 1** — the compact profile, read as
+`compact_container.nim`'s `headerOf` reads it: magic `c0de72ace2`, version at
+byte 5, profile at byte 16. Each is stored **brotli**: the object answers
+`Content-Encoding: br`, and its at-rest length and sha1 equal the manifest's
+`storedBytes` / `storedHash` exactly. Negotiated, it decompresses to `bytes` /
+`hash` with the CTFS magic intact. That is CCP-6 end to end on production bytes.
+
+### 6b. A fetch that negotiates nothing reads as an UNCOMPRESSED corpus
+
+Measuring the above, the first reading was "production stores raw CTFS, the
+brotli work never shipped" — from `curl` without `--compressed`, which sends no
+`Accept-Encoding`. Cloudflare then decompresses at the edge and **strips the
+`Content-Encoding` header**, so the response is 116,387 bytes of CTFS magic with
+no encoding header anywhere: indistinguishable, by inspection, from an object
+that was never compressed.
+
+This is the exact misdiagnosis `contract/container_encoding.nim` was written to
+prevent, arriving from the other direction — that header warns about a file read
+reporting a *short* container, and this is a negotiated fetch reporting a *raw*
+one. Node is worse than curl here: `undici` auto-decodes brotli **even when you
+set `Accept-Encoding: br` by hand**, so a Node harness cannot see the at-rest
+bytes at all and silently compares the wrong pair.
+
+**To measure the object at rest, use `curl --raw -H 'Accept-Encoding: br'` and
+check `storedBytes`/`storedHash`. To measure the container, use
+`curl --compressed` and check `bytes`/`hash`. Never infer compression from the
+bytes** — §"AND THE DIAGNOSIS CANNOT COME FROM THE BYTES" is right there:
+brotli has no magic number.
+
+## 7. What "publish the full chains" actually requires, measured 2026-10-28
+
+The operator's instruction is that the job is done when the FULL chains are
+published. This section is what that costs, and it is NOT what §4 assumed.
+
+### 7a. The full history is ALREADY SERVED — it is just unnamed and undressed
+
+Sampled directly against the apex, five random heights per chain out of the
+orphaned generations' own height maps:
+
+```
+d/aztec/g/raztec00001/height/0.json          heights 1..102,690   (8,514,911 B)
+d/aztec-testnet/g/rtestnet0001/height/0.json heights 1..99,092    (8,213,594 B)
+```
+
+Every sampled block PAGE answers 200 — `/aztec/block/<hash>` for heights
+42,446 · 19,773 · 51,751 · 85,320 · 6,329, and the same for `aztec-testnet` at
+31,191 · 77,679 · 71,334. So the data plane and the pages of the full history
+are in the bucket and reachable RIGHT NOW.
+
+Two things are wrong with them, and neither is absence:
+
+1. **No index links to them**, because `current.json` names generation `1`.
+2. **They wear a design two eras old.** An orphaned `aztec` block page links
+   `_a/145532f4228f84bf.css`; the same height in generation `1` links
+   `_a/c5a2cc03494ee74f.css`, which is what the apex serves. (§4a said this of
+   entry pages; it is true of block pages too.)
+
+**Blocks are addressed by HASH, not height** — `/aztec/block/0x…`. A probe
+built on `/aztec/block/<height>` 404s on BOTH generations, which is a property
+of the route and not a finding about the data. That probe was written first
+here, and the control — the same shape against the SERVED generation — is what
+caught it.
+
+### 7b. Neither publish mode can promote a generation, and that is the gap
+
+* `render-over-live: false` builds from this repository's committed captures.
+  Those are TIP WINDOWS: `client/fixtures/chain/aztec` declares
+  `window {tip: 70183, blocks: 27}`, `aztec-testnet` `{tip: 67058, blocks: 49}`,
+  `aztec-testnet-frames` `{tip: 69361, blocks: 26}`. A build from them can only
+  ever produce a generation of that size.
+* `render-over-live: true` stages the live `d/` and renders over it with
+  `-d:dataOrigin=$LIVE_ORIGIN` — but it enumerates from the staged
+  `d/<chain>/current.json`, which names generation `1`. It therefore re-renders
+  exactly the small window, and the tree it builds carries generation `1`'s
+  pointer straight back out.
+
+So the promotion is circular in both directions, and `Pin the live chain
+pointers` exists specifically to REFUSE a build whose pointers differ from
+production's. Nothing in the current workflow can move a pointer on purpose.
+
+### 7c. The shape of the change
+
+`-d:dataOrigin` is the seam and it already works: "every chain's data comes
+from `<dir>` instead of from the tree this build produced". What is missing is
+one step BETWEEN staging and rendering that rewrites the staged
+`d/<chain>/current.json` to name a chosen generation, plus an input that
+carries the choice and a matching relaxation of the pin guard for that one run.
+With that, the existing machinery does the rest: the render enumerates the full
+history, `ocCurrent` is `stUnconditional` so the new pointer is written last,
+and `refresh: true` re-renders every entry page into the current design.
+
+**A full-history tree also exists on local disk** at
+`~/m/blocktracer-go-live/dist` — 14 GB, whose `current.json` files already name
+`raztec00001` / `rtestnet0001` / `rframes00001`, with 60,846 + 25,421 + 8
+txstate entries and 18,093 trace containers. It is a valid `-d:dataOrigin`, so
+the full render can be REHEARSED locally without touching production. Its own
+pages are older still (`_a/ff9f791dc18a0c25.css`), so it is a data source, not
+a publishable tree.
+
+### 7d. The decision this still needs, and it is the operator's
+
+For `aztec-testnet` the promotion is strictly better on every axis and costs
+nothing: 99,092 blocks against 34, 25,421 transactions against 6, and 18,087
+traces against 6.
+
+For `aztec` it REMOVES THE DEBUGGER. `raztec00001` carries 102,690 blocks,
+60,846 transactions and **zero** traces; generation `1` carries 170 blocks and
+the only two traced transactions the chain has ever published. Promoting it
+publishes the full history and takes away the two pages that open in the IDE.
+
+The union — full range WITH the traces carried over — is an ingest and not a
+pointer write, and it is the only option that loses nothing. Until it exists,
+"publish the full chains" means accepting that trade on `aztec`, or promoting
+`aztec-testnet` alone and leaving `aztec` until the union ingest is built.
+
+### 7e. Scale
+
+271,143 block pages and 86,275 transaction pages across the three chains,
+before entry pages and indexes. The dormant `bt/full-history-backfill` branch
+(last commit 2026-09-29, not on `agents`) carries the performance work sized
+for exactly this — a per-generation height-map index worth 37%, a memoised
+block list, and a `HashSet` dedup that removed 1.05 trillion string
+comparisons. It should land before the first full render, not after it.
+
+## 7f. §4's TRADE DOES NOT EXIST — measured 2026-10-28, and §4 is wrong
+
+§4 says promoting `aztec` to `raztec00001` "would restore the history and
+remove the debugger", because that generation's summary reports
+`tracesPublished: 0` and a refusal ledger accounting for all 60,846
+transactions. **That inference is wrong, and the reason is where trace
+availability actually lives.**
+
+`contract/model.nim:107` states it of `TransactionFacts`
+(`/d/{chain}/tx/{h0h1}/{txHash}.json`): it "deliberately excludes canonicality,
+finality, trace availability and validation: those change after publication and
+live in other layers." The layer it lives in is the §7.0 overlay at
+**`/d/{chain}/ts/{v}/{h0h1}/{txHash}.json`** — keyed by
+`traceSelectionVersion`, **NOT by generation**.
+
+Both generations declare `traceSelectionVersion: "1"`, so they read THE SAME
+overlay rows. Measured against the apex, with a control:
+
+| transaction | in | overlay row |
+|---|---|---|
+| `0x00c6…ed18d` @68,062 | gen `1` AND `raztec00001` | `availability: ready`, 51,002 B |
+| `0x0f19…99dbb` @68,231 | gen `1` AND `raztec00001` | `availability: ready`, 78,517 B |
+| 3 sampled txs only in `raztec00001` | `raztec00001` | `absent` — `not-attempted` ×2, `not-first-in-block` ×1 |
+
+51,002 and 78,517 are exactly the two `aztec` trace containers measured in §6a.
+The control matters: if the overlay were generation-scoped, or if every row
+simply read `ready`, the three far transactions would not come back with honest,
+DIFFERENT refusal reasons.
+
+**So the three layers a traced page needs are all generation-independent:** the
+container (`/t/**`, content-addressed), the availability row (`/d/<chain>/ts/1/**`,
+version-keyed), and the transaction facts (`/d/<chain>/tx/**`,
+content-addressed). The only generation-scoped thing is WHICH transactions the
+generation lists — and `raztec00001`'s txstate map contains both traced
+transactions, verified by searching its 60,846 entries.
+
+**Promoting the full generations therefore publishes the full history AND keeps
+every trace.** No union ingest is required for the traces.
+
+`raztec00001`'s `tracesPublished: 0` is a historical record of its 2026-09-28
+ingest run, written before those containers existed. It is a counter about a
+RUN, and §4 read it as a fact about the TREE. That is the same class of error as
+§6b's: a figure that was true when written, read as a property of what is served
+now.
+
+WHAT IS STILL OWED, and it is smaller than §4 implied: the per-generation
+summary counters would be understated after a promotion — `raztec00001` would
+serve two `ready` transactions while its own `summary.json` claims zero. That is
+a reporting defect in the ingest, not a loss of function, and it does not gate
+the promotion. §7c's workflow change remains the actual blocker.

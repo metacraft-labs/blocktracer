@@ -1,0 +1,50 @@
+{
+    "_comment": [
+        "NETWORKS WHOSE UPSTREAM IS GONE, so a repairable refusal on them is no longer repairable.",
+        "",
+        "THIS IS NOT A CHANGE TO `refusal-reasons.json`, AND IT MUST NOT BECOME ONE. That file",
+        "classifies each MEMBER `permanent` or `repairable`, once, for every chain — and those",
+        "classifications are still right. `not-attempted` really does mean the run stopped rather",
+        "than the chain refusing, and on a chain whose network is still up, re-running the range",
+        "still produces the trace. Sui's `runtime-refused` rows are the live example: a Sui build",
+        "with trace hooks in pre-38 layers would trace them, so they are repairable and must keep",
+        "saying so.",
+        "",
+        "What this file carries is the OTHER half of the claim, which no member can carry: whether",
+        "the network that would serve the repair still exists. Durability is a property of the",
+        "PAIR (member, chain), and splitting it this way is what keeps one chain's obituary from",
+        "rewording another chain's rows.",
+        "",
+        "A CHAIN LISTED HERE DOES NOT LOSE ITS PUBLISHED REASONS. Every row keeps the member and",
+        "the sentence the producer wrote, because both were TRUE WHEN WRITTEN — the repair really",
+        "was available then. What changes is only the durability the page infers from them, which",
+        "is the one claim that silently went stale when the network went away.",
+        "",
+        "EVIDENCE IS REQUIRED AND IS A MEASUREMENT, not a press release. The test is not whether",
+        "the endpoint answers — a restarted rollup answers perfectly well, at its own low block",
+        "numbers, and a request for a LOW height even returns a plausible header belonging to a",
+        "different chain. The test is whether the endpoint still serves a height inside the range",
+        "we captured."
+    ],
+    "format": "blocktracer/retired-networks@1",
+    "networks": [
+        {
+            "chain": "aztec",
+            "observedOn": "2026-10-28",
+            "evidence": "https://aztec.drpc.org answers, and is at tip 3,403 against our captured head of 102,690. node_getBlock at any height inside the captured range returns `Unknown block` (code 26). The capture recorded l1ChainId 1 and nodeVersion 5.2.0.",
+            "note": "Aztec mainnet was restarted after this history was captured. The network that served it no longer exists, so no transaction here can be re-executed, whatever an individual row's published reason says about what that run did or did not try."
+        },
+        {
+            "chain": "aztec-testnet",
+            "observedOn": "2026-10-28",
+            "evidence": "https://aztec-testnet.drpc.org answers, and is at tip 9,405 against our captured head of 99,092. node_getBlock at 45,000, 75,800 and 99,091 — heights this corpus covers, two of them inside ranges that were successfully replayed in September — returns `Unknown block` (code 26). The node now reports nodeVersion 6.0.0, l1ChainId 11155111 and rollupVersion 679261766.",
+            "note": "Aztec testnet was restarted after this history was captured. The network that served it no longer exists, so no transaction here can be re-executed, whatever an individual row's published reason says about what that run did or did not try."
+        },
+        {
+            "chain": "aztec-testnet-frames",
+            "observedOn": "2026-10-28",
+            "evidence": "The same rollup as `aztec-testnet`, captured through the same endpoint for its Noir call frames, and retired with it.",
+            "note": "Aztec testnet was restarted after this history was captured. The network that served it no longer exists, so no transaction here can be re-executed, whatever an individual row's published reason says about what that run did or did not try."
+        }
+    ]
+}

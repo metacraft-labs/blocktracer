@@ -187,9 +187,26 @@ async function walk(page) {
  * feed correctly marks nothing. Judging them would be asserting a claim the
  * product deliberately does not make — and the COUNT of judged transitions is
  * asserted below, so excluding them cannot quietly empty the verdict.
+ *
+ * A STEP THAT DID NOT MOVE IS NOT A MOTION, and is not judged either. The
+ * shared State view marks what the step that PRODUCED the current stop
+ * changed, measured against the recording's predecessor rather than against
+ * where the visitor came from (codetracer `value_changes.anchorTickFor`). A
+ * step that lands where it started keeps those marks, and judging it against
+ * an identical previous reading calls every one of them wrong. Measured on the
+ * chain subject: nine readings over six distinct positions, and five rows
+ * "over-marked" on exactly such a non-move.
+ *
+ * ONE MARK OR TWO. The served pane draws an arriving name with its own mark;
+ * the shared State view has one mark, the changed-value style, and draws an
+ * arrival with it — codetracer's intended design (`value_changes.isModified`
+ * counts `vchAdded`; codetracer keeps the distinction in the model, guarded by
+ * `run-hsf-sdk-mutations.py` arm VD3). With `oneMark`, an arrival is expected
+ * to carry the changed mark instead of an arrival mark.
  */
-function judge(prev, cur) {
+function judge(prev, cur, oneMark) {
   if (prev.rows.length === 0 || cur.rows.length === 0) return null;
+  if (prev.step === cur.step) return null;
   const was = new Map(prev.rows.map((r) => [r.name, r.value]));
   const expectChanged = new Set();
   const expectAppeared = new Set();
@@ -204,7 +221,11 @@ function judge(prev, cur) {
   const both = cur.rows.filter((r) => r.changed && r.appeared).map((r) => r.name);
 
   const diff = (a, b) => [...a].filter((x) => !b.has(x));
+  // The marks each row should carry, in the pane's own vocabulary.
+  const wantChanged = oneMark ? new Set([...expectChanged, ...expectAppeared]) : expectChanged;
+  const wantAppeared = oneMark ? new Set() : expectAppeared;
   return {
+    oneMark,
     step: cur.step,
     rows: cur.rows.length,
     expectChanged,
@@ -213,9 +234,9 @@ function judge(prev, cur) {
     markedChanged,
     markedAppeared,
     // Marked but should not be — the "blanket highlight" failure.
-    overMarked: diff(markedChanged, expectChanged).concat(diff(markedAppeared, expectAppeared)),
+    overMarked: diff(markedChanged, wantChanged).concat(diff(markedAppeared, wantAppeared)),
     // Should be marked and is not — the "the feature does nothing" failure.
-    underMarked: diff(expectChanged, markedChanged).concat(diff(expectAppeared, markedAppeared)),
+    underMarked: diff(wantChanged, markedChanged).concat(diff(wantAppeared, markedAppeared)),
     // An unchanged row wearing either mark.
     markedUnchanged: [...expectUnmarked].filter(
       (n) => markedChanged.has(n) || markedAppeared.has(n),
@@ -239,6 +260,9 @@ async function arm(browser, site, j, subject, tag) {
       `phase=${live.facts.phase} live=${live.facts.controlsLive}`,
     );
     const readings = await walk(page);
+    // The live pane is the shared State view, which has one mark (see `judge`).
+    const oneMark = await page.evaluate(() => !!document.querySelector("#pane-state .isonim-state"));
+    j.note(`${tag}: the pane draws ${oneMark ? "ONE mark (the shared State view)" : "two marks"}`);
     const positions = new Set(readings.map((r) => r.step));
     j.atLeast(
       positions.size,
@@ -248,7 +272,7 @@ async function arm(browser, site, j, subject, tag) {
 
     const verdicts = [];
     for (let i = 1; i < readings.length; i++) {
-      const v = judge(readings[i - 1], readings[i]);
+      const v = judge(readings[i - 1], readings[i], oneMark);
       if (v) verdicts.push(v);
     }
     const judged = verdicts.reduce((a, v) => a + v.rows, 0);
@@ -410,13 +434,19 @@ export async function run({ browser, site, j }) {
     1,
     "CONTROL: the walks brought names into scope that were not there at the previous position",
   );
+  // With two marks an arrival must wear the arrival mark and not the changed
+  // one. With one mark (the shared State view) it must wear that mark: drawn
+  // like a change by design, but never left unmarked.
   const misread = verdicts.flatMap((v) =>
-    [...v.expectAppeared].filter((n) => v.markedChanged.has(n) || !v.markedAppeared.has(n)),
+    [...v.expectAppeared].filter((n) =>
+      v.oneMark ? !v.markedChanged.has(n) : v.markedChanged.has(n) || !v.markedAppeared.has(n),
+    ),
   );
   j.countIs(
     misread.length,
     0,
-    "a name that was not in scope at the previous position is marked as arriving, not as changed",
+    "a name that was not in scope at the previous position is marked as arriving" +
+      " (with its own mark where the pane has two; with the changed mark where it has one)",
   );
 
   // ── EVERYTHING MARKED IS A READING, NOT A BREAKAGE ──────────────────────

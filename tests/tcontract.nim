@@ -238,7 +238,7 @@ suite "M5c — the published traces are the real noir_space_ship execution":
     let want = readFile(fixture)
     for c in cs:
       let got = readFile(c)
-      # Byte-identical to the vendored `nargo trace` output — not merely the same
+      # Byte-identical to the prepared `nargo trace` output — not merely the same
       # size, and not a re-encoding.
       check got == want
       # CTFS container magic (`c0 de 72 ac`), so this is a real container and not
@@ -305,7 +305,7 @@ suite "M5c — the published traces are the real noir_space_ship execution":
       check m["execution"]["languages"].getElems.mapIt(it.getStr) == @["noir"]
       check m["execution"]["sourceLevel"].getBool
       check m["container"]["bytes"].getInt == readFile(fixture).len
-      check m["container"]["bytes"].getInt == 732258
+      check m["container"]["bytes"].getInt == 732257
       # ── AND THIS TREE IS AN IDENTITY TREE, SO IT SAYS NOTHING AT REST ────
       #
       # `generator.nim` omits `encoding`, `storedBytes` and `storedHash`
@@ -498,6 +498,42 @@ suite "M5c — determinism":
       ""
     check oneContainer(a).len > 0
     check oneContainer(a) == oneContainer(other)
+
+suite "generated demo recording input identity":
+  test "changed supplied program inputs move the immutable artifact address":
+    # This checks publication identity over real filesystem input bytes. The
+    # producer/cache integration separately re-records the changed Prover input;
+    # this test does not pretend the unchanged container is that new execution.
+    let work = tmp("program-input-identity")
+    defer: removeDir work
+    let copied = work / "sources"
+    copyDir(sourcesDir, copied)
+    let prover = copied / "Prover.toml"
+    let original = readFile(prover)
+    const seed = "program-input-identity"
+    let tx = synthHash(seed, "tx", 0)
+    proc identity(outDir: string): tuple[execution, artifact: string] =
+      discard generate(DemoConfig(outDir: outDir, seed: seed,
+        traceFixturePath: fixture, traceSourcesDir: copied))
+      for path in walkDirRec(outDir / "t"):
+        if path.extractFilename != "manifest.json": continue
+        let manifest = parseFile(path)
+        if manifest["tx"].getStr == tx:
+          return (manifest["executionInputId"].getStr,
+                  manifest["traceArtifactId"].getStr)
+      raise newException(ValueError, "the real generated transaction has no artifact")
+    let before = identity(work / "before")
+    writeFile(prover, original & "\n# changed supplied prover bytes\n")
+    let changed = identity(work / "changed")
+    check changed.execution != before.execution
+    check changed.artifact != before.artifact
+    writeFile(prover, original)
+    let restored = identity(work / "restored")
+    check restored == before
+    # Existing three-argument callers describe their own chain capsule; a demo
+    # program binding must not change those unrelated real-chain fallback IDs.
+    check demoExecutionInputId("chain", "tx", "call") ==
+      "sha1:" & toLowerAscii($secureHash("chain\x1ftx\x1fcall"))
 
 suite "M5b — the contract names no producer":
   test "a hand-built EVM-shaped tree validates against the same contract version":
@@ -891,6 +927,9 @@ suite "§5 hash index — keying per identifier shape":
 
   # ═════════════════════════════════════════════════════════════════════════
   # THE SWEEP. Read this before changing anything below it.
+  # Historical counts in the defect narrative below describe e8d74ce7 before
+  # the Solana band widened. Active census constants and printed results reflect
+  # the current table; the widening's pair delta is asserted separately below.
   #
   # WHY IT IS A SWEEP AND NOT A LIST OF LITERALS. §5's consumption rule needs the
   # property "every member a single query matches yields the same payload", and
@@ -1069,8 +1108,10 @@ suite "§5 hash index — keying per identifier shape":
     var fams = initCountTable[string]()
     var maxProbes = 1
     var ambiguous = 0
+    var histogram = initCountTable[int]()
     for q in Sweep:
       let probes = indexProbesOf(q)
+      histogram.inc probes.len
       if probes.len <= 1: continue
       inc ambiguous
       if probes.len > maxProbes: maxProbes = probes.len
@@ -1089,6 +1130,7 @@ suite "§5 hash index — keying per identifier shape":
     echo "  probes: ", Sweep.len, " candidates; ", ambiguous,
          " imply >1 distinct payload (= >1 shard = one extra request); max ",
          maxProbes, "; families: ", $fams
+    echo "  probe-count histogram: ", $histogram
     check maxProbes == MaxDistinctPayloadsPerQuery
     check ambiguous > 0
     # The two §2-table families…
@@ -1223,9 +1265,12 @@ suite "§5 hash index — keying per identifier shape":
     const
       CrossCandidates = 223_670    # the population, on the table as declared
       MixedCaseBech32 = 22_976     # …of which reach a mixed-case bech32 reading
-      FoldedVsPreserved = 84       # …which are hex in one reading and
+      # Solana's 32–42 extension adds 132 folded/preserved witnesses
+      # (12 per added length) and 349 base58/bech32m overlaps. The generators
+      # themselves have unchanged alphabets and upper bounds.
+      FoldedVsPreserved = 216      # …which are hex in one reading and
                                    #   base58-family in another, DIFFERENT payload
-      CrossBase58Bech32m = 124     # the two families the own-alphabet generator
+      CrossBase58Bech32m = 473     # the two families the own-alphabet generator
       CrossBech32mSs58 = 93        #   cannot see; both need a case-varied hrp
     # The population `sweepCandidates` cannot emit, and the bound re-measured over
     # it.
@@ -1348,10 +1393,13 @@ suite "§5 hash index — keying per identifier shape":
     # row was narrowed by the same `=` suffix in the same change and contributes
     # NOTHING here, because base64 is not `pathSafe` and this loop skips it — which
     # is why the movement is a clean +4 rather than a difference of two effects.
-    # Everything else the sweep reports is unchanged: 53,935 candidates, 420 with
+    # At that earlier change everything else was unchanged: 53,935 candidates, 420 with
     # more than one payload, 462 ambiguous probes, max 2, the same four families,
     # and zero unreachable shards or pairs.
-    const PairsChecked = 19_260
+    # The 32–44 Solana band adds 3,272 base58 producer pairs at lengths
+    # 32–42 over the unchanged 53,935-candidate population. No prior pair
+    # disappears; both reachability equalities below remain zero.
+    const PairsChecked = 22_532
     #
     # `shardOnly` IS KEPT AND ASSERTED SEPARATELY, rather than deleted as
     # subsumed, because the two can fail independently and a reader who sees only
@@ -1359,6 +1407,7 @@ suite "§5 hash index — keying per identifier shape":
     # emitting a payload fails both, and one that stopped carrying an encoding
     # fails only the pair.
     var checked = 0
+    var shortBase58Pairs = 0
     var unreachableShard: seq[string] = @[]
     var unreachablePair: seq[string] = @[]
     for q in Sweep:
@@ -1375,6 +1424,7 @@ suite "§5 hash index — keying per identifier shape":
       for enc in declarable:
         if not identifierEncodingRule(enc).pathSafe: continue
         inc checked
+        if enc == "base58" and q.len in 32 .. 42: inc shortBase58Pairs
         let want = hashPrefix(enc, q, HashShardPrefixLen)
         var shardReached = false
         var pairReached = false
@@ -1390,6 +1440,8 @@ suite "§5 hash index — keying per identifier shape":
     echo "  pairs: ", checked, " (shard, encoding) pairs checked over ",
          Sweep.len, " candidates; unreachable shard ", unreachableShard.len,
          ", unreachable pair ", unreachablePair.len
+    echo "    added short-base58 pairs: ", shortBase58Pairs
+    check shortBase58Pairs == 3_272
     check checked == PairsChecked
     check unreachableShard.len == 0
     # THE STRENGTHENED HALF. This is the assertion that goes red on the code as it

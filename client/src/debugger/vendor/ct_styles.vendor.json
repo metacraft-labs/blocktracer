@@ -79,8 +79,8 @@
     "of these files in the same commit."
   ],
   "upstream": "metacraft-labs/codetracer",
-  "branch": "agents",
-  "commit": "aca163924c79d9f1219ccd3c585f82f123842a27",
+  "branch": "dev",
+  "commit": "c0408ecadd28772a027168e447485863f26e9ef7",
   "files": [
     {
       "path": "src/frontend/styles/components/button.styl",
@@ -135,7 +135,7 @@
     {
       "path": "src/frontend/styles/components/calltrace.styl",
       "local": "frontend/styles/components/calltrace.styl",
-      "sha256": "763b8424651865168b02807b8f0b81a4428f25b83e085879d9721beaf7af2d3f"
+      "sha256": "e767b22ed37ab1ef0840a90eb524e1aca120cf64c80cda604707266495331e97"
     },
     {
       "path": "src/frontend/styles/components/list_scrubber.styl",
@@ -150,7 +150,7 @@
     {
       "path": "src/frontend/styles/components/state.styl",
       "local": "frontend/styles/components/state.styl",
-      "sha256": "e1152f51d4c6497e37d58fc69a377aae9323aeb0e5b6b8c66fc97e901f933a03"
+      "sha256": "e84f19534658f07f7b4c8137d09a25ddd421f5bfa0c6c4a6de65dcd6841f90c7"
     },
     {
       "path": "src/frontend/styles/components/empty_states.styl",

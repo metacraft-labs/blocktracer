@@ -685,21 +685,37 @@ proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
   ## than by coincidence, which is the property `withCallAnchors` exists to
   ## guarantee; if this derived them a second way, a click could disagree with
   ## the row it clicked.
-  let lines = s.calltrace.visibleLines.val
-  var probe = CallTracePane(frames: newSeq[CallFrame](lines.len))
-  for k in 0 ..< lines.len:
-    probe.frames[k].depth = lines[k].depth
-  withCallAnchors(probe)
-  let i = frameOfAnchor(probe.frames, anchor)
+  # THE ANCHOR IS RESOLVED OVER THE HELD ROWS, by each row's logical address
+  # (`CalltraceVM.rowAddress`, codetracer Shared-DOM-Front-Ends D10) -- the
+  # same call path this page's row links are built from (`rowLinksFor`) and
+  # the static export numbers its rows by. It used to be re-derived here from
+  # `visibleLines`' depths, which numbers paths from the first VISIBLE row: a
+  # viewport window that does not start at the root (nine rows around step 59
+  # on the deep capture) numbered every frame wrongly, so no link's anchor ever
+  # matched and every landing fell back to the position's frame.
+  #
+  # The paths are computed ONCE over the held rows (`callPathsOf`, the function
+  # `rowAddress` itself numbers by): `rowAddress(row)` recounts the prefix up
+  # to its row on every call, so asking it row by row made this quadratic in
+  # the rows held, on a proc the landing calls on every render until its frame
+  # is found.
+  let held = s.store.calltrace.lines.val
+  let paths = callPathsOf(held)
+  var i = -1
+  for row in 0 ..< held.len:
+    var segs: seq[string]
+    for seg in paths[row]: segs.add $seg
+    if segs.len > 0 and "call:" & segs.join(".") == anchor:
+      i = row
+      break
   if i < 0:
     s.calltrace.selectEntry(none(int64))
     return false
-  # `visibleLines` is what the anchors were derived from just above, so frame
-  # `i` IS line `i`. The index is read off the line rather than carried on the
-  # frame because `CallFrame` has no entry index and must not grow one: it is
-  # the live ViewModel's private numbering, and putting it on the shared pane
-  # type would hand the static producer a field it can only fill with a lie.
-  if i >= lines.len: return false
+  # The index is read off the held line rather than carried on the frame
+  # because `CallFrame` has no entry index and must not grow one: it is the
+  # live ViewModel's private numbering, and putting it on the shared pane type
+  # would hand the static producer a field it can only fill with a lie.
+  let lines = held
   # THE SDK'S SETTER, AND IT COSTS 140,588 BYTES OF BUNDLE — 8% — WHICH IS
   # ACCEPTED RATHER THAN UNNOTICED.
   #
@@ -919,6 +935,60 @@ proc projectEventLog*(vm: EventLogVM; contentHash = ""): EventLogPane =
   for i in 0 ..< result.rows.len:
     result.rows[i].href = positionQuery(
       contentHash, result.rows[i].step, result.rows[i].anchor)
+
+proc eventAnchorOf(vm: EventLogVM; eventIndex: int): string =
+  ## The §6.0a anchor the event `eventIndex` carries in this pane: the one
+  ## `withEventAnchors` gives its row in `projectEventLog`, so a mounted row's
+  ## link and the projection's `href` name the same anchor. `""` for an event
+  ## the projection leaves out (no position) or does not hold.
+  ##
+  ## The anchor of one row depends on the rows before it (`log:` counts the
+  ## pane's events, `sw:` the writes to the same slot), so it is read off the
+  ## whole projection rather than computed from the row alone. That is one pass
+  ## over the held page per row asked for — a page is the window this pane
+  ## measured, tens of rows.
+  let pane = projectEventLog(vm)
+  var i = 0
+  for row in vm.eventRows.val:
+    if row.noPosition:
+      continue
+    if row.eventIndex == eventIndex:
+      return (if i < pane.rows.len: pane.rows[i].anchor else: "")
+    inc i
+
+proc rowLinksFor*(s: LiveSession; contentHash: string): RowLinks =
+  ## The link builder this page passes the shared Call Trace and Event Log
+  ## views (Shared-DOM-Front-Ends D10): BlockTracer's half of "the VMs carry the
+  ## view-agnostic logical data necessary to construct URLs … and the views
+  ## provide the actual URL construction logic".
+  ##
+  ## Each row's address becomes the §6.0a URL its row had before the panes were
+  ## shared, built by the same `positionQuery` with the same three inputs as
+  ## `projectCalltrace` / `projectEventLog`:
+  ##
+  ##   * `contentHash` — the artifact the page opened (`traceContentHash`, from
+  ##     the served DOM), so `t` never travels without `c`;
+  ##   * the step — the address's `rrTicks`, the field `CallFrame.step` and
+  ##     `EventRow.step` are filled from;
+  ##   * the anchor — `call:` and the address's `callPath` joined with `.`,
+  ##     which the SDK numbers as `deeplink_landing.callPath` does; for an
+  ##     event, the anchor `withEventAnchors` gives its row (`eventAnchorOf`).
+  ##
+  ## An event with no position gets no link: it is not a place to go, and
+  ## `projectEventLog` leaves it out for the same reason.
+  let eventLog = s.eventLog
+  result = proc(a: RowAddress): string =
+    case a.kind
+    of rakFrame:
+      var segs: seq[string]
+      for seg in a.callPath: segs.add $seg
+      let anchor = if segs.len > 0: "call:" & segs.join(".") else: ""
+      positionQuery(contentHash, int(a.rrTicks), anchor)
+    of rakEvent:
+      if not a.hasPosition: ""
+      else: positionQuery(contentHash, int(a.rrTicks),
+                          eventAnchorOf(eventLog, a.eventIndex))
+    of rakNone: ""
 
 proc canDo*(vm: DebugControlsVM; a: DebugAction): bool =
   ## Whether the VM says this move is available right now.

@@ -56,6 +56,10 @@ import ../client/src/debugger/source_document
 import ../client/src/debugger/source_island
 import ../client/src/components/debugger as panes
 import ../client/hydrate/session_project
+# The shared views the live build mounts (Shared-DOM-Front-Ends Q6/D10), for
+# the one suite below that renders them with this page's link builder.
+import codetracer_ui_components
+import isonim/testing/mock_dom
 
 # ---------------------------------------------------------------------------
 # One store, one mock backend, five ViewModels — a consumer's view of them
@@ -1342,6 +1346,111 @@ suite "M8c — the event log, decoded by the SDK":
       for row in s.store.eventLog.rows.val:
         if row.noPosition: inc marked
       check marked == 1
+
+      s.close()
+      dispose()
+
+# ---------------------------------------------------------------------------
+# D10 — a mounted shared row links to the §6.0a URL its row always had
+# ---------------------------------------------------------------------------
+
+proc hrefsOf(node: MockNode; cls: string; found: var seq[string]) =
+  ## The `href` of every element carrying class `cls`, in document order;
+  ## `"<none>"` for one that has no `href`.
+  if node.isNil: return
+  if node.kind == mnkElement and
+      cls in node.attributes.getOrDefault("class", "").split(' '):
+    found.add node.attributes.getOrDefault("href", "<none>")
+  for child in node.children:
+    hrefsOf(child, cls, found)
+
+proc hrefsOf(node: MockNode; cls: string): seq[string] =
+  hrefsOf(node, cls, result)
+
+const LinkContentHash =
+  "5f2c1d0e9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d"
+  ## A served `traceContentHash`: what makes a row's URL carry its `c`.
+
+suite "D10 — a mounted shared row links to the URL its row always had":
+
+  test "the shared Call Trace and Event Log draw the projection's href on every row":
+    ## Before the panes were shared, each live row was an `<a href>` whose URL
+    ## `projectCalltrace` / `projectEventLog` built (§6.0a: `t`, `c`, `a`).
+    ## The shared views cannot build a URL; they draw what `rowLinksFor` builds
+    ## from each row's address. The claim: for every row, the mounted view's
+    ## `href` IS the projection's — so the scheme did not move, and a link
+    ## copied from the live page is the link the page always gave.
+    ##
+    ## The rows are chosen so the anchors are not all alike: nested and sibling
+    ## calls (`call:0`, `call:0.0`, `call:0.0.0`, `call:0.0.1`, `call:0.1`), a
+    ## log, a storage write and a revert, and — the CONTROL — an event with no
+    ## position, which the projection leaves out and the view must not link.
+    createRoot proc(dispose: proc()) =
+      let s = openSession()
+      s.store.updateDebuggerPosition(41'u64, file = "src/shield.nr", line = 4)
+      s.store.setSessionMode(completedReplay)
+      s.calltrace.setViewport(Viewport(rows: 16, cols: 9))
+      s.store.updateCalltraceSection(@[
+        makeCallLine("main", 0, 1'u64, file = "src/main.nr", line = 12),
+        makeCallLine("iterate_asteroids", 1, 6'u64, file = "src/shield.nr", line = 1),
+        makeCallLine("calculate_damage", 2, 41'u64, file = "src/shield.nr", line = 4),
+        makeCallLine("calculate_damage", 2, 52'u64, file = "src/shield.nr", line = 4),
+        makeCallLine("report", 1, 77'u64, file = "src/main.nr", line = 30),
+      ], startIndex = 0'i64, totalCount = 5'u64)
+      var noPosition = writeRow(3, "Output", "", 0, "rung 3", 0'u64)
+      noPosition.noPosition = true
+      s.store.applyEventLogRows(@[
+        writeRow(0, "Call", "src/shield.nr", 1, "initial_shield=10000", 6'u64),
+        writeRow(1, "Event", "src/shield.nr", 3, "Damage(100)", 30'u64),
+        writeRow(2, "Write", "src/shield.nr", 5, "10000 → 9900", 31'u64),
+        noPosition,
+        writeRow(4, "Revert", "src/main.nr", 35, "constraint not satisfied", 1299'u64),
+      ], 0, recordsTotal = 5)
+      drainPlatformCallbacks()
+
+      let links = s.rowLinksFor(LinkContentHash)
+      let r = MockRenderer()
+      let calltrace = renderCalltracePanel[MockRenderer, MockNode](
+        r, s.calltrace, links)
+      let eventLog = renderEventLogPanel[MockRenderer, MockNode](
+        r, s.eventLog, links)
+      drainPlatformCallbacks()
+
+      # ── the call trace ───────────────────────────────────────────────────
+      let frames = projectCalltrace(s.calltrace, LinkContentHash).frames
+      let callHrefs = calltrace.hrefsOf("call-text")
+      check frames.len == 5
+      check callHrefs.len == frames.len
+      var anchors: seq[string]
+      for i in 0 ..< min(frames.len, callHrefs.len):
+        check frames[i].href.len > 0
+        check callHrefs[i] == frames[i].href
+        anchors.add frames[i].anchor
+      check anchors == @["call:0", "call:0.0", "call:0.0.0", "call:0.0.1",
+                         "call:0.1"]
+      # The URL carries the content witness and the frame's coordinate, by the
+      # one emitter (`positionQuery`), not a spelling of this test's.
+      if callHrefs.len == 5:
+        check callHrefs[3] == positionQuery(LinkContentHash, 52, "call:0.0.1")
+
+      # ── the event log ────────────────────────────────────────────────────
+      let rows = projectEventLog(s.eventLog, LinkContentHash).rows
+      let eventHrefs = eventLog.hrefsOf("eventLog-row-link")
+      check rows.len == 4          # the no-position event is not a row there
+      check eventHrefs.len == 5    # ... and is still drawn by the shared view
+      if eventHrefs.len == 5 and rows.len == 4:
+        check eventHrefs[0] == rows[0].href
+        check eventHrefs[1] == rows[1].href
+        check eventHrefs[2] == rows[2].href
+        check eventHrefs[3] == "<none>"   # CONTROL: nowhere to go, no link
+        check eventHrefs[4] == rows[3].href
+        check rows[1].anchor == "log:0"
+        check rows[2].anchor.startsWith("sw:")
+        check rows[3].anchor == "revert"
+        # A call event names no frame of its own (the call trace does), so it
+        # links by its coordinate alone.
+        check rows[0].anchor == ""
+        check eventHrefs[0] == positionQuery(LinkContentHash, 6, "")
 
       s.close()
       dispose()
