@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 // Inventory validation uses copies of the real committed snapshot manifests.
 // No recorder is mocked: producer integration is exercised by prepare-recordings
-// and the repository's existing reader, publisher and explorer tests.
+// and the repository's existing reader, publisher and explorer tests. The
+// shipped-engine check is driven with header-only byte strings, because the
+// check reads only the container byte and the `meta.dat` header; whether the
+// engine really opens a prepared container is `tools/deploy/engine-opens.mjs`.
 import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, mkdirSync, cpSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ROOT, validateManifest } from './prepare-recordings.mjs';
 import { prepareTemplate } from './template-placeholders.mjs';
+import { versionsOf, shippedEngine, engineRefusal } from '../chain/lib/container-versions.mjs';
 
 const manifest = JSON.parse(readFileSync(join(ROOT, 'tools/fixtures/recordings.json'), 'utf8'));
 const copy = () => structuredClone(manifest);
@@ -24,6 +28,24 @@ assert.throws(() => validateManifest(escaping), /invalid fixture path/);
 const unknown = copy();
 unknown.recordings[0].kind = 'download-committed-recording';
 assert.throws(() => validateManifest(unknown), /unknown producer/);
+
+// The engine check preparation applies to every prepared container. The subjects
+// are header-only byte strings: `versionsOf` reads the container byte and the
+// `meta.dat` member's `CTMD` header and nothing else, so these exercise exactly
+// what it reads. The sets are the REAL shipped-engine entry, so a container at
+// the version the producers write (6) is refused by name against today's engine.
+const engine = shippedEngine(ROOT);
+const header = (container, metaDat) => Buffer.concat([Buffer.from([0xc0, 0xde, 0x72, 0xac, 0xe2, container]),
+  Buffer.alloc(18), Buffer.from('CTMD'), Buffer.from([metaDat & 0xff, metaDat >> 8])]);
+const accepted = header(engine.acceptsContainerVersions.at(-1), engine.accepts.at(-1));
+assert.deepEqual(versionsOf(accepted), { container: engine.acceptsContainerVersions.at(-1),
+  metaDat: engine.accepts.at(-1), profile: 0 });
+assert.equal(engineRefusal(versionsOf(accepted), engine), null);
+assert.ok(!engine.accepts.includes(6), 'the shipped engine reads meta.dat 6, the version the producers write; then preparation must not regenerate it as 7');
+assert.match(engineRefusal(versionsOf(header(6, 6)), engine), /^meta\.dat version 6 is not in \[/);
+assert.match(engineRefusal(versionsOf(header(3, engine.accepts.at(-1))), engine), /^container version 3 is not in \[/);
+assert.match(engineRefusal(versionsOf(Buffer.from('example container placeholder')), engine),
+  /container version unreadable .* and meta\.dat version unreadable/);
 
 const temp = mkdtempSync(join(tmpdir(), 'blocktracer-recording-inventory-'));
 try {
@@ -53,7 +75,9 @@ try {
   delete snapshot.transactions.find((row) => row.txHash === removed.transaction).container;
   writeFileSync(join(temp, removed.snapshot), JSON.stringify(snapshot));
   assert.throws(() => validateManifest(shrunk, temp), /population changed from baseline/);
-  console.log('fixture inventory selftest: original 55, missing, duplicate, unsafe path, unknown producer, mutually shrunk inventories');
+  console.log('fixture inventory selftest: original 55, missing, duplicate, unsafe path, unknown producer, mutually shrunk inventories; '
+    + `shipped-engine check accepts container ${JSON.stringify(engine.acceptsContainerVersions)} / meta.dat ${JSON.stringify(engine.accepts)} `
+    + 'and refuses meta.dat 6, container 3 and an unreadable header by name');
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

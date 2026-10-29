@@ -546,10 +546,11 @@ readable-container:
 # name, because `--meta-json --events <path>` leaves the reader printing one
 # shape and the tool parsing another while every other clause looks right.
 #
-# The development shell supplies the compatible schema-6 fixture reader as
-# `CT_FIXTURE_PRINT`. A current sibling reader has a separately versioned ABI;
-# the health-check's on-demand subject follows that current writer/reader pair.
-# Select the reader explicitly for the population being measured.
+# The development shell supplies the fixture reader as `CT_FIXTURE_PRINT`: the
+# `ct-print` of the flake's `codetracer-trace-format-nim` input, which reads
+# `meta.dat` 7 — what preparation produces since 2026-10-28 (it was a separately
+# pinned schema-6 reader until then). Select the reader explicitly for the
+# population being measured.
 #
 # HISTORICAL MEASUREMENT BEFORE THE GENERATED FIXTURE CONVERSION. Measured 2026-09-28 with a
 # reader built from a current checkout: of the 46 containers named by a committed
@@ -590,7 +591,9 @@ readable-container:
 # replay engine this repository ships to a visitor — pinned by sha256 in
 # `client/hydrate/engine-pin.txt` — accepts [3]. So the same corpus is unreadable
 # to one and readable to the other, and picking which one matters is not a
-# decision a sweep gets to make.
+# decision a sweep gets to make. (SUPERSEDED FIGURES, the rule stands: the
+# shipped engine accepted [6] from 2026-10-12 and accepts [7] since 2026-10-28 —
+# `tools/chain/health-checks.json` `shipped-engine` is where the set is kept.)
 #
 # ── WHAT AN OPENED CONTAINER IS COMPARED AGAINST ───────────────────────────
 #
@@ -812,21 +815,18 @@ _compact-build:
 
 # Regenerate `meta.dat` schema-6 containers as schema 7, verified by a full
 # decode (tools/chain/meta_dat_v7.nim says why that is a regeneration and not a
-# guess). FOR THE ENGINE-PIN MOVE ONLY: the engine pinned in
-# client/hydrate/engine-pin.txt reads schema 6 and refuses 7, so the corpus and
-# the pin move in ONE commit. TRACE_FORMAT_NIM is a codetracer-trace-format-nim
-# tree at the revision the new engine's codetracer locks (ffd0554d for
-# codetracer aca163924), because the verifying reader must read 7. Writes in
-# place; deterministic. `--check` reports without writing.
-#   just ct-meta-dat-v7 ../codetracer-trace-format-nim --check
-ct-meta-dat-v7 TRACE_FORMAT_NIM *ARGS: prepare-recordings
-    #!/usr/bin/env bash
-    set -euo pipefail
-    paths=(-p:"{{TRACE_FORMAT_NIM}}/src")
-    IFS=: read -ra extra <<< "${CT_NIM_EXTRA_PATHS:-}"
-    for p in "${extra[@]}"; do [ -n "$p" ] && paths+=(-p:"$p"); done
-    nim c --hints:off -d:release "${paths[@]}" -o:.meta-dat-v7 tools/chain/meta_dat_v7.nim
-    ./.meta-dat-v7 {{ARGS}} $(node tools/fixtures/list-recordings.mjs --containers)
+# guess). SINCE 2026-10-28 PREPARATION DOES THIS ITSELF: the engine pinned in
+# client/hydrate/engine-pin.txt reads schema 7 only, both fixture producers
+# write 6, and `prepare-recordings.mjs` runs `$CT_META_DAT_V7` (built by the
+# flake against the `codetracer-trace-format-nim` input, which reads 7) after
+# each producer. This recipe runs the same binary over the prepared corpus, so
+# it reports "already meta.dat 7" for each container; it is for checking that,
+# or a container from elsewhere. Writes in place; deterministic. `--check`
+# reports without writing.
+#   just ct-meta-dat-v7 --check
+ct-meta-dat-v7 *ARGS: prepare-recordings
+    "${CT_META_DAT_V7:?run this inside the dev shell: nix develop .#ci --command just …}" \
+      {{ARGS}} $(node tools/fixtures/list-recordings.mjs --containers)
 
 # Re-read the census into the committed reading. Run this deliberately, after a
 # corpus change, and say in the commit WHY each delta moved.

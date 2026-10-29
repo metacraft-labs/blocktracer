@@ -48,6 +48,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { basename, join, resolve, relative } from "node:path";
 import { validateManifest, prepareRecordings } from '../fixtures/prepare-recordings.mjs';
+import { versionsOf } from '../chain/lib/container-versions.mjs';
 
 const HERE = new URL(".", import.meta.url).pathname;
 const REPO = resolve(HERE, "..", "..");
@@ -73,21 +74,10 @@ function fixtureCorpus(dir) {
   return manifest.recordings.map((row) => join(dir, row.output));
 }
 
-// The two version axes, read off the bytes rather than taken from a name. They
-// are INDEPENDENT — `engine-pin.txt` carries the incident that taught this —
+// The two version axes, read off the bytes rather than taken from a name
+// (`versionsOf`, shared with preparation's engine check). They are INDEPENDENT,
 // so both are printed for every subject, and a container with no CTFS magic is
 // reported as such instead of being given a version of 0.
-const CTFS_MAGIC = Buffer.from("c0de72ace2", "hex");
-function versionsOf(bytes) {
-  const isCtfs = bytes.length > 5 && bytes.subarray(0, 5).equals(CTFS_MAGIC);
-  const container = isCtfs ? bytes[5] : null;
-  const j = bytes.indexOf(Buffer.from("CTMD"));
-  const metaDat = j >= 0 && j + 6 <= bytes.length ? bytes.readUInt16LE(j + 4) : null;
-  // Byte 16 is the PROFILE byte, and only in a version-6 header (24 bytes).
-  // In version 5 that offset is body, so reading it there would invent a field.
-  const profile = container === 6 && bytes.length > 16 ? bytes[16] : null;
-  return { container, metaDat, profile };
-}
 
 const args = parseArgs(process.argv.slice(2));
 if (!args.engine) {

@@ -215,7 +215,10 @@ const
     staticRead(currentSourcePath().parentDir / "../../../tools/fixtures/recordings.json") & "\0" &
     staticRead(currentSourcePath().parentDir / "../../../tools/fixtures/prepare-recordings.mjs") & "\0" &
     staticRead(currentSourcePath().parentDir / "../../../tools/fixtures/compact-container.nix") & "\0" &
-    staticRead(currentSourcePath().parentDir / "../../../tools/chain/compact_container.nim") & "\0" & hostOS & "/" & hostCPU
+    staticRead(currentSourcePath().parentDir / "../../../tools/chain/compact_container.nim") & "\0" &
+    # The `meta.dat` 7 regeneration preparation applies after the producer
+    # (since 2026-10-28) is part of the producer graph too.
+    staticRead(currentSourcePath().parentDir / "../../../tools/chain/meta_dat_v7.nim") & "\0" & hostOS & "/" & hostCPU
   # Preparation converts every demo recording to the compact CTFS profile.
   traceSchema = "ctfs/v6"
   profileName = "default"

@@ -2232,6 +2232,13 @@ jobs:
       # subjects are now generated as container6 / `meta.dat`6 / profile1,
       # and the pinned engine opens them all; no `.ct` remains committed.
       #
+      # UNMOVED BY THE 2026-10-28 RE-PIN, and that is the point of it. The
+      # engine moved to codetracer `cloud` c0408ecad, which reads `meta.dat` 7
+      # only; measured at blocktracer 98fa6fd, it opened 0 and refused 55 of
+      # the generated corpus (every container `meta.dat` 6). Preparation now
+      # regenerates each container at `meta.dat` 7, and the same 52 / 3 is
+      # re-measured on container6 / `meta.dat`7 / profile1 with that engine.
+      #
       # THE THREE REFUSALS ARE NOW A FIXED SET and not a remainder: the
       # conformance kit's 229-byte ASCII placeholders, which are not containers
       # by design. `--expect-refused 3` therefore asserts something stronger

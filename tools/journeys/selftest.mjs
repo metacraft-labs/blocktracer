@@ -1393,12 +1393,22 @@ proc noteFor*`,
       " reading in the loop and the loop threw all eight away. The arm now names" +
       " the assertion that presses one more key afterwards — the symptom above," +
       " stated as a verdict — and it kills with \"alive=false settled=false —" +
-      " Home moved 658 -> 658\".",
+      " Home moved 658 -> 658\"." +
+      " RE-AIMED 2026-10-29, WITH THE ENGINE PIN: the `meta.dat` 7 engine" +
+      " (codetracer c0408ecad) returns an error for an out-of-range step where" +
+      " 571c64cca's `.expect(\"load_local_calltrace: invalid step_id\")` panicked," +
+      " so the session survives and the assertion above stays green (measured:" +
+      " SURVIVED, \"alive=true — Home moved 658 -> 1\"). The defect did not go" +
+      " away; its symptom moved. `End` now asks for a step that does not exist and" +
+      " goes nowhere, and the key walk reports it by name: \"answered … Home:658->1;" +
+      " INERT End@658 — counted 7, the claim says 8\". The arm is aimed there. The" +
+      " assertion it used to name stays in the journey, against an engine that" +
+      " traps again.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
     find: `      of smEnd: lastStep(total)`,
     replace: `      of smEnd: total`,
     journey: "the-timeline-can-be-dragged",
-    assertion: "the session still answers a key after every advertised key has been pressed",
+    assertion: "every key the scrubber advertises moves the session",
   },
   {
     id: "SC8/the-scrubber-stops-naming-its-keys",

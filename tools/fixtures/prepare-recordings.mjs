@@ -2,6 +2,14 @@
 // Materialize recordings from their original program or immutable replay inputs.
 // All subprocesses are real producers. Failure leaves each previous complete file
 // untouched; fingerprints bind cached outputs to their inputs and actual tools.
+//
+// Every container is then regenerated at `meta.dat` 7 by `CT_META_DAT_V7`, which
+// decodes the result in full before writing it, and every prepared container —
+// freshly recorded or cached — must be one the SHIPPED replay engine accepts
+// (`shipped-engine` in tools/chain/health-checks.json). Both producers' pinned
+// writers emit `meta.dat` 6; the engine pinned in client/hydrate/engine-pin.txt
+// reads 7 only since 2026-10-28, and a skew between the two is refused here, by
+// file name, rather than surfacing later as a replay that will not open.
 import {
   existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, mkdtempSync,
   rmSync, cpSync, renameSync,
@@ -12,6 +20,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { placeholderFor } from './template-placeholders.mjs';
+import { versionsOf, shippedEngine, engineRefusal } from '../chain/lib/container-versions.mjs';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const MANIFEST = join(ROOT, 'tools/fixtures/recordings.json');
@@ -100,6 +109,7 @@ function toolsFromEnv(kinds) {
   const names = [];
   if (kinds.has('noir')) names.push('NARGO', 'CT_COMPACT_CONTAINER');
   if (kinds.has('aztec')) names.push('CT_AZTEC_NODE', 'CT_AZTEC_RUNTIME', 'CT_AZTEC_WRITER_WASM', 'CT_AZTEC_AVM_WASM');
+  if (kinds.has('noir') || kinds.has('aztec')) names.push('CT_META_DAT_V7');
   const tools = {};
   for (const name of names) {
     if (!process.env[name] || !existsSync(process.env[name])) {
@@ -123,7 +133,7 @@ export function prepareRecordings({ force = false, check = false, producer: sele
   const producer = digest(JSON.stringify([
     tools,
     ['node', process.execPath, process.version, hashFile(process.execPath)],
-    ...['NARGO', 'CT_AZTEC_NODE', 'CT_AZTEC_WRITER_WASM', 'CT_AZTEC_AVM_WASM', 'CT_COMPACT_CONTAINER'].filter((p) => tools[p]).map((p) => [p, hashFile(tools[p])]),
+    ...['NARGO', 'CT_AZTEC_NODE', 'CT_AZTEC_WRITER_WASM', 'CT_AZTEC_AVM_WASM', 'CT_COMPACT_CONTAINER', 'CT_META_DAT_V7'].filter((p) => tools[p]).map((p) => [p, hashFile(tools[p])]),
     ...runtimeFiles.map((p) => [relative(tools.CT_AZTEC_RUNTIME, p), hashFile(p)]),
     ...(tools.CT_AZTEC_RUNTIME ? [hashFile(join(tools.CT_AZTEC_RUNTIME, 'pins.json')),
       hashFile(join(tools.CT_AZTEC_RUNTIME, 'replay/package-lock.json'))] : []),
@@ -207,6 +217,13 @@ export function prepareRecordings({ force = false, check = false, producer: sele
         aztecOutputs.set(row.input, { output, report });
       }
       if (!existsSync(staged)) throw new Error(`producer wrote no ${row.output}`);
+      if (row.kind !== 'placeholder') {
+        // The producers write `meta.dat` 6. This moves the version field to 7
+        // and nothing else, and refuses (exit 1) unless the result decodes in
+        // full with the pinned v7 reader — tools/chain/meta_dat_v7.nim says why
+        // that is a regeneration and not a guess. Byte counts are unchanged.
+        run(tools.CT_META_DAT_V7, [staged], ROOT);
+      }
       if (row.snapshot) {
         const expected = json(checkedPath(ROOT, row.snapshot)).transactions.find((t) =>
           `${dirname(row.snapshot)}/${t.container}` === row.output);
@@ -225,6 +242,20 @@ export function prepareRecordings({ force = false, check = false, producer: sele
     if (!check) {
       mkdirSync(dirname(STATE), { recursive: true });
       writeFileSync(STATE, JSON.stringify(next, null, 2) + '\n');
+    }
+    // Cached outputs are checked as well as fresh ones: a re-pinned engine does
+    // not change any producer, so it invalidates no cache entry. After the state
+    // is written, so a refusal here does not discard correct recordings.
+    const engine = shippedEngine(ROOT);
+    const skewed = rows.filter((row) => row.kind !== 'placeholder').flatMap((row) => {
+      const why = engineRefusal(versionsOf(readFileSync(checkedPath(ROOT, row.output))), engine);
+      return why ? [`  ${row.output}: ${why}`] : [];
+    });
+    if (skewed.length) {
+      throw new Error(`${skewed.length} prepared container(s) would be refused by the shipped replay engine `
+        + `(tools/chain/health-checks.json shipped-engine, read from ${engine.readFrom?.repo} `
+        + `${engine.readFrom?.revision}):\n${skewed.join('\n')}\n`
+        + 'The producers and client/hydrate/engine-pin.txt have moved apart; move them together.');
     }
     return rows.length;
   } finally {

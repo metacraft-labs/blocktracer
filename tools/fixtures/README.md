@@ -29,13 +29,20 @@ The producer roles are distinct:
 
 The prepared files are cached under their original paths, with fingerprints
 in `.fixture-recordings/`. The cache binds inputs, runtime source and dependency
-pins, the recorder binaries, the writer and AVM modules, and generation
-configuration. Output hashes detect modified or truncated files. `--force`
+pins, the recorder binaries, the writer and AVM modules, the `meta.dat`
+regeneration binary, and generation configuration. Output hashes detect modified or truncated files. `--force`
 records every subject again; `--check` fails if preparation is needed.
 
-The development shell supplies `CT_FIXTURE_PRINT` for these schema-6 recordings.
-Authoring recipes select that reader locally; it does not replace the current
-reader paired with independently generated schema-7 health-check subjects.
+Both producers write `meta.dat` schema 6, and the replay engine pinned in
+`client/hydrate/engine-pin.txt` reads schema 7 only. So after each producer,
+preparation runs `CT_META_DAT_V7` (`tools/chain/meta_dat_v7.nim`), which moves
+the version field to 7 and nothing else, and writes the result only if its v7
+reader decodes every path, step, value, call and event. Byte counts do not
+change. Then every prepared container, recorded or cached, must be inside the
+`shipped-engine` sets in `tools/chain/health-checks.json`; one that is not fails
+preparation by file name. The development shell supplies `CT_FIXTURE_PRINT`, a
+`ct-print` that reads these schema-7 recordings, built with the regeneration
+tool from the same `codetracer-trace-format-nim` revision.
 
 The policy check inspects the complete Git index, including old paths and
 directory recordings. An additions-only commit hook cannot detect an old

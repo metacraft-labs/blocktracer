@@ -135,8 +135,11 @@ compiler `875ee4855112922d4526c5f3e97448386dfc76f6`, Rust trace format
 hashed individually and together in the manifest. It preserves the historical schema-6 writer ABI while
 the main recorder continues to follow its current format dependencies.
 
-The resulting containers use CTFS version 6, compact profile 1, and meta.dat
-schema 6, which the pinned replay engine accepts. Older recorded UUID and store
+The recorder writes CTFS version 6, compact profile 1, and meta.dat schema 6.
+Since 2026-10-28 the pinned replay engine reads meta.dat schema 7 only, so
+preparation regenerates each container at schema 7 (the version field and
+nothing else, verified by a full decode; `tools/fixtures/README.md`), and the
+prepared containers are CTFS version 6, compact profile 1, meta.dat schema 7. Older recorded UUID and store
 path measurements explain the former committed corpus; they are not the
 identity of this generated producer.
 

@@ -1144,7 +1144,8 @@ free tier refuses `eth_getLogs` and publicnode prunes the state.
 
 `derive-calltrace.mjs`, `derive-instructions.mjs` and `derive-positions.mjs`
 read containers through `ct-print`. The development shell supplies
-`CT_FIXTURE_PRINT` for the schema-6 fixture producer. `just chain-instructions`
+`CT_FIXTURE_PRINT`, which reads the `meta.dat` schema-7 containers preparation
+produces (since 2026-10-28; see `tools/fixtures/README.md`). `just chain-instructions`
 and `just chain-calltrace` prepare the original recordings and select this
 reader. For the direct script, select it explicitly:
 
@@ -1157,12 +1158,14 @@ The inspector's generic layout probe now reads the actual full or compact
 directory and reconstructs whole-file compression before member lookup.
 Materialized recordings therefore reach the split-stream reader instead of
 being refused by the native event decoder's version-5 gate. Metadata schema
-checks and the native decoder's own gate remain in force. The owning package
-is `codetracer-trace-format-nim/nix/schema6-reader.nix`; it does not change the
-current schema used by that repository's default reader.
+checks and the native decoder's own gate remain in force. The fix is
+`codetracer-trace-format-nim` `d1d8e98d`; until 2026-10-28 this repository used
+that repository's backport of it to a schema-6 reader
+(`nix/schema6-reader.nix`), and since then it builds `ct-print` from
+`e15374866`, which carries the fix and reads schema 7.
 
 Measured on arch against `codetracer-trace-format-nim` at `d1d8e98d`, the
-installed schema-6 inspector decoded the real generated
+installed schema-6 inspector (the reader used then) decoded the real generated
 `fixtures/trace/tour/values/tour_values.ct` through its default `--summary`
 path. The package's production-writer check also compares full, compact and
 compressed compact representations through four inspector views, and requires

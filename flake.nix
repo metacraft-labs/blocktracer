@@ -135,21 +135,20 @@
     };
 
     # The fixture producer is the version that recorded the existing Aztec
-    # subjects. Its schema-6 writer matches the published replay engine. The
-    # separate Nim input preserves that producer's exact writer anchor while
-    # the other chain packages retain their independently pinned writer.
+    # subjects. Its writer (`aztec-trace-format-nim` below) writes `meta.dat` 6,
+    # and so does the Noir fixture recorder's. Since 2026-10-28 the published
+    # replay engine reads 7 only, so preparation regenerates every container as
+    # `meta.dat` 7 after its producer (`meta-dat-v7`, built in
+    # tools/fixtures/compact-container.nix against `codetracer-trace-format-nim`
+    # and verified by a full decode). The separate Nim input preserves that
+    # producer's exact writer anchor, so the replays and their recorded figures
+    # are unchanged; only the version field moves.
     aztec-avm-runtime = {
       url = "github:metacraft-labs/aztec-avm-runtime/238a3a5b9fe9346868cc7fab84a8aa54513287dd";
       flake = false;
     };
     noir-fixture-recorder = {
       url = "github:metacraft-labs/noir/b048e84842cc3ba55568ba7b4354a0c73709c9cc";
-      flake = false;
-    };
-    # The owner maintains the compatible reader separately from its current ABI.
-    # This role reads the generated schema-6 fixtures, including compact CTFS.
-    fixture-container-reader-source = {
-      url = "github:metacraft-labs/codetracer-trace-format-nim/e15374866665556eae3eeecd34e6add476c98cb0";
       flake = false;
     };
     codetracer-trace-format = {
@@ -194,9 +193,9 @@
     };
 
     # ── Chain two: the Ethereum recorder and the writer it links ──────────────
-    # tools/chain/nix/eth.nix says why each pin is where it is. The writer is the
-    # last revision that writes `meta.dat` 6, because the engine this site pins
-    # reads 6 only. Move it with client/hydrate/engine-pin.txt, never ahead of it.
+    # tools/chain/nix/eth.nix says why each pin is where it is. The writer writes
+    # `meta.dat` 7, because the engine this site pins reads 7 only. Move it with
+    # client/hydrate/engine-pin.txt, never ahead of it.
     codetracer-evm-recorder = {
       url = "github:metacraft-labs/codetracer-evm-recorder/dc516fdab3933bcdef877c51a44b0718fbcc1198";
       flake = false;
@@ -210,11 +209,25 @@
     # one binary. eth.nix runs the same two builds, through the writer's own
     # `build_ffi.nims`, against its three Nim dependencies at the revisions the
     # writer's flake.lock records at this pin.
-    # THE CEILING ON THIS PIN IS `meta.dat` 6, AND IT IS NOT A STYLE RULE.
-    # The engine pinned at `client/hydrate/engine-pin.txt` accepts container
-    # {5,6} and `meta.dat` [6]. This repository's HEAD emits
-    # `MetaDatVersion* = 7`, which that engine REFUSES — advancing to it would
-    # publish containers this site's own reader cannot open.
+    # THE PIN MOVES WITH THE ENGINE, AND IT IS NOT A STYLE RULE. The engine
+    # pinned at `client/hydrate/engine-pin.txt` decides which `meta.dat` version
+    # this writer may emit; a writer ahead of it publishes containers this
+    # site's own reader cannot open, and one behind it does the same.
+    #
+    # MOVED 2026-10-28, 7b8b587c72 -> e15374866, together with the engine.
+    # The engine pin moved to codetracer `cloud` c0408ecad, which accepts
+    # container {5,6} and `meta.dat` [7] ONLY, so the old ceiling (`meta.dat` 6)
+    # became a floor this writer was below. Read at the place that decides it:
+    #
+    #     e15374866  src/codetracer_trace_writer/meta_dat.nim  MetaDatVersion = 7
+    #
+    # e15374866 rather than the engine's own lock (ccc4ba4e, which also writes
+    # 7): it is ccc4ba4e plus d1d8e98, the reader fix that routes a compact
+    # container with whole-file compression to the right reader, and this input
+    # also builds the `ct-print` the fixture recipes use (`CT_FIXTURE_PRINT`).
+    # Its flake.lock pins the same three Nim dependencies as before.
+    #
+    # The history this replaced, kept because it is how the ceiling was found:
     #
     # Two branches pinned this input independently and a merge brought both
     # spellings into one file, which Nix refuses as a duplicate attribute —
@@ -224,11 +237,9 @@
     #     051efd22b0  src/codetracer_trace_writer/meta_dat.nim  MetaDatVersion = 6
     #     7b8b587c72  src/codetracer_trace_writer/meta_dat.nim  MetaDatVersion = 6
     #
-    # Both are inside the ceiling, so the newer one is taken and the lock
-    # already names it. The ceiling itself stays written down, because the
-    # thing it guards against is one commit away on that repository's mainline.
+    # Both were inside the then ceiling, so the newer one was taken.
     codetracer-trace-format-nim = {
-      url = "github:metacraft-labs/codetracer-trace-format-nim/7b8b587c72ec31f6825ae124ab89ad7954f6dca7";
+      url = "github:metacraft-labs/codetracer-trace-format-nim/e15374866665556eae3eeecd34e6add476c98cb0";
       flake = false;
     };
     # ── Chain three: the Flow recorder and its trace-format siblings ──────────
@@ -279,7 +290,6 @@
 
   outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, isonim-tui, codetracer-design-system, codetracer
             , aztec-avm-runtime, codetracer-trace-format, aztec-trace-format-nim, noir-fixture-recorder
-            , fixture-container-reader-source
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
             , codetracer-solana-recorder, sol-trace-format
@@ -291,7 +301,6 @@
         pkgs = import nixpkgs { inherit system; };
 
         fixtureRecorder = import "${noir-fixture-recorder}/nix/fixture-recorder.nix" { inherit pkgs; };
-        fixtureContainerReader = import "${fixture-container-reader-source}/nix/schema6-reader.nix" { inherit pkgs; };
         fixtureContainerTools = import ./tools/fixtures/compact-container.nix {
           inherit pkgs;
           traceFormatNim = codetracer-trace-format-nim;
@@ -309,7 +318,8 @@
           CT_AZTEC_WRITER_WASM = "${chain.ctWriterWasm}/lib/aztec_ct_writer.wasm";
           CT_AZTEC_AVM_WASM = fixtureAvm;
           CT_COMPACT_CONTAINER = "${fixtureContainerTools}/bin/compact-container";
-          CT_FIXTURE_PRINT = "${fixtureContainerReader}/bin/ct-print";
+          CT_META_DAT_V7 = "${fixtureContainerTools}/bin/meta-dat-v7";
+          CT_FIXTURE_PRINT = "${fixtureContainerTools}/bin/ct-print";
         };
         fixtureRecordings = pkgs.runCommand "blocktracer-fixture-recordings" (fixtureEnv // {
           nativeBuildInputs = [ pkgs.nodejs_24 ];
@@ -656,7 +666,6 @@
 
         packages.fixture-recorder6 = fixtureRecorder;
         packages.fixture-container-tools = fixtureContainerTools;
-        packages.fixture-container-reader = fixtureContainerReader;
         packages.fixture-recordings = fixtureRecordings;
         packages.all-produced-recordings = pkgs.runCommand "blocktracer-all-produced-recordings" { } ''
           mkdir -p $out

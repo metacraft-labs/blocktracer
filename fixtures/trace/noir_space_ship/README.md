@@ -16,7 +16,7 @@ The container is named `zk_shields.ct` because the Noir package's `name` is
 | Recorder | `nargo trace`, from a Nix build |
 | Version | `nargo 1.0.0-beta.26`, compiler `875ee4855112922d4526c5f3e97448386dfc76f6`, with the declared identity-option and deterministic debug-binding-order backports |
 | Recorder package | `noir-fixture-recorder-v6`, Noir repository revision `b1386f4fe8ca6b041107a856d56fb6aa031adc17`; complete source pins in `../tour/manifest.json` |
-| Container | Generated CTFS `.ct`, **container version 6, compact profile 1 / `meta.dat` schema 6** |
+| Container | Generated CTFS `.ct`, **container version 6, compact profile 1 / `meta.dat` schema 7** (the recorder writes schema 6; preparation regenerates it as 7 for the pinned replay engine, see `tools/fixtures/README.md`) |
 | Recording workdir | `/blocktracer/fixtures/trace/noir_space_ship` |
 
 **RE-RECORDED at the 2026-10 trace-format revision, and the reason is that

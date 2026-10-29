@@ -708,6 +708,12 @@ async function demoArm(browser, site, j, subject) {
     // recorded symptom stated as an assertion: "a `Home` pressed afterwards did
     // nothing at all". Re-centred first, so `Home` has somewhere to travel from
     // and a working key cannot read as inert at a boundary.
+    //
+    // THE ENGINE PINNED SINCE 2026-10-28 NO LONGER TRAPS THERE (codetracer
+    // c0408ecad returns an error for an out-of-range step), so against it the
+    // same mutation leaves the session alive and `End` goes nowhere: the walk
+    // above reports it as `INERT End@…`, and that is where the arm is now aimed.
+    // This assertion stays, for an engine that traps again.
     await page.mouse.click(r.x + r.w * 0.5, r.y + r.h / 2);
     const recentred = await settlePosition(page);
     await page.focus(".dctl");

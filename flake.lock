@@ -193,17 +193,17 @@
     "codetracer-trace-format-nim": {
       "flake": false,
       "locked": {
-        "lastModified": 1791579603,
-        "narHash": "sha256-VCiyNGJXQzYtAaNAlwW7e2Bs6182QKPt991VD+NIzNA=",
+        "lastModified": 1793211260,
+        "narHash": "sha256-zJO/tiW+lCpV9FnrLlCja3Aa8vZgAkMFru0nFXDoQFw=",
         "owner": "metacraft-labs",
         "repo": "codetracer-trace-format-nim",
-        "rev": "7b8b587c72ec31f6825ae124ab89ad7954f6dca7",
+        "rev": "e15374866665556eae3eeecd34e6add476c98cb0",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-trace-format-nim",
-        "rev": "7b8b587c72ec31f6825ae124ab89ad7954f6dca7",
+        "rev": "e15374866665556eae3eeecd34e6add476c98cb0",
         "type": "github"
       }
     },
@@ -221,23 +221,6 @@
         "owner": "metacraft-labs",
         "repo": "codetracer-trace-format",
         "rev": "c8e57b1f21b1c4e82db5e14ab70fd16ecf217ce0",
-        "type": "github"
-      }
-    },
-    "fixture-container-reader-source": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1793211260,
-        "narHash": "sha256-zJO/tiW+lCpV9FnrLlCja3Aa8vZgAkMFru0nFXDoQFw=",
-        "owner": "metacraft-labs",
-        "repo": "codetracer-trace-format-nim",
-        "rev": "e15374866665556eae3eeecd34e6add476c98cb0",
-        "type": "github"
-      },
-      "original": {
-        "owner": "metacraft-labs",
-        "repo": "codetracer-trace-format-nim",
-        "rev": "e15374866665556eae3eeecd34e6add476c98cb0",
         "type": "github"
       }
     },
@@ -422,7 +405,6 @@
         "codetracer-trace-format": "codetracer-trace-format",
         "codetracer-trace-format-nim": "codetracer-trace-format-nim",
         "evm-trace-format": "evm-trace-format",
-        "fixture-container-reader-source": "fixture-container-reader-source",
         "flake-utils": "flake-utils",
         "flow-trace-format": "flow-trace-format",
         "isonim": "isonim",

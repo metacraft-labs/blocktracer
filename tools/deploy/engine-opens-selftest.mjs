@@ -146,16 +146,17 @@ if (!HAVE_ENGINE) {
   {
     const r = run(["--engine", ENGINE, OPENABLE]);
     bite("a container the engine opens is reported OPENED, with both version axes",
-         r.status === 0 && /OPENED\s+container=6 meta\.dat=6/.test(r.out));
+         r.status === 0 && /OPENED\s+container=6 meta\.dat=7/.test(r.out));
   }
   {
-    // `meta.dat=6` and not 3: only the CONTAINER version is stamped, so the
-    // member still reads 6. That the two axes disagree is the point — §1c's
+    // `meta.dat=7` and not 3: only the CONTAINER version is stamped, so the
+    // member still reads 7 (6 until preparation began regenerating every
+    // container at `meta.dat` 7 on 2026-10-28). That the two axes disagree is the point — §1c's
     // rule is per FIELD, and this proves the tool refuses on the container
     // version while still reading the member's own.
     const r = run(["--engine", ENGINE, REFUSED]);
     bite("a container the engine refuses is reported REFUSED",
-         r.status === 0 && /REFUSED\s+container=3 meta\.dat=6/.test(r.out));
+         r.status === 0 && /REFUSED\s+container=3 meta\.dat=7/.test(r.out));
   }
   {
     // THE DISCRIMINATION ARM. Both subjects in one run: if the tool answered
