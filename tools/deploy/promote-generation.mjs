@@ -105,19 +105,62 @@ export function derivePointer(origin, chain, generation, readJson) {
       `no head to point at. Refusing rather than writing a pointer with no block.`,
     );
   }
-  const top = keys.reduce((a, b) => (Number(b) > Number(a) ? b : a));
-  const tip = { height: Number(top), hash: heights[top] };
+  const nums = keys.map(Number).sort((a, b) => a - b);
+  const top = nums[nums.length - 1];
+  const low = nums[0];
+
+  // ── FINALIZED IS DERIVED, AND IT IS NOT THE HEAD ──────────────────────────
+  //
+  // The first version of this wrote `finalized: head`, on the reasoning that a
+  // historic generation's tip is long settled. That is true of two of the three
+  // chains here and FALSE of the third, which is exactly how a plausible
+  // assumption ships a false claim: `aztec-testnet-frames` was captured at head
+  // 69,361 with only 69,336 finalized, so promoting it would have published
+  // "block 69,361 is final" about a block the capture never saw finalized.
+  //
+  // The honest source is the generation's own summary, which records the
+  // finalized height the chain reported AT CAPTURE. Clamping it into the
+  // generation's own range is what reproduces all three pointers the original
+  // ingest wrote, and each clamp arm is load-bearing:
+  //
+  //   aztec          head 102,690, finalizedAtCapture 103,798 -> 102,690 (upper)
+  //   aztec-testnet  head  99,092, finalizedAtCapture  99,458 ->  99,092 (upper)
+  //   frames         head  69,361, finalizedAtCapture  69,335 ->  69,336 (LOWER)
+  //
+  // The frames row is the one a `Math.min` would get wrong: 69,335 is BELOW the
+  // generation's floor, so the pointer names the lowest block the generation
+  // holds rather than a height it does not carry.
+  //
+  // NO SUMMARY MEANS NO PROMOTION. A generation whose summary cannot be read, or
+  // which states no finalized height, is refused rather than defaulted to the
+  // head — defaulting is the bug this comment exists because of.
+  const sumPath = join(gdir, "summary.json");
+  if (!existsSync(sumPath)) {
+    throw new Error(
+      `${chain}: generation "${generation}" has no summary.json, so its finalized ` +
+      `height cannot be established. Refusing rather than assuming the head is final.`,
+    );
+  }
+  const finalizedAtCapture = readJson(sumPath)?.provenance?.finalizedAtCapture;
+  if (typeof finalizedAtCapture !== "number") {
+    throw new Error(
+      `${chain}: generation "${generation}" states no provenance.finalizedAtCapture, ` +
+      `so how much of it is final is unknown. Refusing rather than claiming the head is.`,
+    );
+  }
+  const finalHeight = Math.min(Math.max(finalizedAtCapture, low), top);
+  const at = (h) => ({ height: h, hash: heights[String(h)] });
   return {
     from: readJson(curPath)?.generation ?? "(unreadable)",
     blocks: keys.length,
     path: curPath,
+    finalizedAtCapture,
     pointer: {
       chain,
       generation,
       traceSelectionVersion: root.traceSelectionVersion ?? "1",
-      head: tip,
-      // See the header: historic generations only, so the settled tip IS the head.
-      finalized: tip,
+      head: at(top),
+      finalized: at(finalHeight),
     },
   };
 }
@@ -154,10 +197,20 @@ function main() {
   }
   for (const p of planned) {
     writeFileSync(p.path, `${JSON.stringify(p.pointer, null, 2)}\n`);
+    // HEAD AND FINALIZED ARE PRINTED SEPARATELY, because they differ and the
+    // first version of this line printed one figure under both labels — which
+    // would have read as agreement on exactly the chain where they disagree.
+    const f = p.pointer.finalized, h = p.pointer.head;
     console.log(
       `  ${p.pointer.chain}: ${p.from} -> ${p.pointer.generation}  ` +
-      `head/finalized ${p.pointer.head.height} ${p.pointer.head.hash} ` +
-      `over ${p.blocks} block(s)`,
+      `head ${h.height} ${h.hash}  over ${p.blocks} block(s)`,
+    );
+    console.log(
+      `      finalized ${f.height} ${f.hash}` +
+      (f.height === h.height
+        ? `  (the whole generation is final)`
+        : `  (${h.height - f.height} block(s) of the head are NOT final; ` +
+          `finalizedAtCapture was ${p.finalizedAtCapture})`),
     );
   }
   console.log(`promoted ${planned.length} chain(s)`);
@@ -165,14 +218,14 @@ function main() {
 }
 
 if (argv.includes("--selftest")) {
-  const { mkdtempSync, mkdirSync } = await import("node:fs");
+  const { mkdtempSync, mkdirSync, rmSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   let failed = 0;
   const ok = (name, cond, detail = "") => {
     console.log(`  ${cond ? "[OK]    " : "[FAILED]"} ${name}${detail ? `\n             ${detail}` : ""}`);
     if (!cond) failed++;
   };
-  const tree = () => {
+  const tree = (fin = 99) => {
     const root = mkdtempSync(join(tmpdir(), "promote-selftest-"));
     mkdirSync(join(root, "d", "c", "g", "big"), { recursive: true });
     writeFileSync(join(root, "d", "c", "current.json"),
@@ -180,7 +233,9 @@ if (argv.includes("--selftest")) {
     writeFileSync(join(root, "d", "c", "g", "big", "root.json"),
       JSON.stringify({ traceSelectionVersion: "7", maps: { height: ["d/c/g/big/h0.json"] } }));
     writeFileSync(join(root, "d", "c", "g", "big", "h0.json"),
-      JSON.stringify({ heights: { 1: "0xaa", 9: "0xtip", 10: "0xten" } }));
+      JSON.stringify({ heights: { 1: "0xaa", 9: "0xnine", 10: "0xten" } }));
+    writeFileSync(join(root, "d", "c", "g", "big", "summary.json"),
+      JSON.stringify({ provenance: { finalizedAtCapture: fin } }));
     return root;
   };
   const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
@@ -202,22 +257,54 @@ if (argv.includes("--selftest")) {
   ok("the head is the greatest height NUMERICALLY, not lexically",
     got.pointer.head.height === 10 && got.pointer.head.hash === "0xten",
     `got ${got.pointer.head.height} ${got.pointer.head.hash}`);
-  ok("finalized equals head", JSON.stringify(got.pointer.finalized) === JSON.stringify(got.pointer.head));
+  ok("a fully settled generation finalizes at its head",
+    got.pointer.finalized.height === 10 && got.pointer.finalized.hash === "0xten");
   ok("traceSelectionVersion comes from the generation's root, not a default",
     got.pointer.traceSelectionVersion === "7");
   ok("the generation being left is reported", got.from === "small");
 
+  // ── FINALIZED IS DERIVED, AND THE FRAMES ROW IS WHY ──────────────────────
+  // The first version wrote `finalized: head`. True for two of the three real
+  // chains and FALSE for aztec-testnet-frames, captured at head 69,361 with
+  // 69,335 finalized — so promoting it would have published "69,361 is final"
+  // about a block the capture never saw settle.
+  const mid = derivePointer(tree(9), "c", "big", readJson);
+  ok("an UNSETTLED tip finalizes below the head, not at it",
+    mid.pointer.head.height === 10 && mid.pointer.finalized.height === 9
+    && mid.pointer.finalized.hash === "0xnine",
+    `head ${mid.pointer.head.height}, finalized ${mid.pointer.finalized.height}`);
+  // The real frames case: finalizedAtCapture sits BELOW the generation's floor,
+  // so a bare Math.min would name a height the generation does not carry.
+  const below = derivePointer(tree(0), "c", "big", readJson);
+  ok("a finalized height below the generation's floor clamps UP to its lowest block",
+    below.pointer.finalized.height === 1 && below.pointer.finalized.hash === "0xaa",
+    `got ${below.pointer.finalized.height}`);
+
   let threw = false;
   try { derivePointer(root, "c", "nope", readJson); } catch { threw = true; }
   ok("an absent generation is refused", threw);
+
+  // NO SUMMARY, OR NO FIGURE IN IT, MEANS NO PROMOTION — never a default to the
+  // head, which is the defect these two arms exist because of.
+  const noSum = tree();
+  rmSync(join(noSum, "d", "c", "g", "big", "summary.json"));
+  threw = false;
+  try { derivePointer(noSum, "c", "big", readJson); } catch { threw = true; }
+  ok("a generation with no summary is refused, not defaulted to head", threw);
+  const emptySum = tree();
+  writeFileSync(join(emptySum, "d", "c", "g", "big", "summary.json"),
+    JSON.stringify({ provenance: {} }));
+  threw = false;
+  try { derivePointer(emptySum, "c", "big", readJson); } catch { threw = true; }
+  ok("a summary stating no finalized height is refused", threw);
 
   writeFileSync(join(root, "d", "c", "g", "big", "h0.json"), JSON.stringify({ heights: {} }));
   threw = false;
   try { derivePointer(root, "c", "big", readJson); } catch { threw = true; }
   ok("an empty height map is refused rather than pointed at", threw);
 
-  const EXPECTED = 12;
-  const ran = 12;
+  const EXPECTED = 16;
+  const ran = 16;
   console.log(`\n${ran} check(s), ${failed} failed`);
   if (ran !== EXPECTED) {
     console.log(`::error::expected ${EXPECTED} checks, ran ${ran}`);
