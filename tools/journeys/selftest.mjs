@@ -247,9 +247,14 @@ const ARMS = [
       " non-vacuity control was satisfied by exactly those rows. Note which" +
       " assertion this targets — the pane is full, it is just full of another" +
       " frame, so every count of it stays green.",
+    // RE-AIMED 2026-10-30. The mutation used to narrow `writePane`'s latch for
+    // the State pane, which a live page no longer writes: since 7ffa280 the
+    // pane is CodeTracer's shared State view, mounted by `mountSharedPanes`,
+    // and until it is mounted the served frame's values are what stands. The
+    // equivalent defect is the view never being mounted.
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `            view.state.values.len > 0 or view.state.note.len > 0, latch.state)`,
-    replace: `            view.state.values.len > 0, latch.state)`,
+    find: `  if not h.latch.state.mounted and\n      (view.state.values.len > 0 or view.state.note.len > 0):`,
+    replace: `  if false and\n      (view.state.values.len > 0 or view.state.note.len > 0):`,
     journey: "a-stepped-session-shows-the-values-it-is-at",
     assertion: "no reading of the Values pane is the SERVED frame's values",
   },
@@ -671,23 +676,14 @@ const ARMS = [
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "NO-SOURCE: the pane says why a value here cannot be traced",
   },
-  {
-    id: "Z/the-plus-comes-back",
-    why:
-      "Put the reported defect back exactly as it was. `.ctname` and `.evlabel` carry" +
-      " `.copyable`, so restoring `cursor:copy` on a copyable inside a clickable row" +
-      " returns the plus to the widest cell of every navigable row — which is the" +
-      " part of the row a pointer actually rests on, and is what the visitor saw. The" +
-      " row's own `a.ctrow{cursor:pointer}` is untouched by this arm, which is the" +
-      " point: the rule that looks correct in the stylesheet stays correct, and the" +
-      " surface still lies.",
-    file: join(CLIENT, "src", "components", "debugger_css.nim"),
-    find: `a .copyable,button .copyable{cursor:pointer}`,
-    replace: `a .copyable,button .copyable{cursor:copy}`,
-    journey: "a-clickable-surface-shows-the-hand",
-    assertion:
-      "copyable value cells sitting inside a navigable row — each computes `pointer`",
-  },
+  // `Z/the-plus-comes-back` RETIRED, 2026-10-30, with the assertion it named
+  // ("copyable value cells sitting inside a navigable row — each computes
+  // `pointer`", journey 12). It mutated the `a .copyable` cursor rule, which
+  // matched the name cell of BlockTracer's own anchor rows. Every live page
+  // mounts CodeTracer's shared Call Trace view instead (7ffa280), whose rows
+  // carry no `.copyable` cell, so the assertion measured the row itself — the
+  // same elements as "call-trace rows" — and the rule it guarded is reached by
+  // no live row. The arm SURVIVED for that reason (selftest at b801c56).
   {
     id: "Q/the-copy-control-loses-its-cursor",
     why:
@@ -2089,6 +2085,35 @@ const KNOWN_SURVIVORS = loadKnownSurvivors();
 const isRegistered = (id) => Object.prototype.hasOwnProperty.call(KNOWN_SURVIVORS, id);
 
 /**
+ * ARMS THAT CANNOT BE GRADED, because the assertion they name is red before
+ * any mutation for a cause outside the journey — an upstream defect with its
+ * own record. `known-survivors.json`'s `known_blocked` section, with the same
+ * discipline as the survivors beside it: an entry needs every field, it excuses
+ * only the case it describes (a NEVER RAN whose assertion was ALREADY RED), and
+ * an entry whose arm is KILLED fails the run until it is deleted — the target
+ * went green, so the arm can be graded and must be.
+ */
+const BLOCKED_FIELDS = ["reason", "cause", "closed_by", "recorded"];
+
+function loadKnownBlocked() {
+  try {
+    const parsed = JSON.parse(readFileSync(join(HERE, "known-survivors.json"), "utf8"));
+    return parsed.known_blocked ?? {};
+  } catch {
+    return {};
+  }
+}
+
+const KNOWN_BLOCKED = loadKnownBlocked();
+
+const isBlocked = (id) => Object.prototype.hasOwnProperty.call(KNOWN_BLOCKED, id);
+
+/** Whether an arm's recorded verdict is one a register entry excuses. */
+const isExcused = (a) =>
+  (a.verdict === "survived" && isRegistered(a.id)) ||
+  (a.verdict === "blocked" && isBlocked(a.id));
+
+/**
  * What is WRONG WITH THE REGISTER ITSELF, as a list of sentences.
  *
  * Checked before anything is spent, in `main` and in `combine`, because both of
@@ -2111,6 +2136,19 @@ function registerProblems() {
       );
     }
   }
+  for (const [id, entry] of Object.entries(KNOWN_BLOCKED)) {
+    if (!ARMS.some((a) => a.id === id)) {
+      out.push(`A BLOCKED ARM NO LONGER IN THIS FILE  ${id}  (known_blocked is stale)`);
+      continue;
+    }
+    if (isRegistered(id)) {
+      out.push(`AN ARM IN BOTH REGISTERS  ${id}  — it is either blocked or a survivor, not both.`);
+    }
+    const missing = BLOCKED_FIELDS.filter((f) => !String(entry?.[f] ?? "").trim());
+    if (missing.length > 0) {
+      out.push(`INCOMPLETE BLOCKED ENTRY  ${id}  — missing ${missing.join(", ")}.`);
+    }
+  }
   return out;
 }
 
@@ -2120,6 +2158,14 @@ function printRegister(excusedIds) {
   log("");
   log(`  ${excusedIds.length} registered survivor(s) — recorded, not excused away:`);
   for (const id of excusedIds) {
+    if (isBlocked(id)) {
+      const b = KNOWN_BLOCKED[id];
+      log(`  ${id}  (BLOCKED, recorded ${b.recorded})`);
+      log(`    reason:     ${b.reason}`);
+      log(`    cause:      ${b.cause}`);
+      log(`    closed by:  ${b.closed_by}`);
+      continue;
+    }
     const e = KNOWN_SURVIVORS[id];
     log(`    ${id}   (recorded ${e.recorded})`);
     log(`      needs a subject: ${e.subject.split(". ")[0]}.`);
@@ -2254,16 +2300,16 @@ function combine(n) {
       `${notKilled.filter((a) => a.verdict === "survived").length} survived, ` +
       `${notKilled.filter((a) => a.verdict === "never").length} never ran`);
   for (const a of notKilled) {
-    log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}  [shard ${a.shard}]`);
+    log(`  ${a.verdict === "survived" ? "SURVIVED " : a.verdict === "blocked" ? "BLOCKED  " : "NEVER RAN"}  ${a.id}  [shard ${a.shard}]`);
   }
 
   // THE REGISTER IS APPLIED HERE TOO, and this is the place it most has to be:
   // `--combine` is where "the full set" is claimed, so a rule the shards apply
   // and the combine does not would make the suite's own headline verdict
   // disagree with every leg of it.
-  const excused = all.filter((a) => a.verdict === "survived" && isRegistered(a.id));
-  const revived = all.filter((a) => a.verdict === "killed" && isRegistered(a.id));
-  const unexcused = notKilled.filter((a) => !(a.verdict === "survived" && isRegistered(a.id)));
+  const excused = all.filter(isExcused);
+  const revived = all.filter((a) => a.verdict === "killed" && (isRegistered(a.id) || isBlocked(a.id)));
+  const unexcused = notKilled.filter((a) => !isExcused(a));
   for (const a of unexcused.filter((x) => isRegistered(x.id))) {
     log(`  ${a.id} IS IN known-survivors.json, AND THAT DOES NOT COVER A ${a.verdict.toUpperCase()}.`);
   }
@@ -3031,6 +3077,14 @@ async function main() {
       continue;
     }
     if (!before.ok) {
+      if (isBlocked(arm.id)) {
+        log(`    BLOCKED  — the assertion is ALREADY RED, and known_blocked says why:`);
+        log(`               ${KNOWN_BLOCKED[arm.id].cause}`);
+        log(`               (${before.detail})`);
+        recordArm(arm, "blocked", started);
+        log("");
+        continue;
+      }
       log(`    NEVER RAN — the assertion is ALREADY RED before the mutation`);
       log(`               (${before.detail})`);
       log(`               A mutation cannot demonstrate anything about an assertion that`);
@@ -3224,11 +3278,11 @@ async function main() {
 
   // THE REGISTER, BOTH DIRECTIONS. `excused` is what it tolerates, `revived` is
   // what it refuses. What is wrong with the FILE was refused at the top of `main`.
-  const excused = journal.arms.filter((a) => a.verdict === "survived" && isRegistered(a.id));
-  const revived = journal.arms.filter((a) => a.verdict === "killed" && isRegistered(a.id));
-  const unexcused = journal.arms.filter(
-    (a) => a.verdict !== "killed" && !(a.verdict === "survived" && isRegistered(a.id)),
+  const excused = journal.arms.filter(isExcused);
+  const revived = journal.arms.filter(
+    (a) => a.verdict === "killed" && (isRegistered(a.id) || isBlocked(a.id)),
   );
+  const unexcused = journal.arms.filter((a) => a.verdict !== "killed" && !isExcused(a));
 
   log(
     `${arms.length} arm(s): ${killed} killed, ${survived} survived, ${neverRan} never ran` +
@@ -3242,7 +3296,7 @@ async function main() {
     // through the log; the arms that are not killed are known here, and a dead
     // arm is the finding this suite exists to produce.
     for (const a of unexcused) {
-      log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}`);
+      log(`  ${a.verdict === "survived" ? "SURVIVED " : a.verdict === "blocked" ? "BLOCKED  " : "NEVER RAN"}  ${a.id}`);
       if (isRegistered(a.id)) {
         log(`               IT IS IN known-survivors.json, AND THAT DOES NOT COVER THIS.`);
         log(`               The register excuses a SURVIVAL — the mutation reaching the`);
@@ -3252,6 +3306,11 @@ async function main() {
     }
     for (const a of revived) {
       log(`  REGISTERED BUT KILLED  ${a.id}`);
+      if (isBlocked(a.id)) {
+        log(`               known_blocked says this arm's assertion is red upstream, and`);
+        log(`               it ran and was killed. The cause is gone; DELETE THE ENTRY.`);
+        continue;
+      }
       log(`               known-survivors.json says this arm's assertion cannot see its`);
       log(`               mutation, and it just did. The gap is closed; DELETE THE ENTRY.`);
       log(`               (recorded ${KNOWN_SURVIVORS[a.id].recorded} — it needed: ` +
