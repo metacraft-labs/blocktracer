@@ -251,6 +251,20 @@ jobs:
     # timeout to decide it.
     timeout-minutes: 600
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       # NIX IS PROVISIONED, NOT SELECTED — and this workflow was the one job in

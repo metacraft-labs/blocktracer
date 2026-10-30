@@ -90,12 +90,27 @@ export function validateManifest(manifest, root = ROOT) {
   return outputs;
 }
 
+// A producer that dies on a signal has `status === null`, and `exit null` is
+// what that printed before -- a phrase that reads like an exit status and names
+// none. It costs a CI round trip to learn nothing: the kill gives the producer
+// no chance to write anything, so both pipes below come back empty and the
+// signal is the only evidence the failure leaves. SIGKILL here is the kernel's
+// OOM killer on a shared runner; SIGSEGV is the replay's own wasm. They are
+// different bugs and the message has to tell them apart.
+function describeFailure(result) {
+  if (result.error) return result.error.message;
+  if (result.status === null) {
+    return `killed by ${result.signal ?? 'an unidentified signal'}, with no exit status`
+      + `\n${result.stderr}\n${result.stdout}`;
+  }
+  return `exit ${result.status}\n${result.stderr}\n${result.stdout}`;
+}
+
 function run(command, args, cwd, allowed = [0]) {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
     env: { ...process.env, RAYON_NUM_THREADS: '2', HARDWARE_CONCURRENCY: '2' } });
   if (result.error || !allowed.includes(result.status)) {
-    throw new Error(`${command} ${args.join(' ')} failed: `
-      + (result.error?.message ?? `exit ${result.status}\n${result.stderr}\n${result.stdout}`));
+    throw new Error(`${command} ${args.join(' ')} failed: ${describeFailure(result)}`);
   }
   return result;
 }
