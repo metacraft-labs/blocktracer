@@ -361,8 +361,17 @@ jobs:
         run: |
           set -euo pipefail
           nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
-          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
-          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
+          # --no-preserve=mode, NOT a chmod of named trees. A plain `cp` from
+          # the store carries the store's 0555 with it, and a directory that
+          # has no write bit cannot have anything unlinked from it -- so the
+          # NEXT job to land on this runner dies in actions/checkout's
+          # "Deleting the contents of" with EACCES, and the runner stays
+          # poisoned for every job after that until someone chmods it by hand.
+          # The chmod that stood here named three trees and missed
+          # fixtures/chain-artifacts, which is exactly how mcl-bench-001 was
+          # poisoned. The copy itself has to be writable; a list of trees to
+          # repair afterwards is a list that goes stale.
+          cp -r --no-preserve=mode,ownership "$RUNNER_TEMP/fixture-recordings"/. .
 
       - name: Who holds the publish leases?
         if: ${{ inputs.dry-run == false }}
