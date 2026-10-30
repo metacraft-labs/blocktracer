@@ -232,7 +232,10 @@ const ARMS = [
     // is the mutation: the paint neither mounts nor renders.
     file: join(CLIENT, "hydrate", "hydrate.nim"),
     find: `  h.mountSharedPanes(view)\n  renderPanes(h.ui, view, h.latch, h.keymap)`,
-    replace: `  discard view  # MUTATED: the live paint writes nothing`,
+    // `h.session` is never nil here, so the guard keeps both calls compiled
+    // (removing them lets the bundle drop code a build gate requires) and
+    // runs neither.
+    replace: `  if h.session.isNil: h.mountSharedPanes(view)  # MUTATED: the live paint writes nothing\n  if h.session.isNil: renderPanes(h.ui, view, h.latch, h.keymap)`,
     journey: "a-stepped-session-shows-the-values-it-is-at",
     assertion: "no reading of the Values pane is the SERVED frame's values",
   },
@@ -1619,38 +1622,14 @@ const ARMS = [
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     assertion: "and it is STILL the frame the link named, carried across by anchor",
   },
-  {
-    id: "CT1/two-frames-answer-to-one-identity",
-    why:
-      "Give ONE live frame another frame's `call:` path, so two rows on screen" +
-      " answer to one identity. `Click-Navigation.md` §2.2: the identity that IS" +
-      " injective is the frame's position in the call tree, and \"a wrongly" +
-      " numbered path is a link that lands in a real frame that is not the one" +
-      " it named — the failure mode with no visible symptom\". That" +
-      " symptomlessness is the whole reason for this arm, and it is why the" +
-      " mutation is ONE duplicate rather than a flattened numbering: the pane" +
-      " still renders, every row still carries an anchor, the six rows sharing a" +
-      " coordinate still carry six distinct ones, every click still marks the row" +
-      " it was given, and every link still resolves to SOMETHING. Only the" +
-      " whole-pane uniqueness record notices — which is the record §5" +
-      " prescribes for §2.2, and the reason it is quantified over the pane" +
-      " rather than over the six.\n\n" +
-      "      Mutated in the LIVE projection and not in `callPath` itself, which" +
-      " both producers share: `searchboot` reaches that module too, so a" +
-      " mutation there restales the search bundle this arm does not rebuild and" +
-      " the run scores DID-NOT-BUILD instead of measuring anything. Measured:" +
-      " it did, once.",
-    file: join(CLIENT, "hydrate", "session_project.nim"),
-    find: "  withCallAnchors(result)\n  for i in 0 ..< result.frames.len:\n    result.frames[i].href = positionQuery(",
-    replace:
-      "  withCallAnchors(result)\n" +
-      "  # MUTATED: the last frame answers to the first frame's identity\n" +
-      "  if result.frames.len > 1: result.frames[^1].anchor = result.frames[0].anchor\n" +
-      "  for i in 0 ..< result.frames.len:\n    result.frames[i].href = positionQuery(",
-    journey: "a-call-trace-row-lands-on-the-frame-it-names",
-    assertion:
-      "over the WHOLE pane, every row carries a frame identity no other row carries",
-  },
+  // `CT1/two-frames-answer-to-one-identity` MOVED TO CODETRACER, 2026-10-31.
+  // It mutated `session_project.withCallAnchors`, the served projection's
+  // anchors, and SURVIVED: the live rows are the shared Call Trace's, and
+  // the identity journey 25 reads off them (`data-call-key`) is the call key
+  // the SDK's store takes from the engine. Graded there: codetracer
+  // `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py` arm CT1 —
+  // `replay_data_store` blanks every row's call key — killed by "every
+  // call-trace row carries its own call key" (codetracer 52dc517ffc).
   {
     id: "PP1/the-hydrated-pane-has-one-answer-again",
     why:
