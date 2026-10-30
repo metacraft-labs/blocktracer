@@ -1717,7 +1717,49 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
       report = proc(v: Viewport; rowPx: float) = vm.setViewport(v),
       changed = proc() = discard store.locals.locals.val,
       heightFromPane = true)
-  if not h.latch.eventLog.mounted and view.eventLog.rows.len > 0:
+  # AN EMPTY SERVED PANE IS MOUNTED ONCE THE ENGINE IS LIVE, AND WITHOUT THAT
+  # SECOND CLAUSE THE PANE IS IN A DEADLOCK IT CANNOT LEAVE.
+  #
+  # `measureViewports` sizes an UNMOUNTED pane by counting the rows it was
+  # SERVED (`paneRowsOf(ui.eventLog, ".evrow")`), because those are what asks
+  # for the first window before anything is mounted. A pane served a NOTE
+  # instead of rows — `demo_session`'s branch for a bundle that describes a
+  # different program than its replay does — has none, so the viewport stays at
+  # zero, the EventLogVM asks the engine for nothing, no rows arrive, and a gate
+  # that asks for rows never fires. No rows because no request, no request
+  # because no rows. The Call Trace escapes it only because `CalltraceVM`
+  # auto-loads a window of its own, and the State pane because `projectState`
+  # produces a `note` for every state that is not "the values are in the store"
+  # — which is the escape this pane had no counterpart to.
+  #
+  # Measured on the published site at `/demo/tx/0xc065eddc…/debug/`: the Call
+  # Trace and Values panes filled from the engine, and the Event Log held
+  # "Reading it needs the replay engine, which this page has not started" for as
+  # long as the page was open — on a page whose engine had started, answered and
+  # positioned the session. Clicking the EVENT LOG tab did not help, because
+  # giving the pane a height does not give it a row to measure.
+  #
+  # THE CONDITION IS THE SERVED PANE'S EMPTINESS AND NOT THE PROJECTION'S.
+  # Mounting on `view.eventLog.rows.len == 0` would take over a pane whose
+  # served rows are still the only rows anywhere — §7.0's "no state renders
+  # less than the pre-hydration page", lost for the whole settle window. A pane
+  # that was served nothing has nothing to lose, which is the whole of why this
+  # arm is safe. `measureMounted` then measures the mounted view against
+  # `EventRowFallbackPx`, and that is the first viewport the VM can act on.
+  #
+  # ASKED OF THE DOM AND NOT OF `h.base`, WHICH WAS THE FIRST VERSION AND WAS
+  # WRONG ON EVERY PAGE. `servedFrame` builds `h.base` from the root's
+  # attributes — the engine's address, the step, the total, the content hash —
+  # and populates NO pane: `base.eventLog.rows` is empty whatever was served,
+  # so that condition fired everywhere and replaced eight served rows with an
+  # empty live pane. Caught on a local hydrated build at
+  # `/demo/tx/0xb636…/debug/`, where the served log holds eight rows and the
+  # pane went blank. The rows are in the DOM, which is the only place that
+  # knows, and `.evrow` is still there to count because this branch only runs
+  # while the pane is unmounted.
+  if not h.latch.eventLog.mounted and
+      (view.eventLog.rows.len > 0 or
+       (h.live and h.ui.eventLog.querySelectorAll(".evrow").len == 0)):
     ensureContextMenuHost()
     h.ui.eventLog.innerHTML = panes.renderLiveShell().cstring
     let vm = h.session.eventLog
