@@ -668,7 +668,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   # what a document IS.
   let listing = p.documents.len > 0 and
                 p.availability in {srcUnverified, srcSourceLevel} and
-                activeDocument(p).path == ListingPath
+                activePath(p) == ListingPath
   if p.documents.len == 0 or
      (p.availability != srcSourceLevel and not listing):
     # The head FIRST, and outside `.srcnone`. A reader asking "where is this
@@ -745,7 +745,11 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
                          "meantime."):
             text "Supply sources"
     return renderPositionHead(pos) & none
-  let doc = activeDocument(p)
+  # ADDRESSED IN PLACE, not copied: `activeDocument` returns the document by
+  # value, and a Cairo transaction's listing is tens of thousands of lines,
+  # copied on every stop.
+  let docIndex = activeIndexOf(p)
+  template doc: untyped = p.documents[docIndex]
 
   # THE SHORTEST TAIL OF EACH PATH THAT IS STILL UNIQUE, and it is a real defect
   # this fixes rather than a tidy-up.
@@ -805,7 +809,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
       return ui:
         p(class = "instrcap"): text p.listingCaption
     var allPaths: seq[string]
-    for d in p.documents: allPaths.add d.path
+    for di in 0 ..< p.documents.len: allPaths.add p.documents[di].path
 
     # ONE ROW, AND THE OVERFLOW IS A DROPDOWN MENU.
     #
@@ -925,7 +929,8 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
       tdiv(class = "srcstrip"):
         raw toggle
         nav(class = "srctabs"):
-          for d in p.documents:
+          for di in 0 ..< p.documents.len:
+            template d: untyped = p.documents[di]
             # `ct-tab` is APPENDED, never prepended: `test_debug_route` matches
             # the literal `class="srctab`, so the first class stays put. The nav
             # above keeps `class="srctabs"` alone, for the four suites named there.
@@ -1015,7 +1020,10 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
             else:
               text "Lines " & $first & "–" & $last &
                    ", centred on where the session is stopped."
-        for ln in d.lines:
+        # By index and in place: `for ln in d.lines` copies each line object
+        # on the JS backend, and a CASM listing has tens of thousands.
+        for lnIndex in 0 ..< d.lines.len:
+          template ln: untyped = d.lines[lnIndex]
           tdiv(class = "srcline" &
                        (if ln.current: " cur" else: "") &
                        (if ln.executed: " hit" else: "") &
@@ -1277,7 +1285,10 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   # forward and hide it. CSS has only a forward sibling combinator, and the
   # active document is the one every alternate has to be able to displace.
   var panels = ""
-  for d in p.documents:
+  # By index and in place, for the reason `doc` above is: each `d` would
+  # otherwise be a copy of a whole document.
+  for di in 0 ..< p.documents.len:
+    template d: untyped = p.documents[di]
     if d.path == doc.path: continue
     let alt = ui:
       tdiv(class = "srcdoc alt", id = docAnchor(d.path), `data-path` = d.path):

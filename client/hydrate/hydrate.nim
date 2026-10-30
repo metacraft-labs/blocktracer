@@ -56,7 +56,7 @@
 when not defined(js):
   {.error: "hydrate is the browser bundle; it is built with `nim js`.".}
 
-import std/[dom, json, options, strutils]
+import std/[dom, hashes, json, options, strutils]
 
 import isonim/core/async_compat
 from isonim/core/batch import untrack
@@ -713,6 +713,48 @@ proc noteRevealAnchor(pane: Element) {.importjs: """
   ## files — which is what makes this readable off the DOM with no state carried
   ## between renders.
 
+proc moveSourceMark(pane: Element; anchor: cstring; number: cstring;
+                    step: cstring; total: cstring) {.importjs: """
+(function(pane, anchor, number, step, total){
+  // EXACTLY what `renderSource` emits for the current line, applied to rows
+  // that are already there: the row's `cur` class and `aria-current`, and
+  // the position cell `.p` (the glyph, its tab stop, `autofocus` and its
+  // label). Every other byte of the pane is the same as a full render would
+  // write — `writeEditor` only takes this path when the pane rendered
+  // without its position is byte-identical to what is already on screen.
+  var olds = pane.querySelectorAll(".srcline.cur");
+  for (var i = 0; i < olds.length; i++) {
+    var o = olds[i];
+    o.classList.remove("cur");
+    o.setAttribute("aria-current", "false");
+    var op = o.querySelector(":scope > .p");
+    if (op) {
+      op.removeAttribute("tabindex");
+      op.removeAttribute("autofocus");
+      op.removeAttribute("aria-label");
+      op.textContent = " ";
+    }
+  }
+  // `String.fromCharCode(35)` is the id selector's hash sign: written
+  // literally, `importjs` would read it as a parameter placeholder.
+  var row = anchor ? pane.querySelector(String.fromCharCode(35) + CSS.escape(anchor)) : null;
+  if (row) {
+    row.classList.add("cur");
+    row.setAttribute("aria-current", "true");
+    var p = row.querySelector(":scope > .p");
+    if (p) {
+      p.setAttribute("tabindex", "-1");
+      p.setAttribute("autofocus", "autofocus");
+      p.setAttribute("aria-label", "the session is stopped on line " + number);
+      p.textContent = "\u25B6";
+    }
+  }
+  var nums = pane.querySelectorAll(".srcpos .srcposlabel .num");
+  if (nums.length === 2) { nums[0].textContent = step; nums[1].textContent = total; }
+})(#, #, #, #, #)
+""".}
+  ## Move the source pane's position mark without rewriting the pane.
+
 proc revealCurrentLine(pane: Element) {.importjs: """
 (function(pane){
   // THE REVEAL SAYS IT RAN, and it is the only thing here that does.
@@ -877,6 +919,10 @@ type
     calltraceSelfCost, stateCaption, eventLogCaption: PaneWrite
       ## The sections `renderPanes` still writes in a pane whose rows are a
       ## mounted shared view.
+    editorShape: Hash
+      ## `editorShape` of the source pane as last written — everything it
+      ## renders except the session's position. See `writeEditor`.
+    editorShapeKnown: bool
 
 proc writePane(target: Element; html: string; hasContent: bool;
                pane: var PaneWrite) =
@@ -934,6 +980,74 @@ proc writeSlot(pane: Element; selector: cstring; html: string; outer: bool;
   slot.written = html
   if outer: target.outerHTML = html.cstring
   else: target.innerHTML = html.cstring
+
+proc editorShape(p: EditorPane; pos: DebugControlsPane): Hash =
+  ## Everything the source pane renders EXCEPT where the session stands: the
+  ## pane's own fields, each document's identity and length, and every line's
+  ## number, flags, annotations and flow passes. A line's text and anchor are
+  ## the island's, fixed for the page, so each document contributes its first
+  ## and last line rather than every one. Two panes with the same shape render
+  ## the same bytes apart from the current line's mark and the step in the
+  ## position head — which is what `moveSourceMark` writes.
+  var h: Hash = 0
+  h = h !& hash($p.availability) !& hash(p.reason) !& hash(p.listingCaption) !&
+      hash(p.attributionNote) !& hash(p.coverageNote) !& hash(p.activeIndex) !&
+      hash($p.flow) !& hash(p.breakpointsEnabled) !& hash(p.positionedSteps) !&
+      hash(p.positionedOf) !& hash(pos.positioned) !& hash(pos.totalSteps) !&
+      hash(p.documents.len)
+  for di in 0 ..< p.documents.len:
+    template d: untyped = p.documents[di]
+    h = h !& hash(d.path) !& hash(d.language) !& hash(d.lines.len)
+    if d.lines.len > 0:
+      h = h !& hash(d.lines[0].text) !& hash(d.lines[^1].text)
+    for li in 0 ..< d.lines.len:
+      template ln: untyped = d.lines[li]
+      h = h !& ln.number !&
+          (ord(ln.executed) or (ord(ln.compilerAttributed) shl 1) or
+           (ord(ln.breakpoint) shl 2))
+      if ln.annotations.len > 0: h = h !& hash($ln.annotations)
+      if ln.notTaken.len > 0: h = h !& hash(ln.notTaken)
+      if ln.ran.len > 0: h = h !& hash(ln.ran)
+  !$h
+
+proc writeEditor(target: Element; p: EditorPane; pos: DebugControlsPane;
+                 latch: var PaneLatch) =
+  ## The source pane: rewritten when its content changed, and only MARKED when
+  ## the session merely moved within it.
+  ##
+  ## A STOP USED TO REWRITE THE WHOLE PANE, and that is cheap for one Noir file
+  ## and ruinous for a Cairo transaction's CASM listings: 28,936 lines, about
+  ## 146,000 nodes, and every step held the page for 6 to 64 seconds while the
+  ## page re-rendered and the browser parsed and laid out the same listing
+  ## again (measured over `packages.site-starknet`, 2026-10-30). Most stops
+  ## change nothing in the pane but WHICH row is current.
+  ##
+  ## So the pane's `editorShape` — everything it renders except the position —
+  ## is compared with the shape of what is on screen. Equal means the two
+  ## renders differ only in what `renderSource` emits for the position, and
+  ## `moveSourceMark` applies exactly that. Anything else — another document
+  ## shown, a moved excerpt window, a breakpoint, a flow pass, a value overlay,
+  ## a new reason — changes the shape and takes the full rewrite as before.
+  let hasContent = p.documents.len > 0 or p.reason.len > 0
+  if not hasContent and not latch.editor.latched: return
+  let shape = editorShape(p, pos)
+  if latch.editor.latched and latch.editorShapeKnown and shape == latch.editorShape:
+    var anchor = ""
+    var number = 0
+    for di in 0 ..< p.documents.len:
+      for li in 0 ..< p.documents[di].lines.len:
+        if p.documents[di].lines[li].current:
+          anchor = p.documents[di].lines[li].anchor
+          number = p.documents[di].lines[li].number
+    moveSourceMark(target, anchor.cstring, ($number).cstring,
+                   ($pos.step).cstring, ($pos.totalSteps).cstring)
+    # What is on screen is no longer the last full render, so the next full
+    # render must not be skipped as "unchanged".
+    latch.editor.written = ""
+    return
+  writePane(target, panes.renderSource(p, pos), hasContent, latch.editor)
+  latch.editorShape = shape
+  latch.editorShapeKnown = latch.editor.latched
 
 proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch;
                  km: Keymap) =
@@ -1050,9 +1164,7 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch;
   # build the capture harness photographs and NOT on the build a visitor loads —
   # this route defers `/assets/hydrate.js`, and this call re-renders the pane the
   # static export drew. The two artefacts differ, and a fix has to land on both.
-  writePane(ui.editor, panes.renderSource(view.editor, view.controls),
-            view.editor.documents.len > 0 or view.editor.reason.len > 0,
-            latch.editor)
+  writeEditor(ui.editor, view.editor, view.controls, latch)
   # A pane holding a shared view keeps its rows up to date by itself; what is
   # written here is only the section around them that stays this site's.
   if latch.calltrace.mounted:
@@ -1800,11 +1912,16 @@ proc paint(h: Hydration) =
   view.editor.breakpointsEnabled = true
   # §10.8's "the control says so", carried on the pane that owns the control.
   view.controls.outcome = h.continueOutcome
+  # PER DOCUMENT, NOT PER LINE. Asking the set about every line hashed the
+  # document's path once per line — 28,936 times a paint on a Cairo
+  # transaction's listings. A projected line starts with no breakpoint, so only
+  # the lines of a document that has some are visited.
   for di in 0 ..< view.editor.documents.len:
-    let path = view.editor.documents[di].path
+    let marked = h.breakpoints.linesFor(view.editor.documents[di].path)
+    if marked.len == 0: continue
     for li in 0 ..< view.editor.documents[di].lines.len:
       view.editor.documents[di].lines[li].breakpoint =
-        h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
+        view.editor.documents[di].lines[li].number in marked
   h.mountSharedPanes(view)
   renderPanes(h.ui, view, h.latch, h.keymap)
   # THE VISITOR'S `:target` SURVIVES THE PAINT. `renderPanes` has just replaced

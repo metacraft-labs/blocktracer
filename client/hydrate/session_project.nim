@@ -244,7 +244,7 @@ proc projectEditor*(vm: EditorVM; store: ReplayDataStore;
       result.availability = SourceAvailabilityView.srcUnverified
       result.reason = "The source bundle did not reach this page."
     else:
-      result = decodeSourceIsland(island, position.file, position.line)
+      result = decodeSourceIslandAt(island, position.file, position.line)
       result.availability = SourceAvailabilityView.srcSourceLevel
       result.currentLine = position.line
       # ── AND WHEN THE STEP RESOLVES TO NO PUBLISHED DOCUMENT ────────────────
@@ -289,7 +289,7 @@ proc projectEditor*(vm: EditorVM; store: ReplayDataStore;
         if docPath == ListingPath: holdsListing = true
       if holdsListing and positionDocumentIndex(paths, position.file) < 0:
         let tick = int(store.debugger.val.rrTicks)
-        result = decodeSourceIsland(island, ListingPath, tick)
+        result = decodeSourceIslandAt(island, ListingPath, tick)
         # The island's availability is `sourceLevel` — this pane HAS resolved
         # source, four tabs away — and restating it here is what stops a
         # malformed island from demoting a session that is showing 32 Noir files
@@ -327,7 +327,7 @@ proc projectEditor*(vm: EditorVM; store: ReplayDataStore;
       result.availability = SourceAvailabilityView.srcUnverified
       result.reason = "No source bundle is published for the code that ran."
     else:
-      result = decodeSourceIsland(island, ListingPath,
+      result = decodeSourceIslandAt(island, ListingPath,
                                   int(store.debugger.val.rrTicks))
       # The island's own availability is `unverified` already; restated for the
       # same reason the branch above restates it, so a malformed island that
