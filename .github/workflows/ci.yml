@@ -2767,6 +2767,71 @@ jobs:
   # The cost is wall clock and it is stated rather than discovered: four waves
   # instead of three, after a 40-minute `journeys`. The runner-hours do not
   # change, and they were already being spent twice over on re-runs.
+  # THE STARKNET JOURNEYS, over the one site that carries a Starknet capture.
+  #
+  # `journeys` judges the Aztec-only `default` site the deploy uploads, and a
+  # journey with no subject in the corpus it is handed is red — a skip is not a
+  # pass — so the Starknet claims live in their own set
+  # (`tools/journeys/starknet/`) and are judged here, over
+  # `packages.site-starknet`: `default` plus the Starknet capture the build
+  # produces (`tools/chain/nix/starknet.nix`). The claims are codetracer-pm's
+  # 2026-10-20 HSF-B2 issue: felts in the State view, CASM listings in the
+  # source pane with the mark on instruction lines and a step that does not
+  # rewrite them, and a deep call tree that fits the pane.
+  journeys-starknet:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Nix
+        uses: metacraft-labs/devops-modules/.github/setup-nix@dev
+        with:
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: What the pinned browser environment fixes
+        run: nix run .#capture-env -- --print-pin
+
+      - name: Install the pinned Playwright npm package
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: nix develop .#capture --command npm --prefix tools/capture ci --no-audit --no-fund
+
+      - name: Build the site with the Starknet capture
+        run: nix build .#site-starknet
+
+      - name: Fetch the replay engine into the cache
+        run: |
+          ./client/hydrate/fetch-engine.sh client/.replay-engine-cache
+
+      - name: Stage the site
+        run: |
+          rm -rf .journey-site-starknet && mkdir -p .journey-site-starknet
+          cp -R result/. .journey-site-starknet/
+          chmod -R u+w .journey-site-starknet
+
+      - name: The Starknet journeys
+        run: |
+          set -uo pipefail
+          nix run .#capture-env -- node tools/journeys/run.mjs --set starknet \
+            --dist .journey-site-starknet --json journey-starknet-report.json
+          code=$?
+          case "$code" in
+            0) ;;
+            2) echo "::error title=Starknet journeys DID NOT RUN::exit 2 is a REFUSAL, not a verdict about BlockTracer; the reason is printed above." ;;
+            *) echo "::error title=Starknet journeys FAILED::exit $code — a Starknet journey did not reach its claim; journey-starknet-report.json has the records." ;;
+          esac
+          exit "$code"
+
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journey-starknet-report
+          path: journey-starknet-report.json
+          if-no-files-found: warn
+
   journeys-bite:
     needs: journeys
     runs-on: [self-hosted, linux, x64]

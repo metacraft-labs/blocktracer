@@ -194,7 +194,9 @@ const PROMISE = /trace any value to its origin/i;
  * merely CONTAINS the phrase somewhere does not count as one that leads with
  * it.
  */
-const ORIGIN_TITLE = /^\s*Trace to origin:\s*(\S[\s\S]*?)\s*$/;
+// The shared badge's accessible name (`origin_chain_types.ariaLabelForSummary`):
+// "Value origin: " and the expression the origin was traced to.
+const ORIGIN_TITLE = /^\s*Value origin:\s*(\S[\s\S]*?)\s*$/;
 
 /** The State pane's rows as the DOM holds them, from an already-loaded page. */
 const READ_ROWS = () => {
@@ -202,7 +204,13 @@ const READ_ROWS = () => {
     !!e &&
     typeof e.checkVisibility === "function" &&
     e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
-  const rows = [...document.querySelectorAll(".strow")];
+  // Served, the pane's rows are `.strow`; live, it is CodeTracer's shared
+  // State view (mounted since BlockTracer 7ffa280), whose rows are
+  // `.value-expanded` — the reading `probe.mjs`'s `stateRows` makes.
+  const live = document.querySelector("#pane-state .isonim-state");
+  const rows = live
+    ? [...live.querySelectorAll(".value-expanded")]
+    : [...document.querySelectorAll(".strow")];
   return {
     rows: rows.length,
     shown: rows.filter(shown).length,
@@ -309,15 +317,29 @@ const READ_CONTROLS = () => {
     // its place. Read together with `originAffordances` above: where the two
     // disagree the gap says the control was renamed rather than removed, which
     // a selector-only reading would report as a regression.
-    originControls: [...document.querySelectorAll(".storigin")].filter(shown).length,
+    // THE SHARED STATE VIEW'S ORIGIN BADGE, which replaced BlockTracer's own
+    // `.storigin` control when the view was mounted (7ffa280). CodeTracer's
+    // Value-Origin-Tracking §3.2.1 puts a badge on EVERY row that has a
+    // summary, with a question-mark glyph (`ct-origin-icon-question`) when
+    // the source is unknown, so a badge is an offer only when it claims an
+    // origin: shown, not the placeholder, and not the question mark.
+    originBadges: [...document.querySelectorAll("#pane-state .ct-origin-badge")].filter(shown).length,
+    originControls: [...document.querySelectorAll("#pane-state .ct-origin-badge")]
+      .filter(shown)
+      .filter((e) =>
+        !e.classList.contains("ct-origin-badge-placeholder") &&
+        !e.classList.contains("ct-origin-icon-question")).length,
     // THE SAME SET `originControls` COUNTS — `shown`, and in the same order.
     // The titles used to be read off every `.storigin` in the document while
     // the count beside them was of the visible ones, so comparing the two
     // numbers compared two different subjects, and a title read off a control
     // no visitor can see would have answered for one they can.
-    originTitles: [...document.querySelectorAll(".storigin")]
+    originTitles: [...document.querySelectorAll("#pane-state .ct-origin-badge")]
       .filter(shown)
-      .map((e) => e.getAttribute("title") ?? ""),
+      .filter((e) =>
+        !e.classList.contains("ct-origin-badge-placeholder") &&
+        !e.classList.contains("ct-origin-icon-question"))
+      .map((e) => e.getAttribute("aria-label") ?? ""),
     originNote: document.querySelector("#pane-state .stnote")?.textContent?.trim() ?? "",
   };
 };
@@ -705,7 +727,7 @@ export async function run({ browser, site, j }) {
     // which is the shape NR-05 calls worse than the absence.
     j.expect(
       shownHere.originControls === classified,
-      "and it is offered on exactly the values whose origin was classified, not on every row",
+      "and an origin is claimed on exactly the values whose origin was classified, not on every row",
       `${shownHere.originControls} control(s) against ${classified} classified of ${asked} values`,
     );
 
@@ -860,10 +882,16 @@ async function noSourceArm(browser, site, j, subject) {
     // THE INVERSE MISTAKE. A control offered where nothing can answer is the
     // defect returning, and it is asserted as a count so it cannot pass
     // vacuously.
+    // A BADGE MAY CLAIM AN ORIGIN HERE, where the engine found one without
+    // source: a boundary terminator such as `RecordingStart` ("the value
+    // already existed before tick 0", Value-Origin-Tracking §2) needs no source
+    // line. What must not happen is a badge claiming more than the engine
+    // classified — the shape of a control that answers on every row.
     j.expect(
-      shownHere.originControls === 0,
-      "NO-SOURCE: and it offers no origin control, because none could answer",
-      `${shownHere.originControls} authored control(s) on a recording with no source to classify`,
+      shownHere.originControls === classified,
+      "NO-SOURCE: and a badge claims an origin exactly where the engine classified one",
+      `${shownHere.originControls} badge(s) claiming an origin, of ${shownHere.originBadges} shown,` +
+        ` against ${classified} classified`,
     );
   } finally {
     await live.page.close();

@@ -576,11 +576,22 @@ func docAnchor*(path: string): string =
   ## never collide with one of its own line ids.
   "D-" & pathSlug(path)
 
+func activeIndexOf*(p: EditorPane): int =
+  ## The index of the document `activeDocument` returns, or -1 when there is
+  ## none — so a caller can address it in place instead of copying it, which
+  ## for a CASM listing is tens of thousands of lines on every stop.
+  if p.documents.len == 0: -1
+  elif p.activeIndex >= 0 and p.activeIndex < p.documents.len: p.activeIndex
+  else: 0
+
 func activeDocument*(p: EditorPane): SourceDocument =
-  if p.documents.len == 0: SourceDocument()
-  elif p.activeIndex >= 0 and p.activeIndex < p.documents.len:
-    p.documents[p.activeIndex]
-  else: p.documents[0]
+  let i = activeIndexOf(p)
+  if i < 0: SourceDocument() else: p.documents[i]
+
+func activePath*(p: EditorPane): string =
+  ## The active document's path, without copying the document.
+  let i = activeIndexOf(p)
+  if i < 0: "" else: p.documents[i].path
 
 # ---------------------------------------------------------------------------
 # Call trace pane

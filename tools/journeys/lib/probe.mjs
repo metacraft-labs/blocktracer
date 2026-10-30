@@ -284,7 +284,23 @@ export const readFacts = (page) =>
 
       // ---- the source pane ---------------------------------------------------
       srclines: count(".srcline"),
-      srclinesShown: [...document.querySelectorAll(".srcline")].filter(shown).length,
+      // PER DOCUMENT, NOT PER LINE. A line is hidden by its document — the
+      // `.srcdoc` alternates the pane is not showing — so visibility is asked
+      // once per document and its lines are counted, minus any a `hidden`
+      // attribute takes out. Asking every line cost the page about 27 s over
+      // one visit to a 70,727-line Starknet session, on every settle poll,
+      // which is the instrument slowing the subject it measures. Lines outside
+      // any document are still asked one by one.
+      srclinesShown: (() => {
+        let n = 0;
+        for (const doc of document.querySelectorAll(".srcdoc")) {
+          if (shown(doc)) n += doc.querySelectorAll(".srcline:not([hidden])").length;
+        }
+        for (const ln of document.querySelectorAll(".srcline")) {
+          if (!ln.closest(".srcdoc") && shown(ln)) n += 1;
+        }
+        return n;
+      })(),
       marked: count(".srcline.cur"),
       markedShown: shown(cur),
       markedNumber: cur?.querySelector(".n")?.textContent?.trim() ?? null,

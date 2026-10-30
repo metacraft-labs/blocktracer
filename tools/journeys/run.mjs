@@ -3,7 +3,7 @@
 // Each journey is a sentence from the spec. It is judged by loading the artefact
 // a visitor loads, in a real browser, and asserting what is on the screen.
 //
-//   bash:  node tools/journeys/run.mjs [--dist DIR] [--only ID] [--json FILE]
+//   bash:  node tools/journeys/run.mjs [--dist DIR] [--only ID] [--json FILE] [--set NAME]
 //   just:  just journeys
 //
 // WHY THIS LAYER EXISTS
@@ -101,12 +101,24 @@ function parseArgs(argv) {
     engineCache: join(REPO, "client", ".replay-engine-cache"),
     only: null,
     json: null,
+    // WHICH SET OF JOURNEYS: the directory under `tools/journeys/` they are
+    // discovered in. `journeys` is the suite the deploy is judged by, over the
+    // Aztec-only `default` site. A set whose corpus that site does not carry —
+    // `starknet`, over `packages.site-starknet` — lives in its own directory
+    // and is run by its own job, because a journey with no subject in the
+    // corpus it is handed is red, and a skip is not a pass.
+    set: "journeys",
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--dist") a.dist = resolve(argv[++i]);
     else if (argv[i] === "--engine-cache") a.engineCache = resolve(argv[++i]);
     else if (argv[i] === "--only") a.only = argv[++i];
     else if (argv[i] === "--json") a.json = resolve(argv[++i]);
+    else if (argv[i] === "--set") a.set = argv[++i];
+  }
+  if (!/^[a-z][a-z0-9-]*$/.test(a.set)) {
+    console.error(`  --set ${a.set}: a set is a directory name under tools/journeys/`);
+    process.exit(2);
   }
   return a;
 }
@@ -202,8 +214,8 @@ function refuseSubjectFallback(file, source) {
   }
 }
 
-async function discover() {
-  const dir = join(HERE, "journeys");
+async function discover(set) {
+  const dir = join(HERE, set);
   const files = (await readdir(dir)).filter((f) => f.endsWith(".journey.mjs")).sort();
   const mods = [];
   for (const f of files) {
@@ -578,10 +590,12 @@ async function main() {
 
     // ---- discovery -----------------------------------------------------
     const ledger = await loadLedger();
-    const all = await discover();
-    if (all.length < MIN_JOURNEYS) {
+    const all = await discover(args.set);
+    // The floor is the main suite's; any other set must still find one.
+    const floor = args.set === "journeys" ? MIN_JOURNEYS : 1;
+    if (all.length < floor) {
       console.error(
-        `  journeys/ yielded ${all.length} journeys, fewer than the ${MIN_JOURNEYS} this layer` +
+        `  ${args.set}/ yielded ${all.length} journeys, fewer than the ${floor} this layer` +
           ` declares. An empty glob reports a clean sweep; this is that check.`,
       );
       process.exitCode = 2;
@@ -593,7 +607,7 @@ async function main() {
       process.exitCode = 2;
       return;
     }
-    console.log(`Discovered ${all.length} journeys in journeys/ (running ${selected.length})`);
+    console.log(`Discovered ${all.length} journeys in ${args.set}/ (running ${selected.length})`);
     console.log("");
 
     // ---- the journeys --------------------------------------------------

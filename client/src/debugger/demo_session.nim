@@ -905,6 +905,10 @@ type StepPositions* = object
   pathId*: seq[int]        ## -1 where the step carries no position
   line*, column*: seq[int]
 
+const PositionSchemas* = ["avm-source-positions/1", "cairo-casm-positions/1"]
+  ## The per-step position streams `decodeStepPositions` reads: Aztec's AVM
+  ## stream and Starknet's CASM stream, which share one shape.
+
 proc decodeStepPositions*(node: JsonNode): StepPositions =
   ## Total, and refuses rather than repairs.
   ##
@@ -914,7 +918,14 @@ proc decodeStepPositions*(node: JsonNode): StepPositions =
   ## something other than what this proc would read them as, and guessing which
   ## is exactly how a step acquires a line number belonging to a different step.
   if node.isNil or node.kind != JObject: return
-  if node{"schema"}.getStr != "avm-source-positions/1": return
+  # THE TWO SCHEMAS ARE ONE SHAPE. A Cairo capture positions its steps in the
+  # CASM listings its bundle publishes (`<class hash>.casm`, one line per
+  # instruction, label lines between) and in the Cairo files behind them, as
+  # interned `paths` with parallel `pathId` / `line` / `column` columns — the
+  # AVM stream's columns, with `column` null because a CASM line has none.
+  # Any other schema is still refused, so a stream this reader has not been
+  # taught is not read as one it has.
+  if node{"schema"}.getStr notin PositionSchemas: return
   let ids = node{"pathId"}
   let lines = node{"line"}
   let cols = node{"column"}

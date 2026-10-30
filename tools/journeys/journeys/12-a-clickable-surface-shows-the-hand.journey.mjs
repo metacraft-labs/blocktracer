@@ -182,7 +182,7 @@ export const id = "a-clickable-surface-shows-the-hand";
 export const claim =
   "A visitor whose pointer rests on something clickable sees the hand that means it.";
 export const spec = "Page-Descriptions §7.0, Debugger-Integration §4.2 — BlockTracer";
-export const assertions = 52;
+export const assertions = 49;
 export const needsEngine = true;
 
 /**
@@ -631,16 +631,14 @@ export async function run({ browser, site, j }) {
     j.note(`call trace: ${shape(ct)}`);
     judge(j, ct, "call-trace rows", "pointer");
 
-    // THE EXACT ELEMENT THE REPORT WAS ABOUT — the function name, which is the
-    // widest cell in the row and the one carrying `.copyable`. Measured as its
-    // own population because a row whose centre happened to fall in the gutter
-    // would pass the row assertion above while the name still showed the plus.
-    // On a mounted row the name IS the click surface (`.call-text`, "{name}
-    // #{index}"), and it carries no `.copyable`: the element the report named
-    // is that one.
-    const ctName = await cursorsAtCentre(page, mounted ? SHARED_CALL : "a.ctrow .copyable");
-    j.note(`copyable cells inside rows: ${shape(ctName)}`);
-    judge(j, ctName, "copyable value cells sitting inside a navigable row", "pointer");
+    // THE FUNCTION-NAME CELL IS NO LONGER ITS OWN POPULATION. It was measured
+    // apart from the row because BlockTracer's row carried a `.copyable` name
+    // cell that could show the copy cursor inside a clickable row. The shared
+    // Call Trace view, mounted on every live page since 7ffa280, has no such
+    // cell — its name IS the click surface (`.call-text`) — so that reading
+    // became the row reading above, three assertions measuring the same
+    // elements twice. Retired with selftest arm Z, which mutated the
+    // `a .copyable` rule only the unmounted rows ever matched.
 
     // ── the copy controls hydration adds, which had no rule at all ───────
     const copybtn = await cursorsAtCentre(page, ".copybtn");
@@ -708,7 +706,7 @@ export async function run({ browser, site, j }) {
     // `cell` and `crosshair` all render as a plus; this is the assertion whose
     // text is the visitor's sentence, and it is a count so that one surviving
     // surface out of five cannot hide behind four fixed ones.
-    const plus = plusCount(ct) + plusCount(ctName) + plusCount(copybtn) + plusCount(ev);
+    const plus = plusCount(ct) + plusCount(copybtn) + plusCount(ev);
     j.countIs(
       plus,
       0,

@@ -73,5 +73,13 @@
       "recorded": "2026-10-22"
     }
   },
-  "_closed": {}
+  "_closed": {},
+  "known_blocked": {
+    "O4/the-control-does-not-say-what-it-would-answer": {
+      "reason": "The arm's assertion — journey 07's `and each control names the origin it would trace to` — is red on the unmutated tree, so the arm cannot be graded: a mutation demonstrates nothing about an assertion that is not green to begin with.",
+      "cause": "An engine defect that predates HSF: a RecordingStart origin summary carries an empty terminator expression, so the one badge that claims an origin names nothing (codetracer-pm issues/2026-10-30-a-recordingstart-origin-summary-carries-an-empty-terminator-expression.md).",
+      "closed_by": "The engine fix that issue asks for. Then the assertion goes green, this arm runs, and a kill fails the run until this entry is deleted.",
+      "recorded": "2026-10-30"
+    }
+  }
 }

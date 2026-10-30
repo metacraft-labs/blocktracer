@@ -649,6 +649,18 @@
           '';
         });
 
+        # The site with Starknet's produced capture and no other produced chain:
+        # the corpus the Starknet journey drives (the shared panes over felts,
+        # CASM listings and a deep call tree). Not deployed anywhere; `default`
+        # stays Aztec-only and `site-staging` carries every produced chain.
+        packages.site-starknet = self.packages.${system}.default.overrideAttrs (old: {
+          name = "blocktracer-site-starknet";
+          postPatch = (old.postPatch or "") + ''
+            cp -r ${starknet.starknetCaptureTree} client/fixtures/chain/starknet-mainnet
+            chmod -R u+w client/fixtures/chain
+          '';
+        });
+
         # Every chain capture the build PRODUCES rather than commits, one directory
         # per chain slug. site-staging copies it into the fixtures; the deploy hands
         # it to `check-freshness.mjs record --produced`, so F4 holds each published
