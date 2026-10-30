@@ -429,10 +429,11 @@ suite "url() — the nine icons that shipped as 404s":
         echo "  unplaced url: ", payload
       i = close + 1
     check relatives == 0
-    # At least one placement per vendored icon: the nine that published broken
-    # before this change, and the eleven the live panes brought (one of them,
-    # the active call dot, is named by two rules).
-    check placed >= 20
+    # At least one placement per vendored icon, stated against the table
+    # rather than as a number: the nine that published broken before this
+    # change, the eleven the live panes brought (one of them, the active call
+    # dot, is named by two rules) and the three search-box magnifiers.
+    check placed >= CtVendoredIcons.len
 
   test "every placed url names a row of the vendored-icon table":
     ## The two halves have to agree: `ctIconUrls()` is what the port was built
@@ -442,7 +443,13 @@ suite "url() — the nine icons that shipped as 404s":
       var s: seq[string] = @[]
       for _, url in ctIconUrls().pairs: s.add url
       s
-    check published.len == 20
+    ## ONE URL PER ROW, asserted against the table and not as a literal. This
+    ## read `== 20`, and a magic number here is the second copy of the
+    ## inventory — it fails for the one change it should be silent about
+    ## (vendoring an icon) and says nothing about the thing worth catching,
+    ## which is two rows collapsing to one url. The equality against
+    ## `CtVendoredIcons.len` catches exactly that and nothing else.
+    check published.len == CtVendoredIcons.len
     for url in published:
       check url.startsWith("data:image/svg+xml;base64,")
       check ("url(\"" & url & "\")") in debugRouteCss
@@ -711,3 +718,87 @@ suite "reachability — a rule that was NOT dropped can match something":
     check not matchesPattern("lm_tab", "lm_tabs")
     check matchesPattern("*-empty", "problems-empty")
     check not matchesPattern("*-empty", "empty-overlay")
+
+suite "values — a declaration the browser will DROP is not a pass":
+  ## THE MEASUREMENT THIS SUITE EXISTS FOR. `golden_layout.styl:371` writes
+  ## `margin-top: -(LAYOUT_TAB_TOP)` — correct Stylus, which upstream's real
+  ## compiler folds to `-0.25rem`. `ct_styl` substitutes identifiers TEXTUALLY
+  ## and had no arithmetic, so it emitted `margin-top:-(0.25rem)`. That is not
+  ## a valid CSS value: every browser drops the declaration, so every stack
+  ## after a splitter kept the 0.25rem that rule exists to remove, and the
+  ## string sat in the stylesheet blocktracer.org served for two days.
+  ##
+  ## NOTHING CAUGHT IT, and the reason is the gap this suite closes. The vendor
+  ## gate compares the INPUT bytes and they were right. The port suite above
+  ## asserts the RELATIONSHIP between source and output, and the relationship
+  ## held — a declaration was emitted for the declaration that was written.
+  ## Neither asks whether what came out is a thing a browser can parse, so a
+  ## value could be arbitrarily malformed and both stayed green.
+  ##
+  ## PARENTHESES ARE THE WHOLE TEST. CSS allows them only as a function's
+  ## argument list, so a `(` whose preceding characters are not an identifier
+  ## is unparseable by construction, and that is exactly the shape a textual
+  ## transpiler produces when it meets an operator it does not implement.
+
+  const NameChar = {'a'..'z', 'A'..'Z', '0'..'9', '_', '-'}
+
+  proc unfunctionedParens(css: string): seq[string] =
+    ## Every declaration carrying a top-level `(` that no function name
+    ## introduces.
+    ##
+    ## TWO THINGS THIS HAS TO GET RIGHT, and the first draft got both wrong.
+    ## `-` is an IDENTIFIER character, so "is the previous char part of a
+    ## name?" calls `-(` well-formed and misses the exact defect. The name is
+    ## therefore required to contain a LETTER. And parentheses nest legally
+    ## inside a function — `calc(100% - (2px))` is valid CSS — so only depth-0
+    ## parens are judged; anything inside a call is grouping.
+    for chunk in css.split('}'):
+      let brace = chunk.find('{')
+      if brace < 0: continue
+      for decl in chunk[brace + 1 .. ^1].split(';'):
+        var i = 0
+        var depth = 0
+        var quote = '\0'
+        while i < decl.len:
+          let c = decl[i]
+          if quote != '\0':
+            if c == quote: quote = '\0'
+          elif c == '\'' or c == '"': quote = c
+          elif c == ')':
+            if depth > 0: dec depth
+          elif c == '(':
+            if depth == 0:
+              var j = i
+              while j > 0 and decl[j - 1] in NameChar: dec j
+              let name = decl[j ..< i]
+              var hasLetter = false
+              for ch in name:
+                if ch in {'a'..'z', 'A'..'Z'}: hasLetter = true
+              if not hasLetter:
+                result.add decl.strip
+                break
+            inc depth
+          inc i
+
+  test "the shipped stylesheet has no unparseable value":
+    ## Stated over the WHOLE sheet rather than over the one rule that was
+    ## wrong, because the defect is the transpiler's and any vendored file can
+    ## reach it. Every finding is printed: a count alone would not say which.
+    let bad = unfunctionedParens(debugRouteCss)
+    for b in bad: checkpoint "unparseable value: " & b
+    check bad.len == 0
+
+  test "and the check BITES — the exact string that shipped is caught":
+    ## The arm that makes the one above mean something. Without it, a checker
+    ## that found nothing anywhere would read identically to a correct sheet.
+    check unfunctionedParens("a{margin-top:-(0.25rem)}").len == 1
+    check unfunctionedParens("a{margin:0 -(2px) 0 0}").len == 1
+
+  test "a legitimate function is not a finding":
+    ## The other half: `var()`, `calc()` and a nested call must pass, or the
+    ## arm above would be satisfied by a checker that rejects every value.
+    check unfunctionedParens("a{color:var(--bt-text-default)}").len == 0
+    check unfunctionedParens("a{width:calc(100% - 2px)}").len == 0
+    check unfunctionedParens("a{width:calc(100% - (2px))}").len == 0
+    check unfunctionedParens("a{background:linear-gradient(to top,#000,#fff)}").len == 0
+    check unfunctionedParens("a{content:'(x'}").len == 0

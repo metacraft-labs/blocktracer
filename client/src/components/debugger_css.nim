@@ -469,7 +469,15 @@ html[data-register="debugger"],
 .lm_stack > .lm_header{flex:0 0 auto}
 .lm_stack > .lm_items{flex:1 1 0;display:flex;flex-direction:column;
   min-height:0;min-width:0;overflow:hidden}
-.lm_tabs{list-style:none;margin:0;padding:0 0 0 var(--bt-space-3xs)}
+/* The `<ul>` reset, and NO padding. GoldenLayout's tab strip is a `<ul>`, so
+   the UA's `padding-left: 40px` has to go; this rule used to replace it with
+   `var(--bt-space-3xs)`, 2px, which is the one value in this block that was
+   never argued for. Measured in Chromium at 1600x1000 against the served
+   page: the panel's `.lm_content` starts at x=4 and the first `.lm_tab` at
+   x=6, with their right edges equal — the first tab sat 2px inside the panel
+   it labels, which is exactly the misalignment that was reported. Upstream's
+   `.lm_tabs` declares `width:100%` and `display:flex` and nothing else. */
+.lm_tabs{list-style:none;margin:0;padding:0}
 /* A tab's label is an `<a>` in a stack and a `<span>` alone, and `.lm_title`
    already sizes and truncates both; this only makes the link fill the tab so
    the whole tab is the hit target, which is what a GoldenLayout tab is. */
@@ -793,7 +801,13 @@ a.lm_title{display:block;line-height:inherit}
   font-size:inherit;font-weight:600;
   color:var(--bt-text-default);
   padding:0 var(--bt-space-xs);
-  border:none;border-radius:var(--bt-radius-xs);
+  /* THE PANEL TAB'S CORNERS, not a pill. `--bt-radius-xs` (4px, all four)
+     left the source tabs reading as standalone chips while every panel tab
+     beside them is a tab — rounded on top and square where it meets the
+     surface below. Measured in Chromium against the served page: `.lm_tab`
+     computes `6px 6px 0px 0px`, and these sit in exactly the same
+     relationship to the body under them. `--bt-radius-sm` is that 6px. */
+  border:none;border-radius:var(--bt-radius-sm) var(--bt-radius-sm) 0 0;
   background:var(--bt-surface-sunken);
   transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 [data-register="debugger"] .srctab.ct-tab:hover:not([data-selected="true"]){

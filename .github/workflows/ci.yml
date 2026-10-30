@@ -218,6 +218,20 @@ jobs:
   ci-coverage:
     runs-on: ubuntu-latest
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
         with:
           # Step 4 resolves the trigger's branch names against real refs. A
@@ -280,6 +294,20 @@ jobs:
   deploy-gates:
     runs-on: ubuntu-latest
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -910,6 +938,23 @@ jobs:
           node tools/fixtures/check-recordings-policy-selftest.mjs
           node tools/fixtures/prepare-recordings-selftest.mjs
 
+      - name: And does every job that needs them actually materialise them?
+        # The policy check above proves the recordings are GENERATED rather
+        # than tracked. It says nothing about whether the jobs that read them
+        # ask for them, and that gap was found three times by a red run: in
+        # `client-sdk`/`viewmodels`/`visual-design-canary`, then in
+        # `journeys-bite` (invisible until `journeys` went green, because its
+        # eight shards were SKIPPED until then), then in `publish-r2.yml` —
+        # that one only after a production run had staged 460k objects and
+        # promoted three generations, and then died on `cannot open …/*.ct`.
+        #
+        # Here, in `deploy-gates`, because it is seconds of node over the
+        # workflow YAML and this is the job that already answers questions of
+        # that shape.
+        run: |
+          node tools/fixtures/check-recordings-wiring.mjs --selftest
+          node tools/fixtures/check-recordings-wiring.mjs
+
       - name: Is the committed Ethereum JSON-RPC input set the input set it claims to be?
         # 30 assertions, host-independent: every arm is offline and needs only node.
         #
@@ -1213,6 +1258,20 @@ jobs:
   contract:
     runs-on: [self-hosted, linux, x64]
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - name: Setup Nix
@@ -1332,6 +1391,20 @@ jobs:
   client-sdk:
     runs-on: [self-hosted, linux, x64]
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - name: Setup Nix
@@ -1365,8 +1438,17 @@ jobs:
         run: |
           set -euo pipefail
           nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
-          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
-          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
+          # --no-preserve=mode, NOT a chmod of named trees. A plain `cp` from
+          # the store carries the store's 0555 with it, and a directory that
+          # has no write bit cannot have anything unlinked from it -- so the
+          # NEXT job to land on this runner dies in actions/checkout's
+          # "Deleting the contents of" with EACCES, and the runner stays
+          # poisoned for every job after that until someone chmods it by hand.
+          # The chmod that stood here named three trees and missed
+          # fixtures/chain-artifacts, which is exactly how mcl-bench-001 was
+          # poisoned. The copy itself has to be writable; a list of trees to
+          # repair afterwards is a list that goes stale.
+          cp -r --no-preserve=mode,ownership "$RUNNER_TEMP/fixture-recordings"/. .
 
       # No Embed SDK / IsoNim / nim-everywhere checkouts: `.#ci` exports
       # CODETRACER_SRC, ISONIM_SRC and NIM_EVERYWHERE_SRC from pinned flake
@@ -1464,6 +1546,20 @@ jobs:
     env:
       DESIGN_SYSTEM_SRC: ${{ github.workspace }}/.design-system
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
         with:
           # B4 compares each `ledger@<rev>:` citation against the ledger AS IT
@@ -1625,6 +1721,20 @@ jobs:
   visual-design-canary:
     runs-on: [self-hosted, linux, x64]
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - name: Setup Nix
@@ -1658,8 +1768,17 @@ jobs:
         run: |
           set -euo pipefail
           nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
-          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
-          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
+          # --no-preserve=mode, NOT a chmod of named trees. A plain `cp` from
+          # the store carries the store's 0555 with it, and a directory that
+          # has no write bit cannot have anything unlinked from it -- so the
+          # NEXT job to land on this runner dies in actions/checkout's
+          # "Deleting the contents of" with EACCES, and the runner stays
+          # poisoned for every job after that until someone chmods it by hand.
+          # The chmod that stood here named three trees and missed
+          # fixtures/chain-artifacts, which is exactly how mcl-bench-001 was
+          # poisoned. The copy itself has to be writable; a list of trees to
+          # repair afterwards is a list that goes stale.
+          cp -r --no-preserve=mode,ownership "$RUNNER_TEMP/fixture-recordings"/. .
 
       - name: What the pinned capture environment fixes
         # Printed before anything is captured, so the run's log carries the
@@ -1932,6 +2051,20 @@ jobs:
   viewmodels:
     runs-on: [self-hosted, linux, x64]
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - name: Setup Nix
@@ -1965,8 +2098,17 @@ jobs:
         run: |
           set -euo pipefail
           nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
-          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
-          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
+          # --no-preserve=mode, NOT a chmod of named trees. A plain `cp` from
+          # the store carries the store's 0555 with it, and a directory that
+          # has no write bit cannot have anything unlinked from it -- so the
+          # NEXT job to land on this runner dies in actions/checkout's
+          # "Deleting the contents of" with EACCES, and the runner stays
+          # poisoned for every job after that until someone chmods it by hand.
+          # The chmod that stood here named three trees and missed
+          # fixtures/chain-artifacts, which is exactly how mcl-bench-001 was
+          # poisoned. The copy itself has to be writable; a list of trees to
+          # repair afterwards is a list that goes stale.
+          cp -r --no-preserve=mode,ownership "$RUNNER_TEMP/fixture-recordings"/. .
 
       # As in `client-sdk`: the Embed SDK, IsoNim and nim-everywhere come from
       # the flake's pinned inputs, not from hand-rolled sibling checkouts.
@@ -2009,6 +2151,20 @@ jobs:
   debug-route:
     runs-on: [self-hosted, linux, x64]
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - name: Setup Nix
@@ -2214,6 +2370,20 @@ jobs:
   journeys:
     runs-on: [self-hosted, linux, x64]
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - name: Setup Nix
@@ -2630,6 +2800,20 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - name: Setup Nix
@@ -2658,8 +2842,17 @@ jobs:
         run: |
           set -euo pipefail
           nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
-          cp -r "$RUNNER_TEMP/fixture-recordings"/. .
-          chmod -R u+w client/fixtures fixtures/trace conformance-kit/template
+          # --no-preserve=mode, NOT a chmod of named trees. A plain `cp` from
+          # the store carries the store's 0555 with it, and a directory that
+          # has no write bit cannot have anything unlinked from it -- so the
+          # NEXT job to land on this runner dies in actions/checkout's
+          # "Deleting the contents of" with EACCES, and the runner stays
+          # poisoned for every job after that until someone chmods it by hand.
+          # The chmod that stood here named three trees and missed
+          # fixtures/chain-artifacts, which is exactly how mcl-bench-001 was
+          # poisoned. The copy itself has to be writable; a list of trees to
+          # repair afterwards is a list that goes stale.
+          cp -r --no-preserve=mode,ownership "$RUNNER_TEMP/fixture-recordings"/. .
 
       - name: What the pinned browser environment fixes
         run: nix run .#capture-env -- --print-pin
@@ -2792,6 +2985,20 @@ jobs:
     if: ${{ !cancelled() && needs.journeys-bite.result != 'skipped' }}
     runs-on: ubuntu-latest
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -2869,6 +3076,20 @@ jobs:
       # green; that has happened in this repository's CI before.
       REPORT_DIR: chain-linux-report
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - name: Setup Nix
