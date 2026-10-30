@@ -225,12 +225,14 @@ const ARMS = [
       " frame, so every count of it stays green.",
     // RE-AIMED 2026-10-30. The mutation used to narrow `writePane`'s latch for
     // the State pane, which a live page no longer writes: since 7ffa280 the
-    // pane is CodeTracer's shared State view, mounted by `mountSharedPanes`,
-    // and until it is mounted the served frame's values are what stands. The
-    // equivalent defect is the view never being mounted.
+    // pane is CodeTracer's shared State view, mounted by `mountSharedPanes`.
+    // Keeping that view from mounting is not the defect either — the pane is
+    // then written by `renderPanes` with the live values (measured: SURVIVED).
+    // The served values stand only when a live paint writes nothing, so that
+    // is the mutation: the paint neither mounts nor renders.
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  if not h.latch.state.mounted and\n      (view.state.values.len > 0 or view.state.note.len > 0):`,
-    replace: `  if false and\n      (view.state.values.len > 0 or view.state.note.len > 0):`,
+    find: `  h.mountSharedPanes(view)\n  renderPanes(h.ui, view, h.latch, h.keymap)`,
+    replace: `  discard view  # MUTATED: the live paint writes nothing`,
     journey: "a-stepped-session-shows-the-values-it-is-at",
     assertion: "no reading of the Values pane is the SERVED frame's values",
   },
@@ -266,54 +268,14 @@ const ARMS = [
     journey: "tx-page-is-the-session",
     assertion: "no page offers to open a debugger",
   },
-  {
-    id: "G/the-seek-lands-somewhere-else",
-    why:
-      "Seek one tick past the row the visitor clicked. This arm exists to prove the" +
-      " jump journey asserts the DESTINATION and not merely motion: with it in place" +
-      " both CONTROLS stay green (the click still reaches the engine and `?t=` still" +
-      " advances), the mark still moves, and the pane still shows a line — every" +
-      " symptom of a working jump — while the session is at a step nobody asked for." +
-      " A journey that had written `after.step !== before.step` would score this as a" +
-      " pass, which is why the assertion is an equality against the step the row" +
-      " names in its own markup.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `      try: h.gotoTicks(parseInt(step)) except CatchableError: discard)`,
-    replace: `      try: h.gotoTicks(parseInt(step) + 1) except CatchableError: discard)`,
-    journey: "a-jump-moves-the-position",
-    assertion: "the session's reported step is the step the call-trace row named",
-  },
-  {
-    id: "H/the-event-log-rows-are-not-bound",
-    why:
-      "Stop binding the event log's rows, leaving the call trace's binding alone." +
-      " The two navigation regions are separate `rowHandler` calls over separate" +
-      " pane bodies, so one can go dead while the other keeps working — and the" +
-      " event log is the region a visitor cannot even see until its tab is chosen," +
-      " which is how it came to be the region no assertion had ever reached. This is" +
-      " the README's `currentEntryRequest()` shape: the machinery present, the" +
-      " gesture wired to nothing, every component contract still green. The arm is" +
-      " surgical on purpose — the six call-trace assertions must stay green, or it" +
-      " would be proving something weaker than it claims.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  rowHandler(h.ui.eventLog, ".evrow")`,
-    replace: `  discard h.ui.eventLog`,
-    journey: "a-jump-moves-the-position",
-    // REPOINTED, AND THE OLD TARGET IS THE FINDING. This arm named "the
-    // session's reported step is the step the event-log row named" and SURVIVED
-    // it in three independent runs, because that assertion — and every other
-    // reading in that block — is taken AFTER the gesture settles, and an
-    // unbound row settles in exactly the right place: the browser follows the
-    // anchor's href, tears the document down, and a new session opens at the
-    // named step. Right step, right mark, right `?t=`, 18 MB of engine
-    // refetched to move one frame.
-    //
-    // The assertion that bites is the one that reads DURING: a token stamped on
-    // `window` before the click survives a seek and cannot survive a
-    // navigation. The old assertion is kept and still made — it is a true claim
-    // about where the session ends up — it simply never was this arm's.
-    assertion: "the event-log jump SEEKS the open session and does not reload the page",
-  },
+  // `G/the-seek-lands-somewhere-else` MOVED TO CODETRACER, 2026-10-30. It mutated `hydrate.rowHandler`'s seek, which the shared Call Trace's rows do not use: their click is the SDK's,
+  // so it SURVIVED (selftest at b801c56): the job is the SDK's since the
+  // shared views were mounted (7ffa280). Graded there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm G — `calltrace_vm.doubleClickEntry` jumps one tick past the row — killed by "a call-trace row's click jumps to that row's own tick" (codetracer 4e957b2a90).
+  // `H/the-event-log-rows-are-not-bound` MOVED TO CODETRACER, 2026-10-30. It mutated `hydrate.rowHandler`'s binding on the event log's rows, which the shared Event Log's rows do not use: their click is the SDK's,
+  // so it SURVIVED (selftest at b801c56): the job is the SDK's since the
+  // shared views were mounted (7ffa280). Graded there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm H — `event_log_vm.doubleClickRow` returns before it seeks — killed by "an event-log row's click jumps to that event" (codetracer 4e957b2a90).
   {
     id: "M/the-calltrace-reply-is-discarded-again",
     why:
@@ -579,46 +541,10 @@ const ARMS = [
     journey: "a-step-repaints-only-what-it-changed",
     assertion: "no pane write rewrote the markup the pane already held",
   },
-  {
-    id: "FL2/the-panes-move-before-the-values-arrive",
-    why:
-      "Paint each stop as soon as it is known instead of when the move has settled." +
-      " `applyStop` has the position about 13 ms before the engine answers with its" +
-      " values, and a frame is 16.7 ms, so the page paints one frame in which it" +
-      " contradicts itself: the new line marked, the new step on the toolbar, and" +
-      " the Values pane empty because there is nothing in it yet. Measured on the" +
-      " unmutated tree, a six-step walk paints that frame six or seven times. It is" +
-      " the flicker the visitor actually reported, and it is invisible to every" +
-      " reading this suite could take before per-frame sampling existed — the" +
-      " content guard alone does NOT fix it, which is why the two are separate arms." +
-      " AND IT IS AIMED AT `renderAfterMove`, NOT AT `paintWhenSettled`, BECAUSE THE" +
-      " DIFFERENCE BETWEEN THEM IS THE WHOLE BITE." +
-      " The first spelling was `if false and h.session.locals.settlingPosition() and`," +
-      " and that does not paint the stop as soon as it is known \u2014 it paints it ONE" +
-      " ANIMATION FRAME later, because `paintWhenSettled` is already inside" +
-      " `onNextFrame` and all that mutation removes is the RE-ARMING. So the defect it" +
-      " plants is 16.7 ms, the locals round trip it has to beat is about 13 ms, and the" +
-      " arm kills only when a frame boundary happens to fall in a 3.7 ms gap. It was" +
-      " written with a margin \u2014 the note further down records 3, 4, 4, 4, 5, 5, 6 and 6" +
-      " blinks over eight runs \u2014 and the margin decayed to nothing. CI scored" +
-      " `counted 1` on ef24db5 and `counted 0` on fe201e81 over the SAME nine-arm shard:" +
-      " one coin, landing twice. Measured on one tree and one build: the old mutation" +
-      " blinks at 1 position of 7 through a direct `run.mjs`, and at 0 of 7 through this" +
-      " harness \u2014 which is a SURVIVED verdict decided by scheduling noise, not by the" +
-      " product." +
-      " This mutation takes `renderAfterMove`'s early-return branch for EVERY move" +
-      " instead of only the first, so the stop is painted synchronously and the" +
-      " scheduler is never reached \u2014 the sentence at the top of this note, as code." +
-      " Measured on the same tree: blinks at positions 1,2,3,4,5,6 of the 7 that settle" +
-      " with values, 8 frames of 736, with every other assertion in the journey still" +
-      " green. `h.everPainted = true` inside the branch is idempotent, so nothing else" +
-      " in the proc changes meaning.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  if not h.everPainted:`,
-    replace: `  if true:`,
-    journey: "a-step-repaints-only-what-it-changed",
-    assertion: "no painted frame showed an empty Values pane at a position that has values",
-  },
+  // `FL2/the-panes-move-before-the-values-arrive` MOVED TO CODETRACER, 2026-10-30. It mutated `renderAfterMove`'s first-paint guard; the shared State view keeps its rows until the store's answer, so painting early no longer empties it,
+  // so it SURVIVED (selftest at b801c56): the job is the SDK's since the
+  // shared views were mounted (7ffa280). Graded there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm FL2 — `stop_loader.loadLocals` clears the values before its answer — killed by "a move keeps the values on screen until its answer arrives" (codetracer 4e957b2a90).
   // `VD1/the-mark-follows-the-selection-again` MOVED TO CODETRACER, 2026-10-29. The code it mutated
   // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
   // was removed when the live session became the Embed SDK's
