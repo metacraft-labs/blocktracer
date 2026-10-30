@@ -110,7 +110,9 @@ on:
           expired on 2026-10-12: it no longer holds that the engine cannot open
           those 15. The pin moved to `9f332ae0ddfabe6b…`, container {5,6} with
           all four CCP-5 loader strings present, and that engine has been
-          watched opening a compact container. What still argues for OFF is a
+          watched opening a compact container. (It moved again on 2026-10-28,
+          to `be148ba358bcddcb…`, which reads `meta.dat` 7 only; preparation
+          regenerates the demo containers at 7 to match.) What still argues for OFF is a
           product decision rather than a format one: the live bucket serves no
           `demo` chain, so turning this on ADDS a chain rather than refreshing
           one. See `client/hydrate/engine-pin.txt`'s 2026-10-12 section.
@@ -150,6 +152,30 @@ on:
           local fixture, which is this workflow's missing capability.
         type: boolean
         default: false
+      promote-generation:
+        description: >-
+          Promote a chain to a DIFFERENT generation that is already in the
+          bucket. A comma-separated `chain=generation` list, e.g.
+          `aztec=raztec00001,aztec-testnet=rtestnet0001`. Empty (the default)
+          changes nothing and this workflow behaves exactly as before.
+          REQUIRES render-over-live, because the thing it edits is the staged
+          data plane: after the sync and before the build, each named chain's
+          staged `d/<chain>/current.json` is rewritten to name the chosen
+          generation, so the render enumerates THAT generation instead of the
+          one the bucket currently points at. Without it the promotion is
+          circular — `render-over-live` enumerates from the staged pointer,
+          which names the generation already live, and carries it back out.
+          The pointer's head/finalized are DERIVED from the generation's own
+          height map (its greatest height and that height's hash), never
+          typed in, and the step refuses a generation whose `root.json` is not
+          staged. The pointer-pin step below needs no exception and gets none:
+          it pins the built tree to the STAGED pointer, which is the one this
+          step just rewrote, so the promotion propagates through it rather
+          than being caught by it. Use it to publish a full history that was
+          ingested into the bucket but never named: see
+          docs/PRODUCTION-DATA-PLANE.md §7.
+        type: string
+        default: ''
       break-stale-leases:
         description: >-
           Delete every `_leases/<chain>.lock` in the bucket before publishing.
@@ -211,8 +237,12 @@ jobs:
     #                            360-minute ceiling arrived
     #
     # So the honest figure is "more than 346 minutes at 10-way concurrency".
-    # `AWS_MAX_CONCURRENT_REQUESTS=64` should take the staging share down a long
-    # way, but the build's share is untouched by it and has no measured upper
+    # This used to claim `AWS_MAX_CONCURRENT_REQUESTS=64` would take the staging
+    # share down a long way. IT DID NOT, BECAUSE THAT IS NOT A VARIABLE THE AWS
+    # CLI READS — see the staging step below, which now sets the dial where the
+    # CLI actually looks. Every render-over-live run to date, including the
+    # 240-minute one measured here, ran at the default 10. The build's share is
+    # untouched by concurrency either way and has no measured upper
     # bound yet — which is exactly the condition in which a tight ceiling turns
     # a slow job into a failed one. 600 is deliberately generous: these are
     # self-hosted runners, where the 360-minute figure is not a platform limit,
@@ -221,6 +251,20 @@ jobs:
     # timeout to decide it.
     timeout-minutes: 600
     steps:
+      # BEFORE the checkout, because the checkout is what dies. A tree copied
+      # out of the Nix store keeps the store's 0555, and nothing can be
+      # unlinked from a directory that has no write bit -- so actions/checkout
+      # fails in "Deleting the contents of" with EACCES, and so does the
+      # runner's own cleanup hook, which leaves that runner poisoned for every
+      # job that lands on it afterwards. gpu-server-001-mcl-bench-001 spent two
+      # hours in that state. The copy that caused it is writable now; this
+      # heals a runner that was already poisoned before the fix landed, and
+      # costs one syscall sweep on a runner that was not.
+      # `|| true` because a runner with an empty workspace has nothing to
+      # chmod, and that is the normal case rather than a failure.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       # NIX IS PROVISIONED, NOT SELECTED — and this workflow was the one job in
@@ -300,6 +344,49 @@ jobs:
       # READ-ONLY: it never deletes. Breaking is a separate, default-off step
       # placed immediately before `Publish`, so the window between breaking a
       # lock and taking it is seconds rather than the length of a render.
+      # ── THE RECORDINGS, BEFORE ANYTHING ELSE RUNS ────────────────────────
+      #
+      # 647283f made all 55 `.ct` fixtures generated rather than tracked and
+      # wired `prepare-recordings` into the Justfile recipes. The step below
+      # does not go through them — it drives `nim c -r src/static_export.nim`
+      # directly — so on a fresh checkout it runs against a tree with no
+      # recordings and dies on the first `open`. That is what run 40941893230
+      # did, AFTER staging 460k objects and promoting all three generations:
+      #
+      #     Error: unhandled exception: cannot open:
+      #       …/client/fixtures/chain/aztec/ct/0x00c67f…ct
+      #
+      # Nothing was published — `Publish` and every check after it were
+      # skipped, which is the fail-closed behaviour working — but the run cost
+      # the full staging pass first.
+      #
+      # The same gap was fixed in `ci.yml`'s `client-sdk`, `viewmodels`,
+      # `visual-design-canary` and `journeys-bite`. It was missed HERE because
+      # those fixes were made by chasing red jobs in one workflow rather than
+      # by asking which jobs bypass the recipes across all of them, and this
+      # is the only workflow whose failure costs hours before it reports.
+      #
+      # AND IT IS FIRST, not beside the step that needs it. Placed after
+      # staging it would still be correct and would still have cost that run
+      # its 460k-object pass before saying so. `nix build` of a cached
+      # closure is seconds; the staging pass is hours. The cheap check that
+      # can fail the run goes before the expensive one that cannot.
+      - name: Materialise the generated recordings the exporter reads
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          # --no-preserve=mode, NOT a chmod of named trees. A plain `cp` from
+          # the store carries the store's 0555 with it, and a directory that
+          # has no write bit cannot have anything unlinked from it -- so the
+          # NEXT job to land on this runner dies in actions/checkout's
+          # "Deleting the contents of" with EACCES, and the runner stays
+          # poisoned for every job after that until someone chmods it by hand.
+          # The chmod that stood here named three trees and missed
+          # fixtures/chain-artifacts, which is exactly how mcl-bench-001 was
+          # poisoned. The copy itself has to be writable; a list of trees to
+          # repair afterwards is a list that goes stale.
+          cp -r --no-preserve=mode,ownership "$RUNNER_TEMP/fixture-recordings"/. .
+
       - name: Who holds the publish leases?
         if: ${{ inputs.dry-run == false }}
         env:
@@ -356,22 +443,98 @@ jobs:
           # that matters. At the default 10 the first run of this step was
           # still going after 80 minutes with no way to see whether it was
           # progressing; that is what the per-prefix counts below are for.
-          export AWS_MAX_CONCURRENT_REQUESTS=64
-          export AWS_MAX_QUEUE_SIZE=10000
+          #
+          # ── THE DIAL WAS NEVER TURNED. `AWS_MAX_CONCURRENT_REQUESTS` AND
+          #    `AWS_MAX_QUEUE_SIZE` ARE NOT AWS CLI ENVIRONMENT VARIABLES. ────
+          #
+          # This block used to `export` those two names. The CLI never reads
+          # them: `awscli/customizations/s3/subcommands.py` builds its transfer
+          # config from `self._session.get_scoped_config().get('s3', {})` and
+          # nothing else, and `get_scoped_config()` is the CONFIG FILE's profile
+          # section. Measured against awscli2 2.35.11 — with the two variables
+          # exported and no config file, `max_concurrent_requests` resolves to
+          # 10 and `max_queue_size` to 1000, the untouched defaults from
+          # `transferconfig.py`.
+          #
+          # Run 40312450881's own log corroborates it: 460,813 objects in
+          # 11,659s is 39.5 objects/second, which is 10 requests in flight at
+          # ~250 ms each — not 64. Every render-over-live run this repository
+          # has ever done has run at the default, including the 240-minute
+          # staging the `timeout-minutes` note above measured.
+          #
+          # So the settings go where the CLI looks. `AWS_CONFIG_FILE` IS a real
+          # botocore variable (`configprovider.py`), and credentials keep coming
+          # from the environment, so this file carries tuning only.
+          #
+          # WRITTEN WITH `printf`, NOT A HEREDOC. A heredoc body has to start in
+          # column 0 for `configparser` to read `[default]` as a section header
+          # rather than a continuation line — and column 0 ends the YAML block
+          # scalar this step is written in, so the file would not parse as a
+          # workflow at all. `printf` keeps the YAML indented and puts the
+          # config file's own columns where the parser needs them.
+          export AWS_CONFIG_FILE="$RUNNER_TEMP/aws-s3-tuning.conf"
+          { printf '[default]\n'
+            printf 's3 =\n'
+            printf '    max_concurrent_requests = 32\n'
+            printf '    max_queue_size = 10000\n'
+          } > "$AWS_CONFIG_FILE"
+          echo "aws s3 tuning written to $AWS_CONFIG_FILE:"
+          sed 's/^/    | /' "$AWS_CONFIG_FILE"
+          # 32, NOT THE 64 THAT WAS ONLY EVER WRITTEN DOWN. The one concurrency
+          # this bucket has actually been measured at is 10, and at 10 it still
+          # returned `ServiceUnavailable: Reduce your rate of simultaneous reads
+          # on the same object` partway through `t/`. Tripling a rate that
+          # already drew a throttle is a step to take deliberately and with
+          # backpressure, not a number to inherit from a comment.
+          #
+          # ── A 503 IS A RATE LIMIT, NOT A FAILURE, AND IT KILLED A 3.2-HOUR
+          #    STAGE. ───────────────────────────────────────────────────────
+          #
+          # awscli2 already defaults to `standard` retries with 3 attempts, so
+          # the throttle that ended run 40312450881 had survived three tries:
+          # it was sustained, not a blip. `adaptive` adds what `standard` has
+          # not got — a client-side rate limiter that measures throttling
+          # responses and lowers the send rate until they stop — which is the
+          # mechanism that makes asking for 32 safe. More attempts give it room
+          # to find the rate.
+          export AWS_RETRY_MODE=adaptive
+          export AWS_MAX_ATTEMPTS=10
           # A COUNT PER PREFIX, NOT ONE AT THE END. `--only-show-errors` is
           # right — 900,000 "download:" lines is not a log — but it left the
           # step silent for its whole duration, and a silent step is
           # indistinguishable from a hung one. Each prefix now reports what it
           # brought and how long it took, so the next reader can tell "slow"
           # from "stuck" without waiting for the step to end.
+          # AND AN OUTER RETRY, BECAUSE `sync` IS RESUMABLE AND THE STAGE IS
+          # NOT. When the throttle outlived the client's own backoff, one
+          # failed object took the whole step with it and the 460,813 already
+          # on disk were thrown away with the runner. `aws s3 sync` compares
+          # the destination before it fetches, so a second attempt re-lists and
+          # downloads only what is missing — seconds of work to protect hours
+          # of it. That is why the retry wraps the sync rather than replacing
+          # the `set -e`: each attempt is idempotent, and the step still fails
+          # loudly if the origin is genuinely unavailable.
           nix develop .#ci --command bash -euo pipefail -c '
             for prefix in d idx t src; do
               mkdir -p "$LIVE_ORIGIN/$prefix"
               t0=$(date +%s)
-              aws s3 sync "s3://$LIVE_BUCKET/$prefix" "$LIVE_ORIGIN/$prefix" \
-                --endpoint-url "$R2_ENDPOINT" --only-show-errors
+              attempt=1
+              until aws s3 sync "s3://$LIVE_BUCKET/$prefix" "$LIVE_ORIGIN/$prefix" \
+                      --endpoint-url "$R2_ENDPOINT" --only-show-errors; do
+                if [ "$attempt" -ge 4 ]; then
+                  echo "::error::$prefix/: sync still failing after $attempt attempts." \
+                       "This is no longer a rate limit the client can ride out."
+                  exit 1
+                fi
+                echo "  $prefix/: attempt $attempt did not complete; retrying in" \
+                     "$(( attempt * 30 ))s — sync resumes, so what is already" \
+                     "staged is not fetched again"
+                sleep $(( attempt * 30 ))
+                attempt=$(( attempt + 1 ))
+              done
               n=$(find "$LIVE_ORIGIN/$prefix" -type f | wc -l)
-              echo "  $prefix/: $n object(s) in $(( $(date +%s) - t0 ))s"
+              echo "  $prefix/: $n object(s) in $(( $(date +%s) - t0 ))s" \
+                   "($attempt attempt(s))"
             done
           '
           echo "LIVE_ORIGIN=$LIVE_ORIGIN" >> "$GITHUB_ENV"
@@ -404,6 +567,60 @@ jobs:
       # on the runner the sandbox does not and should not see. The ordinary
       # path is untouched — same `nix build .#default`, same `result` ->
       # `site` copy — so this is purely additive.
+      # ── PROMOTE A GENERATION THAT IS ALREADY IN THE BUCKET ────────────────
+      #
+      # The full history of both Aztec chains is IN the bucket and serving —
+      # every sampled block page of `raztec00001` and `rtestnet0001` answers
+      # 200 — but `current.json` names a much smaller generation, so no index
+      # links any of it. docs/PRODUCTION-DATA-PLANE.md §7a measures that.
+      #
+      # WHY THIS STEP EXISTS AT ALL, AND WHY IT IS HERE AND NOT ELSEWHERE.
+      # Neither publish mode can move a pointer on purpose. The ordinary build
+      # ingests the committed captures, which are TIP WINDOWS — 27, 49 and 26
+      # blocks — so it can only ever produce the small generation.
+      # `render-over-live` enumerates from the STAGED `d/<chain>/current.json`,
+      # which is the bucket's, which names the generation already live; it
+      # therefore re-renders exactly that window and writes the same pointer
+      # back out. The promotion is circular in both directions, and the one
+      # place the cycle can be cut is between the sync that produced the staged
+      # pointer and the build that reads it. That is exactly here.
+      #
+      # THE POINTER IS DERIVED, NEVER TYPED IN. head and finalized come from
+      # the generation's OWN height map: its greatest height, and that height's
+      # hash. A hand-written pointer is a hash nobody checked, and this
+      # workflow already refuses a tree whose pointers it cannot account for.
+      # Historic generations here are fully finalized, so finalized == head;
+      # a generation whose tip is not final is NOT promotable this way and the
+      # step says so rather than guessing a finalized height.
+      #
+      # IT REFUSES RATHER THAN SKIPS. A generation whose `root.json` is not in
+      # the staged tree, or whose height map is missing or empty, fails the
+      # step. The failure mode this avoids is the expensive one: a silent skip
+      # would render the OLD generation over a 357,000-page build and report
+      # success, and nobody would know which history they published until they
+      # browsed for it.
+      #
+      # THE PIN STEP NEEDS NO EXCEPTION, and that is worth stating because the
+      # obvious reading of it is the opposite. `Pin the live chain pointers`
+      # does not COMPARE the built pointer against the bucket's and refuse a
+      # difference — it `cp`s the staged pointer over the built one and then
+      # compares the copy, so its verdict is about whether the copy succeeded.
+      # Its pin SOURCE is `$LIVE_ORIGIN/d/<chain>/current.json`, which is the
+      # file this step just rewrote. So the promotion propagates THROUGH that
+      # step by construction. An earlier draft of this change added a relaxation
+      # list to it; that would have been code answering a problem that does not
+      # exist, which is why the mechanism is spelled out here instead.
+      - name: Promote a staged chain to another generation
+        if: ${{ inputs.render-over-live == true && inputs.promote-generation != '' }}
+        env:
+          PROMOTE: ${{ inputs.promote-generation }}
+        run: |
+          set -euo pipefail
+          LIVE_ORIGIN="${LIVE_ORIGIN:?promote-generation needs the staging step to have run}"
+          export LIVE_ORIGIN PROMOTE
+          nix develop .#ci --command node tools/deploy/promote-generation.mjs \
+            --origin "$LIVE_ORIGIN" --promote "$PROMOTE"
+
       - name: Build the site tree
         env:
           RENDER_OVER_LIVE: ${{ inputs.render-over-live }}

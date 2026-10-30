@@ -23,7 +23,7 @@
  ],
  "format": "blocktracer/chain-snapshot@1",
  "provenance": {
-  "note": "NOT A CAPTURE. This snapshot describes the fixture container written by tools/chain/record-noir-frames-fixture.mjs; see provenance.json beside it for what in that container is measured, what is reconstructed and what is zero.",
+  "note": "Real transaction replay, identical to the same transaction in client/fixtures/chain/aztec-testnet. The former reconstructed fixture was replaced on 2026-10-16. Containers are generated from immutable historical node responses; see provenance.json.",
   "chain": "aztec-testnet",
   "of": "client/fixtures/chain/aztec-testnet/snapshot.json, for this one transaction, with the recording counts replaced by the fixture recorder's own",
   "rerecordings": [
@@ -49,7 +49,14 @@
     },
     "url": "http://127.0.0.1:8098"
    }
-  ]
+  ],
+  "generatedRecordings": {
+   "preparation": "tools/fixtures/prepare-recordings.mjs",
+   "runtimeCommit": "238a3a5b9fe9346868cc7fab84a8aa54513287dd",
+   "writerCommit": "051efd22b00ec3b88676fb07755a65c5a4ca8fde",
+   "inputs": "fixtures/chain-inputs/aztec",
+   "note": "Original transaction identities, outcomes and recording semantics are retained. Byte counts include the captured archive endpoint in the provenance event."
+  }
  },
  "transactions": [
   {
@@ -72,7 +79,7 @@
    "outcome": "replayed",
    "kind": "replayed",
    "container": "ct/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.ct",
-   "containerBytes": 42663,
+   "containerBytes": 42664,
    "l2BlockNumber": 67011,
    "preStateReadAt": 67010,
    "contractReferenceBlock": 67011,
@@ -91,7 +98,7 @@
     "mismatches": []
    },
    "recording": {
-    "bytes": 42663,
+    "bytes": 42664,
     "events": 108,
     "steps": 108,
     "callsOpened": 45,
@@ -324,7 +331,7 @@
     }
    ],
    "sourceBundles": "sources/0x20ed5b91fae2fc7e564a062434b305d1c250ecad93da70e8e46e7f124d26185f.json",
-   "recordedBy": "94a96e4c3b8632233c0a9ab47e24545dc56d2d0f"
+   "recordedBy": "238a3a5b9fe9346868cc7fab84a8aa54513287dd"
   }
  ]
 }

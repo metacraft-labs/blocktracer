@@ -31,7 +31,7 @@
 //     node tools/deploy/engine-opens.mjs --engine /tmp/engine <file.ct> ...
 //     node tools/deploy/engine-opens.mjs --engine /tmp/engine --corpus
 //
-// `--corpus` walks every committed `*.ct`. `--json` prints the table as data.
+// `--corpus` reads the complete generated fixture inventory. `--json` prints the table as data.
 // `--expect-opened N` / `--expect-refused N` make the figures assertions, so a
 // corpus that silently stops being readable is a red run rather than a diff in
 // a log nobody reads.
@@ -45,8 +45,10 @@
 // folder would report every container refused, which reads exactly like a
 // format verdict and is not one. So both forms are tried and the one that
 // answered is printed.
-import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { basename, join, resolve, relative } from "node:path";
+import { validateManifest, prepareRecordings } from '../fixtures/prepare-recordings.mjs';
+import { versionsOf } from '../chain/lib/container-versions.mjs';
 
 const HERE = new URL(".", import.meta.url).pathname;
 const REPO = resolve(HERE, "..", "..");
@@ -66,31 +68,16 @@ function parseArgs(argv) {
   return out;
 }
 
-function walkCt(dir, acc = []) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === ".git" || e.name === "node_modules" || e.name === "result") continue;
-    const p = join(dir, e.name);
-    if (e.isDirectory()) walkCt(p, acc);
-    else if (e.isFile() && e.name.endsWith(".ct")) acc.push(p);
-  }
-  return acc;
+function fixtureCorpus(dir) {
+  const manifest = JSON.parse(readFileSync(join(dir, 'tools/fixtures/recordings.json'), 'utf8'));
+  validateManifest(manifest, dir);
+  return manifest.recordings.map((row) => join(dir, row.output));
 }
 
-// The two version axes, read off the bytes rather than taken from a name. They
-// are INDEPENDENT — `engine-pin.txt` carries the incident that taught this —
+// The two version axes, read off the bytes rather than taken from a name
+// (`versionsOf`, shared with preparation's engine check). They are INDEPENDENT,
 // so both are printed for every subject, and a container with no CTFS magic is
 // reported as such instead of being given a version of 0.
-const CTFS_MAGIC = Buffer.from("c0de72ace2", "hex");
-function versionsOf(bytes) {
-  const isCtfs = bytes.length > 5 && bytes.subarray(0, 5).equals(CTFS_MAGIC);
-  const container = isCtfs ? bytes[5] : null;
-  const j = bytes.indexOf(Buffer.from("CTMD"));
-  const metaDat = j >= 0 && j + 6 <= bytes.length ? bytes.readUInt16LE(j + 4) : null;
-  // Byte 16 is the PROFILE byte, and only in a version-6 header (24 bytes).
-  // In version 5 that offset is body, so reading it there would invent a field.
-  const profile = container === 6 && bytes.length > 16 ? bytes[16] : null;
-  return { container, metaDat, profile };
-}
 
 const args = parseArgs(process.argv.slice(2));
 if (!args.engine) {
@@ -110,7 +97,8 @@ for (const p of [glue, wasmPath]) {
   }
 }
 
-const subjects = args.corpus ? walkCt(REPO) : args.files.map((f) => resolve(f));
+if (args.corpus) prepareRecordings({ log: (message) => console.error(message) });
+const subjects = args.corpus ? fixtureCorpus(REPO) : args.files.map((f) => resolve(f));
 if (subjects.length === 0) {
   console.error("engine-opens: no subjects — pass container paths or --corpus");
   process.exit(64);

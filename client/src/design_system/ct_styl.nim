@@ -390,10 +390,119 @@ proc resolveByMode(value: string; env: Table[string, string];
                else: dark)
     i = j + 1
 
+proc isNumericLiteral(s: string): bool =
+  ## A bare CSS length/number: optional sign, digits with at most one dot, and
+  ## an optional alphabetic unit or `%`. Deliberately narrow — anything richer
+  ## is left alone for `foldNegation` to refuse rather than mangle.
+  if s.len == 0: return false
+  var i = 0
+  if s[i] in {'+', '-'}: inc i
+  var digits = 0
+  var dots = 0
+  while i < s.len and (s[i] in {'0'..'9'} or s[i] == '.'):
+    if s[i] == '.':
+      inc dots
+      if dots > 1: return false
+    else: inc digits
+    inc i
+  if digits == 0: return false
+  if i < s.len and s[i] == '%': inc i
+  else:
+    while i < s.len and s[i] in {'a'..'z', 'A'..'Z'}: inc i
+  i == s.len
+
+proc foldNegation*(value: string): string =
+  ## Stylus's unary minus on a parenthesised value: `-(0.25rem)` -> `-0.25rem`.
+  ##
+  ## THIS SHIPPED WRONG. `golden_layout.styl:371` writes
+  ## `margin-top: -(LAYOUT_TAB_TOP)`, which real Stylus folds to `-0.25rem`.
+  ## This transpiler substitutes identifiers TEXTUALLY and had no arithmetic,
+  ## so it emitted the literal `margin-top:-(0.25rem)` — not a valid CSS value,
+  ## so every browser dropped the declaration and every stack after a splitter
+  ## kept the 0.25rem the rule exists to remove. The string was in the
+  ## stylesheet blocktracer.org served.
+  ##
+  ## THE FIX IS HERE AND NOT IN THE VENDORED BYTES, which are verbatim copies
+  ## hashed against the pinned commit by `ci/test/ct-styles-vendor.sh`: that
+  ## line is upstream's own source and is correct Stylus. The same reasoning
+  ## the `url()` port already records.
+  ##
+  ## CONSERVATIVE ON PURPOSE. Only a `-(` that opens a value position — start
+  ## of the value, or after whitespace, `,` or `(` — and only when the contents
+  ## are one bare numeric literal. `calc(100% - (2px))` has a space before its
+  ## paren and does not match; `-(calc(…))` is not a literal and is left for
+  ## the emitted-value gate to report rather than silently rewritten.
+  var i = 0
+  var quote = '\0'
+  while i < value.len:
+    let c = value[i]
+    if quote != '\0':
+      result.add c
+      if c == quote: quote = '\0'
+      inc i
+      continue
+    if c == '\'' or c == '"':
+      quote = c
+      result.add c
+      inc i
+      continue
+    let opensValue = i == 0 or value[i - 1] in {' ', '\t', ',', '('}
+    if c == '-' and i + 1 < value.len and value[i + 1] == '(' and opensValue:
+      let close = value.find(')', i + 2)
+      if close > 0:
+        let inner = value[i + 2 ..< close].strip
+        if isNumericLiteral(inner):
+          if inner.startsWith('-'): result.add inner[1 .. ^1]
+          elif inner.startsWith('+'): result.add '-' & inner[1 .. ^1]
+          else: result.add '-' & inner
+          i = close + 1
+          continue
+    result.add c
+    inc i
+
+proc fmtNum(x: float): string =
+  ## Shortest faithful spelling: `1.875`, `2.5`, `5` — never `5.0`, which is
+  ## valid CSS but is not what Stylus prints, and a diff against upstream's
+  ## output should be empty for the same input.
+  result = formatFloat(x, ffDecimal, 6).strip(leading = false, chars = {'0'})
+  if result.endsWith('.'): result.setLen(result.len - 1)
+  if result.len == 0: result = "0"
+
+proc splitNumUnit(s: string): tuple[num: float, unit: string, ok: bool] =
+  if not s.isNumericLiteral: return (0.0, "", false)
+  var i = 0
+  if s[i] in {'+', '-'}: inc i
+  while i < s.len and (s[i] in {'0'..'9'} or s[i] == '.'): inc i
+  try: (parseFloat(s[0 ..< i]), s[i .. ^1], true)
+  except ValueError: (0.0, "", false)
+
+proc foldArithmetic*(value: string): string =
+  ## Stylus's `*` on a length and a number: `0.625em * 3` -> `1.875em`.
+  ##
+  ## THE CALL TRACE'S DEPTH INDENT. `calltrace.styl:669` is
+  ## `margin-left: 0.625em * i` inside `for i in 0..100`, so every nested row's
+  ## indentation is one of these products. With no arithmetic the emitted value
+  ## was the literal `0.625em * i`, which a browser drops.
+  ##
+  ## Only `*`, only two operands, only when exactly one carries a unit — the
+  ## whole of what the vendored set uses. Anything else is left for the
+  ## emitted-value gate to report rather than guessed at. `calc()` is never
+  ## entered: its `*` is already valid CSS and belongs to the browser.
+  if "calc(" in value or '*' notin value: return value
+  let parts = value.split('*')
+  if parts.len != 2: return value
+  let a = splitNumUnit(parts[0].strip)
+  let b = splitNumUnit(parts[1].strip)
+  if not a.ok or not b.ok: return value
+  if a.unit.len > 0 and b.unit.len > 0: return value
+  fmtNum(a.num * b.num) & (if a.unit.len > 0: a.unit else: b.unit)
+
 proc substituteValue(value: string; env: Table[string, string];
                      bridge: OrderedTable[string, string]): string =
-  ## `substitute`, with the `by-mode` build switch resolved first.
-  substitute(resolveByMode(value, env, bridge), env, bridge)
+  ## `substitute`, with the `by-mode` build switch resolved first, and Stylus's
+  ## unary minus folded AFTER substitution — the operand is a variable, so
+  ## there is nothing to negate until it has been replaced.
+  foldArithmetic(foldNegation(substitute(resolveByMode(value, env, bridge), env, bridge)))
 
 proc residualToken(value: string): string =
   ## The first identifier left over that was meant to resolve, or "".
@@ -580,6 +689,67 @@ proc isMixinCall(s: string): bool =
 
 # ── selector composition ───────────────────────────────────────────────────
 
+proc forLoopOf(s: string): tuple[v: string, lo, hi: int, isLoop: bool] =
+  ## `for i in 0..100` — the one loop form the vendored set uses
+  ## (`calltrace.styl:665`, the call trace's depth indent).
+  if not s.startsWith("for "): return ("", 0, 0, false)
+  let inAt = s.find(" in ")
+  if inAt < 0: return ("", 0, 0, false)
+  let v = s[4 ..< inAt].strip
+  let rng = s[inAt + 4 .. ^1].strip
+  let dots = rng.find("..")
+  if v.len == 0 or dots < 0: return ("", 0, 0, false)
+  try:
+    (v, parseInt(rng[0 ..< dots].strip), parseInt(rng[dots + 2 .. ^1].strip), true)
+  except ValueError:
+    ("", 0, 0, false)
+
+proc interpolate(n: Node; v, value: string): Node =
+  ## `{i}` -> the iteration's value, through the whole subtree. Stylus
+  ## interpolation is textual and appears here only in selectors (`&-{i}`).
+  result = Node(indent: n.indent, line: n.line,
+                text: n.text.replace("{" & v & "}", value))
+  for k in n.kids: result.kids.add interpolate(k, v, value)
+
+proc splitSelectorGroup*(s: string): seq[string] =
+  ## A selector line's TOP-LEVEL comma members.
+  ##
+  ## THIS WAS NOT DONE AND IT SHIPPED. Stylus lets a nested rule's selector
+  ## group sit on one line — `calltrace.styl:214` writes
+  ## `.call-text:focus-visible, .toggle-call:focus-visible` — and the whole
+  ## line was carried as ONE member, so `compose` prefixed the parent onto the
+  ## first and nothing onto the rest:
+  ##
+  ##   .calltrace-view .call-text:focus-visible, .toggle-call:focus-visible
+  ##
+  ## The second member lost `.calltrace-view`. That is not a near miss: it
+  ## matches in places the rule was never meant to reach, and it carries one
+  ## class less of specificity, so where it IS meant to apply another rule now
+  ## outranks it. Nine such lines are in the vendored set, in the Call Trace,
+  ## the Event Log, the State pane and the menus.
+  ##
+  ## Commas inside `:not(…)`, `:is(…)` and `[attr="a,b"]` are NOT separators,
+  ## so depth and quotes are tracked rather than a bare `split(',')`.
+  var depth = 0
+  var quote = '\0'
+  var cur = ""
+  for c in s:
+    if quote != '\0':
+      cur.add c
+      if c == quote: quote = '\0'
+    elif c == '\'' or c == '"':
+      quote = c; cur.add c
+    elif c == '(' or c == '[':
+      inc depth; cur.add c
+    elif c == ')' or c == ']':
+      dec depth; cur.add c
+    elif c == ',' and depth == 0:
+      if cur.strip.len > 0: result.add cur.strip
+      cur = ""
+    else:
+      cur.add c
+  if cur.strip.len > 0: result.add cur.strip
+
 proc compose(parents, kids: seq[string]): seq[string] =
   ## Stylus nesting: `&` is the parent, otherwise a descendant.
   if parents.len == 0:
@@ -742,6 +912,27 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
       decls.add prop & ":" & subbed & ";"
       inc rep.declarations
       continue
+    block forLoop:
+      let f = forLoopOf(n.text)
+      if not f.isLoop: break forLoop
+      # A LOOP IS NOT A SELECTOR, and flattening it into one is what shipped:
+      # `[data-register="debugger"] .expanded for i in 0..100-{i}` reached
+      # production, matching nothing, with `margin-left:0.625em * i` inside it.
+      # So all 101 `.expanded-N` rules were missing and the call trace's nested
+      # rows had no depth indent at all. Same failure shape as the conditional
+      # below, which is why it is answered the same way.
+      if f.hi - f.lo > 1024:
+        raise newException(StylError,
+          src.origin & ":" & $n.line & ": loop range outside the subset: " & n.text)
+      flushDecls()
+      for iter in f.lo .. f.hi:
+        env[f.v] = $iter
+        var kids: seq[Node]
+        for k in n.kids: kids.add interpolate(k, f.v, $iter)
+        emitBlock(kids, parents, src, port, env, rep, body, mixins, expandDepth)
+      env.del f.v
+      continue
+
     block conditional:
       let c = conditionOf(n.text)
       if not c.isCond: break conditional
@@ -781,7 +972,35 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
       inc rep.declarations
       continue
     # A selector line: either a group member, or the head of a nested block.
-    group.add n.text.strip(leading = false, chars = {',', ' '})
+    #
+    # BUT FIRST: ANYTHING NOT RECOGNISED ABOVE REACHES HERE AND BECOMES A
+    # SELECTOR, and that silence is how the `for` loop shipped. Every other
+    # construct outside the subset raises — an at-rule, a parameterised mixin,
+    # an unknown mixin, an unknown build condition — and a statement this
+    # transpiler has simply never heard of was the one case that did not. It
+    # was emitted as `.expanded for i in 0..100-{i}`: a selector matching
+    # nothing, carrying declarations that were therefore lost, and no gate had
+    # a reason to look at it.
+    #
+    # A CSS selector cannot contain `..` (a Stylus range), `{` or `}`
+    # (unresolved interpolation), and does not begin with a Stylus keyword.
+    # Each of those is a construct this port does not implement, so each is a
+    # refusal with a name rather than a rule that quietly matches nothing.
+    for residue in ["..", "{", "}"]:
+      if residue in n.text:
+        raise newException(StylError,
+          src.origin & ":" & $n.line & ": unsupported stylus construct in a " &
+          "selector position: " & n.text & "\n(`" & residue & "` cannot occur " &
+          "in a CSS selector — implement it in ct_styl.nim, or drop the rule " &
+          "with a reason)")
+    for kw in ["for ", "each ", "return ", "unless ", "while "]:
+      if n.text.startsWith(kw):
+        raise newException(StylError,
+          src.origin & ":" & $n.line & ": stylus `" & kw.strip &
+          "` outside the subset: " & n.text &
+          "\n(implement it in ct_styl.nim, or drop the rule with a reason)")
+    for member in splitSelectorGroup(n.text.strip(leading = false, chars = {',', ' '})):
+      group.add member
     if n.kids.len > 0:
       flushDecls()
       emitBlock(n.kids, compose(parents, group), src, port, env, rep, body,

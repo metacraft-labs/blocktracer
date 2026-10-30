@@ -273,8 +273,31 @@ func tierStatement*(published, atSourceLevel: int): string =
     "page states none. Each transaction's own page states whether it steps " &
     "at source level or instruction by instruction."
   elif published == 0:
-    "No transaction published here has a recording yet, so there is no debug " &
-    "tier to state: a tier belongs to a recording, not to a chain."
+    # ── ZERO IS A COUNT FROM ONE RUN, NOT A UNIVERSAL NEGATIVE ──────────────
+    #
+    # This said "No transaction published here has a recording yet", which is a
+    # claim about the whole chain derived from one number in one generation's
+    # `summary.json`. That number is what the INGEST THAT BUILT THAT GENERATION
+    # published, and it cannot see recordings published by anything else —
+    # because the availability overlay is keyed by `traceSelectionVersion`, at
+    # `/d/<chain>/ts/<v>/**`, and is SHARED BY EVERY GENERATION that declares
+    # that version. A later ingest can therefore publish a trace that an
+    # earlier generation's summary will never count.
+    #
+    # Measured on production 2026-10-28: `aztec`'s full generation
+    # `raztec00001` reports `tracesPublished: 0`, while two of its transactions
+    # read `availability: ready` from the shared overlay at 51,002 and 78,517
+    # bytes — the two containers §6a measured. Serving that generation with the
+    # old sentence would have told a visitor the chain has no recordings, on a
+    # chain with a working debugger.
+    #
+    # So the sentence now says what the figure actually supports, and says
+    # whose figure it is. It stays DISTINCT from the `< 0` branch above, which
+    # is the different case of no figure at all.
+    "The ingest that built this generation counted no recordings, so this " &
+    "page states no debug tier. That is a count from one run rather than a " &
+    "property of the chain: each transaction's own page states whether a " &
+    "recording exists for it."
   else:
     let instr = published - atSourceLevel
     "Of the " & transactionsPhrase(published) & " recorded here, " &

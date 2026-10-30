@@ -143,6 +143,44 @@ button,input,select,textarea{font:inherit;color:inherit;background:none;border:0
 button{cursor:pointer}
 img,svg{max-width:100%;display:block}
 ::selection{background:var(--bt-surface-selected);color:var(--bt-text-strong)}
+/* ── THE SCROLLBAR, APP-WIDE, BECAUSE THAT IS WHAT CODETRACER DOES ────────
+   `.tablewrap` above says the fade was "removed rather than tokenised. What
+   replaces it is the browser's own scrollbar and the hard edge upstream
+   uses, which is the whole of CodeTracer's answer to the same question."
+   The hard edge is right; the browser's own scrollbar is not upstream's
+   answer. `shared_widgets.styl` styles `::-webkit-scrollbar` UNSCOPED, so
+   every CodeTracer surface draws the same thin bar.
+
+   BlockTracer got that only inside the debugger. The port is prefixed with
+   `[data-register="debugger"]` as a whole — necessarily, since it carries
+   bare `button`, `input`, `tr` and `td` selectors that would restyle the
+   explorer — so the scrollbar rules were scoped along with everything else,
+   and the explorer's pages (`data-register="explorer"`: the home page, every
+   chain and every transaction list) fell back to the platform scrollbar. On
+   the same screen as a debugger pane that draws CodeTracer's, which is the
+   difference that was reported.
+
+   DECLARED HERE, IN BLOCKTRACER'S OWN LAYER, rather than by widening the
+   port's scope: the scope is load-bearing for the element selectors beside
+   it, and only this one rule belongs to the whole site. The values are the
+   tokens the port already resolves upstream's to, so the two registers agree
+   by construction rather than by a number copied between them —
+   `--bt-space-xs` is upstream's `0.5rem`, and `--bt-surface-hover` is the
+   same ramp rung (neutral-650) that `colors-ui-surface-primary-tertiary`
+   resolves to, which `ct_components_css.nim`'s row records as an exact
+   match rather than a role binding. No colour is spelled literally here:
+   this stylesheet is inlined into every page, so a comment is shipped bytes
+   and `test_static_export`'s shipped-rules scan reads comments too.
+
+   No hover step, and that is upstream's distinction being LOST rather than
+   declined: `colors-ui-surface-primary-tertiary-hover` is neutral-550, above
+   every BlockTracer surface rung, and `ct_components_css.nim` already states
+   that collapse as the one row in its table that loses a distinction. A
+   second spelling of it here would not add the rung. */
+::-webkit-scrollbar{width:var(--bt-space-xs);height:var(--bt-space-xs);background-color:transparent}
+::-webkit-scrollbar-corner{background-color:var(--bt-surface-sunken)}
+::-webkit-scrollbar:hover{background-color:transparent}
+::-webkit-scrollbar-thumb:vertical,::-webkit-scrollbar-thumb:horizontal{background-color:var(--bt-surface-hover)}
 a{color:inherit;text-decoration:none}
 
 /* ── focus, hover, active: one treatment, both registers ────────────────── */

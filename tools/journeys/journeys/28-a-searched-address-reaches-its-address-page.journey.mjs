@@ -37,8 +37,13 @@
 // `111…1` did NOT: it is 32 characters, outside §2's 43–44 base58 band, so the
 // classifier returns "unsupported" for a published address. That is recorded as
 // its own issue (codetracer-pm `issues/2026-10-23-search-refuses-a-published-
-// solana-address-shorter-than-43-characters.md`) and is why this journey is red on
+// solana-address-shorter-than-43-characters.md`) and is why this journey was red on
 // that build.
+// Remeasured 2026-10-28 at e8d74ce7 plus the 32–44-character base58 fix over
+// `.#site-staging`: all six sampled chains' addresses land on their pages,
+// including the System Program; all five assertions pass with no skips. As a
+// control, replacing only search.js with the bundle compiled from e8d74ce7's
+// original encoding table reproduces the Solana `unsupported` failure.
 //
 // NON-VACUITY (rule 3): one published address PER CHAIN, read from the built
 // tree's `{chain}/address/{addr}/` pages. The miss is a real address with one

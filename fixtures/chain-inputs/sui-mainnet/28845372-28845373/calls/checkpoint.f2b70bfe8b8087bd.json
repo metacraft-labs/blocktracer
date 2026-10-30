@@ -1,0 +1,1 @@
+{"request":{"query":"{ checkpoint { sequenceNumber timestamp } }","variables":{}},"http":200,"tipDependent":true,"response":{"data":{"checkpoint":{"sequenceNumber":338303976,"timestamp":"2026-10-26T11:10:45.796Z"}}}}

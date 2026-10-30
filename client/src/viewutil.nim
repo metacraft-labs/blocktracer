@@ -7,6 +7,10 @@
 import std/[json, strutils]
 import blocktracer_client
 import blocktracer/chain/refusal_reasons
+import blocktracer/chain/retired_networks
+export retired_networks  ## `networkRetired` is part of this module's wording contract, so every
+                         ## surface the compiler forces to decide can reach the answer
+                         ## without importing the registry itself.
 import ./reader
 import ./debugger/session_view
 import ./components/provenance
@@ -135,10 +139,37 @@ type
     ## here with nobody copying anything.
     akUnobservable  ## the chain never published it, or the obstacle is permanent
     akNotAttempted  ## it could have been had; this run did not get it
+    akStranded      ## it could have been had, and the network that would serve
+                    ## the repair has since been retired
     akUnstated      ## a member this build does not recognise — claim nothing
 
-func absenceKind*(refusalReason: string): AbsenceKind =
-  ## Which of the three an `absent` execution is, from its published member.
+func absenceKind*(refusalReason: string; networkRetired: bool): AbsenceKind =
+  ## Which of the four an `absent` execution is, from its published member AND
+  ## whether the chain's upstream still exists.
+  ##
+  ## ## `networkRetired` IS REQUIRED AND HAS NO DEFAULT
+  ##
+  ## For the reason `availabilityLabel`'s docstring gives about `refusalReason`,
+  ## one layer out: a defaulted parameter would let a call site keep the old
+  ## answer by saying nothing, and "nothing had to mention durability in order
+  ## to assert it" is exactly how the previous wrong claim survived on 918 of
+  ## 922 rows. With no default the compiler names every surface that words an
+  ## absence, and a new one cannot be added without deciding.
+  ##
+  ## ## Durability is a property of the PAIR, not of the member
+  ##
+  ## `refusal-reasons.json` is unchanged and must stay so. `not-attempted` and
+  ## `runtime-refused` really are repairable AS MEMBERS — on a chain whose
+  ## network is up, re-running the range produces the trace, which is what Sui's
+  ## refused rows are waiting on. What a member cannot know is whether the
+  ## network that would serve the repair still exists.
+  ##
+  ## Measured 2026-10-28: both Aztec rollups were restarted, and the endpoints
+  ## ANSWER — at their own low block numbers — while `node_getBlock` at any
+  ## height inside the captured range returns `Unknown block`. 24,609 rows on
+  ## `aztec` and 1,565 on `aztec-testnet` were published `repairable`, truthfully
+  ## at the time, and the page read that as "not a permanent answer". It no
+  ## longer is. `chain/retired_networks.nim` holds the list and the measurement.
   ##
   ## NO REASON AT ALL IS `akUnobservable`, and that is the case the old wording
   ## was right about: `S5-REFUSALREASON-FORBIDDEN` forbids the member on a
@@ -156,10 +187,25 @@ func absenceKind*(refusalReason: string): AbsenceKind =
   if refusalReason.len == 0: return akUnobservable
   case refusalReasonDurability(refusalReason)
   of "permanent": akUnobservable
-  of "repairable": akNotAttempted
-  else: akUnstated
+  of "repairable":
+    # A RETIRED NETWORK DOES NOT MAKE THIS `akUnobservable`, and the distinction
+    # is the whole point of the fourth member. `akUnobservable` says the
+    # obstacle was always permanent — the chain never published it, or no
+    # mechanism could ever have reached it. That is a different thing from an
+    # execution that WAS reachable, that this run simply did not reach, and
+    # whose window then closed. Collapsing the two would make the page's reason
+    # and its durability contradict each other: the row says "this run did not
+    # try", and a sentence claiming the obstacle was always permanent reads as
+    # the producer having lied about it.
+    if networkRetired: akStranded else: akNotAttempted
+  else:
+    # AN UNRECOGNISED MEMBER STILL CLAIMS NOTHING, retired network or not. The
+    # retirement overrules a durability this build READ; it cannot supply one
+    # this build never had.
+    akUnstated
 
-proc availabilityLabel*(a: TraceAvailability; refusalReason: string): string =
+proc availabilityLabel*(a: TraceAvailability; refusalReason: string;
+                        networkRetired: bool): string =
   ## `refusalReason` IS REQUIRED AND HAS NO DEFAULT, deliberately. A defaulted
   ## parameter would let a call site keep the old answer by saying nothing,
   ## which is how this claim survived being wrong on 918 of 922 rows: nothing
@@ -171,9 +217,15 @@ proc availabilityLabel*(a: TraceAvailability; refusalReason: string): string =
   of taOnDemand: "Generate trace"
   of taUnsupported: "No recorder"
   of taAbsent:
-    case absenceKind(refusalReason)
+    case absenceKind(refusalReason, networkRetired)
     of akUnobservable: "Not observable"
     of akNotAttempted: "Not traced yet"
+    # `Not traced yet` IS THE WORD THAT GOES WRONG, and the badge is the half a
+    # visitor actually reads — which is why Q10's recommended "delete the
+    # sentence" was rejected. `yet` promises a later; there is no later once the
+    # network is gone. So this falls back to the vocabulary that stays true, and
+    # the NOTE carries the why, which is a DIFFERENT why from akUnobservable's.
+    of akStranded: "Not observable"
     of akUnstated: "No trace published"
   of taDivergent: "Debug (divergent)"
 
@@ -317,7 +369,8 @@ proc feeLabel*(cost: seq[Cost]): string =
   for c in cost: parts.add costLabel(c)
   parts.join(" · ")
 
-proc availabilityState*(a: TraceAvailability; refusalReason: string): string =
+proc availabilityState*(a: TraceAvailability; refusalReason: string;
+                        networkRetired: bool): string =
   ## The badge beside the Debug action names the trace's STATE; the button
   ## names the ACTION. Previously the badge rendered the serialised enum
   ## (`onDemand`) — adapter vocabulary on an external-facing surface, and the
@@ -331,9 +384,15 @@ proc availabilityState*(a: TraceAvailability; refusalReason: string): string =
   of taOnDemand: "On demand"
   of taUnsupported: "No recorder"
   of taAbsent:
-    case absenceKind(refusalReason)
+    case absenceKind(refusalReason, networkRetired)
     of akUnobservable: "Not observable"
     of akNotAttempted: "Not traced yet"
+    # `Not traced yet` IS THE WORD THAT GOES WRONG, and the badge is the half a
+    # visitor actually reads — which is why Q10's recommended "delete the
+    # sentence" was rejected. `yet` promises a later; there is no later once the
+    # network is gone. So this falls back to the vocabulary that stays true, and
+    # the NOTE carries the why, which is a DIFFERENT why from akUnobservable's.
+    of akStranded: "Not observable"
     of akUnstated: "No trace published"
   of taDivergent: "Divergent"
 
@@ -493,7 +552,8 @@ proc finalityClass*(finality: string): string =
   of "reorged", "orphaned": "bad"
   else: "muted"
 
-proc availabilityNote*(a: TraceAvailability; refusalReason: string): string =
+proc availabilityNote*(a: TraceAvailability; refusalReason: string;
+                       networkRetired: bool): string =
   ## The one-line honest explanation the tx-detail hero shows beneath Debug.
   case a
   of taReady:
@@ -533,11 +593,18 @@ proc availabilityNote*(a: TraceAvailability; refusalReason: string): string =
     # supports. `akUnobservable` keeps the original sentence verbatim, because
     # under a permanent member — or a chain-absent execution carrying no member
     # at all — it was always the true one.
-    case absenceKind(refusalReason)
+    case absenceKind(refusalReason, networkRetired)
     of akUnobservable:
       "No trace can be produced for this execution — a permanent answer rather than a failed fetch. The published reason states why."
     of akNotAttempted:
       "No trace has been produced for this execution yet, and what stopped it is on our side rather than the chain's — so this is not a permanent answer. The published reason states what this run did not do."
+    # THE PUBLISHED REASON IS NOT CONTRADICTED, it is dated. The row says this
+    # run did not try, and that was true and remains true; what has changed is
+    # that trying is no longer possible. Saying so in this order — what the run
+    # did, then what the network did — is what keeps the page from reading as
+    # though the producer had misreported its own refusal.
+    of akStranded:
+      "No trace was produced for this execution, and none can be now: what stopped it was on our side, but the network that would serve the repair has since been retired. The published reason states what this run did not do — it was written while that repair was still possible."
     of akUnstated:
       "No trace is published for this execution. The published reason states why; this build does not recognise its id, so it makes no claim about whether one can be had."
   of taUnsupported:
@@ -1354,6 +1421,7 @@ proc txExecutionRows*(v: TxView): seq[ExecutionRow] =
       # private half the chain never published and whose public half this run
       # did not attempt has two absent executions for two different reasons, and
       # one word for both of them was the defect in miniature.
-      availability: availabilityState(e.availability, e.refusalReason),
+      availability: availabilityState(e.availability, e.refusalReason,
+                                      isRetiredNetwork(v.chain)),
       reason: e.reason,
       badge: availabilityClass(e.availability))

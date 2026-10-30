@@ -267,7 +267,7 @@ has drifted.
 | `--bt-layout-scrubber-min` | bkLiteral | `160px` | [D-07](#d-07) |
 | `--bt-layout-search` | bkLiteral | `260px` | [D-07](#d-07) |
 | `--bt-layout-tabmenu-max-height` | bkLiteral | `44vh` | [D-11](#d-11) |
-| `--bt-layout-tabstrip-row-min` | bkLiteral | `2.325em` | [D-11](#d-11) |
+| `--bt-layout-tabstrip-row-min` | bkLiteral | `1.5rem` | [D-11](#d-11) |
 | `--bt-measure-narrow` | bkLiteral | `44ch` | [D-06](#d-06) |
 | `--bt-measure-prose` | bkLiteral | `68ch` | [D-06](#d-06) |
 | `--bt-measure-title` | bkLiteral | `22ch` | [D-06](#d-06) |

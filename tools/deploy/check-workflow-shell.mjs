@@ -67,6 +67,32 @@ const INTERPRETERS = [
   { re: /(?:^|[\s/])python3?\s[^'"]*$/, kind: 'python' },
 ];
 
+// `-c` IS NOT ALWAYS "RUN THIS SCRIPT". `jq -c '.errors'` asks for compact
+// output, and the apostrophes around its filter are an ordinary quoted
+// argument — there is no script body there to parse. `r2-staging.yml`'s
+// read-only `check-edge` step writes exactly that, and this sweep reported it
+// as an unclassifiable interpreter and took `deploy-gates` red over a workflow
+// that is correct.
+//
+// AN EXPLICIT LIST, NOT "SKIP WHAT I CANNOT CLASSIFY". The refusal below is
+// the whole value of this check: a program that is new to this repository must
+// still be a finding, because a body it cannot classify is a body it is not
+// checking. Adding an entry here is a deliberate claim that this program's
+// `-c` takes no script argument — it is not a way to quieten a finding.
+const NOT_A_SCRIPT = [
+  // `[^\w.-]` and not `[\s/]`, which is what the INTERPRETERS patterns use:
+  // these calls are written inside a command substitution — `$(jq -c '.errors'
+  // …)` — so the character before the program name is `(`, and the whitespace
+  // class matched none of them. The selftest arm below is written the same way
+  // the workflow writes it, which is how that was caught.
+  { re: /(?:^|[^\w.-])jq\s[^'"]*$/, why: '`jq -c` is compact output' },
+];
+
+function takesNoScript(run, at) {
+  const lead = run.slice(Math.max(0, at - 200), at);
+  return NOT_A_SCRIPT.some((p) => p.re.test(lead));
+}
+
 function interpreterBefore(run, at) {
   const lead = run.slice(Math.max(0, at - 200), at);
   for (const i of INTERPRETERS) if (i.re.test(lead)) return i.kind;
@@ -81,6 +107,10 @@ export function bodiesOf(run) {
     const at = run.indexOf(MARKER, i);
     if (at === -1) return out;
     const start = at + MARKER.length;
+    // Not a body at all, so it is not counted as one either: an argument that
+    // merely looks like `-c '…'` must not inflate `bodies`, which other arms
+    // assert against.
+    if (takesNoScript(run, at)) { i = start; continue; }
     // FIRST apostrophe, not last: that is the one that closes the quote.
     const end = run.indexOf("'", start);
     if (end === -1) {
@@ -226,6 +256,23 @@ function selftest() {
   arm('a python body is parsed as python, not as shell', pygood, false, 1);
   arm('a broken python body is caught',
     pygood.replace('          print(json.dumps({}))', '          print(json.dumps({})'), true, 1);
+  // `jq -c '…'` IS NOT A BODY — the false positive that took deploy-gates red.
+  // Asserted as zero BODIES, not merely zero findings: classifying it as a
+  // body and then parsing `.errors` as shell would also report no finding, and
+  // this arm must tell those two apart.
+  const jqc = [
+    'jobs:', '  j:', '    steps:', '      - run: |',
+    '          out=$(curl -sS https://example.invalid)',
+    '          echo "$(jq -c \'.errors\' <<<"$out")"',
+  ].join('\n');
+  arm('`jq -c` is an argument, not a script body', jqc, false, 0);
+
+  // AND THE REFUSAL STILL BITES. The list above is an allowlist, so a program
+  // that is not on it must remain a finding; without this arm, widening
+  // NOT_A_SCRIPT until the sweep goes quiet would never be caught.
+  arm('an unknown program before `-c` is still a finding',
+    jqc.replace('jq -c', 'perl -c'), true, 1);
+
   arm('no run: blocks at all means zero bodies, not green-by-absence',
     'jobs:\n  j:\n    steps:\n      - uses: actions/checkout@v4\n', false, 0);
 

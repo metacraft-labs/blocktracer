@@ -71,16 +71,13 @@
 //             upload, what the origin ends up serving — is what these checks
 //             see and the pin cannot.
 //
-//   FROZEN    `/t/**/*.ct`, the captured trace containers. These are the
-//             opposite of fresh: they were captured from a chain, committed,
-//             and must NEVER change. A container that differs from its
-//             committed fixture is a corrupted copy or an accidental
-//             regeneration, and it silently changes what a visitor replays.
-//             Freshness for this class is therefore an IMMUTABILITY claim, and
-//             it is checked against the committed fixtures rather than against
-//             a manifest that would have to be maintained by hand — the source
-//             of truth is already in git, and a new capture is a new file
-//             rather than a change to a frozen one.
+//   FROZEN    `/t/**/*.ct`, the trace containers generated from immutable inputs
+//             and a pinned recorder. Their bytes must match the prepared
+//             fixtures or the explicitly declared producer output. A different
+//             container under the same input-derived URL silently changes what
+//             a visitor replays. The comparison therefore remains an
+//             IMMUTABILITY claim even though the container bytes are generated
+//             rather than committed.
 //
 // ── Where it runs, and why twice ───────────────────────────────────────────
 //
@@ -131,7 +128,7 @@ const REPO_ROOT = resolvePath(HERE, "..", "..");
 const ENGINE_PREFIX = "replay-engine/";
 const HYDRATION_BUNDLE = "assets/hydrate.js";
 
-// Where this repository keeps its committed trace containers. Two roots because
+// Where local fixture preparation writes trace containers. Two roots because
 // it has two: chain captures live beside the chain fixtures, the language tour
 // beside the trace fixtures. A root that matches nothing costs nothing; a root
 // that EXISTS and is not listed is a hole, which is why F4 reports the count it
@@ -214,7 +211,7 @@ export function record({ built, staged, engineFetch, nimSourcePath, repoRoot, pr
     if (rel.startsWith("t/") && rel.endsWith(".ct")) artefacts[rel].class = "frozen";
   }
 
-  // The committed captures, by CONTENT rather than by path. The published
+  // The prepared captures, by CONTENT rather than by path. The published
   // layout sharded them into `/t/<a>/<b>/<id>/trace.ct` and the fixture keeps
   // its transaction-hash filename, so a path map would be a second place for
   // the sharding rule to live — and a second place is how two spellings of one
@@ -450,7 +447,7 @@ export async function verify({ manifest, target }) {
             `(run ${manifest.engineFetch.runId}); no opinion is expressed about WHICH engine that is`);
     }
 
-    // ── F4 — every frozen container is its committed capture, unchanged ────
+    // ── F4 — every frozen container matches its source capture ────
     const frozen = inClass("frozen");
     const frozenSource = manifest.frozenSource ?? {};
     const known = new Set(Object.keys(frozenSource));
@@ -462,16 +459,16 @@ export async function verify({ manifest, target }) {
       // `--require-traces`, which is the check that fails when a publish
       // claiming to carry traces names none — the two are complementary and
       // neither covers the other's half.
-      add("F4", "every published trace container is its committed capture, unchanged", null,
+      add("F4", "every published trace container matches its source capture", null,
         `no /t/**/*.ct container is published, so there is no frozen capture to hold to its ` +
-        `committed bytes. check-assets.mjs's A3 --require-traces is what fails when a publish ` +
+        `source bytes. check-assets.mjs's A3 --require-traces is what fails when a publish ` +
         `that should carry containers carries none; this check has no opinion about an empty set.`);
     } else if (known.size === 0) {
-      add("F4", "every published trace container is its committed capture, unchanged", false,
+      add("F4", "every published trace container matches its source capture", false,
         `${frozen.length} container(s) are published and the repository's fixture roots ` +
-        `(${FIXTURE_ROOTS.join(", ")}) yielded NO committed .ct file to hold them to. ` +
+        `(${FIXTURE_ROOTS.join(", ")}) yielded no prepared or declared-produced .ct file to hold them to. ` +
         `Either the fixtures moved — in which case this list is stale — or the record step ` +
-        `read the wrong repository root.`);
+        `omitted --produced for the build output or read the wrong repository root.`);
     } else {
       // ── THE COMPARISON IS AGAINST THE CONTAINER, NOT THE OBJECT ─────────
       //
@@ -493,7 +490,7 @@ export async function verify({ manifest, target }) {
       // So the object is brought back to the container before it is compared,
       // and the manifest beside it says how. Both halves are checked: the
       // object at rest IS what the manifest declares, and the container it
-      // decodes to is a committed capture. A manifest that described some other
+      // decodes to is a source capture. A manifest that described some other
       // object would fail the first; a container that changed fails the second.
       //
       // WHICH FIGURE ARRIVED IS DISCOVERED, NOT ASSUMED, because it depends on
@@ -533,7 +530,7 @@ export async function verify({ manifest, target }) {
         if (sideBuf === null) {
           const got0 = createHash("sha256").update(buf).digest("hex");
           if (!known.has(got0)) {
-            changed.push(`/${rel}  ${buf.length} bytes (${got0.slice(0, 12)}…) is no committed ` +
+            changed.push(`/${rel}  ${buf.length} bytes (${got0.slice(0, 12)}…) is no source ` +
                          `capture, and there is no manifest at /${side} to say whether it is an ` +
                          `encoded one`);
           }
@@ -572,16 +569,16 @@ export async function verify({ manifest, target }) {
         }
       }
       const bad = [...undecodable, ...changed];
-      add("F4", "every published trace container is its committed capture, unchanged",
+      add("F4", "every published trace container matches its source capture",
         bad.length === 0,
         bad.length
-          ? `${bad.length} of ${frozen.length} published container(s) are not a committed ` +
+          ? `${bad.length} of ${frozen.length} published container(s) are not a prepared ` +
             `or declared-produced capture. A frozen container that changed is a different ` +
             `recording under the same ` +
             `URL, and every visitor replays the new one without being told:\n` +
             fmt(bad, (s2) => s2)
           : `all ${frozen.length} published container(s) decode to one of the ${known.size} ` +
-            `capture(s) committed under ${FIXTURE_ROOTS.join(", ")} or declared with ` +
+            `capture(s) prepared under ${FIXTURE_ROOTS.join(", ")} or declared with ` +
             `--produced (${Object.values(frozenSource).filter((s) => s.startsWith("produced:")).length} ` +
             `of them produced), and each object at rest is the one its manifest declares`);
     }

@@ -10,12 +10,21 @@ name: Staging on R2
 # index.html with two rules keyed on `http.host eq "blocktracer.org"`. No worker
 # serves it.
 #
-# `ensure` makes staging the same, IDEMPOTENTLY, creating only what is missing:
-# the bucket, its custom domain, and two rewrite rules COPIED from production's with
-# only the host replaced, ADDED beside them. Production's rules are read, never
-# edited. `publish` builds `site-staging` (what the staging Pages deploy builds),
-# vendors the replay engine, publishes with the same `blocktracer-publish` and lease
-# production uses, and reads the result back over HTTPS.
+# The bucket, its custom domain and the two index rewrite rules are EDGE CONFIG,
+# and edge config belongs in metacraft-labs/infra (metacraft-dev-guidelines
+# managing-web-site-content.md §4). This job used to be `ensure`, which created
+# whatever was missing through the Cloudflare API, and did so on 2026-10-24.
+# infra has since adopted them: the rules are declared in
+# terraform/cloudflare/metacraft-prod's `blocktracer_org_index_rewrite` (infra
+# #2024) and the bucket is imported there. The custom domain stays outside
+# Terraform only because the Cloudflare provider cannot import an R2 custom
+# domain. So `check-edge` is now READ-ONLY: it fails, naming what is missing,
+# when the bucket, the domain or the rules are absent, and it never creates or
+# edits anything. A missing piece is fixed by a PR to infra, not by this
+# workflow. `publish` builds `site-staging` (what the staging Pages deploy
+# builds), vendors the replay engine, publishes with the same
+# `blocktracer-publish` and lease production uses, and reads the result back
+# over HTTPS.
 
 # ON EVERY PUSH TO `staging`, beside the Pages deploy and not instead of it (operator: keep
 # blocktracer-staging.pages.dev until R2 is verified). Verified end to end on the bring-up
@@ -40,62 +49,64 @@ env:
   PROD_HOST: blocktracer.org
 
 jobs:
-  ensure:
+  check-edge:
     runs-on: ["self-hosted", "linux", "x64"]
     timeout-minutes: 15
     steps:
-      - name: Bucket, custom domain and index rewrite for the staging host
+      - name: Bucket, custom domain and index rewrite exist for the staging host (read-only)
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          api() { curl -sS -H "Authorization: Bearer $CF_TOKEN" -H 'content-type: application/json' "$@"; }
+          # GET only. Nothing in this step may create or edit a Cloudflare object.
+          get() {
+            local out
+            out=$(curl -sS -H "Authorization: Bearer $CF_TOKEN" "$1")
+            if ! jq -e '.success' >/dev/null <<<"$out"; then
+              echo "::error::GET $1 failed: $(jq -c '.errors' <<<"$out" 2>/dev/null || echo unparseable)" >&2
+              return 1
+            fi
+            printf '%s' "$out"
+          }
           A="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT"
           Z0="https://api.cloudflare.com/client/v4/zones"
-          ok() { jq -e '.success' >/dev/null; }
+          fix="Declare it in metacraft-labs/infra terraform/cloudflare/metacraft-prod; this workflow no longer creates edge config."
+          missing=0
 
-          if api "$A/r2/buckets" | jq -e --arg b "$STAGING_BUCKET" '[.result.buckets[].name] | index($b)' >/dev/null; then
-            echo "bucket: present"
+          if get "$A/r2/buckets/$STAGING_BUCKET" >/dev/null; then
+            echo "bucket: present ($STAGING_BUCKET)"
           else
-            api -X POST "$A/r2/buckets" -d "{\"name\":\"$STAGING_BUCKET\"}" | tee /tmp/r | ok \
-              || { echo "::error::could not create the staging bucket"; cat /tmp/r; exit 1; }
-            echo "bucket: created"
+            echo "::error::bucket $STAGING_BUCKET is missing. $fix"; missing=1
           fi
 
-          ZONE=$(api "$Z0?name=$PROD_HOST" | jq -r '.result[0].id')
-          if api "$A/r2/buckets/$STAGING_BUCKET/domains/custom" | jq -e --arg d "$STAGING_HOST" '[.result.domains[].domain] | index($d)' >/dev/null; then
-            echo "custom domain: present"
+          domains=$(get "$A/r2/buckets/$STAGING_BUCKET/domains/custom" || echo '{}')
+          if jq -e --arg d "$STAGING_HOST" \
+               '[.result.domains[]? | select(.domain == $d and .enabled == true)] | length == 1' \
+               >/dev/null <<<"$domains"; then
+            echo "custom domain: present and enabled ($STAGING_HOST)"
           else
-            api -X POST "$A/r2/buckets/$STAGING_BUCKET/domains/custom" \
-              -d "{\"domain\":\"$STAGING_HOST\",\"zoneId\":\"$ZONE\",\"enabled\":true}" | tee /tmp/r | ok \
-              || { echo "::error::could not attach the staging custom domain"; cat /tmp/r; exit 1; }
-            echo "custom domain: attached"
+            echo "::error::custom domain $STAGING_HOST is missing or disabled on $STAGING_BUCKET. It is the one piece infra cannot import (no Terraform import for R2 custom domains); restore it through infra's Cloudflare-Resource-Lifecycle runbook."
+            missing=1
           fi
 
-          EP=$(api "$Z0/$ZONE/rulesets/phases/http_request_transform/entrypoint")
-          RS=$(echo "$EP" | jq -r '.result.id')
-          if echo "$EP" | jq -e --arg h "$STAGING_HOST" '[.result.rules[].expression | contains("\"" + $h + "\"")] | any' >/dev/null; then
-            echo "index rewrite: present for the staging host"
+          ZONE=$(get "$Z0?name=$PROD_HOST" | jq -r '.result[0].id // empty')
+          [ -n "$ZONE" ] || { echo "::error::zone $PROD_HOST not found"; exit 1; }
+          EP=$(get "$Z0/$ZONE/rulesets/phases/http_request_transform/entrypoint")
+          n=$(jq --arg h "http.host eq \"$STAGING_HOST\"" \
+                '[.result.rules[] | select(.enabled and .action == "rewrite" and (.expression | contains($h)))] | length' \
+                <<<"$EP")
+          if [ "$n" -eq 2 ]; then
+            echo "index rewrite: 2 enabled rules for the staging host"
           else
-            # Production's rules, verbatim, with only the host compared against changed.
-            echo "$EP" | jq -c --arg p "http.host eq \"$PROD_HOST\"" --arg s "http.host eq \"$STAGING_HOST\"" \
-              '.result.rules[] | select(.expression | contains($p)) |
-               {description: (.description + " (staging)"), expression: (.expression | sub($p; $s)),
-                action, action_parameters, enabled: true}' > /tmp/rules
-            n=$(wc -l < /tmp/rules)
-            [ "$n" -eq 2 ] || { echo "::error::expected production's 2 index rules, found $n"; exit 1; }
-            while read -r rule; do
-              api -X POST "$Z0/$ZONE/rulesets/$RS/rules" -d "$rule" | tee /tmp/r | ok \
-                || { echo "::error::could not add an index rule"; cat /tmp/r; exit 1; }
-            done < /tmp/rules
-            echo "index rewrite: 2 rules added for the staging host"
+            echo "::error::expected 2 enabled index rewrite rules for $STAGING_HOST, found $n. $fix"; missing=1
           fi
-          api "$Z0/$ZONE/rulesets/phases/http_request_transform/entrypoint" \
-            | jq -r '.result.rules[] | "  rule: " + .description'
+          jq -r '.result.rules[] | "  rule: " + .description' <<<"$EP"
+
+          [ "$missing" -eq 0 ] || { echo "::error::staging edge config is incomplete; refusing to publish"; exit 1; }
 
   publish:
-    needs: ensure
+    needs: check-edge
     runs-on: ["self-hosted", "linux", "x64"]
     timeout-minutes: 300
     steps:

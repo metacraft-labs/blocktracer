@@ -156,7 +156,13 @@ const install = (page) =>
         const pane = document.querySelector("#pane-state");
         w.frames.push({
           step: document.querySelector(".dbg")?.getAttribute("data-step") ?? "",
-          rows: pane?.querySelectorAll(".strow").length ?? -1,
+          // Served, the pane's rows are `.strow`; live, it is the shared State
+          // view, whose rows are `.value-expanded` (probe.mjs, `stateRows`).
+          rows: !pane
+            ? -1
+            : pane.querySelector(".isonim-state")
+              ? pane.querySelectorAll(".isonim-state .value-expanded").length
+              : pane.querySelectorAll(".strow").length,
         });
         requestAnimationFrame(tick);
       };

@@ -231,7 +231,8 @@ func shownFor*(raw: string; probes: seq[IndexProbe]): string =
   ## collapse into a single probe, this loop finds one identifier, "every probe
   ## agrees" is satisfied, and the disagreement is never visible to the check.
   ##
-  ## Measured over `sweepCandidates()`'s 53,935 strings: **42** queries where the
+  ## Historical measurement at e8d74ce7, before the base58 band widened to 32–44:
+  ## over `sweepCandidates()`'s 53,935 strings, **42** queries where the
   ## readings disagree and this function nevertheless returns a canonical form
   ## rather than the query as typed — `hex`×`base58` 24 and `hex`×`ss58` 18.
   ##

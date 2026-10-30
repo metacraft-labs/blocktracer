@@ -1,0 +1,1 @@
+{"request":{"query":"query Query {\n  chainIdentifier\n}\n","variables":null,"operationName":"Query"},"http":200,"tipDependent":false,"response":{"data":{"chainIdentifier":"4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S"}}}

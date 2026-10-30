@@ -1330,7 +1330,7 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
       # (`Trace ready` survives, in the metadata pane's execution list, where
       # it is a fact about an execution rather than a caption for an action.)
       check "Debug loads it immediately" notin body
-      check availabilityNote(taReady, "") notin body
+      check availabilityNote(taReady, "", false) notin body
 
   test "an ABSENT trace is NOT the session, and pretends nothing":
     # The negative half, over a real tree whose published availability is
@@ -1348,11 +1348,11 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
     # kind of absence — a settled transaction whose body has been pruned past
     # the retention horizon — so this asserts the generic line does NOT claim
     # one, and that the specific one is present.
-    check availabilityNote(taAbsent, "") in body
+    check availabilityNote(taAbsent, "", false) in body
     check "permanent answer rather than a failed fetch" in body
-    check "no call structure" notin availabilityNote(taAbsent, "")
+    check "no call structure" notin availabilityNote(taAbsent, "", false)
     check AbsentReason in body
-    check availabilityState(taAbsent, "") in body
+    check availabilityState(taAbsent, "", false) in body
     # …and there is no control at all, not even a disabled one. A greyed
     # button still occupies the primary action's position and still invites
     # the click it will refuse.
@@ -1374,7 +1374,7 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
     let body = markup(html)
     check hasNoSessionMarker(html)
     check "No recorder exists for this VM yet" in body
-    check availabilityState(taUnsupported, "") in body
+    check availabilityState(taUnsupported, "", false) in body
     check "<button" notin body
     check "<h2 class=\"sec-title next\">Overview</h2>" in body
     check "no trace can be produced and this section stays empty" in body
@@ -1384,7 +1384,7 @@ suite "§7.0 — the transaction page IS the debugger's first frame":
     let html = txHtml(onDemandTx)
     let body = markup(html)
     check hasNoSessionMarker(html)
-    check availabilityLabel(taOnDemand, "") in body      # "Generate trace"
+    check availabilityLabel(taOnDemand, "", false) in body      # "Generate trace"
     check "it needs an account" in body
     check "<h2 class=\"sec-title next\">Overview</h2>" in body
     # …and this row DOES get §7.2's converting line, beside the action that

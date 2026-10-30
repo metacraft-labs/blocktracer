@@ -84,12 +84,12 @@ export const spec = "Debugger-Integration.md §6.0a, §6.3 — BlockTracer";
 // is the DELIVERY, not the request — the page under test is the deployed
 // hydrated shape, whose bundle asks for the engine on load.
 export const needsEngine = true;
-export const assertions = 14;
+export const assertions = 15;
 
 /** The engine, held in flight — the interval §6.3 is about. */
 const HOLD_ENGINE = ["**/replay-engine/**"];
 
-/** Every call-trace row, with both identities and the mark. */
+/** Every SERVED call-trace row, with both identities and the mark. */
 const readRows = (page) =>
   page.evaluate(() => {
     // `.ctview.def` and not a bare `.ctrow`: the pane renders a SECOND view,
@@ -107,20 +107,49 @@ const readRows = (page) =>
         name: r.querySelector(".ctname")?.textContent ?? null,
         line: r.querySelector(".ctline")?.textContent?.trim() ?? null,
       })),
-      // WHOSE ROWS ARE THESE. The live producer gives every frame an `href`,
-      // which `renderCallTrace` draws as an `<a>`; the static export leaves it
-      // empty and draws a `<div>` (`CallFrame.href` — "Empty on every statically
-      // exported page and non-empty only in a hydrated one"), the same
-      // discriminator journey 25 reads. Measured: 0 here on the served rows and
-      // 48 once hydration has repainted. This is what makes "the read was
-      // pre-engine" a fact the run states rather than one it hopes for.
-      liveRows: rows.filter((r) => r.tagName === "A").length,
+      // WHOSE ROWS ARE THESE. Since the live build mounts CodeTracer's SHARED
+      // Call Trace view (`hydrate.mountSharedPanes`, Shared-DOM-Front-Ends Q6),
+      // the live producer's rows are that view's `.calltrace-call-line` rows,
+      // not `.ctrow`s, and the served `.ctview.def` rows are the static
+      // export's alone. So "the read was pre-engine" is: the shared view has
+      // written no row yet. This is what makes it a fact the run states rather
+      // than one it hopes for.
+      liveRows: document.querySelectorAll(".calltrace-call-line").length,
       markedIndex: rows.findIndex((r) => r.classList.contains("cur")),
       markedCount: rows.filter((r) => r.classList.contains("cur")).length,
       // Counted over the WHOLE document as well, because `markServedFrame`
       // clears across every `.ctrow` and a mark left behind in the other view
       // would be a second row claiming to be the position.
       markedAnywhere: document.querySelectorAll(".ctrow.cur").length,
+    };
+  });
+
+/**
+ * Every LIVE call-trace row: the rows the shared Call Trace view writes once
+ * the engine is up. Its identity is the §6.0a anchor in the row's link
+ * (`a.call-text[href]`, built by this page's `rowLinksFor` from the row's
+ * logical address, codetracer Shared-DOM-Front-Ends D10), its step is the
+ * row's `data-rr-ticks`, and the view marks the selected frame
+ * `.event-selected`.
+ */
+const readLiveRows = (page) =>
+  page.evaluate(() => {
+    const rows = [...document.querySelectorAll(".calltrace-call-line")];
+    const anchorOf = (r) => {
+      const href = r.querySelector("a.call-text")?.getAttribute("href");
+      if (!href) return null;
+      return new URL(href, document.baseURI).searchParams.get("a");
+    };
+    return {
+      rows: rows.map((r, i) => ({
+        i,
+        step: r.getAttribute("data-rr-ticks"),
+        anchor: anchorOf(r),
+        name: r.getAttribute("data-function"),
+      })),
+      linked: rows.filter((r) => r.querySelector("a.call-text[href]")).length,
+      markedIndex: rows.findIndex((r) => r.classList.contains("event-selected")),
+      markedCount: rows.filter((r) => r.classList.contains("event-selected")).length,
     };
   });
 
@@ -274,20 +303,29 @@ export async function run({ browser, site, j }) {
     // producer at 2.3–2.7 s. So the wait is for the producer to change, which is
     // the event actually being waited on — the same conflation, one pane over,
     // is what this whole journey was flapping on.
-    let live = await readRows(opened.page);
-    for (let i = 0; i < 120 && live.liveRows === 0; i++) {
+    let live = await readLiveRows(opened.page);
+    for (let i = 0; i < 120 && live.rows.length === 0; i++) {
       await opened.page.waitForTimeout(250);
-      live = await readRows(opened.page);
+      live = await readLiveRows(opened.page);
     }
     await opened.page.close();
     survived.push({ target, live });
   }
 
   j.countIs(
-    survived.filter((s) => s.live.liveRows > 0).length,
+    survived.filter((s) => s.live.rows.length > 0).length,
     group.length,
-    "HYDRATED: the engine came and the pane was repainted by the LIVE producer",
-    survived.map((s) => `${s.target.name}: ${s.live.rows.length} rows, ${s.live.liveRows} live`).join("; "),
+    "HYDRATED: the engine came and the pane was repainted by the LIVE producer (the shared Call Trace view)",
+    survived.map((s) => `${s.target.name}: ${s.live.rows.length} live rows, ${s.live.linked} linked`).join("; "),
+  );
+  // The anchor below is read off each live row's LINK, so a pane whose rows
+  // carry no link would make the identity check unanswerable rather than
+  // false. Asserted, so that case reads as what it is.
+  j.countIs(
+    survived.filter((s) => s.live.rows.length > 0 && s.live.linked === s.live.rows.length).length,
+    group.length,
+    "and every live row is a link to its own address, which is where its anchor is read",
+    survived.map((s) => `${s.target.name}: ${s.live.linked}/${s.live.rows.length}`).join("; "),
   );
   j.countIs(
     survived.filter((s) => s.live.markedCount === 1).length,
@@ -295,12 +333,24 @@ export async function run({ browser, site, j }) {
     "§7.0: hydration renders no LESS — the repainted pane still marks exactly one row",
     survived.map((s) => `${s.target.name}: ${s.live.markedCount} marked`).join("; "),
   );
+  j.note(
+    "live marks: " +
+      survived
+        .map((s) => {
+          const m = s.live.rows[s.live.markedIndex];
+          return `${s.target.anchor} -> ${m?.anchor ?? "(none)"} [${m?.name ?? ""} @${m?.step ?? ""}]`;
+        })
+        .join("; "),
+  );
   j.countIs(
     survived.filter((s) => s.live.rows[s.live.markedIndex]?.anchor === s.target.anchor).length,
     group.length,
     "and it is STILL the frame the link named, carried across by anchor",
     survived
-      .map((s) => `${s.target.name}->${s.live.rows[s.live.markedIndex]?.name ?? "(none)"}`)
+      .map((s) => {
+        const m = s.live.rows[s.live.markedIndex];
+        return `${s.target.name} ${s.target.anchor} -> ${m?.name ?? "(none)"} ${m?.anchor ?? "(no anchor)"}`;
+      })
       .join(", "),
   );
 

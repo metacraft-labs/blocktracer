@@ -135,9 +135,16 @@ manifest.json                       format, upstream, and one row per call with 
 calls/<operation>.<field>.<key>.json  {request, http, tipDependent, response}
 ```
 
-`336000001/` is checkpoint 336,000,001 (20 transactions, all traced). Produce its tree with
-no network at all — the capture serves the transcript on loopback and fails on any request
-it does not hold:
+Two windows are committed, each a transcript of its own, and the published tree is their
+UNION (`tools/chain/merge-sui-windows.mjs`) — a chain's history accumulates by ranges:
+
+| window | transactions | why it is here |
+|---|---|---|
+| `28845372-28845373/` | 5: 2 at protocol 36 refused (`NO-TRACE-EVENTS`), 3 at protocol 38 traced | straddles the traced floor, so a below-floor row is published beside traced ones |
+| `336000001/` | 20, all traced | the modern era |
+
+Produce the union with no network at all — each capture serves its transcript on loopback
+and fails on any request it does not hold:
 
 ```sh
 just sui-capture <recorder-binary> <recorder-commit>

@@ -14,10 +14,10 @@
 #     own `repro.lock` names. This is NOT the `codetracer-trace-format` input the Aztec
 #     ct-writer uses: that one is anchored to the runtime's pins, and the two must not
 #     be forced into one checkout.
-#   * `codetracer-trace-format-nim`: the writer, at `7b8b587` = `20ba929^`, the last
-#     revision that writes `meta.dat` 6. The engine this site pins reads 6 only, and
-#     the recorder's own lock names a writer that writes 7, whose containers that
-#     engine refuses. Move this pin with `client/hydrate/engine-pin.txt` and never
+#   * `codetracer-trace-format-nim`: the writer, at `e15374866`, which writes `meta.dat`
+#     7 — what the engine this site pins reads since 2026-10-28, and no other version.
+#     It was `7b8b587` (= `20ba929^`, the last revision that writes 6) while the pinned
+#     engine read 6 only. Move this pin with `client/hydrate/engine-pin.txt` and never
 #     ahead of it.
 #
 # THE LOCKFILE IS OURS. The recorder repository gitignores `Cargo.lock`, so a pinned

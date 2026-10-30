@@ -1463,12 +1463,11 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // host, and therefore the only one a static cross-check can state.
     ['chain-health-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
     ['yield-method-selftest.mjs', /asserted !== (\d+)\) \{/],
-    // THE SECOND SUITE IN PATTERN FIVE, and it is there for the same reason as the
-    // first: `ct-corpus-census-selftest` runs two of its eight arms only when a
-    // container reader is present, so it declares a host-independent BASE plus one
-    // figure per configuration and the term below is the BASE. That the pattern now
-    // has two members is the point of having declared it as a pattern rather than as
-    // a one-off.
+    // The census comparator now tests its controlled positive cases without a
+    // reader, because the real committed population is empty. BASE_ARMS is its
+    // complete host-independent total, including the real empty-population base.
+    // Its separately counted actual-reader integration runs with the compatible
+    // producer/reader environment and is not part of this host-independent sum.
     ['ct-corpus-census-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
     // THE THIRD SUITE IN PATTERN FIVE. `eth-rpc-transcript-selftest` declares a
     // `BASE_ARMS` like the two above, but for a different reason: it has no host

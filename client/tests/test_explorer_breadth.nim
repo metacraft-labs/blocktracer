@@ -66,11 +66,55 @@ block:
   let cmd = "nim c --mm:orc -d:isServer -d:release --hints:off --nimcache:" &
     quoteShell(workDir / "nimcache") & " -o:" & quoteShell(exporterBin) & " " &
     quoteShell(clientRoot / "src" / "static_export.nim")
+  echo "breadth: compiling the exporter into " & workDir
+  stdout.flushFile()
   let (output, code) = execCmdEx(cmd)
-  doAssert code == 0, "exporter failed to compile:\n" & output
+  if code != 0:
+    # ── A `doAssert` HERE REPORTED NOTHING, TWICE, AND THAT IS THE DEFECT ──
+    #
+    # This was `doAssert code == 0, "exporter failed to compile:\n" & output`.
+    # On CI the whole of this prelude produced, in run 40183436467, exactly
+    # three lines:
+    #
+    #     fatal.nim(62)            sysFatal
+    #     Error: unhandled exception:  [AssertionDefect]
+    #     Error: execution of an external program failed: … test_explorer_breadth
+    #
+    # An AssertionDefect whose message is EMPTY — note the two spaces — from a
+    # `doAssert` whose message is a compiler log, and not one byte of stdout
+    # from a binary that echoes before every phase it runs. Whatever swallowed
+    # it, the result is a red job that cannot say which of two commands failed
+    # or why, and no amount of reading the log recovers it.
+    #
+    # So the diagnosis stops depending on how the runtime renders a Defect.
+    # The failure is printed, by this test, to a stream it flushes itself, and
+    # the exit is an ordinary non-zero. `quit` rather than `raise` because the
+    # reader needs the output, not a traceback into module initialisation.
+    echo "breadth: THE EXPORTER DID NOT COMPILE — `nim c` exited " & $code
+    echo "breadth: the command was: " & cmd
+    echo output
+    stdout.flushFile()
+    quit(1)
+  echo "breadth: exporter compiled; running it in " & workDir
+  stdout.flushFile()
 let (runOut, runCode) = execCmdEx(quoteShell(exporterBin), workingDir = workDir)
-doAssert runCode == 0, "exporter failed to run:\n" & runOut
+if runCode != 0:
+  echo "breadth: THE EXPORTER DID NOT RUN — it exited " & $runCode
+  echo runOut
+  stdout.flushFile()
+  quit(1)
 let dist = workDir / "dist"
+if not fileExists(dist / "404.html"):
+  # The exporter exited 0 and the tree is not there. Said by name, because the
+  # alternative is every suite below failing on a missing file and the reader
+  # inferring the cause from the wreckage.
+  echo "breadth: THE EXPORTER EXITED 0 AND WROTE NO TREE — no " &
+       (dist / "404.html")
+  echo runOut
+  stdout.flushFile()
+  quit(1)
+echo "breadth: exported tree at " & dist
+stdout.flushFile()
 
 # ── scanners, defined once and proved to bite before being trusted ─────────
 
@@ -604,12 +648,12 @@ suite "M9 — the two product rules, over every rendered page":
       let cell = debugCells(viewTables.txTable(Chain, @[row], "x"))[0]
       check "<a " notin cell            # no link
       check "<button" notin cell        # and no button, disabled or otherwise
-      check availabilityState(a, row.refusalReason) in cell
+      check availabilityState(a, row.refusalReason, isRetiredNetwork(Chain)) in cell
     for a in [taReady, taDivergent, taOnDemand]:
       let row = TxRow(hash: "0x" & repeat("b", 40), availability: a)
       let cell = debugCells(viewTables.txTable(Chain, @[row], "x"))[0]
       check "<a class=\"btn" in cell
-      check availabilityLabel(a, row.refusalReason) in cell
+      check availabilityLabel(a, row.refusalReason, isRetiredNetwork(Chain)) in cell
 
 # ──────────────────────────────────────────────────────────────────────────
 # §14 as enum values, rendered through one component
@@ -694,7 +738,10 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
     # asset the file names, and restores the default afterwards.
     let exported = readFile(dist / "404.html")
     let hrefAt = exported.find("href=\"/_a/")
-    check hrefAt >= 0
+    # `require`, not `check`: `check` records and CONTINUES, so a missed
+    # `find` would reach the slice below as -1 and crash with a RangeDefect
+    # instead of failing by name. This exact shape crashed once on CI.
+    require hrefAt >= 0
     let hrefStart = hrefAt + "href=\"".len
     useExternalCss(exported[hrefStart ..< exported.find('"', hrefStart)])
     let (status, body, _) = renderRoute(root, "/no/such/thing/at/all")
@@ -745,7 +792,6 @@ suite "M9 — every degraded state is a ViewModel value with a treatment":
     #
     # `siteCss()` IS the thing the renderer inlines. Comparing the published
     # file to it is the same claim with no render, no mode, and no `find`.
-    require hrefAt >= 0
     let hrefEnd = exported.find('"', hrefStart)
     require hrefEnd > hrefStart
     let sheetHref = exported[hrefStart ..< hrefEnd]

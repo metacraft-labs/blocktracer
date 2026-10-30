@@ -62,13 +62,13 @@
     "the reason to keep this commit equal to the pin when either moves."
   ],
   "upstream": "metacraft-labs/codetracer",
-  "branch": "agents",
-  "commit": "aca163924c79d9f1219ccd3c585f82f123842a27",
+  "branch": "dev",
+  "commit": "c0408ecadd28772a027168e447485863f26e9ef7",
   "files": [
     {
       "path": "src/frontend/viewmodel/viewmodels/flow_layout.nim",
       "local": "frontend/viewmodel/viewmodels/flow_layout.nim",
-      "sha256": "b7d57288496c079a67e6be5d9d20347f34566f9638901de49d3e9d1d95d8c200"
+      "sha256": "8d8a1b8b8606cdfaf54901b524ebd376f845e2c8eaac4528a680297333c2e816"
     },
     {
       "path": "src/frontend/ui/flow_loop_math.nim",

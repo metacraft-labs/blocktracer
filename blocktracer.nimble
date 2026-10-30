@@ -53,6 +53,10 @@ requires "nim >= 2.0.0"
 # Tasks
 
 task test, "Run the conformance + publisher + Client SDK test suites":
+  exec "node tools/fixtures/check-recordings-policy-selftest.mjs"
+  exec "node tools/fixtures/prepare-recordings-selftest.mjs"
+  exec "node tools/fixtures/check-recordings-policy.mjs"
+  exec "node tools/fixtures/prepare-recordings.mjs"
   exec "nim c -r --hints:off tests/tcontract.nim"
   exec "nim c -r --hints:off tests/tpublish.nim"
   # M12a: the consumer-side conformance suite for @blocktracer/client. It needs
@@ -82,5 +86,7 @@ task test, "Run the conformance + publisher + Client SDK test suites":
   exec "nim c -r --hints:off tests/tverifypublished.nim"
 
 task demo, "Generate a demo tree into ./demo-site and validate it":
+  exec "node tools/fixtures/check-recordings-policy.mjs"
+  exec "node tools/fixtures/prepare-recordings.mjs"
   exec "nim c -r --hints:off src/blocktracer_demo_gen.nim --out:demo-site"
   exec "nim c -r --hints:off src/blocktracer_validate.nim demo-site"

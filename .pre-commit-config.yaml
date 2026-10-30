@@ -6,15 +6,16 @@
 # carries is the committed-binaries tier of §4.3 -- the two refusals that this
 # repository, of all of them, most needed and had none of.
 #
-# WHY THIS REPO FIRST. Measured at f8aaf263: this repository tracks 55 `*.ct`
-# recordings and had NO pre-commit gate of any kind -- no `.git/hooks/pre-commit`
-# and no `.pre-commit-config.yaml`. 52 of those containers sit at `meta.dat`
-# schema 3 and are unreadable by every current reader, which is the ban's own
-# argument arriving as a fact rather than a prediction: a committed recording
-# pins a recorder version nothing tracks. The fixture that was moved to
-# on-the-fly recording (`fixtures/chain-health/readable-container`) produced
-# identical values for every checked fact while its `containerBytes` moved
-# 151,552 -> 77,824. The derived bytes churn; the checked facts do not.
+# The original adoption at f8aaf263 found 55 tracked `*.ct` paths and no
+# pre-commit gate. At that revision the recordings had already outlived their
+# reader format. Re-recording later repaired the bytes, but left the derived
+# recordings committed.
+#
+# Recordings are now generated from immutable replay inputs or original Noir
+# programs by tools/fixtures/prepare-recordings.mjs. None are tracked. The
+# whole-index check tools/fixtures/check-recordings-policy.mjs runs alongside
+# its refusal controls in CI; it also detects files predating these hooks.
+# The separate formatter-adoption shortfall below remains unchanged.
 #
 # §4.1 says which adoption form is ours. This repo does not consume the
 # devops-modules flake -- it has no `nix/` directory and no hook wiring in its
@@ -32,11 +33,10 @@
 # nothing to do with its content -- a gate that refuses everything is not a
 # gate. See repo-requirements.md §4.x.
 #
-# WHY THESE TWO CAN LAND WITH NOTHING ELSE MOVING. Both act on ADDED files only
-# (`git diff --staged --diff-filter=A`), never on files already tracked, so they
-# cannot rewrite a byte of this repository and cannot retroactively fail its 55
-# recordings or its chain snapshots. `--enforce-all` is deliberately not passed
-# and must not be added to "tighten" it.
+# Both hooks act on ADDED files only (`git diff --staged --diff-filter=A`).
+# They do not retroactively check existing large files. The whole-index
+# recording check above covers the recording population independently.
+# `--enforce-all` is deliberately not passed to the large-file hook.
 #
 # ----------------------------------------------------------------------------
 # WHAT IS MISSING, AND WHY

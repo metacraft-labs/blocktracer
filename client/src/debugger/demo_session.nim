@@ -283,7 +283,7 @@ func entryStepWithin*(steps: int): int =
   ## Where a session with no `?t=` lands, INSIDE the trace it is landing in.
   ##
   ## It was `FixtureStep` — 128 — for every session, which is right for the
-  ## vendored Noir recording (1315 steps) and for any real trace at least that
+  ## prepared Noir recording (1315 steps) and for any real trace at least that
   ## long. A real testnet transaction is 108 steps, and the page served
   ## `step 128 of 1315` for it: a position past the end of its own recording,
   ## and a TOTAL borrowed from a program that never executed under that hash.
@@ -443,6 +443,9 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
   result.chain = chain
   result.txHash = v.hash
   result.blockHeight = v.height
+  result.blockLabel =
+    if v.positionKnown: "block " & $v.height
+    else: orderRowLabel(v.orderKind).toLowerAscii & " " & v.orderLabel
   result.blockHash = v.blockHash
   result.outcomeLabel = outcomeLabel(v.outcome)
   result.outcomeBadge = outcomeClass(v.outcome)
@@ -705,7 +708,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
       result.timeCoordinate = result.controls.step
   of taOnDemand:
     result.phase = spAwaitingGeneration
-    result.unavailableReason = availabilityNote(taOnDemand, "")
+    result.unavailableReason = availabilityNote(taOnDemand, "", isRetiredNetwork(v.chain))
     result.editor = EditorPane(availability: srcUnverified,
       reason: "Source is resolved from the trace, and no trace has been " &
               "recorded for this transaction yet.")
@@ -722,7 +725,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
     # is the single derivation (reader.nim) rather than a second copy here, for
     # §7.1's reason: the transaction page and the session must say one thing.
     let absence = headlineRefusal(v)
-    result.unavailableReason = availabilityNote(v.headline, absence)
+    result.unavailableReason = availabilityNote(v.headline, absence, isRetiredNetwork(v.chain))
     # The published reason for THIS execution, where there is exactly one and
     # the tree carried words for it. `pages/tx.nim` renders the same value in
     # the same position on the metadata page — §7.1's rule that the transaction
@@ -731,7 +734,7 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
     if v.executions.len == 1:
       result.unavailableDetail = v.executions[0].reason
     result.editor = EditorPane(availability: srcAbsent,
-      reason: availabilityNote(v.headline, absence))
+      reason: availabilityNote(v.headline, absence, isRetiredNetwork(v.chain)))
     result.controls = fixtureControls(positioned = false, live = false, steps = 0)
 
 proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =

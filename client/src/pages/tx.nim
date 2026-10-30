@@ -166,7 +166,7 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
       # both, is worse than the uniform wrong answer it replaced. So the
       # durability branches here too, off the same `absenceKind` and the same
       # published member. `akUnobservable` keeps the sentence verbatim.
-      case absenceKind(absence)
+      case absenceKind(absence, isRetiredNetwork(chain))
       of akUnobservable:
         "come from the execution trace. No trace was recorded for this " &
         "execution and none can be now, so this section is empty permanently, " &
@@ -176,6 +176,15 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
         "execution yet. What stopped it is on our side rather than the " &
         "chain's — the reason above says what — so this section is empty for " &
         "now and not permanently."
+      # The third claim this comment warns about, in its retired form: the
+      # reason above still says what this run did not do, and the section is
+      # still empty — but "for now" is no longer available to say, because the
+      # network that would have filled it is gone.
+      of akStranded:
+        "come from the execution trace. No trace was recorded for this " &
+        "execution, and none can be now: what stopped it was on our side — " &
+        "the reason above says what — but the network that would serve the " &
+        "repair has since been retired, so this section is empty permanently."
       of akUnstated:
         "come from the execution trace. No trace was recorded for this " &
         "execution. The reason above states why; this build does not " &
@@ -264,10 +273,12 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
         tdiv(class = "debugcard group"):
           tdiv(class = "row"):
             if headline == taOnDemand:
-              button(class = "btn primary"): text availabilityLabel(headline, absence)
+              button(class = "btn primary"):
+                text availabilityLabel(headline, absence, isRetiredNetwork(chain))
             span(class = "badge coverage " & availabilityClass(headline)):
-              text availabilityState(headline, absence)
-          p(class = "note"): text availabilityNote(headline, absence)
+              text availabilityState(headline, absence, isRetiredNetwork(chain))
+          p(class = "note"):
+            text availabilityNote(headline, absence, isRetiredNetwork(chain))
           # Page-Descriptions §7.2 puts this line BESIDE the Debug action that
           # requests it. VD.2's round 2 measured it ~1000px below the button, in
           # a different section: proximity was grouping the explanation with the
@@ -350,7 +361,8 @@ proc txPage*(chain: string, v: TxView, info: ChainInfo): string =
                 li:
                   span(class = "sel"): text (if e.selector.len > 0: e.selector else: "execution")
                   span(class = "badge " & availabilityClass(e.availability)):
-                    text availabilityLabel(e.availability, e.refusalReason)
+                    text availabilityLabel(e.availability, e.refusalReason,
+                                           isRetiredNetwork(chain))
                   # The Aztec split is exactly where the two statements sit side
                   # by side on ONE page: a private half the chain never made
                   # public, and a public half this pipeline may have declined.

@@ -28,10 +28,10 @@
 #     the recorder's own `repro.lock` names (afa4dde since recorder 44628b6). Until the
 #     bump to recorder c3ca118 this was `flow-trace-format` (3fada0b), shared with chain
 #     three; the move changed no trace byte — the writer below decides `meta.dat`, and
-#     afa4dde's `meta.dat` 7 is not reached.
-#   * `codetracer-trace-format-nim`: the writer at `7b8b587`, the last revision that writes
-#     `meta.dat` 6, shared with eth.nix and flow.nix because the engine the site pins reads
-#     6 only.
+#     afa4dde's `meta.dat` 7 is not reached. (Since 2026-10-28 that writer writes 7 too.)
+#   * `codetracer-trace-format-nim`: the writer at `e15374866`, which writes `meta.dat` 7,
+#     shared with eth.nix and flow.nix because the engine the site pins reads 7 only since
+#     2026-10-28 (it was `7b8b587`, the last writer of 6, until then).
 { lib, stdenv, runCommand, rustPlatform, pkg-config, capnproto, openssl, zstd, pcre, nim
 , nodejs
 , recorderSrc, recorderRev, solTraceFormatSrc, writerSrc, writerNimDeps
