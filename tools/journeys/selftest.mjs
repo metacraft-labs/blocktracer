@@ -502,34 +502,18 @@ const ARMS = [
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "a value's origin is actually CLASSIFIED, not merely answered",
   },
-  {
-    id: "O2/a-control-on-every-row",
-    why:
-      "Offer the origin control wherever a summary arrived, instead of wherever the" +
-      " summary says something. A summary is present on essentially every local (6" +
-      " of 6, measured), so this is the exact shape NR-05 calls 'a confident-looking" +
-      " affordance that resolves nothing … worse than the absence': the control" +
-      " appears on every row of every session, including recordings that published" +
-      " no source, and answers 'unknown' on all of them. It is aimed at the" +
-      " source-less arm because that is where the mistake is unambiguous — there," +
-      " no control can possibly answer.",
-    file: join(CLIENT, "hydrate", "live_origin.nim"),
-    // ALL THREE GUARDS, and a non-empty fallback. Dropping only the
-    // `unknownSource` test does NOT reproduce the defect — the confidence
-    // guard still suppresses the control and `terminatorExpr` is empty on an
-    // unattributed summary, so the surface is unchanged and the arm SURVIVES.
-    // That happened, and it is what this harness is for: a mutation has to
-    // change the behaviour, not merely the source.
-    find: `  if summary.isPlaceholder: return ""
-  if summary.terminatorKind == tkwUnknownSource: return ""
-  if summary.confidence <= 0.0: return ""
-  summary.terminatorExpr`,
-    replace: `  if summary.isPlaceholder: return ""
-  if summary.terminatorExpr.len > 0: return summary.terminatorExpr
-  "unknown"`,
-    journey: "a-value-can-be-traced-to-its-origin",
-    assertion: "NO-SOURCE: and it offers no origin control, because none could answer",
-  },
+  // `O2/a-control-on-every-row` RETIRED, 2026-10-30. It mutated
+  // `client/hydrate/live_origin.nim` to offer an origin control on every row
+  // that had a summary. That file was removed when the live session became the
+  // Embed SDK's DebuggerSession (0f412a6), and the State pane became CodeTracer's
+  // shared view (7ffa280), which badges EVERY summarized row by specification:
+  // codetracer-pm `spec/GUI/Debugging-Features/Value-Origin-Tracking.md`
+  // §3.2.1, "Every variable row in the Variable State Pane carries a compact
+  // inline origin badge", with a question-mark glyph for `UnknownSource`. The
+  // defect this arm planted is now the specified behaviour, so there is nothing
+  // to mutate toward it. What the journey still guards — that no badge CLAIMS an
+  // origin where none could be classified — is asserted by journey 07's
+  // NO-SOURCE arm over the shared view's badges (`ct-origin-icon-question`).
   {
     id: "Q1/the-lead-in-window-comes-back",
     why:
