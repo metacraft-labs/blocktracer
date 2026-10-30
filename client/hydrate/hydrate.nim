@@ -722,35 +722,53 @@ proc moveSourceMark(pane: Element; anchor: cstring; number: cstring;
   // label). Every other byte of the pane is the same as a full render would
   // write — `writeEditor` only takes this path when the pane rendered
   // without its position is byte-identical to what is already on screen.
-  var olds = pane.querySelectorAll(".srcline.cur");
-  for (var i = 0; i < olds.length; i++) {
-    var o = olds[i];
-    o.classList.remove("cur");
-    o.setAttribute("aria-current", "false");
-    var op = o.querySelector(":scope > .p");
-    if (op) {
-      op.removeAttribute("tabindex");
-      op.removeAttribute("autofocus");
-      op.removeAttribute("aria-label");
-      op.textContent = " ";
+  //
+  // ATTRIBUTES AND CHARACTER DATA ONLY. A glyph or a number is changed by
+  // writing its existing text node's `data`, never by `textContent`, which
+  // replaces the node: a moved mark is not a rewrite of the pane, and the
+  // pane's children stay the same nodes (journey 15 counts child-list
+  // mutations as writes).
+  function setText(el, value) {
+    if (!el) return;
+    var t = el.firstChild;
+    if (t && t.nodeType === 3 && !t.nextSibling) {
+      if (t.data !== value) t.data = value;
+    } else if (el.textContent !== value) {
+      el.textContent = value;
     }
   }
   // `String.fromCharCode(35)` is the id selector's hash sign: written
   // literally, `importjs` would read it as a parameter placeholder.
   var row = anchor ? pane.querySelector(String.fromCharCode(35) + CSS.escape(anchor)) : null;
-  if (row) {
-    row.classList.add("cur");
-    row.setAttribute("aria-current", "true");
-    var p = row.querySelector(":scope > .p");
-    if (p) {
-      p.setAttribute("tabindex", "-1");
-      p.setAttribute("autofocus", "autofocus");
-      p.setAttribute("aria-label", "the session is stopped on line " + number);
-      p.textContent = "\u25B6";
+  var olds = pane.querySelectorAll(".srcline.cur");
+  if (!(row && olds.length === 1 && olds[0] === row)) {
+    for (var i = 0; i < olds.length; i++) {
+      var o = olds[i];
+      if (o === row) continue;
+      o.classList.remove("cur");
+      o.setAttribute("aria-current", "false");
+      var op = o.querySelector(":scope > .p");
+      if (op) {
+        op.removeAttribute("tabindex");
+        op.removeAttribute("autofocus");
+        op.removeAttribute("aria-label");
+        setText(op, " ");
+      }
+    }
+    if (row) {
+      row.classList.add("cur");
+      row.setAttribute("aria-current", "true");
+      var p = row.querySelector(":scope > .p");
+      if (p) {
+        p.setAttribute("tabindex", "-1");
+        p.setAttribute("autofocus", "autofocus");
+        p.setAttribute("aria-label", "the session is stopped on line " + number);
+        setText(p, "\u25B6");
+      }
     }
   }
   var nums = pane.querySelectorAll(".srcpos .srcposlabel .num");
-  if (nums.length === 2) { nums[0].textContent = step; nums[1].textContent = total; }
+  if (nums.length === 2) { setText(nums[0], step); setText(nums[1], total); }
 })(#, #, #, #, #)
 """.}
   ## Move the source pane's position mark without rewriting the pane.
