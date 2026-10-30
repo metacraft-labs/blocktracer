@@ -331,7 +331,7 @@ echo "=== probe 6: --combine REFUSES a broken partition ==="
 # Synthetic journals, built from the real shard lists, so no arm is executed.
 #
 # EVERY ARM `killed` EXCEPT THE ONES IN `known-survivors.json`, WHICH ARE
-# `survived`. The register fails in both directions — a registered arm that is
+# `survived` — or `blocked`, for the arms its `known_blocked` section names. The register fails in both directions — a registered arm that is
 # KILLED fails the combine by name, demanding its entry be deleted — so a
 # synthetic journal that marked every arm killed would make the CONTROL below
 # refuse for a reason that has nothing to do with the partition it is testing,
@@ -348,9 +348,12 @@ import json, sys, os
 src, i, of, dest = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 ids = [l.strip() for l in open(src) if l.strip()]
 reg = {}
+blocked = {}
 try:
     with open(os.path.join("tools", "journeys", "known-survivors.json")) as f:
-        reg = json.load(f).get("known_survivors", {})
+        register = json.load(f)
+        reg = register.get("known_survivors", {})
+        blocked = register.get("known_blocked", {})
 except OSError:
     pass
 json.dump({
@@ -360,7 +363,9 @@ json.dump({
     "planned": len(ids),
     "armFilter": None,
     "shard": {"i": i, "of": of},
-    "arms": [{"id": a, "verdict": ("survived" if a in reg else "killed"), "ms": 1000}
+    "arms": [{"id": a,
+              "verdict": ("survived" if a in reg else "blocked" if a in blocked else "killed"),
+              "ms": 1000}
              for a in ids],
     "lastArmStarted": None,
 }, open(dest, "w"))
@@ -456,7 +461,8 @@ j = json.load(open(p))
 reg = {}
 try:
     with open(os.path.join("tools", "journeys", "known-survivors.json")) as f:
-        reg = json.load(f).get("known_survivors", {})
+        register = json.load(f)
+        reg = {**register.get("known_survivors", {}), **register.get("known_blocked", {})}
 except OSError:
     pass
 victim = next((a for a in j["arms"] if a["id"] not in reg), None)
