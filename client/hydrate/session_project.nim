@@ -98,7 +98,7 @@ const
   NoSourceOriginNote* =
     "This recording carries no source, so a value cannot be traced to its " &
     "origin: the origin is read from the line that assigned the value, and " &
-    "an Aztec contract class does not publish one."
+    "the code that ran did not publish the source it was built from."
     ## The §14 sentence for a recording that cannot support the capability.
 
   ReadingNote* = "Reading the values at this position…"
