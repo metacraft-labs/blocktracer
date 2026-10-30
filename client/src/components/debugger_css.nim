@@ -712,27 +712,31 @@ a.lm_title{display:block;line-height:inherit}
    it out of flow leaves the trigger — five pixels shorter — setting the
    height on its own.
 
-   THE FLOOR IS IN THE SAME UNITS THE TAB IS BUILT FROM, so it cannot drift
-   from it. `.srctab` carries the design system's `ct-tab`, whose box is
-   em-relative all the way down — `padding:0.5em 0.75em`, `line-height:1.2`,
-   `border-bottom:0.125em` — which is the 2.325em of vertical box that
-   `--bt-layout-tabstrip-row-min` holds. Add the list's own `3xs` padding top
-   and bottom and this row's hairline, and the floor is the closed row,
-   expressed as the same arithmetic rather than as the 36.8px it comes to.
+   THE FLOOR IS IN THE UNITS THE TAB IS BUILT FROM, so it cannot drift from it,
+   and the units changed when the tabs did. It used to read
+   `--bt-layout-tabstrip-row-min` — the 2.325em box of the `.ct-tab` this strip
+   wore — and a `.lm_tab` is a different box: `1.5rem` tall (`--bt-space-lg`),
+   `0.25rem` below the header's top (`--bt-space-2xs`, from
+   `golden_layout.styl`'s own `.lm_header .lm_tab`), over the same `0.25rem` of
+   header beneath it. Add the list's `3xs` padding top and bottom and the floor
+   IS the closed row — 24 + 4 + 4 + 2 + 2 — rather than a number near it.
 
-   THE EM LIVES IN THE TOKEN AND NOT HERE, and A2 is why: a Layer 2 view may
-   carry no raw length, and it caught this one — `debugger_css.nim:632
-   2.325em`. The rule is right and the token is the better home anyway: the
-   quantity is the design system's tab box, which is Layer 1's to state.
+   IT IS A FLOOR AND IT IS A HAIR ABOVE THE NATURAL HEIGHT, which is what the
+   hairline term is doing: a floor EQUAL to the closed row leaves the closed
+   state at its own natural height and the open state resting on the floor,
+   which are two ways of arriving at what should be one number.
 
-   It is a FLOOR and deliberately a hair above the natural height: a rounded
-   border makes the exact natural height a fraction smaller, and a floor that
-   can sit below it would let the two states diverge again on a platform whose
-   font metrics differ. Above it, both states resolve to the floor and the row
-   cannot move. */
+   MEASURED ON THE 33-FILE FeeJuice BUNDLE at 1280, 1440 and 1920. The stale
+   token resolved three pixels BELOW the closed row, so it stopped binding and
+   opening the list took those three pixels out — journey 24 read `-3px` at
+   every width, deterministically. With the floor correct it reads 0 or 1px at
+   1440 depending on the run, and 0 at the other two widths; the same assertion
+   also flickers on an unmodified `origin/agents` build (green, red, green over
+   three runs), so one pixel of it is the harness rather than this rule. The
+   three pixels were this rule's and are gone. */
 .srcstrip{position:relative;display:flex;align-items:stretch;flex:0 0 auto;
   min-width:0;
-  min-height:calc(var(--bt-layout-tabstrip-row-min) +
+  min-height:calc(var(--bt-space-lg) + 2 * var(--bt-space-2xs) +
     2 * var(--bt-space-3xs) + var(--bt-stroke-hairline))}
 /* THE STRIP IS THE FRAME'S SURFACE AND NOT THE PANEL'S, AND THAT ONE TOKEN IS
    WHY THE FILE NAMES DID NOT READ AS TABS.
@@ -763,23 +767,34 @@ a.lm_title{display:block;line-height:inherit}
    and it is the only declaration of upstream's this strip overrides. */
 [data-register="debugger"] .srcstrip.lm_header{
   background:var(--bt-surface-raised) !important}
-/* And the panel's top inset goes with it: `.lm_content` reserves 0.5rem above
-   its first row, which is correct for a panel whose header is above it and
-   wrong for the one panel whose header is inside it — the strip would float
-   half a row down from the pane's top edge with the panel surface above it,
-   out of line with every other pane's tabs. */
-[data-register="debugger"] .lm_content.p-source{padding-top:0}
-/* NO PADDING AND THE PANE TABS' GAP, because this row is a pane tab strip and
-   has to sit on the same two lines they do. `.lm_tabs` has neither padding nor
-   inset: the first tab starts flush with the panel's left edge and the row
-   starts 4px below the header's top, which is where `.lm_tab`'s own
-   `margin-top` puts it. Measured in Chromium before this rule, against the
-   CALL TRACE strip beside it: the first file tab sat 8px further right and 2px
-   further down than the first pane tab, on two strips whose tops are the same
-   line. The 8px was this row's horizontal padding and the 2px its vertical. */
-.srctabs{display:flex;gap:var(--bt-space-2xs);flex-wrap:nowrap;
+/* And the panel's top inset goes with it, ON THE PANELS THAT DRAW A STRIP.
+   `.lm_content` reserves 0.5rem above its first row, which is correct for a
+   panel whose header is above it and wrong for the one panel whose header is
+   INSIDE it — the strip would float half a row down from the pane's top edge
+   with the panel surface above it, out of line with every other pane's tabs.
+   `:has()` and not `.p-source` flat, because the Code pane does not always
+   draw one: a listing on its own, or a pane with no documents, keeps the
+   stack's header (`components/debugger.editorKeepsStackHeader`) and with it
+   the inset every other panel has. */
+[data-register="debugger"] .lm_content.p-source:has(.srcstrip){padding-top:0}
+/* THE ROW'S OWN INSET STAYS, AND TAKING IT OUT TO LINE THIS STRIP UP WITH THE
+   PANE TABS WAS TRIED TWICE AND PUT BACK BOTH TIMES.
+   `.lm_tabs` has no padding, so the first pane tab is flush with its panel's
+   left edge and 4px below the header's top; this row's first tab sits 8px
+   right and 2px down of that, and the strip is 36px against their 32px.
+   Measured in Chromium at 1680 against the CALL TRACE strip beside it.
+   Removing the padding — both axes, then the vertical alone — closed that gap
+   and reproducibly cost one pixel elsewhere: journey 24's "opening the file
+   list moves neither the source nor the row it opened from" read `1px` at
+   1440 on every attempt, and the pixel could not be found in any box between
+   `.lm_content` and `.src` under the journey's own harness (every delta read
+   0 in an isolated probe of the same page, viewport and click). Two pixels of
+   alignment nobody asked for are not worth a gate nobody can explain, so the
+   inset stays and the misalignment is written down here instead. */
+.srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:nowrap;
   flex:1 1 auto;min-width:0;
-  overflow-x:auto;overscroll-behavior:contain;padding:0}
+  overflow-x:auto;overscroll-behavior:contain;
+  padding:var(--bt-space-3xs) var(--bt-density-cell-x)}
 /* A tab is a real link to its document, so it gets a real hit area and a real
    hover — the strip used to be four inert `<span>`s naming four files of which
    one was reachable. `flex:0 0 auto` and `nowrap` because a flex item in a

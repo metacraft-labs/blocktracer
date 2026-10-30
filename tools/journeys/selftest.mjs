@@ -122,54 +122,30 @@ const JOURNAL = join(HERE, ".selftest-journal.json");
  * from the one described here, and a `replaceAll` would hide that.
  */
 const ARMS = [
-  {
-    id: "Z/link-to-a-line-that-is-not-there",
-    why:
-      "Stop `windowAround` re-aiming the flow rail's link after it narrows the pane." +
-      " This is the defect exactly as it shipped and exactly as it was reported —" +
-      " 'there is a link line 4 that does nothing when clicked'. The rail's href is" +
-      " built against the WHOLE document, the home page's embed is then narrowed to" +
-      " lines 20..44 around the position, and without this line the href still reads" +
-      " `#L-src-shield-nr-4` over a document whose ids start at 20. One anchor," +
-      " twenty-five ids, no overlap: the browser has nothing to scroll to." +
-      " The arm is aimed at the SCROLL assertion rather than at the href, because a" +
-      " check that the anchor's target exists in the DOM passes on a target that" +
-      " sits in a container fragment navigation cannot move.",
-    file: join(CLIENT, "src", "debugger", "source_document.nim"),
-    find: `          fullDocumentUrl & "#" & lineAnchor(doc.path, result.flow.line)`,
-    replace: `          result.flow.href`,
-    journey: "a-link-to-a-line-arrives-at-that-line",
-    assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
-  },
-  {
-    id: "Z/live-paint-drops-the-target",
-    why:
-      "Stop re-pointing `:target` after a live paint. `renderPanes` replaces the" +
-      " element the visitor's `#L-src-shield-nr-4` named, and `:target` does not" +
-      " follow an id to a new element: the address bar keeps the fragment and" +
-      " `:target` matches nothing. Measured 2026-10-29 on 98fa6fd and on the meta.dat 7" +
-      " engine alike — the live session lands on `src/main.nr`, and the line the link" +
-      " promised is in a document that is no longer shown. It was green only while the" +
-      " engine was slow enough for the journey to read the served frame instead.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `    discard retargetFragment(fragment[1 .. ^1])`,
-    replace: `    discard fragment`,
-    journey: "a-link-to-a-line-arrives-at-that-line",
-    assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
-  },
-  {
-    id: "Z/line-link-cannot-select-its-document",
-    why:
-      "Remove the rule that shows an alternate source document when a LINE in it is" +
-      " the `:target`. Only the document's own id selected it, so a link to a line of" +
-      " any document other than the active one arrived at an element with an all-zero" +
-      " rect: present, targeted, and invisible.",
-    file: join(CLIENT, "src", "components", "debugger_css.nim"),
-    find: `.srcdoc.alt:has(:target){display:flex}`,
-    replace: `.srcdoc.alt:has(:target){}`,
-    journey: "a-link-to-a-line-arrives-at-that-line",
-    assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
-  },
+  // ── THREE ARMS RETIRED WITH THE LOOP RAIL ───────────────────────────────
+  //
+  // `Z/link-to-a-line-that-is-not-there`, `Z/live-paint-drops-the-target` and
+  // `Z/line-link-cannot-select-its-document` all named the journey
+  // `a-link-to-a-line-arrives-at-that-line`, and that journey had exactly one
+  // subject: the flow rail's "line 4" link on the home page. The rail was
+  // removed at a reader's request (`components/debugger.renderSource`), the
+  // journey went with it, and an arm naming a journey that does not exist is a
+  // mutation nothing can judge.
+  //
+  // The first of the three also mutated a line that no longer exists:
+  // `source_document.windowAround` re-aimed the rail's href when the narrowing
+  // dropped its target, and that whole block is gone with the only link it
+  // protected. Measured on the built tree before retiring them: `href="#L-`
+  // occurs ZERO times across every page the exporter writes, so there is no
+  // in-page line link left for any of the three to be about.
+  //
+  // WHAT THEY GUARDED IS NOT ALL GONE. `hydrate.retargetFragment` and
+  // `.srcdoc.alt:has(:target)` are still in the product and still matter to a
+  // visitor who arrives on a SHARED `#L-…` URL — `session_view.lineAnchor`'s
+  // ids are stable and are what such a link names. Nothing drives that path
+  // today, and it is written here rather than left for the next reader to
+  // rediscover: a journey that loads a line fragment directly, with no link to
+  // click, is what brings these three back.
   {
     id: "A/no-position-mark",
     why:

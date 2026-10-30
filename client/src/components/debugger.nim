@@ -1893,9 +1893,16 @@ proc renderState*(p: StatePane): string =
           # there is something to recover: an attribute repeating a string that
           # is already fully visible is noise in the markup and a tooltip that
           # tells a reader what they can already see.
-          span(class = "stval " & Copyable,
-               title = (if v.value.len > ValueCutHint: v.value else: "")):
-            text v.value
+          #
+          # TWO BRANCHES AND NOT A CONDITIONAL ATTRIBUTE VALUE, because `title =
+          # ""` is still a `title` attribute. It shipped on every short value —
+          # eight bytes a row across every page, and a literal
+          # `<span class="stval copyable">9000</span>` that `tests/tdebugpanes`
+          # matches exactly stopped matching, which is how it was found.
+          if v.value.len > ValueCutHint:
+            span(class = "stval " & Copyable, title = v.value): text v.value
+          else:
+            span(class = "stval " & Copyable): text v.value
           span(class = "sttype"): text v.typ
           # THE ORIGIN CONTROL, on the rows that have an origin and on no
           # others. `v.origin` is the classified terminator expression, so the
