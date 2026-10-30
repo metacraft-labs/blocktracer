@@ -78,7 +78,16 @@ proc liveDemo(demo: DebugSessionView;
       tdiv(class = "dbgmain"):
         raw renderLayout(blockTracerReplayLayout(), demo)
       tdiv(class = "livedemofoot"):
-        span:
+        # `.livedemostate` AND NOT A BARE `<span>`, because the badge and the
+        # sentence were touching. A `<span>` is an inline box: the badge
+        # rendered flush against "Stopped mid-execution", so the caption read
+        # as "Synthetic demo dataStopped mid-execution at step 128 of 1,315"
+        # with the badge's own border as the only separator — reported as two
+        # labels run together. They are two facts about one session (what the
+        # data IS, and where the session STOPPED), so the gap between them is
+        # the thing that says they are two, and a flex row with the panel's own
+        # token is how every other pair on this page says it.
+        span(class = "livedemostate"):
           if provenanceLabel.len > 0:
             span(class = "badge " & provenanceTone(provenanceKind)):
               text provenanceLabel

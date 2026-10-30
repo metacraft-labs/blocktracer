@@ -228,104 +228,27 @@ func annotationText*(a: LineAnnotation): string =
   of vmChanged: a.label & ": " & a.beforeValue & " → " & a.afterValue
 
 type
-  FlowIteration* = object
-    ## One pass through a loop, as the iteration rail offers it.
-    index*: int
-    ticks*: int
-      ## The trace tick of this pass's loop header — a real time coordinate,
-      ## which is what makes the rail's segments deep-linkable and what
-      ## hydration hands to `ct/goto-ticks`.
-    reached*: bool
-      ## The session has passed through it, so the window carries its values.
-      ##
-      ## The static page is a still frame at one position and the passes after
-      ## that position have not happened yet AT THAT POSITION. Their segments
-      ## render inert and say so, rather than showing nothing and looking
-      ## broken, or — the failure this field exists to make impossible —
-      ## showing the recorded future as though the session were already there.
-
   FlowRail* = object
-    ## The loop-iteration control (`Omniscience-Flow.md` §"Loop Slider
-    ## Control"): `[Iteration: 3/8]` with a track.
+    ## WHICH LOOP PASS THE PANE IS DRAWING, and nothing else any more.
     ##
-    ## It is carried by the PANE rather than attached to the loop's header line,
-    ## and that is a departure from the spec's "a slider appears above loop
-    ## constructs".
+    ## It used to be the loop-iteration CONTROL — `Omniscience-Flow.md`'s "Loop
+    ## Slider Control", `[Iteration: 3/8]` over a track of `:target` segments,
+    ## drawn above the Code pane's file tabs. A reader asked for it to go
+    ## (`components/debugger.renderSource`), and with the control went its
+    ## renderer, its stylesheet rungs, and every field that existed only to feed
+    ## them: the header's line and href, the enclosing function's name, each
+    ## pass's trace tick and whether the session had reached it, the
+    ## session-versus-displayed pass distinction, and `navigable`.
     ##
-    ## THE CAUSE RECORDED HERE HAS PARTLY COLLAPSED. It read: the served pane is
-    ## a WINDOW of the file opened at the session's position
-    ## (`source_document.openAtCurrent`), so the loop header is very often above
-    ## that window — the demo session sits at `src/shield.nr:32` in a body whose
-    ## `for` header is on line 4 — and a control drawn only at the header would
-    ## be absent exactly when the reader is inside the loop.
-    ##
-    ## `openAtCurrent` is gone (see `source_document.nim`) and the debug route
-    ## renders every line of the file, so on THAT surface the header is on screen
-    ## and the argument no longer applies. It still applies to the home page's
-    ## embed, which `ssr.featuredSession` narrows with `windowAround(radius = 12)`
-    ## — lines 20..44 around the demo's line 32, with the `for` header at line 4
-    ## outside it. So the departure is now justified by one surface rather than
-    ## by every one, and it has NOT been re-argued for the debug route; it is
-    ## kept because one placement serving both surfaces is the property the rail
-    ## was built for, not because the header is unreachable.
-    ##
-    ## AND THE HEADER BEING OFF-WINDOW IS EXACTLY WHAT `href` HAD TO LEARN. This
-    ## field was `anchor`: the header line's id, which the renderer turned into
-    ## `href="#" & anchor`. A bare fragment says "this id is on THIS page", and on
-    ## the one surface that still narrows it is not — the home page shipped
-    ## `href="#L-src-shield-nr-4"` into a document whose ids run 20..44, so the
-    ## browser had nothing to scroll to and the click did nothing. A reader
-    ## reported it as a link that does nothing, which is precisely what it was.
-    ##
-    ## So the rail no longer carries an id and lets someone else guess the scope.
-    ## It carries the WHOLE href, and the type change is the point: an id can be
-    ## interpolated into a fragment by any caller that never considered the
-    ## window, and an href cannot be built without having decided which document
-    ## the target is in. `windowAround` is where that decision now lives, because
-    ## narrowing is the only operation that can move the target off the page.
-    loopIndex*: int       ## 0 when there is no loop; the rail renders nothing
-    line*: int            ## the loop header's source line
-    href*: string         ## where "line N" goes: a same-page fragment when this
-                          ## surface renders the header, a link to a surface that
-                          ## does when it does not, and EMPTY when no surface
-                          ## reachable from here renders it — in which case the
-                          ## rail states the line and offers no link, rather than
-                          ## offering one that cannot arrive.
-    label*: string        ## the enclosing function, e.g. `iterate_asteroids`
-    selected*: int        ## the pass whose labels are on screen
-    active*: int          ## the pass the SESSION is in — never moves
-    iterations*: seq[FlowIteration]
-    navigable*: bool
-      ## A click on a segment MOVES THE SESSION rather than switching which pass
-      ## is displayed.
-      ##
-      ## False on the served page and true once hydration has an engine, and the
-      ## difference is not cosmetic: with no script a segment can only change
-      ## what is shown, and `Omniscience-Flow.md`'s `SimpleLoopIterationJump`
-      ## ("enter iteration number, verify cursor") is a navigation the static
-      ## page cannot perform. Rendering a seek control that cannot seek is the
-      ## affordance-that-lies defect this route has removed twice, so the rail
-      ## renders as the thing it can actually be in each state — a display
-      ## selector, then a seek — and `FlowIteration.ticks` is what the second
-      ## one hands to `ct/goto-ticks`.
-
-const MaxStaticIterations* = 16
-  ## How many passes the rail can switch between WITHOUT JavaScript.
-  ##
-  ## The static mechanism is `:target`, which needs one pair of rules per pass in
-  ## a stylesheet written before any trace is known — so the ladder is finite
-  ## while a loop is not. Sixteen covers every loop the demo tree records.
-  ##
-  ## It lives HERE, beside the type, because it is read by two files that must
-  ## agree: `components/debugger.renderFlowRail` emits at most this many
-  ## segments, and `components/debugger_css` emits exactly this many rungs. A
-  ## rail with a seventeenth segment would target an id no rule answers and show
-  ## the wrong pass's values while looking completely normal — the same class of
-  ## silent failure `MaxIndentDepth` exists to prevent for call depth, and the
-  ## same answer: clamp, and SAY SO.
-  ##
-  ## The ceiling is on the no-JavaScript rung of the capability ladder and not
-  ## on the product. A hydrated session seeks to any pass through the engine.
+    ## What is left is what the PANE still asks. `flow_view.applyFlow` attaches
+    ## every pass the window records to the lines — it is the pane's model of
+    ## the recording, and the omniscience suite checks it pass by pass — and
+    ## `components/debugger.renderAnnotations` draws ONE of them. `selected` is
+    ## which, and it is the only thing those two have to agree about.
+    ## `loopIndex = 0` is still how a position outside every loop says there is
+    ## no pass to choose.
+    loopIndex*: int       ## 0 when the position is not inside a loop
+    selected*: int        ## the pass whose values and branch claims are drawn
 
 type
   SourceLine* = object

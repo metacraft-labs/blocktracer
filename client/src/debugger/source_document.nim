@@ -218,8 +218,7 @@ proc focus*(pane: var EditorPane; path: string; line: int) =
 ## position with, and it keeps the banner that says what it did — an honest
 ## announced reduction, which is the part this pane got right.
 
-proc windowAround*(pane: EditorPane; radius: int;
-                   fullDocumentUrl: string): EditorPane =
+proc windowAround*(pane: EditorPane; radius: int): EditorPane =
   ## The active document narrowed to `radius` lines either side of the current
   ## line, other documents dropped.
   ##
@@ -230,27 +229,24 @@ proc windowAround*(pane: EditorPane; radius: int;
   ## the same id in the embed and in the full session, so a link out of one
   ## lands in the other.
   ##
-  ## ## `fullDocumentUrl`, and why it is not optional
+  ## ## IT TOOK A `fullDocumentUrl` AND NO LONGER DOES
   ##
-  ## That last sentence was the design's own contract and nothing enforced it.
-  ## The pane carries a `FlowRail` whose `href` was written against the UNNARROWED
-  ## document — narrowing is the only operation in the codebase that can move a
-  ## link's target out of the page it points into, and it did so silently. The
-  ## home page shipped `href="#L-src-shield-nr-4"` over a document containing ids
-  ## 20..44 and a reader reported the result: a link that does nothing.
+  ## Narrowing is the only operation in this codebase that can move a link's
+  ## target out of the page it points into, and the pane had exactly one link it
+  ## could do that to: the loop rail's "line 4", written against the unnarrowed
+  ## document. The home page shipped `href="#L-src-shield-nr-4"` over a document
+  ## holding ids 20..44 and a reader reported a link that does nothing. The
+  ## parameter was the fix — the page that renders the document WHOLE, so the
+  ## link could be re-aimed at it.
   ##
-  ## `fullDocumentUrl` is the page that renders the document WHOLE — for the home
-  ## embed, the featured session's own debug route, which the same page already
-  ## offers as "Open the full session". Passing it is how the link out of the
-  ## embed lands in the full session, as promised above; the anchors need no
-  ## change at all to make that work, which is the whole point of them.
-  ##
-  ## It has no default. A default would be `""`, and `""` is a real answer —
-  ## "nothing reachable from here renders that line, so offer no link" — which is
-  ## right for a hypothetical caller with no fuller surface to send a reader to
-  ## and WRONG for every caller that has one. Making it the silent fallback would
-  ## reinstate exactly this defect for the next narrowing that gets written, one
-  ## forgotten argument at a time. The compiler asks instead.
+  ## The rail has been removed (`session_view.FlowRail`) and the pane now emits
+  ## no fragment whose target narrowing can drop: the file tabs address document
+  ## panels, which are the window's own container and are never windowed away.
+  ## So the parameter has nothing left to answer, and keeping it would be a
+  ## required argument every caller has to think about for a hazard that no
+  ## longer exists. `test_debug_route` still asserts the property it protected —
+  ## no fragment link in a narrowed pane points at an id the pane lacks — which
+  ## is what catches the next control that learns to emit one.
   result = pane
   if pane.availability == srcAbsent or pane.documents.len == 0: return
   let doc = activeDocument(pane)
@@ -263,21 +259,11 @@ proc windowAround*(pane: EditorPane; radius: int;
   result.documents = @[window]
   result.activeIndex = 0
 
-  # THE RAIL'S LINK, RE-AIMED AT WHERE ITS TARGET ACTUALLY IS NOW.
-  #
-  # Asked of the lines that SURVIVED rather than recomputed from `currentLine ±
-  # radius`: the window is whatever the loop above kept, and a file shorter than
-  # the radius keeps fewer lines than the arithmetic predicts. Asking the result
-  # cannot drift from it.
-  if result.flow.loopIndex > 0:
-    var headerShown = false
-    for ln in window.lines:
-      if ln.number == result.flow.line:
-        headerShown = true
-        break
-    if not headerShown:
-      result.flow.href =
-        if fullDocumentUrl.len > 0:
-          fullDocumentUrl & "#" & lineAnchor(doc.path, result.flow.line)
-        else:
-          ""
+  # NOTHING LEFT TO RE-AIM. A block stood here that rewrote the loop rail's
+  # "line 4" link when the narrowing dropped the loop header out of the window:
+  # the rail's href was built against the whole file, this took it to the full
+  # session's URL instead, and with no surface to send a reader to it emptied
+  # the href rather than shipping one that could not arrive. The rail is gone
+  # (`session_view.FlowRail`) and it was the only link this pane emitted whose
+  # target the narrowing could move — the file tabs point at document ids, which
+  # are the panels themselves and are never windowed away.

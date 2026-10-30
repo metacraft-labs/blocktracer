@@ -442,7 +442,6 @@ proc projectFlowWindow*(vm: FlowVM; pane: EditorPane;
   # question and, measured on every answer this build receives, is 0 (journey
   # 15) — so reading it would pin every session to pass 0.
   result.locationTicks = int(ticks)
-  result.functionLabel = vm.windowFunction.val
   copyLayoutWindow(result.window, vm.layoutWindow.val)
   # The text, line for line, from the document the engine's path resolved to.
   # `SourceLine.text` and not the island's raw blob: the pane is what the
@@ -482,66 +481,6 @@ proc applyLiveFlow*(pane: var EditorPane; vm: FlowVM;
   if input.path.len == 0: return false
   applyFlow(pane, input)
   true
-
-proc projectFlowRail*(vm: FlowVM; path: string): FlowRail =
-  ## The loop-iteration control, from the engine's own flow window.
-  ##
-  ## ## What crosses, and what deliberately does not
-  ##
-  ## The RAIL crosses: which loop the debugger is inside, how many passes it
-  ## made, which pass this position falls in, and each pass's header tick. All
-  ## four come out of `FlowVM`, which parsed them from `ct/updated-flow` with
-  ## the SDK's own applier — so none of them is this repository's reading of a
-  ## wire format it cannot observe.
-  ##
-  ## The VALUES do not, and that is a deliberate stop rather than an oversight.
-  ## Placing them needs `FlowViewUpdate.steps` — the per-step `beforeValues` and
-  ## `afterValues`, each a CodeTracer `Value` — parsed and RENDERED TO TEXT, and
-  ## neither the parse nor the rendering can be checked against anything here: a
-  ## test written against a payload this repository invented would pass whatever
-  ## the engine actually sends, which is the shape of check this project keeps
-  ## finding. `FlowVM` does not carry them either (`applyFlowUpdate` populates
-  ## the loop shape and the selection and leaves `steps` untouched), so there is
-  ## no already-verified path to borrow.
-  ##
-  ## The consequence is stated rather than hidden: a hydrated session shows the
-  ## rail and no inline values until that payload can be read against a live
-  ## engine. The served page's values are not frozen onto the moved session in
-  ## the meantime — `renderPanes`' own latch documents why ("a step to a frame
-  ## with no locals is a true empty Values pane, and freezing the previous
-  ## frame's values there would be the worse lie"), and a value from the
-  ## position you WERE at is the same lie with a number in it.
-  let loops = vm.loops.val
-  let focused = vm.focusedLoop.val
-  if focused < 0 or focused >= loops.len: return FlowRail(loopIndex: 0)
-  let loop = loops[focused]
-  if loop.rrTicksForIterations.len == 0: return FlowRail(loopIndex: 0)
-  # `registeredLine` is the line the loop control attaches to. A window that did
-  # not carry one (the field defaults to -1 in `parseFlowLoop`) gets no rail at
-  # all rather than a rail pointing at line -1: the control's whole content is
-  # "this loop, here", and half of that is not a control.
-  if loop.registeredLine <= 0: return FlowRail(loopIndex: 0)
-  result = FlowRail(
-    loopIndex: focused,
-    line: loop.registeredLine,
-    # A SAME-PAGE FRAGMENT, and on this surface that is right: hydration runs on
-    # the debug route, which renders every line of the document (`pages/debug`
-    # and `hydrate/hydrate` both do), so the header line is on the page. The one
-    # surface that narrows is the home page's embed, which carries no engine and
-    # never reaches here — see `source_document.windowAround`, which is where a
-    # narrowing has to re-aim this.
-    href: "#" & lineAnchor(path, loop.registeredLine),
-    selected: vm.selectedIteration.val,
-    active: vm.selectedIteration.val,
-    navigable: true,
-    iterations: @[])
-  for index, ticks in loop.rrTicksForIterations:
-    # `reached` is a statement about the STATIC window, which is cut at the
-    # served position. A live session can seek to any pass, so it is true here
-    # for all of them — and `navigable` is what the renderer actually keys the
-    # segment's behaviour on.
-    result.iterations.add FlowIteration(
-      index: index, ticks: ticks, reached: true)
 
 proc projectCalltrace*(vm: CalltraceVM; contentHash = ""): CallTracePane =
   ## The frames, with the two things that make a row a jump target.
@@ -1086,24 +1025,20 @@ proc projectReplayPanes*(s: LiveSession; base: DebugSessionView;
   result.phase = spReady
   result.hasFrame = true
   result.editor = projectEditor(s.editor, s.store, island)
-  # The rail is attached to the pane, and only where the pane can host one:
-  # §14's instruction-level row has no source to point a loop header at, and
+  # The engine's flow window, and only where the pane can carry one: §14's
+  # instruction-level row has no source to place a value against, and
   # `flow_view.applyFlow` refuses for the same reason on the static side. One
   # rule, enforced on both producers rather than remembered by both.
+  #
+  # The `else` arm that stood here called `projectFlowRail` to keep the loop
+  # slider populated for a position whose window had not landed yet. The slider
+  # is gone (`session_view.FlowRail`), and what is left of the rail — which pass
+  # the pane draws — is `applyFlow`'s own output, so there is nothing a second
+  # producer could supply and nothing to regress when it does not run. A pane
+  # whose window has not arrived keeps the values it was served.
   if result.editor.availability == SourceAvailabilityView.srcSourceLevel:
-    # THE VALUES FIRST, AND THE RAIL ONLY IF THEY DID NOT ARRIVE.
-    #
-    # `applyFlow` builds the rail itself, out of the same window the labels come
-    # from, so calling both would set it twice from two parsers — the "two
-    # producers of one fact" arrangement this route has already been bitten by.
-    # When the engine's window is this position's, it is the one producer; when
-    # it is not, `projectFlowRail` is what the pane had before this line existed
-    # and the pane keeps it, so nothing regresses on a session whose window has
-    # not landed yet.
-    if not applyLiveFlow(result.editor, s.flow,
-                         s.store.debugger.val.rrTicks):
-      result.editor.flow =
-        projectFlowRail(s.flow, s.store.debugger.val.location.file)
+    discard applyLiveFlow(result.editor, s.flow,
+                          s.store.debugger.val.rrTicks)
   # `base.traceContentHash` and not a value from the engine: §6.0's witness is
   # a fact about the artifact the PAGE recommends, which the served DOM carries
   # and the engine has no opinion about. Reading it from `base` is also what

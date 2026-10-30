@@ -109,15 +109,12 @@ proc demoFlowInput*(sourceText: string): FlowWindowInput =
     loop.iterationSteps.add @[]
 
   var steps: seq[FlowLayoutStep] = @[]
-  var functionLabel = ""
   var stepNodes = document{"steps"}
   if stepNodes.isNil or stepNodes.kind != JArray: stepNodes = newJArray()
   for node in stepNodes:
     let iteration = node{"iteration"}.getInt(-1)
     let line = node{"line"}.getInt(0)
     let inLoop = iteration >= 0
-    if line == loop.registeredLine and functionLabel.len == 0:
-      functionLabel = node{"function"}.getStr("")
     let index = steps.len
     steps.add FlowLayoutStep(
       stepCount: node{"ticks"}.getInt(0),
@@ -138,7 +135,6 @@ proc demoFlowInput*(sourceText: string): FlowWindowInput =
         iteration: (if inLoop: iteration else: NoIteration),
         text: node{"returns"}.getStr(""))
 
-  result.functionLabel = functionLabel
   result.window = FlowLayoutWindow(
     steps: steps,
     loops: @[FlowLayoutLoop(), loop],

@@ -555,7 +555,6 @@ export const readFacts = (page) =>
             }))
             .filter((r) => r.labels.length > 0 || r.pills.length > 0)
         : [],
-      flowRails: count(".flowrail"),
 
       // ---- the stepping controls --------------------------------------------
       controlsLive: count(".dcbtn:not(.off)"),

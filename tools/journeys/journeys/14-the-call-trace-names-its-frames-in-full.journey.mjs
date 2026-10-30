@@ -111,6 +111,20 @@ const READ_ROWS = () => {
   // with the path the row still carries as data, and the two retired
   // declarations are restored on it. If the name overflows THAT, the subject
   // is a case this change actually fixed rather than one that always fit.
+  //
+  // THE ROW IS PINNED TO THE PANE'S WIDTH WHILE THE CLONE IS IN IT, and
+  // without that this control stopped measuring. `.ctrow` is `width:max-content
+  // ; min-width:100%` inside a `.ctrows` that scrolls sideways, so a row grows
+  // to fit whatever is put in it — including the clone — and the clone's name
+  // then has all the width it could want. Measured on the 47-frame session:
+  // "needs 492px, had 492px", which is the reconstruction answering a question
+  // about a layout it was no longer reproducing.
+  //
+  // `width:100%` is exactly what `.ctrow` resolved to before the rows could
+  // scroll, so this restores the constraint rather than relaxing the claim. The
+  // control still has to FIND the name overflowing; if the widest name fits in
+  // the pane with its path beside it, this is still a subject the change did
+  // not fix and this still fails.
   let witness = null;
   const widest = rows
     .filter((r) => !r.noName && r.dataModule)
@@ -121,6 +135,8 @@ const READ_ROWS = () => {
     );
     const fn = row?.querySelector(".ctfn");
     if (fn) {
+      const rowWidth = row.style.width;
+      row.style.width = "100%";
       const clone = fn.cloneNode(true);
       clone.style.overflow = "hidden";
       const nm = clone.querySelector(".ctname");
@@ -141,6 +157,7 @@ const READ_ROWS = () => {
         had: nm.clientWidth,
       };
       clone.remove();
+      row.style.width = rowWidth;
     }
   }
 

@@ -666,14 +666,22 @@ INERT class value-load-more-button
 
 # ── the layout manager's script-only state ───────────────────────────────
 
-INERT class lm_active
-    GoldenLayout's active-tab marker, put on a tab from script. A static page
-    cannot, AND THE RULES ARE NOT DROPPED ON PURPOSE: `activeTabCss()` reads
-    every emitted `.lm_active` rule out of the compiled CSS and re-emits its
-    declarations VERBATIM under `:target`-derived selectors, so dropping them
-    would delete the active tab's whole appearance rather than port it. This
-    row is the one case where an inert selector is load-bearing, which is also
-    why `Dropped` could not have held it.
+LIVE class lm_active
+    GoldenLayout's active-tab marker, put on a tab from script upstream. A
+    static page cannot do that for a strip whose active tab depends on the
+    fragment — which is why `activeTabCss()` exists: it reads every emitted
+    `.lm_active` rule out of the compiled CSS and re-emits its declarations
+    VERBATIM under `:target`-derived selectors. That machinery is unchanged and
+    is still what marks the pane stacks' tabs.
+
+    IT IS LIVE BECAUSE ONE STRIP KNOWS ITS OWN ANSWER AT RENDER TIME. The Code
+    pane's header is the file strip, and `renderSource.tabStrip` renders it
+    once PER DOCUMENT PANEL with that panel's own tab marked — so the open file
+    is a fact the renderer holds rather than one a fragment decides, and the
+    tab carries the literal class. This row was INERT, and the paragraph that
+    stood here called it "the one case where an inert selector is load-bearing";
+    that was true of the only emitter it had, and it stopped being true when the
+    file tabs became real tabs.
 
 INERT class lm_controls
 INERT class lm_tabdropdown

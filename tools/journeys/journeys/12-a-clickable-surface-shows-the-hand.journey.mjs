@@ -111,23 +111,22 @@
 // returned a constant, or run against a detached document, satisfies none of
 // those.
 //
-// THE LOOP RAIL IS DELIBERATELY NOT JUDGED HERE
-// ----------------------------------------------
-// It was, in the first draft, and the population was EMPTY. `.frseg` renders on
-// the served page — eight segments, all `.out` — and after hydration there are
-// ZERO on any position reachable from the demo chain: measured across eight
-// call-trace jumps and twelve toolbar steps, `document.querySelectorAll(".frseg")`
-// is 0 every time. `renderEditor`'s `rail.navigable` branch, and the
-// `role="button"` that `hydrate.markRailNavigable` would stamp on it, are dead
-// in the deployed build.
+// THE LOOP RAIL WAS DELIBERATELY NOT JUDGED HERE, AND IS NOW GONE ENTIRELY
+// -------------------------------------------------------------------------
+// It was judged in the first draft, and the population was EMPTY. `.frseg`
+// rendered on the served page — eight segments, all `.out` — and after
+// hydration there were ZERO on any position reachable from the demo chain:
+// measured across eight call-trace jumps and twelve toolbar steps,
+// `document.querySelectorAll(".frseg")` was 0 every time. So a cursor
+// assertion on it would have quantified over nothing and passed, which is the
+// one outcome this file exists to refuse, and a cursor RULE for it would have
+// been a rule no test could reach. Both were written and both were removed,
+// and the gap was recorded here as a finding rather than papered over.
 //
-// So a cursor assertion on the rail would quantify over nothing and pass, which
-// is the one outcome this file exists to refuse — and a cursor RULE for it would
-// be a rule no test could reach. Both were written and both were removed. The
-// gap is real and is reported as a finding rather than papered over: whenever the
-// navigable rail comes back it will arrive as a `span` with no `href`, and a
-// browser gives `cursor:pointer` to `a[href]` and to nothing else, so it will
-// need a rule and this comment is where the next reader will find that out.
+// The control itself has since been removed — a reader asked for it; see
+// `components/debugger.renderSource` — so the finding is closed rather than
+// outstanding. Nothing in the markup carries `.frseg` any more, and
+// `test_debug_route` asserts that in all three places it could have survived.
 //
 // WHAT THE SWEEP DID NOT SWEEP, AND HOW IT IS KEPT FROM HAPPENING AGAIN
 // ---------------------------------------------------------------------
