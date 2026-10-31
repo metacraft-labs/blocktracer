@@ -234,7 +234,7 @@ jobs:
           echo "publish dir: ${total} files of a ${limit}-file Pages budget ($((limit - total)) left)"
           find site -mindepth 1 -maxdepth 1 -type d | while read -r d; do
             printf '%8d  %s\n' "$(find "$d" -type f | wc -l)" "${d#site/}"
-          done | sort -rn | head -20
+          done | sort -rn | awk 'NR <= 20'
           if [ "$total" -gt "$limit" ]; then
             echo "::error::the publish dir holds ${total} files and Pages accepts ${limit}; the largest directories are listed above" >&2
             exit 1
@@ -247,11 +247,25 @@ jobs:
         # Starknet transaction page of 31.2 MiB. This names every offender before the upload.
         # R2 has no such limit, so staging is not gated here; the page itself is
         # codetracer-pm issues/2026-10-31-blocktracer-starknet-casm-debug-page-exceeds-the-pages-file-limit.md.
+        #
+        # NOTHING HERE PIPES INTO `head`, AND THAT IS NOT A STYLE CHOICE. Under
+        # `set -o pipefail` a `sort | head -5` fails the whole command: `head`
+        # closes the pipe after five lines, `sort` dies of EPIPE, and the
+        # non-zero left-hand status is the pipeline's status. This step was
+        # written with `| head -5` and did exactly that in run 41165206861 —
+        #   sort: write failed: 'standard output': Broken pipe
+        #   Process completed with exit code 2
+        # — so it exited BEFORE printing one line, and the gate written to name
+        # the offending file named nothing. `awk` reads its input to the end, so
+        # it takes a prefix without ever closing the pipe. Note also what the 2
+        # cost: a gate that cannot measure exits like a gate that found
+        # something, and the two are told apart only by reading the log.
         run: |
           set -euo pipefail
           limit=$((25 * 1024 * 1024))
-          over=$(find site -type f -size +"${limit}"c -printf '%s\t%P\n' | sort -rn)
-          largest=$(find site -type f -printf '%s\t%P\n' | sort -rn | head -5)
+          all=$(find site -type f -printf '%s\t%P\n' | sort -rn)
+          over=$(printf '%s\n' "$all" | awk -F'\t' -v lim="$limit" '$1 + 0 > lim + 0')
+          largest=$(printf '%s\n' "$all" | awk 'NR <= 5')
           echo "largest files (bytes):"; printf '%s\n' "$largest"
           if [ -n "$over" ]; then
             while IFS=$'\t' read -r size path; do
@@ -280,7 +294,9 @@ jobs:
           # visitor's console.
           page="$(find site -path '*/tx/*/debug/index.html' -print -quit)"
           if [ -n "$page" ]; then
-            base="$(grep -oE 'data-replay-engine="[^"]*"' "$page" | head -1 |
+            # `awk NR==1` and not `head -1`: see the per-file size gate below for
+            # the pipefail/EPIPE reading that cost a step its whole diagnostic.
+            base="$(grep -oE 'data-replay-engine="[^"]*"' "$page" | awk 'NR == 1' |
                     sed 's/.*="//; s/"$//')"
             echo "pages request their engine from: ${base:-<none>}"
             case "$base" in
@@ -383,7 +399,7 @@ jobs:
           page="$(find site -path '*/tx/*/debug/index.html' -print -quit)"
           if [ -n "$page" ]; then
             if grep -qE '<script[^>]+src="/[^"]*"' "$page"; then
-              echo "the debug shell references its bundle: $(grep -oE 'src="/[^"]*\.js"' "$page" | head -1)"
+              echo "the debug shell references its bundle: $(grep -oE 'src="/[^"]*\.js"' "$page" | awk 'NR == 1')"
             else
               echo "ERROR: $page carries no same-origin <script> — a session that can never become live" >&2
               missing=1
