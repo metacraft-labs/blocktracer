@@ -3359,7 +3359,7 @@ jobs:
             const must = [
               "leveldown/prebuilds/linux-x64/node.napi.glibc.node",
             ];
-            // AND THESE MUST BE ABSENT. bb.js's amd64-linux build is compiled
+            // AND THESE MUST BE ABSENT. The bb.js amd64-linux build is compiled
             // with -march=skylake and dies of SIGILL on an x86-64-v2 host
             // (high-mem-server: `mulx` in nodejs_module.node, from _dl_init).
             // tools/chain/nix/default.nix removes all three so bb.js takes its
