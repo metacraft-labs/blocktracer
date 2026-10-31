@@ -301,7 +301,7 @@ arm("the repository's ci.yml MUTATED BACK to `eph-linux-x64` is REFUSED", () => 
   if (pre === ciNow) return "the mutation changed nothing — the fixture is not exercising the real sites";
   const sites = extractRunsOn(pre, "ci.yml");
   const f = checkSites(sites, new Map([["ci.yml", pre]]));
-  if (f.length !== 7) return `expected all 7 migrated sites refused, got ${f.length}`;
+  if (f.length !== 8) return `expected all 8 migrated sites refused, got ${f.length}`;
   return f.every((x) => /RETIRED/.test(x.problems[0])) || "not every refusal cites the retirement";
 });
 
@@ -339,14 +339,14 @@ pin(FLEET_CLASSES.some((c) => c.labels.map(fold).includes("topology-host")) &&
     }),
     "topology-host and gpu each exist, and no one class has both — the over-request arm is real");
 {
-  // 12 = the 7 migrated self-hosted jobs + 4 `ubuntu-latest` gate jobs +
-  // `chain-follower-linux`. Counted from the file, not remembered. If this
+  // 13 = the 8 migrated self-hosted jobs (`journeys-starknet` is the eighth) +
+  // 4 `ubuntu-latest` gate jobs + `chain-follower-linux`. Counted from the file, not remembered. If this
   // number moves, a job was added or removed — reconcile it to the file,
   // never the other way round.
   const sites = extractRunsOn(ciNow, "ci.yml");
   const selfHosted = sites.filter((s) => s.kind === "array").length;
   const hosted = sites.filter((s) => s.kind === "scalar" && GITHUB_HOSTED.has(fold(s.labels[0]))).length;
-  pin(sites.length === 12 && selfHosted === 8 && hosted === 4,
+  pin(sites.length === 13 && selfHosted === 9 && hosted === 4,
       `ci.yml has ${sites.length} runs-on sites (${selfHosted} self-hosted, ${hosted} GitHub-hosted) and every one is parsed`);
 }
 
