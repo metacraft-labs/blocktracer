@@ -287,6 +287,29 @@ let
       # version, silently. The revision is known at build time; write it where the
       # follower's fallback reads it.
       printf '%s\n' ${lib.escapeShellArg avmRuntimeRev} > "$out/.runtime-commit"
+
+      # ── BARRETENBERG RUNS AS WASM, SO THE REPLAY RUNS ON ANY x86-64 ──────────
+      #
+      # `@aztec/bb.js` ships three prebuilt x86_64 binaries built with
+      # `-march=skylake` (barretenberg/cpp/cmake/arch.cmake: no cpuid, no IFUNC).
+      # On a CPU without BMI2 they die of SIGILL. The addon is dlopen'd while the
+      # module initialises, so nothing can catch it and no line is printed first.
+      # Measured 2026-10-31 on high-mem-server (Ivy Bridge, x86-64-v2): gdb stops
+      # at `mulx (%rcx),%r13,%r14` inside nodejs_module.node, called from
+      # `_dl_init`. This was the empty-stderr `prepare-recordings` failure in
+      # `debug-route` and `viewmodels` on every v2 runner.
+      #
+      # The replay asks barretenberg only to hash and decompress points
+      # (`initializeReplayCrypto`), and bb.js already falls back to its WASM
+      # backend when no native one is present. Without these files that fallback
+      # is the path every host takes. Measured on high-mem-server: the replay of
+      # 0x00689495… exits 0 in 29 s and writes a container byte-identical to the
+      # native one in `.#fixture-recordings`, apart from the `meta.dat` version
+      # byte that preparation rewrites afterwards.
+      for native in bb nodejs_module.node aztec-wsdb; do
+        rm "$out/replay/node_modules/@aztec/bb.js/build/amd64-linux/$native"
+      done
+      test -z "$(find "$out/replay/node_modules/@aztec/bb.js/build/amd64-linux" -type f)"
       runHook postInstall
     '';
 
