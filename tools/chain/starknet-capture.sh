@@ -76,6 +76,6 @@ for spec in "${transcripts[@]}"; do
   captures+=(--capture "$work/b$block"); i=$((i + 1))
 done
 node tools/chain/produce-starknet-snapshot.mjs "${captures[@]}" \
-  --recorder-commit "$commit" --out "$out" \
+  --recorder-commit "$commit" --recorder-binary "$recorder" --out "$out" \
   --captured-at "$recorded_at" --endpoint-label "$endpoint" \
   ${ctprint:+--ct-print "$ctprint"}

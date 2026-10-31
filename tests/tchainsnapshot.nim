@@ -58,7 +58,7 @@
 ## evidence that `blocktracer/chain-snapshot@1` is still READ rather than merely
 ## listed, and that the reader's `@2` enforcement does not reach back over it.
 
-import std/[unittest, os, json, strutils, sequtils, algorithm, sha1]
+import std/[unittest, os, json, strutils, sequtils, algorithm, sha1, tables]
 
 import ../src/blocktracer/chain/ingest
 import ../src/blocktracer/chain/snapshot_format
@@ -2312,3 +2312,75 @@ suite "an address's chain history below the window is its oldest segment, and op
     #               (`complete` and `limit` asserted together)
     #   9 × 2 + 2 — nine refusals, each citing and naming; two controls
     expectCount(1 + 1 + 1 + 1 + 6 + 9 * 2 + 2)
+
+# ───────────────────────────────────────────────────────────────────────────
+proc traceIdsByTx(outDir: string): Table[string, string] =
+  ## {tx -> traceArtifactId} for every published manifest, read off disk.
+  for path in walkDirRec(outDir / "t"):
+    if path.extractFilename != "manifest.json": continue
+    let m = parseJson(readFile(path))
+    result[m["tx"].getStr] = m["traceArtifactId"].getStr
+
+suite "the recorder executable's digest is part of the trace address":
+  # 2026-10-30, staging run 41103424764: the trace writer the chain recorders link
+  # moved `meta.dat` 6 -> 7 under unchanged recorder commits, and 36 containers
+  # changed bytes at unchanged `/t/**` addresses. The publisher refused all of them
+  # as determinism incidents. `provenance.recorder.artifact` names the executable,
+  # so a change linked into it moves the address; an absent one moves nothing.
+  #
+  # The frames capture's rows all name the build that re-recorded them in
+  # `recordedBy`, which is not its `runtimeCommit`. The chain producers this field
+  # is for write one commit to both, so `ownRecorder` makes this capture that
+  # shape before anything is measured: every traced row recorded by the default.
+  asserted = 0
+  const A = "sha256:" & repeat('a', 64)
+  const B = "sha256:" & repeat('b', 64)
+
+  proc ownRecorder(doc: JsonNode) =
+    doc["provenance"]["runtimeCommit"] = %firstOutcome(doc, "replayed")["recordedBy"].getStr
+
+  proc withArtifact(artifact: string): proc (doc: JsonNode) =
+    result = proc (doc: JsonNode) =
+      ownRecorder(doc)
+      if artifact.len > 0: doc["provenance"]["recorder"]["artifact"] = %artifact
+
+  test "a stated artifact moves every address, and one digest is one address":
+    let (outBase, _) = ingestWith("artifact-none", withArtifact(""))
+    defer: removeDir outBase
+    let (outA, _) = ingestWith("artifact-a", withArtifact(A))
+    defer: removeDir outA
+    let (outB, _) = ingestWith("artifact-b", withArtifact(B))
+    defer: removeDir outB
+    let (outAgain, _) = ingestWith("artifact-a-again", withArtifact(A))
+    defer: removeDir outAgain
+    let base = traceIdsByTx(outBase)
+    let a = traceIdsByTx(outA)
+    let b = traceIdsByTx(outB)
+    ck base.len > 0 and base.len == a.len and a.len == b.len
+    ck toSeq(base.keys).allIt(it in a and base[it] != a[it])   # the digest moved them
+    ck toSeq(a.keys).allIt(it in b and a[it] != b[it])         # …and it is the digest
+    ck traceIdsByTx(outAgain) == a                             # one digest, one address
+
+  test "a row that names another build of its own keeps the commit-only address":
+    # The digest describes the executable behind `runtimeCommit` and nothing else,
+    # so a row recorded by some other build is addressed as it always was.
+    const Other = "fedcba9876543210fedcba9876543210fedcba98"
+    var subject = ""
+    proc foreign(artifact: string): proc (doc: JsonNode) =
+      result = proc (doc: JsonNode) =
+        withArtifact(artifact)(doc)
+        let row = firstOutcome(doc, "replayed")
+        subject = row["txHash"].getStr
+        row["recordedBy"] = %Other
+    let (outPlain, _) = ingestWith("foreign-plain", foreign(""))
+    defer: removeDir outPlain
+    let (outA, _) = ingestWith("foreign-a", foreign(A))
+    defer: removeDir outA
+    let plain = traceIdsByTx(outPlain)
+    let a = traceIdsByTx(outA)
+    ck subject.len > 0 and subject in plain and subject in a
+    ck plain[subject] == a[subject]
+    ck toSeq(plain.keys).anyIt(it != subject and plain[it] != a[it])   # CONTROL
+
+  test "assertion count":
+    expectCount(4 + 3)

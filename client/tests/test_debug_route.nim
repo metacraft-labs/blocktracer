@@ -596,10 +596,23 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     # region is identified by being the only stack with a SECOND tab, which is
     # also the selector `tools/capture/views.mjs` clips these views to.
     check occurrences(markup, "class=\"ln lm_stack ") == 4
-    check occurrences(markup, "class=\"lm_tabs\"") == 4
+    # THREE `<ul class="lm_tabs">` OVER FOUR STACKS, and the missing one is the
+    # Code pane's. Its header is the FILE STRIP its document panel draws — the
+    # tabs are the open files, as they are in CodeTracer — so `paneChrome`
+    # renders it no header of its own; see its `header` parameter. The strip is
+    # asserted on its own terms below.
+    check occurrences(markup, "class=\"lm_tabs\"") == 3
     # `<li class="lm_tab`, with the element name: `class="lm_tab` alone also
-    # matches the `<ul class="lm_tabs">` that holds them, which counted nine.
-    check occurrences(markup, "<li class=\"lm_tab") == 5
+    # matches the `<ul class="lm_tabs">` that holds them, and now the file
+    # tabs, which are anchors.
+    check occurrences(markup, "<li class=\"lm_tab") == 4
+    # The Code pane's header, with one tab per document and the open one marked
+    # `lm_active` — upstream's own class, which it may carry because this strip
+    # is rendered once per panel with that panel's own tab marked.
+    check "class=\"srcstrip lm_header\"" in markup
+    check "class=\"srctab lm_tab ct-tab on lm_active\"" in markup
+    check "<li class=\"lm_tab btdefault t-pane-editor\"" notin markup
+    check ">CODE<" notin markup
     check "class=\"lm_content p-eventlog\"" in markup
     # Call Trace is the DEFAULT panel — `activeIndex = 0` — and the Event Log
     # is the alternate. Reversing that fails here.
@@ -667,7 +680,12 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     let stacks = occurrences(markup, "class=\"ln lm_stack ")
     check stacks > 0
     check occurrences(markup, "class=\"lm_content btdefault") == stacks
-    check occurrences(markup, "<li class=\"lm_tab btdefault") == stacks
+    # One fewer `btdefault` TAB than there are stacks, and the one without is
+    # the Code pane: it has no `lm_header` of its own, and the strip inside its
+    # panel marks the open file with `lm_active` instead. Asserted as
+    # `stacks - 1` rather than as a number, so adding a pane still has to agree.
+    check occurrences(markup, "<li class=\"lm_tab btdefault") == stacks - 1
+    check occurrences(markup, "srctab lm_tab ct-tab on lm_active") > 0
 
     # Both panes still exist and are both addressable — a tab is a change of
     # ranking, not a removal. This is the half that stops "tabbed" from decaying
@@ -676,6 +694,80 @@ suite "M8a — the arrangement is BlockTracer's, over CodeTracer's LayoutNode":
     check "id=\"pane-eventlog\"" in markup
     for row in sessionFor(readyTx).eventLog.rows:
       check escapeHtml(row.label) in markup
+
+  test "the Code pane is named exactly once, in all four of its states":
+    ## `paneChrome(header = …)` and `renderSource.tabStrip` split one decision
+    ## between two procs — one runs once per pane, the other once per document
+    ## panel — and nothing in the type system makes them agree. This walks every
+    ## state the pane has and asserts the two halves add up to exactly one
+    ## header: a pane with two is the "CODE" title over a file strip that was
+    ## reported, and a pane with none is a panel with no name at all, which is
+    ## what the first fix for the first produced on an instruction listing.
+    ##
+    ## Counted over the WHOLE page and compared against the other panes, so the
+    ## number is a relation rather than a constant: four stacks, three of which
+    ## always carry their own header, so the Code pane's contribution is the
+    ## difference.
+    let s = sessionFor(readyTx)
+    proc headersWith(ed: EditorPane): tuple[stack, strip: int] =
+      var mutated = s
+      mutated.editor = ed
+      let html = dbgc.renderLayout(blockTracerReplayLayout(), mutated)
+      (occurrences(html, "<li class=\"lm_tab btdefault t-pane-editor\""),
+       occurrences(html, "class=\"srcstrip lm_header\""))
+
+    # 1. SOURCE DOCUMENTS — the strip names the pane, the stack does not.
+    let source = s.editor
+    check source.documents.len > 1
+    let a = headersWith(source)
+    check a.stack == 0
+    check a.strip == source.documents.len     # one per document panel
+    check editorKeepsStackHeader(source) == false
+
+    # 2. NO DOCUMENTS — nothing draws a strip, so the stack has to name it.
+    var empty = source
+    empty.documents = @[]
+    empty.availability = srcAbsent
+    let b = headersWith(empty)
+    check b.stack == 1
+    check b.strip == 0
+    check editorKeepsStackHeader(empty) == true
+
+    # 3. A LISTING ON ITS OWN — the caption names the columns and the stack
+    #    names the pane; a one-tab strip would be a control with one option.
+    var listing = source
+    listing.documents = @[SourceDocument(path: ListingPath,
+                                         lines: source.documents[0].lines)]
+    listing.activeIndex = 0
+    listing.listingCaption = "83 recorded steps"
+    let c = headersWith(listing)
+    check c.stack == 1
+    check c.strip == 0
+    check editorKeepsStackHeader(listing) == true
+
+    # 4. A LISTING BESIDE SOURCE — the strip names the pane on every panel,
+    #    INCLUDING the listing's, and the caption rides under it rather than
+    #    replacing it. This is the state that lost its header.
+    var union = source
+    union.documents.add SourceDocument(path: ListingPath,
+                                       lines: source.documents[0].lines)
+    union.listingCaption = "83 recorded steps"
+    let d = headersWith(union)
+    check d.stack == 0
+    check d.strip == union.documents.len
+    check editorKeepsStackHeader(union) == false
+    var mutated = s
+    mutated.editor = union
+    let unionHtml = dbgc.renderLayout(blockTracerReplayLayout(), mutated)
+    check occurrences(unionHtml, "class=\"instrcap\"") == 1
+    # The caption is a SIBLING of the strip and not inside it: a two-root `ui`
+    # block would have wrapped both in an anonymous div and broken the panel's
+    # flex column.
+    let stripAt = unionHtml.find("class=\"srcstrip lm_header\"")
+    let capAt = unionHtml.find("class=\"instrcap\"")
+    check stripAt >= 0
+    check capAt > stripAt
+    check "</div><p class=\"instrcap\"" in unionHtml
 
   test "renderLayout is total over lnStack, and the model decides the live tab":
     ## Driven over a SYNTHETIC node as well as the served one, because
@@ -1150,8 +1242,7 @@ suite "M8a — the source pane renders real source, with stable line identity":
     # The property the anchors exist for. The home page's embed renders a
     # window; a link out of it must land on the same line of the full session.
     let s = sessionFor(readyTx)
-    let windowed = windowAround(s.editor, radius = 5,
-                                fullDocumentUrl = "/demo/tx/0xdead/debug")
+    let windowed = windowAround(s.editor, radius = 5)
     check windowed.documents.len == 1
     check windowed.documents[0].lines.len <= 11
     let full = activeDocument(s.editor)
@@ -1699,7 +1790,7 @@ suite "VD.5 — the source pane is syntax highlighted, at export time":
 
     # Narrowing copies lines into a new document; the tokens travel with them,
     # so a window is not silently unhighlighted.
-    let windowed = windowAround(pane, 3, fullDocumentUrl = "/demo/tx/0xdead/debug")
+    let windowed = windowAround(pane, 3)
     let wdoc = activeDocument(windowed)
     check wdoc.lines.len > 0
     var anyTokens = false
@@ -1934,8 +2025,8 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
       for ln in d.lines:
         for a in ln.annotations:
           if a.iteration > highest: highest = a.iteration
-    check highest == pane.flow.active
-    check pane.flow.active == 2
+    check highest == pane.flow.selected
+    check pane.flow.selected == 2
 
     # And the same rule in the other direction: the lines AFTER the loop
     # (`let result = remaining_shield as u32 > 0`) and the clamp arm the trace
@@ -1975,14 +2066,39 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     # did not like; `ln.annotations` carried every value throughout, so a check
     # that read the seq would have passed unchanged for the whole of that regime.
     # `class="fv ` is the prefix of every value chip and of nothing else.
+    #
+    # ## The pass filter, and why it does not weaken this
+    #
+    # The renderer draws the pass the pane is on and holds the rest: with the
+    # loop slider gone no selector can reach another pass, so emitting them
+    # would be markup nothing can display (`renderAnnotations`). That is a
+    # second reason a chip can be absent from the HTML, so the count alone
+    # would no longer rule the elision regime out — a renderer that dropped a
+    # value from the DRAWN pass and the correct render would differ by one.
+    #
+    # So the count is over the drawn pass AND every drawn label is matched
+    # individually by its own text. The elision regime would fail the second
+    # check whatever the first said, and the held passes are asserted to be
+    # held rather than lost: `drawn < recorded`, so the layout really does
+    # carry more than the page draws.
     let pane = flowPane()
     let html = dbgc.renderSource(pane)
     var recorded = 0
+    var drawn = 0
     for d in pane.documents:
       for ln in d.lines:
         recorded += ln.annotations.len
+        for a in ln.annotations:
+          if a.iteration < 0 or a.iteration == pane.flow.selected: inc drawn
     check recorded > 0
-    check occurrences(html, "class=\"fv ") == recorded
+    check drawn > 0
+    check drawn < recorded
+    check occurrences(html, "class=\"fv ") == drawn
+    for d in pane.documents:
+      for ln in d.lines:
+        for a in ln.annotations:
+          if a.iteration < 0 or a.iteration == pane.flow.selected:
+            check escapeHtml(annotationText(a)) in html
 
   test "no value is summarised, counted or hidden behind a tooltip":
     # The user-visible half: none of the elision machinery's marks survive
@@ -2082,10 +2198,12 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
         i = stop + 1
 
     let full = flowPane()
-    check full.flow.line == 4
+    # The premise of the whole test: the pane really is inside a loop whose
+    # header is above the window the narrowing will keep.
+    check full.flow.loopIndex == 1
+    check full.currentLine - 4 > 12
 
-    let embed = windowAround(full, radius = 12,
-                             fullDocumentUrl = debugUrl("demo", "0xfeed"))
+    let embed = windowAround(full, radius = 12)
     let html = dbgc.renderSource(embed)
 
     # The premise: this really is a pane that does NOT render line 4. Without
@@ -2101,195 +2219,60 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
       if not href.startsWith("#"): continue
       inc fragments
       check href[1 .. ^1] in ids
-    # The rail's `:target` ladder emits fragment hrefs of its own, so a pane that
-    # emitted none would mean the loop above ran over nothing and checked
-    # nothing — the shape of passing check this repository keeps finding.
+    # The FILE TABS are what emits a fragment href now — one per document, into
+    # the document's own panel — so a pane that emitted none would mean the loop
+    # above ran over nothing and checked nothing, which is the shape of passing
+    # check this repository keeps finding.
     check fragments > 0
 
-    # And the link is not merely absent: it goes to the surface that DOES render
-    # line 4, which is what "Go to the loop header" promises.
-    check embed.flow.href == debugUrl("demo", "0xfeed") & "#" &
-                             lineAnchor("src/shield.nr", 4)
-    check ("href=\"" & embed.flow.href & "\"") in html
+    # AND THE HAZARD THE `fullDocumentUrl` ARGUMENT ANSWERED IS GONE WITH THE
+    # CONTROL THAT HAD IT. The link this test was written for was the loop
+    # rail's "line 4", whose target the narrowing dropped out of the pane; the
+    # rail has been removed (`session_view.FlowRail`) and `windowAround` no
+    # longer takes a surface to re-aim anything at. The property above is kept
+    # because it is the general one — it catches the next control that learns to
+    # emit a fragment the window can orphan — and this is the one place it is
+    # asserted over a pane that really is narrowed.
+    check "class=\"flowrail\"" notin html
+    check "frline" notin html
 
-    # With nowhere to send a reader, the rail states the line and offers no
-    # link — a `span`, not an `a` with a dead or self-reloading href.
-    let orphan = windowAround(full, radius = 12, fullDocumentUrl = "")
-    check orphan.flow.href == ""
-    let orphanHtml = dbgc.renderSource(orphan)
-    check "frline noloc" in orphanHtml
-    check "line 4" in orphanHtml
-    check "<a class=\"frline\"" notin orphanHtml
-
-  test "the loop rail states which pass, out of how many, and where":
+  test "which loop pass the pane draws comes from the session's own position":
+    # What is left of `FlowRail` once the slider is gone: the pass the values
+    # and the branch claims are drawn for. It is read off `locationTicks` and
+    # not off a default, which is issue #593 — a control that read 1 of 8 for
+    # as long as the session lasted however far into the loop it actually was.
     let pane = flowPane()
-    let rail = pane.flow
-    check rail.loopIndex == 1
-    check rail.line == 4                      # `for i in 0..8 {`
-    check rail.label == "iterate_asteroids"
-    # A SAME-PAGE FRAGMENT on this surface, and that is the correct answer here:
-    # the debug route renders all 67 lines of `shield.nr`, so line 4 is on the
-    # page. The narrowed surface is asserted separately below.
-    check rail.href == "#" & lineAnchor("src/shield.nr", 4)
-    check rail.iterations.len == 8            # the array has eight asteroids
-    check rail.active == 2
-    check rail.selected == rail.active
-    # Reached versus recorded: three passes have happened at this coordinate.
-    var reached = 0
-    for it in rail.iterations:
-      if it.reached: inc reached
-    check reached == 3
-    for it in rail.iterations:
-      check it.reached == (it.index <= 2)
-      # Every segment carries a real time coordinate — the pass's header tick —
-      # which is what makes it deep-linkable and what hydration hands to
-      # `ct/goto-ticks`. Strictly increasing, because the walker only moves
-      # forward; a rail whose segments were numbered 1..8 with no ticks behind
-      # them would look identical and be unable to navigate anywhere.
-      check it.ticks > 0
-    for i in 1 ..< rail.iterations.len:
-      check rail.iterations[i].ticks > rail.iterations[i - 1].ticks
+    check pane.flow.loopIndex == 1
+    check pane.flow.selected == 2             # the session is in the third pass
 
-  test "the rail is rendered even though the loop's header is far off screen":
-    # The reason the rail is on the PANE rather than on the loop's own line.
-    # It used to be off-WINDOW — `openAtCurrent` served the pane from six lines
-    # above line 32, so line 4 was not in the DOM at all. It is in the DOM now,
-    # and twenty-eight rows above the position, which is well off screen at
-    # every viewport this route is served at. A control drawn only at the header
-    # would still be missing exactly when the reader is inside the loop.
-    let s = sessionFor(readyTx)
-    let windowed = s.editor
-    check s.editor.currentLine - 4 > 20
-    var first = 0
-    for ln in activeDocument(windowed).lines:
-      first = ln.number
-      break
-    check first == 1
-    let html = dbgc.renderSource(windowed)
-    check "class=\"flowrail\"" in html
-    check "Iteration 3 of 8" in html
-    # …and it links back to the header line, whose id is stable whether or not
-    # the line is in this window.
-    check ("href=\"#" & lineAnchor("src/shield.nr", 4) & "\"") in html
-
-  test "exactly the session's pass is shown; the others are in the markup, inert":
-    # The `:target` mechanism's contract, checked on the markup a browser gets.
-    # Every pass the window carries is present — that is what makes the rail
-    # work with no JavaScript — and exactly one is marked `now`, which is the
-    # only one the stylesheet shows.
+  test "one pass is laid out, and it is the session's":
+    # The `:target` ladder used to put EVERY pass's labels in the markup so the
+    # slider could switch between them with no JavaScript. With the slider gone
+    # no selector can ever display another pass, so attaching them would be
+    # seven labels out of eight that nothing can reach — on every line of every
+    # loop, on the largest pages this site serves.
     let html = debugHtml(readyTx)
-    check "class=\"fv inline m-changed fv-i0\"" in html      # pass 0, not shown
-    check "class=\"fv inline m-changed fv-i2 now\"" in html  # pass 2, shown
-    check "fv-i1 now" notin html
-    check "fv-i0 now" notin html
-    # The stylesheet is what enforces it, and it is checked in both directions:
-    # the default is hidden, `.now` is shown, and a targeted pass swaps them.
+    check "class=\"fv inline m-changed fv-i2 now\"" in html   # pass 2, drawn
+    check "fv-i0" notin html
+    check "fv-i1" notin html
+    # The stylesheet still decides, and it is checked in both directions.
     check ".fv{display:none" in debugRouteCss
     check ".fv.now{display:inline-flex}" in debugRouteCss
 
-  test "every segment the rail can emit has a rung, and the rung switches":
-    # `MaxStaticIterations` is read by the renderer and by the stylesheet, and a
-    # segment whose id no rule answers would still render, still look like a
-    # link, and show the wrong pass's values on click.
-    for i in 0 ..< MaxStaticIterations:
-      let t = "#fit-" & $i & ":target ~ "
-      check (t & ".srcwrap .fv.now{display:none}") in debugRouteCss
-      check (t & ".srcwrap .fv.fv-i" & $i & ",") in debugRouteCss
-      check (t & ".flowrail .frseg.s" & $i & " .frdot{display:block}") in
-            debugRouteCss
-      check (t & ".flowrail .frcount.now{display:none}") in debugRouteCss
-      check (t & ".flowrail .frcount.c" & $i & "{display:inline}") in
-            debugRouteCss
-    # And nothing beyond the ladder is emitted, in either file.
-    check ("#fit-" & $MaxStaticIterations & ":target") notin debugRouteCss
-    check ("id=\"fit-" & $MaxStaticIterations & "\"") notin debugHtml(readyTx)
-
-    # THE ANCHORS ARE ACTUALLY EMITTED, and are SIBLINGS of the listing. Both
-    # halves, because both were wrong and neither showed up as a failure: the
-    # anchors were dropped entirely by a `for` at the top level of the `ui`
-    # DSL, and the negative above passed over their absence without noticing.
-    # Then, once emitted, a two-root `ui` block wrapped them in an anonymous
-    # `<div>`, which put them in a different parent from `.srcwrap` — so
-    # `#fit-3:target ~ .srcwrap` matched nothing and the control silently did
-    # nothing. A capture found both; this is what would have.
-    let served = debugHtml(readyTx)
-    let rail = sessionFor(readyTx).editor.flow
-    check rail.iterations.len == 8
-    for i in 0 ..< rail.iterations.len:
-      check ("id=\"fit-" & $i & "\"") in served
-    # The pane body is the `.component-container` the pane opens with (the
-    # panel surface CodeTracer's stylesheet draws); the anchors are its
-    # children, beside the listing.
-    let body = "id=\"pane-editor\"><div class=\"component-container\">"
-    let paneAt = served.find("class=\"lm_content btdefault p-source\"")
-    check paneAt >= 0
-    let bodyAt = served.find(body, paneAt)
-    check bodyAt >= 0
-    # Everything from the pane body's opening tag to the listing is anchors and
-    # the rail: no element opens between them that could become their parent.
-    let between = served[bodyAt + body.len ..< served.find("<div class=\"srcwrap\"", bodyAt)]
-    #
-    # ── ASSERTED AS A RELATION, NOT AS A SHAPE ──────────────────────────────
-    #
-    # This used to require that `between` START with the first anchor and
-    # contain exactly ONE `<div>` (the rail). Both were proxies for the property
-    # that matters — the anchors and `.srcwrap` share a parent, so
-    # `#fit-N:target ~ .srcwrap` matches — and both went stale the moment the
-    # CodeTracer port wrapped the pane body in `<div class="component-container">`.
-    # Measured: `between` now opens with that wrapper and carries two `<div>`s,
-    # of which only one closes (open=2, close=1) — so the wrapper is STILL OPEN
-    # when `.srcwrap` begins, which means `.srcwrap` is inside it, beside the
-    # anchors. The relation holds; only the shape moved.
-    #
-    # A wrapper opened BEFORE the first anchor contains both and is harmless. A
-    # div opened after the first anchor and left open is exactly the defect:
-    # it would become `.srcwrap`'s parent and the anchors' sibling instead. So
-    # the check is over the region FROM the first anchor, and it is a balance.
-    let firstAnchor = "<span class=\"frtarget\" id=\"fit-0\">"
-    let anchorAt = between.find(firstAnchor)
-    check anchorAt >= 0
-    let fromAnchor = between[anchorAt .. ^1]
-    check occurrences(fromAnchor, "<div") == occurrences(fromAnchor, "</div>")
-    check "class=\"flowrail\"" in between
-
-  test "a loop longer than the ladder is CLAMPED and says so":
-    # `MaxIndentDepth`'s rule, applied to passes. The failure this prevents is
-    # silent: an unclamped segment resolves to no rule, so the rail would look
-    # complete and switch to the wrong pass.
-    var rail = FlowRail(loopIndex: 1, line: 4, href: "#L-x-4",
-                        label: "wide_loop", selected: 0, active: 0)
-    for i in 0 ..< MaxStaticIterations + 5:
-      rail.iterations.add FlowIteration(index: i, ticks: 10 + i, reached: true)
-    let html = dbgc.renderFlowRail(rail)
-    check occurrences(html, "class=\"frseg") == MaxStaticIterations
-    check ("Iteration 1 of " & $(MaxStaticIterations + 5)) in html
-    check "Showing the first 16 of 21 passes" in html
-    # …and a session PAST the ladder's end still gets its counter, which the
-    # track alone cannot give it. Clamping the track is honest; clamping away
-    # the one line that says where the session is would not be.
-    var far = rail
-    far.selected = MaxStaticIterations + 3
-    far.active = far.selected
-    let farHtml = dbgc.renderFlowRail(far)
-    check ("Iteration " & $(far.selected + 1) & " of " &
-           $(MaxStaticIterations + 5)) in farHtml
-    check occurrences(farHtml, "frcount num c") == MaxStaticIterations + 1
-    check occurrences(farHtml, " now\">Iteration") == 1
-
-    # A rail INSIDE the ladder says nothing of the sort — the announcement is a
-    # statement about a reduction, not decoration.
-    rail.iterations.setLen(4)
-    let small = dbgc.renderFlowRail(rail)
-    check "Showing the first" notin small
-    check occurrences(small, "frcount num c") == 4
-
-  test "an unreached pass is not a link, and says why":
+  test "the loop slider is gone from the markup, the stylesheet and the API":
+    # A REMOVAL ASSERTED AS A REMOVAL. Every half of the control had its own
+    # mechanism — markup, a generated `:target` ladder, and the anchors the
+    # ladder matched on — and leaving any one of them behind is how a deleted
+    # feature comes back as dead weight nobody can see.
     let html = debugHtml(readyTx)
-    check "class=\"frseg s2 here showing got\"" in html
-    check "class=\"frseg s3 out\"" in html
-    check "The session has not reached pass 4 at this position." in html
-    # The reached ones ARE links, so the rail works with scripting off.
-    check ("<a class=\"frseg s0 got\" href=\"#fit-0\"") in html
+    for needle in ["class=\"flowrail\"", "class=\"frtarget\"", "class=\"frseg",
+                   "id=\"fit-0\"", "Iteration 3 of 8", "Showing the first"]:
+      check needle notin html
+    for needle in [".flowrail", ".frseg", ".frtarget", ".frcount", "#fit-0:target"]:
+      check needle notin debugRouteCss
+    # And the pane still draws the values the control used to switch between,
+    # so this is the control going rather than the feature under it.
+    check "class=\"fv inline m-changed fv-i2 now\"" in html
 
   test "the fidelity ladder: no source means no values and no rail":
     # §14's "No verified source" row. At instruction level there is no
@@ -2363,7 +2346,7 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     # of the line so the value is not lost; taking that column at face value
     # would point the label at an offset the expression has nothing to do with.
     var input = FlowWindowInput(
-      path: "synth.nr", locationTicks: 0, functionLabel: "f",
+      path: "synth.nr", locationTicks: 0,
       window: FlowLayoutWindow(
         sourceLines: @["let sum = a + b;"],
         tabSize: 4,
@@ -2448,9 +2431,10 @@ suite "Omniscience — the recorded values, against the real zk_shields trace":
     check "class=\"fvn\">damage</span>" in html
     check "class=\"fvv was\">0</span>" in html
     check "class=\"fvv\">2000</span>" in html
-    # The rail, and the phase-independent fact that the page ships no script to
-    # drive it: the whole control is links and CSS.
-    check "class=\"flowrail\"" in html
+    # The overlay is the whole of it now — the rail that used to switch between
+    # passes is gone — and the phase-independent fact that this page ships no
+    # script to drive anything: the values are markup and CSS.
+    check "class=\"flowrail\"" notin html
     check executableScripts(html) == 0
 
 suite "Omniscience — the branch that was taken, and the ones that were not":
@@ -2595,7 +2579,7 @@ suite "Omniscience — the branch that was taken, and the ones that were not":
 }
 """
     var input = FlowWindowInput(
-      path: "cut.nr", locationTicks: 4, functionLabel: "f",
+      path: "cut.nr", locationTicks: 4,
       window: FlowLayoutWindow(
         sourceLines: splitSourceLines(text), tabSize: 4,
         loops: @[FlowLayoutLoop()],
@@ -2641,7 +2625,7 @@ suite "Omniscience — the branch that was taken, and the ones that were not":
 }
 """
     let input = FlowWindowInput(
-      path: "both.nr", locationTicks: 9, functionLabel: "f",
+      path: "both.nr", locationTicks: 9,
       window: FlowLayoutWindow(
         sourceLines: splitSourceLines(text), tabSize: 4,
         loops: @[FlowLayoutLoop()],
@@ -2682,7 +2666,7 @@ suite "Omniscience — the branch that was taken, and the ones that were not":
 }
 """
     let input = FlowWindowInput(
-      path: "twice.nr", locationTicks: 4, functionLabel: "f",
+      path: "twice.nr", locationTicks: 4,
       window: FlowLayoutWindow(
         sourceLines: splitSourceLines(text), tabSize: 4,
         loops: @[FlowLayoutLoop()],
@@ -2840,33 +2824,26 @@ suite "Omniscience — the branch that was taken, and the ones that were not":
           inc claimed
     check claimed > 0                 # the scan reached a claimed line
 
-  test "the target ladder resets before it sets, on every rung":
-    # The dimming has to move with the rail, because the demo's two lines swap
-    # roles between passes. Each rung is a RESET (the session's pass stops being
-    # dimmed) followed by a SET (the targeted pass starts), at equal specificity
-    # so source order decides. Emitted the other way round, every claimed line
-    # would stay dimmed in every pass — and a permanently dimmed block is
-    # indistinguishable from a correctly dimmed one on a screenshot.
+  test "the branch claim the pane draws is the session's pass, and only it":
+    # The dimming used to move with the loop slider: a generated `:target` rung
+    # per pass reset the session's claim and set the targeted pass's, because
+    # the demo's two lines swap roles between passes and a dimming that did not
+    # move would state pass 2's control flow over pass 0's values.
+    #
+    # The slider is gone, so there is one pass on screen and one set of rules
+    # that draws it. The rungs are gone with it — asserted here, because a
+    # ladder left behind would be ~200 generated rules no selector can ever
+    # match, and nothing on a screenshot would say so.
     let css = debugRouteCss
-    for i in 0 ..< MaxStaticIterations:
-      let t = "#fit-" & $i & ":target ~ "
-      let reset = t & ".srcwrap .srcline.ntnow .t{opacity:1}"
-      let setRule = t & ".srcwrap .srcline.nt-i" & $i & " .t"
-      check reset in css
-      check setRule in css
-      check css.find(reset) < css.find(setRule)
-      # `nt-any` — a conditional outside every loop — is set on every rung, so
-      # it survives whichever pass is displayed.
-      check (t & ".srcwrap .srcline.nt-any .t{opacity:var(--bt-opacity-not-run)}") in css
-      # The glyph and the rail swap with it, so the gutter, the region mark and
-      # the code never disagree about which pass is on screen.
-      check (t & ".srcwrap .srcline.ntnow .mn{display:none}") in css
-      check (t & ".srcwrap .srcline.nt-i" & $i & " .mn,") in css
-      check (t & ".srcwrap .srcline.ntnow .ntbar{display:none}") in css
-      check (t & ".srcwrap .srcline.nt-i" & $i & " .ntbar,") in css
-    # The default, before any segment is targeted: the session's own pass.
+    check "#fit-0:target" notin css
+    check "#fit-" notin css
+    # The default, which is now the only state: the session's own pass.
     check ".srcline.ntnow .t{opacity:var(--bt-opacity-not-run)}" in css
     check ".srcline .mn{display:none;color:var(--bt-mark-not-taken)}" in css
+    # And it is drawn: the claim reaches the served page, so the assertions
+    # above are not passing over a feature that stopped rendering.
+    let html = debugHtml(readyTx)
+    check "ntnow" in html
 
 suite "the current line is marked, and a branch claim cannot take the mark":
   ## THE DEFECT: on the flagship view the position glyph was not drawn at all.

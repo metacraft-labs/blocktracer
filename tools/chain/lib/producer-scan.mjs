@@ -347,9 +347,12 @@ export function scanProducers(dir, read = (f) => readFileSync(join(dir, f), 'utf
         continue;
       }
       const body = code.slice(span.from, span.to);
-      for (const [member, from] of [['recorder', '{ ...RECORDER }'],
-                                    ['prestateStrategy', 'PRESTATE_STRATEGY']]) {
-        if (!body.includes(`${member}: ${from}`)) {
+      // `recorderProvenance(RECORDER, …)` is the same facts object with the digest of the
+      // executable that ran added (lib/producer-runtime.mjs); it is still RECORDER's id
+      // and schema, so it satisfies the rule rather than evading it.
+      for (const [member, from, alt] of [['recorder', '{ ...RECORDER }', 'recorderProvenance(RECORDER, '],
+                                         ['prestateStrategy', 'PRESTATE_STRATEGY']]) {
+        if (!body.includes(`${member}: ${from}`) && !(alt && body.includes(`${member}: ${alt}`))) {
           findings.push({ file: f, rule: 'R3', line: lineAt(src, at),
                           what: `a live-capture provenance states no \`${member}: ${from}\`` });
         }

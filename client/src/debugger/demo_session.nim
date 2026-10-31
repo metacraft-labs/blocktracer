@@ -857,17 +857,37 @@ proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
     session.controls.positioned = false
     session.controls.step = 0
     session.controls.statusText = "No position yet"
+    # WHAT THE PANE SAYS DEPENDS ON WHETHER THE ENGINE IS COMING.
+    #
+    # One sentence used to serve both states: "Reading it needs the replay
+    # engine, which this page has not started." On a page with a container that
+    # is true for a second or two and then stops being true, and a reader who
+    # met it reported three panes showing an error message — which is what a
+    # sentence in the past tense reads as once the thing it describes has
+    # happened. On a page with no container it is permanently true, and a
+    # sentence promising the engine would be the opposite lie.
+    #
+    # `containerPath` is the one fact that separates them: it is what
+    # `session_view.canShare` tests, what `pages/debug` writes into
+    # `data-trace`, and therefore exactly the predicate that decides whether
+    # hydration has anything to start. So the panes say which of the two
+    # states they are in, rather than one sentence that is right about one.
+    let engineComing = session.containerPath.len > 0
+    proc pending(subject, verb, pronoun: string): string =
+      if engineComing:
+        subject & " " & verb & " in the published recording, and the replay " &
+          "engine reads " & pronoun & " when this page loads it."
+      else:
+        subject & " " & verb & " in the published recording. Reading " &
+          pronoun & " needs the replay engine, and no recording is published " &
+          "here for it to read."
     session.calltrace = CallTracePane(
       costLabel: "ACIR", costUnit: "opcodes", frames: @[],
-      note: "The call structure is in the published recording. Reading it " &
-            "needs the replay engine, which this page has not started.")
+      note: pending("The call structure", "is", "it"))
     session.state = StatePane(values: @[],
-      note: "The recorded values are in the published recording. Reading " &
-            "them needs the replay engine, which this page has not started.")
+      note: pending("The recorded values", "are", "them"))
     session.eventLog = EventLogPane(rows: @[],
-      note: "The recorded event stream is in the published recording. " &
-            "Reading it needs the replay engine, which this page has not " &
-            "started.")
+      note: pending("The recorded event stream", "is", "it"))
   session.editor = pane
 
 type StepPositions* = object
@@ -885,6 +905,10 @@ type StepPositions* = object
   pathId*: seq[int]        ## -1 where the step carries no position
   line*, column*: seq[int]
 
+const PositionSchemas* = ["avm-source-positions/1", "cairo-casm-positions/1"]
+  ## The per-step position streams `decodeStepPositions` reads: Aztec's AVM
+  ## stream and Starknet's CASM stream, which share one shape.
+
 proc decodeStepPositions*(node: JsonNode): StepPositions =
   ## Total, and refuses rather than repairs.
   ##
@@ -894,7 +918,14 @@ proc decodeStepPositions*(node: JsonNode): StepPositions =
   ## something other than what this proc would read them as, and guessing which
   ## is exactly how a step acquires a line number belonging to a different step.
   if node.isNil or node.kind != JObject: return
-  if node{"schema"}.getStr != "avm-source-positions/1": return
+  # THE TWO SCHEMAS ARE ONE SHAPE. A Cairo capture positions its steps in the
+  # CASM listings its bundle publishes (`<class hash>.casm`, one line per
+  # instruction, label lines between) and in the Cairo files behind them, as
+  # interned `paths` with parallel `pathId` / `line` / `column` columns — the
+  # AVM stream's columns, with `column` null because a CASM line has none.
+  # Any other schema is still refused, so a stream this reader has not been
+  # taught is not read as one it has.
+  if node{"schema"}.getStr notin PositionSchemas: return
   let ids = node{"pathId"}
   let lines = node{"line"}
   let cols = node{"column"}

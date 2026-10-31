@@ -152,13 +152,23 @@ img,svg{max-width:100%;display:block}
    every CodeTracer surface draws the same thin bar.
 
    BlockTracer got that only inside the debugger. The port is prefixed with
-   `[data-register="debugger"]` as a whole — necessarily, since it carries
-   bare `button`, `input`, `tr` and `td` selectors that would restyle the
-   explorer — so the scrollbar rules were scoped along with everything else,
-   and the explorer's pages (`data-register="explorer"`: the home page, every
-   chain and every transaction list) fell back to the platform scrollbar. On
-   the same screen as a debugger pane that draws CodeTracer's, which is the
-   difference that was reported.
+   the debugger register's own attribute selector as a whole — necessarily,
+   since it carries bare `button`, `input`, `tr` and `td` selectors that would
+   restyle the explorer — so the scrollbar rules were scoped along with
+   everything else, and the explorer's pages (the home page, every chain and
+   every transaction list) fell back to the platform scrollbar. On the same
+   screen as a debugger pane that draws CodeTracer's, which is the difference
+   that was reported.
+
+   NEITHER REGISTER IS SPELLED OUT ABOVE, AND THAT IS NOT STYLE. This comment
+   SHIPS: it is inlined into every page, including the debug route, whose
+   suite asserts that the EXPLORER register's attribute value does not occur
+   anywhere in its document — the route collapses the explorer chrome, so a
+   page carrying that string is a page that kept some of it. Writing the
+   selector out put one occurrence of it in the stylesheet of every page in
+   the build and turned a prose paragraph into a red suite. The same hazard is
+   recorded on the source tab strip's own comment in `debugger_css.nim`, which
+   had already paid for it once.
 
    DECLARED HERE, IN BLOCKTRACER'S OWN LAYER, rather than by widening the
    port's scope: the scope is load-bearing for the element selectors beside

@@ -380,6 +380,39 @@ proc decodeSourceIsland*(raw: string; currentPath: string; currentLine: int):
     result.activeIndex = payload{"activeIndex"}.getInt(0)
     result.currentLine = 0
 
+var cachedIslandRaw: string
+var cachedIslandBase: EditorPane
+var cachedIslandPaths: seq[string]
+
+proc decodeSourceIslandAt*(raw: string; currentPath: string; currentLine: int):
+    EditorPane =
+  ## `decodeSourceIsland`, with the decode done ONCE per island.
+  ##
+  ## The island is fixed for the life of a page; only the position moves. A
+  ## live session asks for the pane at every stop, and decoding the whole
+  ## island each time is cheap for one Noir file and not for a Cairo
+  ## transaction's CASM listings — tens of thousands of lines parsed, split and
+  ## numbered again on every step. So the island is decoded with no position
+  ## and kept, and each call applies the position to it with exactly the rule
+  ## `decodeSourceIsland` applies: the document the position names becomes
+  ## active and its line `currentLine` is current; a position in no document
+  ## keeps the island's own active index and marks nothing.
+  if raw.len == 0 or raw != cachedIslandRaw:
+    cachedIslandBase = decodeSourceIsland(raw, "", NoRow)
+    cachedIslandPaths = @[]
+    for d in cachedIslandBase.documents: cachedIslandPaths.add d.path
+    cachedIslandRaw = raw
+  result = cachedIslandBase
+  result.currentLine = currentLine
+  let at = positionDocumentIndex(cachedIslandPaths, currentPath)
+  if at >= 0:
+    result.activeIndex = at
+    for li in 0 ..< result.documents[at].lines.len:
+      if result.documents[at].lines[li].number == currentLine:
+        result.documents[at].lines[li].current = true
+  elif currentPath.len > 0:
+    result.currentLine = 0
+
 proc islandAvailability*(raw: string): SourceAvailabilityView =
   ## What FIDELITY the served island declares, without decoding the documents.
   ##

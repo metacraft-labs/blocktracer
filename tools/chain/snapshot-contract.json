@@ -475,7 +475,9 @@
         "id": {"required": true, "access": "optional", "enforcedBy": "S5-RECORDER-STATED",
                "holds": "the recorder's identity, which every published trace address is derived from"},
         "traceSchema": {"required": true, "access": "optional", "enforcedBy": "S5-RECORDER-STATED",
-                        "holds": "the schema this recorder's containers are written in, which the trace address is also derived from"}
+                        "holds": "the schema this recorder's containers are written in, which the trace address is also derived from"},
+        "artifact": {"required": false, "access": "optional",
+                     "holds": "the `sha256:` digest of the recorder executable that wrote the containers attributed to `runtimeCommit`, folded into their trace address so a change linked into the recorder (its trace writer) moves the address even when the recorder's commit does not. Absent means the commit-only address every earlier snapshot was published under"}
       }
     },
 

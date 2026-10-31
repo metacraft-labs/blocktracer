@@ -73,5 +73,37 @@
       "recorded": "2026-10-22"
     }
   },
-  "_closed": {}
+  "_closed": {},
+  "known_blocked": {
+    "O4/the-control-does-not-say-what-it-would-answer": {
+      "reason": "The arm's assertion — journey 07's `and each control names the origin it would trace to` — is red on the unmutated tree, so the arm cannot be graded: a mutation demonstrates nothing about an assertion that is not green to begin with.",
+      "cause": "An engine defect that predates HSF: a RecordingStart origin summary carries an empty terminator expression, so the one badge that claims an origin names nothing (codetracer-pm issues/2026-10-30-a-recordingstart-origin-summary-carries-an-empty-terminator-expression.md).",
+      "closed_by": "The engine fix that issue asks for. Then the assertion goes green, this arm runs, and a kill fails the run until this entry is deleted.",
+      "recorded": "2026-10-30"
+    },
+    "T/a-hand-on-a-heading": {
+      "reason": "The arm's assertion is journey 12's `nothing that is not an anchor, a button or an interactive role shows the hand`, red on the unmutated tree.",
+      "cause": "Three elements inside CodeTracer's shared views offered the hand with no role and no keyboard path — the Event Log table's `tbody` and the list scrubber's track and thumb — so journey 12's `nothing that is not an anchor, a button or an interactive role shows the hand` is red (3 orphans), and the assertions below it in the same journey report VACUOUS. Fixed on codetracer `agents` at e9623ead54 (the hand only on controls in the shared tables and scrubbers).",
+      "closed_by": "The codetracer agents-to-dev promotion that carries e9623ead54, and BlockTracer's Embed SDK pin moved to that dev (ci/embed-sdk-pin.env, flake.nix, the vendor manifests). Then journey 12 goes green, this arm runs, and a kill fails the run until this entry is deleted.",
+      "recorded": "2026-10-30"
+    },
+    "S/a-hand-on-something-inert": {
+      "reason": "The arm's assertion, journey 12's `NO-SCRIPT: no row that cannot be clicked offers the hand that says it can`, reports VACUOUS on the unmutated tree because an assertion before it in the journey is red.",
+      "cause": "Three elements inside CodeTracer's shared views offered the hand with no role and no keyboard path — the Event Log table's `tbody` and the list scrubber's track and thumb — so journey 12's `nothing that is not an anchor, a button or an interactive role shows the hand` is red (3 orphans), and the assertions below it in the same journey report VACUOUS. Fixed on codetracer `agents` at e9623ead54 (the hand only on controls in the shared tables and scrubbers).",
+      "closed_by": "The codetracer agents-to-dev promotion that carries e9623ead54, and BlockTracer's Embed SDK pin moved to that dev (ci/embed-sdk-pin.env, flake.nix, the vendor manifests). Then journey 12 goes green, this arm runs, and a kill fails the run until this entry is deleted.",
+      "recorded": "2026-10-30"
+    },
+    "CU4/a-role-the-sweep-has-never-heard-of": {
+      "reason": "The arm's assertion, journey 12's `every role the page uses is one this sweep either expects a cursor for or knows is not actuated`, reports VACUOUS on the unmutated tree because an assertion before it in the journey is red.",
+      "cause": "Three elements inside CodeTracer's shared views offered the hand with no role and no keyboard path — the Event Log table's `tbody` and the list scrubber's track and thumb — so journey 12's `nothing that is not an anchor, a button or an interactive role shows the hand` is red (3 orphans), and the assertions below it in the same journey report VACUOUS. Fixed on codetracer `agents` at e9623ead54 (the hand only on controls in the shared tables and scrubbers).",
+      "closed_by": "The codetracer agents-to-dev promotion that carries e9623ead54, and BlockTracer's Embed SDK pin moved to that dev (ci/embed-sdk-pin.env, flake.nix, the vendor manifests). Then journey 12 goes green, this arm runs, and a kill fails the run until this entry is deleted.",
+      "recorded": "2026-10-30"
+    },
+    "V/only-the-clicked-line-is-sent": {
+      "reason": "The arm's assertion, `the forward walk reaches all three marked lines, not just the first` (journey `continuing-stops-at-a-breakpoint`), is red on the unmutated tree: the walk reaches 2 of the 3.",
+      "cause": "The browser engine's continue / reverseContinue do not stop at the breakpoints the session delivered (codetracer-pm issues/2026-10-30-the-browser-engine-s-continue-does-not-stop-at-the-breakpoints-it-was-given.md); the journey is ledgered red on the same cause.",
+      "closed_by": "The engine fix that issue asks for, and client/hydrate/engine-pin.txt moved to a build carrying it. Then this arm runs, and a kill fails the run until this entry is deleted.",
+      "recorded": "2026-10-30"
+    }
+  }
 }

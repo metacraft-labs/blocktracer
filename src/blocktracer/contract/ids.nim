@@ -86,6 +86,21 @@ proc recorderBuildHash*(recorderId, version: string): string =
   ## Deterministic stand-in for `recorderBuildHash` (Trace-Artifacts.md §2.1).
   "sha1:" & sha1LowerHex("recorder" & idSep & recorderId & idSep & version)
 
+proc recorderBuildHash*(recorderId, version, artifact: string): string =
+  ## `recorderBuildHash` for a recorder whose executable is known by digest.
+  ##
+  ## The two-argument form hashes the recorder's SOURCE commit, and a source commit
+  ## does not name the artifact that wrote the bytes. On 2026-10-28 the trace writer
+  ## the chain recorders link moved from `meta.dat` 6 to 7 while every recorder
+  ## commit stayed put: 36 containers changed bytes under 36 unchanged `/t/**`
+  ## addresses, and the staging publish refused all of them as determinism
+  ## incidents. `artifact` is the digest of the executable that ran, so anything
+  ## linked into it moves the address. An empty `artifact` is the two-argument
+  ## form, unchanged, so a snapshot that states none keeps every address it had.
+  if artifact.len == 0: return recorderBuildHash(recorderId, version)
+  "sha1:" & sha1LowerHex("recorder" & idSep & recorderId & idSep & version &
+                         idSep & "artifact" & idSep & artifact)
+
 proc contentHashSha1*(bytes: string): string =
   ## Content hash of a container's bytes. Real pipeline: `blake3:...`.
   "sha1:" & sha1LowerHex(bytes)

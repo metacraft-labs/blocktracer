@@ -496,6 +496,17 @@
       ]
     },
     {
+      "export": "recorderProvenance",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "eth",
+        "flow",
+        "starknet",
+        "sol",
+        "sui"
+      ]
+    },
+    {
       "export": "oneExecutionPerTransaction",
       "module": "tools/chain/lib/producer-runtime.mjs",
       "consumers": [

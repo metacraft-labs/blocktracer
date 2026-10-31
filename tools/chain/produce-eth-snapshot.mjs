@@ -174,7 +174,7 @@ import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import { versionsOf } from './lib/container-versions.mjs';
 import {
   CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
-  refuseOperation as refuse,
+  recorderProvenance, refuseOperation as refuse,
 } from './lib/producer-runtime.mjs';
 import {
   RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
@@ -721,6 +721,9 @@ async function main() {
   const captures = many('capture');
   const recorderLogPaths = many('recorder-log');
   const recorderCommit = flag('recorder-commit');
+  // The executable that ran, whose digest moves every trace address with it — see
+  // `recorderProvenance`. Optional so a hand run keeps working; every capture script passes it.
+  const recorderBinary = flag('recorder-binary');
   const outDir = flag('out');
   const chain = flag('chain', CHAIN_SLUG);
   const label = flag('label', 'Real Ethereum mainnet data');
@@ -1497,7 +1500,7 @@ async function main() {
       chain,
       label,
       endpoint: endpointLabel,
-      recorder: { ...RECORDER },
+      recorder: recorderProvenance(RECORDER, recorderBinary),
       prestateStrategy: PRESTATE_STRATEGY,
       capturedAt,
       nodeVersion: control.cls === 'absent' && clientVersion.cls === 'ok'

@@ -180,6 +180,7 @@ node tools/chain/produce-eth-snapshot.mjs \
   --capture "$capture" \
   --recorder-log "$log" \
   --recorder-commit "$recorder_commit" \
+  --recorder-binary "$recorder_abs" \
   --rpc-url "$rpc" \
   --out "$out" \
   ${provenance_args[@]+"${provenance_args[@]}"} \

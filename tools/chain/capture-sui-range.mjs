@@ -258,7 +258,7 @@ async function main(argv) {
 
   const produce = [join(HERE, 'produce-sui-snapshot.mjs'),
     '--acquisition', acquisitionPath, '--replay-root', join(work, 'replay'),
-    '--recorder-commit', recorderCommit, '--out', out,
+    '--recorder-commit', recorderCommit, '--recorder-binary', resolve(recorder), '--out', out,
     ...(a.get('ct-print') ? ['--ct-print', a.get('ct-print')] : []),
     ...(a.get('positions-reader') ? ['--positions-reader', a.get('positions-reader')] : []),
     ...recDirs.flatMap((d) => ['--rec', d])];

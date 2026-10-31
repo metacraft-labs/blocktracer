@@ -188,8 +188,19 @@ proc paneTab(title, targetId: string; linked, isDefault: bool): string =
       else:
         span(class = "lm_title"): text title
 
-proc paneChrome(title, id, cls, body: string; weight = 1.0): string =
+proc paneChrome(title, id, cls, body: string; weight = 1.0;
+                header = true): string =
   ## One pane: a one-tab stack, and a scrolling panel.
+  ##
+  ## `header = false` IS THE CODE PANE, AND IT IS NOT AN EXCEPTION TO THE RULE
+  ## ABOVE — it is that rule applied to the one pane whose tabs are its
+  ## CONTENT. A panel's name is always a tab, and the Code pane's names are its
+  ## open files: `renderSource`'s `.srcstrip` is a `.lm_header` holding one
+  ## `.lm_tab` per document, rendered inside the document panel so the active
+  ## one is right with no JavaScript. Giving the stack a header as well put a
+  ## tab reading "CODE" above a second file strip drawn by different rules —
+  ## two strips, two idioms, and a heading the product does not need. The file
+  ## tabs are the header now, and the stack has none of its own.
   ##
   ## Every pane gets the same chrome — including the metadata pane, which is
   ## what makes §7.1's "a pane … rather than a bespoke surface" true of the
@@ -200,11 +211,16 @@ proc paneChrome(title, id, cls, body: string; weight = 1.0): string =
   ## has to be able to name — the tab strip's links, `?pane=`, a shared deep
   ## link and the capture harness's `#pane-eventlog` all resolve to a PANEL —
   ## and one id cannot be both the region and the panel inside it.
+  let strip =
+    if not header: ""
+    else: (block:
+      ui:
+        tdiv(class = "lm_header"):
+          ul(class = "lm_tabs"):
+            raw paneTab(title, id, linked = false, isDefault = true))
   ui:
     tdiv(class = "ln lm_stack " & weightClass(weight)):
-      tdiv(class = "lm_header"):
-        ul(class = "lm_tabs"):
-          raw paneTab(title, id, linked = false, isDefault = true)
+      raw strip
       tdiv(class = "lm_items"):
         tdiv(class = "lm_content btdefault " & cls, id = id):
           tdiv(class = "component-container"):
@@ -300,12 +316,25 @@ proc renderAnnotations*(annotations: seq[LineAnnotation];
   ## backwards, and the direction of that arrow is the whole content of the
   ## label.
   ##
-  ## ## Why the pass is a class and not a filter
+  ## ## Only the displayed pass is emitted, and it used to be all of them
   ##
-  ## Every pass the window carries is in the markup and the stylesheet shows
-  ## one. That is what makes the iteration rail work with scripting off; see
-  ## `flow_view.applyFlow`. `fv-any` is a line outside every loop and is always
-  ## shown.
+  ## Every pass the window carried was in the markup, with the stylesheet
+  ## showing one — which is what made the loop-iteration rail work with
+  ## scripting off: its segments were `:target` links and a generated ladder
+  ## swapped which pass's labels were displayed.
+  ##
+  ## That control has been removed (`renderSource`), so no selector can reach
+  ## another pass any more, and the labels for them would be markup nothing can
+  ## ever display: on a line inside the demo's eight-pass loop, seven labels out
+  ## of eight, on every line of every loop. `flow_view.applyFlow` still LAYS OUT
+  ## every pass — it is the pane's model of what the recording holds, and the
+  ## omniscience suite checks the recording against it pass by pass — and the
+  ## filter is here, at the one layer that knows what is drawn.
+  ##
+  ## The `fv-i<N>` class stays on the chip that survives, because it is what
+  ## `.fv.now` is derived from and because a label that names its own pass is
+  ## what a reader hovers to find out which one they are looking at. `fv-any`
+  ## is a line outside every loop and belongs to all of them.
   ##
   ## ## Every recorded value is emitted
   ##
@@ -327,10 +356,11 @@ proc renderAnnotations*(annotations: seq[LineAnnotation];
   proc chip(a: LineAnnotation): string =
     let now = (if a.iteration < 0 or a.iteration == selected: " now" else: "")
     ui:
-      # `.now` is the pass the SESSION is in, and it is what the stylesheet
-      # shows when no rail segment is targeted. A label outside every loop
-      # (`iteration == NoIteration`) is `.now` in every pass, because there is
-      # no other pass it could belong to.
+      # `.now` is the pass the pane is drawing, and it is what the stylesheet
+      # shows. Since the caller now emits no chip for any other pass this is
+      # true of every chip that reaches here — it is kept because `.fv` is
+      # `display:none` by default and `.fv.now` is what turns one on, so a chip
+      # without it would be invisible rather than merely unmarked.
       span(class = "fv " & $a.slot & " m-" & $a.mode & " " &
                    iterationClass(a.iteration) & now,
            title = annotationText(a),
@@ -358,146 +388,11 @@ proc renderAnnotations*(annotations: seq[LineAnnotation];
   result = ui:
     span(class = "ann"):
       for a in annotations:
-        raw chip(a)
-
-proc renderFlowRail*(rail: FlowRail): string =
-  ## The loop-iteration control: `[Iteration: 3/8]` and a track.
-  ##
-  ## ## Two marks, because there are two facts
-  ##
-  ## `.here` is the pass the SESSION is in. It never moves, because moving the
-  ## rail does not move the debugger on a page with no script. `.showing` is the
-  ## pass whose values are on screen, and it is what a segment link changes.
-  ## Collapsing them into one mark would make a reader who looked at pass 0
-  ## believe the session had gone there — which, once hydration lands and the
-  ## click really does seek, would be true half the time and false the other
-  ## half. Two marks are correct in both states.
-  ##
-  ## ## What an unreached segment is, and why it is not hidden
-  ##
-  ## The window is cut at the session's position, so a pass the session has not
-  ## entered carries no values AT THIS COORDINATE. Its segment renders inert and
-  ## says why. Hiding it would misreport the loop's length; offering it would
-  ## promise values that a still frame cannot honestly produce. It becomes live
-  ## on hydration, because a live session can seek to it — `data-step` is its
-  ## header tick and `hydrate.bindGestures` hands that to `ct/goto-ticks`, the
-  ## same primitive a call-trace row already uses. No new protocol.
-  if rail.loopIndex <= 0 or rail.iterations.len == 0: return ""
-  let total = rail.iterations.len
-  let shown = min(total, MaxStaticIterations)
-
-  # The `:target` anchors, as siblings BEFORE the rail and the listing. CSS has
-  # only sibling combinators, so an id nested inside the rail could not reach
-  # the listing at all; the same constraint shapes `renderStack` and the source
-  # tab strip, and the same answer works here.
-  #
-  # Concatenated rather than emitted from one `ui:` block with the rail. A block
-  # with two roots is WRAPPED in an anonymous `<div>`, and that wrapper is not a
-  # cosmetic difference: it puts the anchors and the listing in different
-  # parents, so `#fit-3:target ~ .srcwrap` matches nothing and the whole control
-  # silently does nothing. It also gave `.srcwrap` an auto-height parent to
-  # resolve its `height:100%` against, which collapsed the code listing to zero
-  # rows — the pane rendered its tab strip over an empty well. Both were caught
-  # by looking at a capture, not by a test, which is why `test_debug_route` now
-  # asserts the anchors are emitted AND that they are siblings of the listing.
-  # Which passes get a counter: every one on the track, PLUS the selected one
-  # when the session is past the ladder's end. Without that second half a loop
-  # with more passes than the ladder would render its track, render its "showing
-  # the first 16 of 21" notice, and render NO `Iteration N of M` at all — the
-  # one line of the control that says where you are, missing exactly in the case
-  # the clamp exists to be honest about.
-  var counters: seq[int] = @[]
-  for i in 0 ..< shown: counters.add i
-  if rail.selected >= shown and rail.selected < total: counters.add rail.selected
-
-  var targets = ""
-  for i in 0 ..< shown:
-    let anchor = ui:
-      span(class = "frtarget", id = railTargetId(i)): text ""
-    targets.add anchor
-  let bar = ui:
-    tdiv(class = "flowrail"):
-      span(class = "frtitle"):
-        text "Loop"
-        if rail.label.len > 0:
-          span(class = "frfn"): text rail.label
-      # WHERE THE HEADER IS, AS A LINK ONLY WHEN THERE IS SOMEWHERE TO GO.
-      #
-      # `rail.href` is complete — see `session_view.FlowRail.href` for why this
-      # is not an id the renderer wraps in a `#`. It used to be, and the `#` this
-      # line added was the defect: it asserted the target was on this page over a
-      # pane that had since been narrowed to lines that did not include it.
-      #
-      # An empty href means no surface reachable from here renders that line. The
-      # element then drops to a `span` — same text, same position, and no
-      # underline, no pointer, no tooltip promising a destination. The line
-      # number is a FACT and stays; only the affordance is conditional, because
-      # an anchor that cannot arrive is the failure being fixed and `href=""`
-      # (which reloads the page) would be a fresh one.
-      if rail.href.len > 0:
-        a(class = "frline", href = rail.href,
-          title = "Go to the loop header"):
-          text "line " & $rail.line
-      else:
-        span(class = "frline noloc"): text "line " & $rail.line
-      # ONE COUNTER PER PASS, and the stylesheet shows one — the same mechanism
-      # as the labels, for the same reason. CSS can switch which element is
-      # displayed and cannot rewrite text, so a single server-rendered counter
-      # would keep saying "Iteration 3 of 8" while the rail displayed pass 1's
-      # values. That is the control contradicting the thing it controls, in the
-      # one place a reader looks to find out which pass they are looking at.
-      for i in counters:
-        span(class = "frcount num c" & $i &
-                     (if i == rail.selected: " now" else: "")):
-          text "Iteration " & $(i + 1) & " of " & $total
-      span(class = "frtrack"):
-        # Indexed rather than filtered: the `ui` DSL builds its result inside
-        # the loop body, so a `continue` past a clamped segment leaves it with
-        # unreachable code. Bounding the range says the same thing and says it
-        # once.
-        for i in 0 ..< shown:
-          let it = rail.iterations[i]
-          let mark = " s" & $it.index &
-                     (if it.index == rail.active: " here" else: "") &
-                     (if it.index == rail.selected: " showing" else: "") &
-                     (if rail.navigable or it.reached: " got" else: " out")
-          if rail.navigable:
-            # A live session SEEKS. There is no `href`, because the target
-            # mechanism switches which recorded pass is displayed and this
-            # segment does something else entirely — it moves the debugger to
-            # that pass's header tick. `hydrate.bindGestures` binds it, through
-            # the same `data-step` a call-trace row already carries.
-            span(class = "frseg" & mark, `data-step` = $it.ticks,
-                 title = "Go to pass " & $(it.index + 1) & " of this loop"):
-              span(class = "frnum"): text $(it.index + 1)
-              span(class = "frhere")
-              span(class = "frdot")
-          elif it.reached:
-            a(class = "frseg" & mark, href = "#" & railTargetId(it.index),
-              `data-step` = $it.ticks,
-              title = "Show pass " & $(it.index + 1) & " of this loop"):
-              span(class = "frnum"): text $(it.index + 1)
-              span(class = "frhere")
-              span(class = "frdot")
-          else:
-            # Not a link. `Page-Descriptions` §7.0's rule about affordances
-            # applies inside a control as well as to a whole page: this one
-            # cannot act on a page with no engine, so it does not offer to.
-            span(class = "frseg" & mark,
-                 `data-step` = $it.ticks,
-                 `aria-disabled` = "true",
-                 title = "The session has not reached pass " &
-                         $(it.index + 1) & " at this position."):
-              span(class = "frnum"): text $(it.index + 1)
-              span(class = "frhere")
-              span(class = "frdot")
-      if total > shown:
-        # Clamped, and SAYING SO — `MaxIndentDepth`'s rule. A rail that silently
-        # stopped at sixteen would misreport how many times the loop ran.
-        span(class = "frmore"):
-          text "Showing the first " & $shown & " of " & $total &
-               " passes; the rest need the live session."
-  targets & bar
+        # `< 0` is `NoIteration`: a label outside every loop, true in every
+        # pass. Anything else belongs to one pass, and only the displayed one
+        # is drawn.
+        if a.iteration < 0 or a.iteration == selected:
+          raw chip(a)
 
 proc renderPositionHead(pos: DebugControlsPane): string =
   ## THE POSITION, FOR A PANE THAT HAS NO LINE TO PUT IT ON.
@@ -668,7 +563,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   # what a document IS.
   let listing = p.documents.len > 0 and
                 p.availability in {srcUnverified, srcSourceLevel} and
-                activeDocument(p).path == ListingPath
+                activePath(p) == ListingPath
   if p.documents.len == 0 or
      (p.availability != srcSourceLevel and not listing):
     # The head FIRST, and outside `.srcnone`. A reader asking "where is this
@@ -745,7 +640,11 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
                          "meantime."):
             text "Supply sources"
     return renderPositionHead(pos) & none
-  let doc = activeDocument(p)
+  # ADDRESSED IN PLACE, not copied: `activeDocument` returns the document by
+  # value, and a Cairo transaction's listing is tens of thousands of lines,
+  # copied on every stop.
+  let docIndex = activeIndexOf(p)
+  template doc: untyped = p.documents[docIndex]
 
   # THE SHORTEST TAIL OF EACH PATH THAT IS STILL UNIQUE, and it is a real defect
   # this fixes rather than a tidy-up.
@@ -801,11 +700,29 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     ## documents would each have lost their tab strip to a caption describing a
     ## bytecode object none of them is. `tabStrip` is called once per panel with
     ## that panel's own path, so the panel can answer for itself.
-    if activePath == ListingPath and p.listingCaption.len > 0:
+    # A LISTING-ONLY PANE GETS THE CAPTION AND KEEPS THE STACK'S HEADER; A
+    # LISTING BESIDE SOURCE GETS BOTH THE STRIP AND THE CAPTION.
+    #
+    # The argument for the caption is unchanged and is in this proc's header: a
+    # tab strip answers "which of these files am I looking at", and a listing on
+    # its own is one bytecode object, so a one-tab strip would be a control with
+    # one option. What changed is that the strip is now also the pane's HEADER
+    # (`renderLayout` gives `paneEditor` no `lm_header` when it draws one), and
+    # a panel that replaces it with a caption leaves the pane with no name at
+    # all. `editorKeepsStackHeader` is the other half of this decision and the
+    # two have to agree; it is asserted in `test_debug_route`.
+    #
+    # On a UNION pane the caption is emitted under the strip instead of in place
+    # of it. Measured on `/aztec-testnet-frames/tx/0x006894…`: targeting the
+    # listing document dropped the header, so the Code pane lost its title on
+    # one of its own tabs — journey 01 counted four pane titles where it
+    # requires five.
+    let listingPanel = activePath == ListingPath and p.listingCaption.len > 0
+    if listingPanel and p.documents.len <= 1:
       return ui:
         p(class = "instrcap"): text p.listingCaption
     var allPaths: seq[string]
-    for d in p.documents: allPaths.add d.path
+    for di in 0 ..< p.documents.len: allPaths.add p.documents[di].path
 
     # ONE ROW, AND THE OVERFLOW IS A DROPDOWN MENU.
     #
@@ -914,7 +831,37 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
           span(class = "srcallmore"):
             text "All " & $p.documents.len & " files ▾"
           span(class = "srcallless"): text "Close ▴"
-    ui:
+    # CONCATENATED, NOT A TWO-ROOT `ui:` BLOCK. A block with two roots is
+    # wrapped in an anonymous `<div>`, and that wrapper would become
+    # `.srcdoc`'s only child — the panel is a flex COLUMN whose strip is
+    # `flex:0 0 auto` and whose listing is `flex:1 1 0`, and both would be
+    # measuring against the wrapper instead. `renderSource`'s own `wrap` and
+    # the rail that used to sit beside it both record the same hazard.
+    let caption =
+      if not listingPanel: ""
+      else: (block:
+        ui:
+          p(class = "instrcap"): text p.listingCaption)
+    let strip = ui:
+      # `lm_header` ON THE STRIP, AND THE STRIP IS NOW THE PANE'S ONLY HEADER.
+      #
+      # The Code pane used to carry TWO strips: GoldenLayout's, holding one tab
+      # reading "CODE", and this one below it, holding the file names drawn as
+      # bold text by rules of BlockTracer's own. A reader reported both halves —
+      # the label is a heading the product does not need, and the file names
+      # "should become standard tabs". They are the same finding twice: in
+      # CodeTracer the editor stack's tabs ARE the open files, so a pane title
+      # over a second, differently-drawn file strip is one strip too many and
+      # the wrong one is the real tab.
+      #
+      # So `renderLayout` renders no `.lm_header` for `paneEditor` (see its
+      # `lnPane` arm) and this strip takes the class instead. It stays INSIDE
+      # the document panel, rendered once per panel, because that is what keeps
+      # the active tab correct for N documents with no JavaScript — the long
+      # argument at the top of this proc. Exactly one panel is displayed, so
+      # exactly one strip is, and it lands at the top of the pane where the
+      # other panes' tabs are.
+      #
       # `class="srctabs"` STAYS EXACTLY THAT, alone in its attribute. Four suites
       # match the literal `class="srctabs"` — `test_instruction_listing` asserts
       # it occurs zero times over a listing and more than zero over source, and
@@ -922,10 +869,11 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
       # it would fail one of them and silently make the other two vacuous. The
       # scrolling behaviour therefore goes on `.srctabs` itself and the new
       # parts get a wrapper of their own.
-      tdiv(class = "srcstrip"):
+      tdiv(class = "srcstrip lm_header"):
         raw toggle
         nav(class = "srctabs"):
-          for d in p.documents:
+          for di in 0 ..< p.documents.len:
+            template d: untyped = p.documents[di]
             # `ct-tab` is APPENDED, never prepended: `test_debug_route` matches
             # the literal `class="srctab`, so the first class stays put. The nav
             # above keeps `class="srctabs"` alone, for the four suites named there.
@@ -941,12 +889,27 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
             # `data-selected` as well as `.on`: tab.styl carries the selected
             # treatment on the attribute and `.on` is BlockTracer's spelling, so
             # emitting both leaves neither side's rules dark.
-            a(class = "srctab ct-tab" & (if d.path == activePath: " on" else: ""),
+            #
+            # `lm_tab` / `lm_title` / `lm_active`, which is the whole of what
+            # "standard tabs" costs: those three classes are what
+            # `golden_layout.styl` draws a tab with, the port emits its rules
+            # verbatim, and `.lm_active` is a REAL class here rather than the
+            # `btdefault` stand-in `renderStack` needs — this strip is rendered
+            # once per panel with that panel's own tab marked, so the active tab
+            # is known at render time and no `:target` substitution is involved.
+            #
+            # `.on` and `data-selected` are kept beside them. `.on` is
+            # BlockTracer's spelling and three journeys read `.srctab.on`;
+            # `tab.styl` carries the design system's selected treatment on the
+            # attribute. Emitting all three leaves no side's rules dark.
+            a(class = "srctab lm_tab ct-tab" &
+                      (if d.path == activePath: " on lm_active" else: ""),
               href = "#" & docAnchor(d.path),
               title = d.path,
               `data-selected` = (if d.path == activePath: "true" else: "false")):
-              text tabLabel(d.path, allPaths)
+              span(class = "lm_title"): text tabLabel(d.path, allPaths)
         raw opener
+    strip & caption
 
   proc body(d: SourceDocument): string =
     ## One document's lines, plus the notice when the pane opens part-way in.
@@ -1015,7 +978,10 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
             else:
               text "Lines " & $first & "–" & $last &
                    ", centred on where the session is stopped."
-        for ln in d.lines:
+        # By index and in place: `for ln in d.lines` copies each line object
+        # on the JS backend, and a CASM listing has tens of thousands.
+        for lnIndex in 0 ..< d.lines.len:
+          template ln: untyped = d.lines[lnIndex]
           tdiv(class = "srcline" &
                        (if ln.current: " cur" else: "") &
                        (if ln.executed: " hit" else: "") &
@@ -1277,7 +1243,10 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   # forward and hide it. CSS has only a forward sibling combinator, and the
   # active document is the one every alternate has to be able to displace.
   var panels = ""
-  for d in p.documents:
+  # By index and in place, for the reason `doc` above is: each `d` would
+  # otherwise be a copy of a whole document.
+  for di in 0 ..< p.documents.len:
+    template d: untyped = p.documents[di]
     if d.path == doc.path: continue
     let alt = ui:
       tdiv(class = "srcdoc alt", id = docAnchor(d.path), `data-path` = d.path):
@@ -1397,7 +1366,22 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
           p(class = "btnote"): text p.coverageNote)
 
   if not listing:
-    return renderFlowRail(p.flow) & rung & cause & attribution & wrap
+    # NO LOOP RAIL ABOVE THE TAB STRIP. `renderFlowRail` used to be the first
+    # thing this branch emitted: a strip reading
+    # `LOOP iterate_asteroids line 4  Iteration 3 of 8  [1][2][3]…[8]`, sitting
+    # between the pane's title and the file tabs. A reader's report was that
+    # they could not tell what it was for and that it should go, in the same
+    # breath as the "CODE" title above it — two pieces of chrome stacked over
+    # the file names, on the one pane whose header should BE the file names.
+    #
+    # What goes with it: the `.frtarget` anchors, the `#fit-N:target` ladder in
+    # `debugger_css.nim` that those anchors drove, and the per-pass layout in
+    # `flow_view.applyFlow` that existed to fill the passes the ladder could
+    # reach. A static pane now lays out the pass the SESSION is in and draws
+    # that one, which is what `.fv.now` and `.ntnow` have always shown before
+    # any segment was targeted. Nothing a reader could see without operating the
+    # removed control is different.
+    return rung & cause & attribution & wrap
 
   # ── the instruction listing's own chrome ──────────────────────────────────
   #
@@ -1435,6 +1419,21 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
                      "The instructions below are what this recording carries."):
         text "Supply sources"
   renderPositionHead(pos) & rung & cause & attribution & why & wrap
+
+const ValueCutHint* = 24
+  ## Above how many characters a Values row is given a `title` carrying its
+  ## whole value.
+  ##
+  ## A HEURISTIC AND SAID TO BE ONE. The pane cuts what does not fit
+  ## (`.stval`, `text-overflow:ellipsis`), and how much fits is a function of
+  ## the pane's width, the viewport and the font — none of which a static
+  ## renderer knows. So this is not "the value is cut"; it is "the value is
+  ## long enough that it MIGHT be", and the cost of being wrong is asymmetric:
+  ## over-marking adds a tooltip repeating text the reader can already see,
+  ## under-marking loses data the page holds — so it is set LOW on purpose and
+  ## is not tuned to a measured width. It is close to CodeTracer's own
+  ## `FLOW_VALUE_LIMIT` (30 characters, `ui/flow.nim`), which is the one number
+  ## upstream has for "this is long enough to need cutting".
 
 const MaxIndentDepth* = 8
   ## The depth the indentation ladder in `debugger_css.nim` has rules for.
@@ -1767,10 +1766,32 @@ proc renderCallTrace*(p: CallTracePane; part = ctpWhole): string =
         if part == ctpLiveShell:
           tdiv(class = CallTraceMountClass)
         else:
-          raw head("Frame", p.costLabel, withCalls = false)
+          # NO COLUMN HEADER OVER THE FRAMES, and two separate findings land on
+          # the same deletion.
+          #
+          # CodeTracer's call trace has none: it is a TREE of calls, and a tree
+          # does not get a `FRAME | ACIR opcodes` strip over it any more than a
+          # file listing gets one. A reader comparing the two panes reported
+          # this one as "looks different", and the header was the first thing
+          # on it that upstream has no counterpart for.
+          #
+          # And it was `position:sticky` with no `z-index`, so while the pane
+          # scrolled it floated over the rows passing under it and let them
+          # paint through — reported as "some kind of floating element that
+          # obscures the others while scrolling", and reproduced in Chromium on
+          # the home page's embed at 1680×1050.
+          #
+          # The unit it carried moves to the footer, which is the one strip
+          # this view keeps and already names the ordering. It is said once per
+          # pane there instead of once per pane here, which is what the header
+          # was for.
           raw rows(p.frames)
         tdiv(class = "ctfoot"):
-          span: text "By call order."
+          span:
+            text "By call order."
+            if unit.len > 0:
+              text " "
+              span(class = "ctunit"): text p.costLabel & " " & unit & "."
           a(class = "ctsort", href = "#" & SelfCostViewId): text "Self cost"
 
 proc originStNote(note: string): string =
@@ -1864,7 +1885,24 @@ proc renderState*(p: StatePane): string =
           # end rather than trailing the name, so it is scannable down the
           # pane instead of landing at a different x on every row.
           span(class = "stname"): text v.name
-          span(class = "stval " & Copyable): text v.value
+          # `title` ON THE VALUE, because the value is now CUT rather than
+          # wrapped. `state.styl` states the rule upstream enforces — "the pane
+          # does NOT scroll sideways. A value that does not fit is cut with
+          # `…`, and its whole text is on hover" — and a cut with no way back to
+          # the full text would be this pane losing data it holds. Only when
+          # there is something to recover: an attribute repeating a string that
+          # is already fully visible is noise in the markup and a tooltip that
+          # tells a reader what they can already see.
+          #
+          # TWO BRANCHES AND NOT A CONDITIONAL ATTRIBUTE VALUE, because `title =
+          # ""` is still a `title` attribute. It shipped on every short value —
+          # eight bytes a row across every page, and a literal
+          # `<span class="stval copyable">9000</span>` that `tests/tdebugpanes`
+          # matches exactly stopped matching, which is how it was found.
+          if v.value.len > ValueCutHint:
+            span(class = "stval " & Copyable, title = v.value): text v.value
+          else:
+            span(class = "stval " & Copyable): text v.value
           span(class = "sttype"): text v.typ
           # THE ORIGIN CONTROL, on the rows that have an origin and on no
           # others. `v.origin` is the classified terminator expression, so the
@@ -2606,6 +2644,33 @@ proc paneBody(kind: PaneKind; s: DebugSessionView): string =
     # surfaces a recorded transaction does not have, so none is placed.
     paneNote("The " & $kind & " pane is not part of BlockTracer's session.")
 
+func editorKeepsStackHeader*(p: EditorPane): bool =
+  ## Whether the Code pane needs the stack to name it.
+  ##
+  ## It does NOT when `renderSource.tabStrip` draws a file strip, because that
+  ## strip is a `.lm_header` and is the pane's name — one header per pane, and
+  ## the one that names the file is the right one. It DOES in the two states
+  ## where no strip is drawn:
+  ##
+  ##   * no documents at all (`srcAbsent`, or a recording with nothing to show),
+  ##     where `renderSource` returns the position head and a reason; and
+  ##   * a pane that is ONLY an instruction listing, where the caption names the
+  ##     columns instead — `tabStrip`'s own argument, which this agrees with
+  ##     rather than overrides.
+  ##
+  ## A union pane — a listing BESIDE source documents — draws the strip, and the
+  ## listing panel carries the caption under it. So the header is never absent
+  ## and never doubled, in any of the four states the pane has.
+  ##
+  ## THE TWO PROCS MUST AGREE AND NOTHING MAKES THEM. `tabStrip` decides what it
+  ## draws from `p`, and this decides whether to draw a header over it from the
+  ## same `p`; they are in different procs because one is called per panel and
+  ## the other once per pane. `test_debug_route` walks all four states and
+  ## asserts exactly one header in each, which is what holds them together.
+  if p.documents.len == 0: return true
+  p.documents.len == 1 and p.documents[0].path == ListingPath and
+    p.listingCaption.len > 0
+
 proc paneClass*(kind: PaneKind): string =
   case kind
   of paneEditor: "p-source"
@@ -2673,8 +2738,14 @@ proc renderLayout*(node: LayoutNode; s: DebugSessionView): string =
   if node.isNil: return ""
   case node.kind
   of lnPane:
+    # The Code pane's header is its file strip, which `renderSource` draws
+    # inside the document panel — except in the states where it draws none, and
+    # then the stack names the pane as it does every other. See `paneChrome`'s
+    # `header` parameter and `editorKeepsStackHeader`.
     paneChrome(node.title, paneId(node.pane), paneClass(node.pane),
-               paneBody(node.pane, s), node.weight)
+               paneBody(node.pane, s), node.weight,
+               header = node.pane != paneEditor or
+                        editorKeepsStackHeader(s.editor))
   of lnStack:
     renderStack(node, s)
   of lnRow, lnColumn:
