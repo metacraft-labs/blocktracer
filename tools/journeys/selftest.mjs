@@ -538,9 +538,16 @@ const ARMS = [
       " position moves, the values are the engine's: every reading taken AFTER a" +
       " step is green, which is why this survived journeys 03, 09 and 11 for the" +
       " life of the route. Only a reading taken during the step can see it.",
+    // RE-AIMED 2026-10-31. This removed `writePane`'s guard, which a live page
+    // reaches almost never now: the source pane moves its mark in place
+    // (`writeEditor`) and the other three panes are CodeTracer's shared views,
+    // whose sections around them are written by `writeSlot` on every paint —
+    // and SURVIVED for that reason (selftest at 3c1d0d6). `writeSlot`'s own
+    // guard is now the one that keeps a paint from rewriting what a pane
+    // already says.
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  if pane.latched and html == pane.written: return`,
-    replace: `  if false and pane.latched and html == pane.written: return`,
+    find: `  if html == slot.written: return\n  let target = pane.querySelector(selector)`,
+    replace: `  let target = pane.querySelector(selector)  # MUTATED: no content guard`,
     journey: "a-step-repaints-only-what-it-changed",
     assertion: "no pane write rewrote the markup the pane already held",
   },
