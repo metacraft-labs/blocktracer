@@ -240,6 +240,26 @@ jobs:
             exit 1
           fi
 
+      - name: Verify no file in the publish dir exceeds Cloudflare Pages' 25 MiB per-file limit
+        # Pages refuses the WHOLE deployment if one file is over 25 MiB, and says so only
+        # after the upload has started ("Pages only supports files up to 25 MiB in size").
+        # PR #89's dev preview (run 41154398006, agents 0992a13) failed that way on one
+        # Starknet transaction page of 31.2 MiB. This names every offender before the upload.
+        # R2 has no such limit, so staging is not gated here; the page itself is
+        # codetracer-pm issues/2026-10-31-blocktracer-starknet-casm-debug-page-exceeds-the-pages-file-limit.md.
+        run: |
+          set -euo pipefail
+          limit=$((25 * 1024 * 1024))
+          over=$(find site -type f -size +"${limit}"c -printf '%s\t%P\n' | sort -rn)
+          largest=$(find site -type f -printf '%s\t%P\n' | sort -rn | head -5)
+          echo "largest files (bytes):"; printf '%s\n' "$largest"
+          if [ -n "$over" ]; then
+            while IFS=$'\t' read -r size path; do
+              echo "::error file=site/${path}::${path} is ${size} bytes; Pages accepts at most ${limit} per file"
+            done <<< "$over"
+            exit 1
+          fi
+
       - name: Verify the published site can actually start an engine
         # The deploy that caused this whole investigation was green. A green
         # build that publishes a site whose worker 404s must not be able to
