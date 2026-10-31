@@ -775,8 +775,26 @@ a.lm_title{display:block;line-height:inherit}
    `:has()` and not `.p-source` flat, because the Code pane does not always
    draw one: a listing on its own, or a pane with no documents, keeps the
    stack's header (`components/debugger.editorKeepsStackHeader`) and with it
-   the inset every other panel has. */
-[data-register="debugger"] .lm_content.p-source:has(.srcstrip){padding-top:0}
+   the inset every other panel has.
+
+   THE INSET IS MOVED, NOT DROPPED, and the 0.5rem below is the same 0.5rem.
+   Zeroing it outright was the first answer and it cost a pixel: with no inset
+   on either side this pane's children fill its fractional height exactly, the
+   scroll maximum lands on a fraction while `scrollHeight - clientHeight`
+   reports a whole number, and `scrollTop` at that maximum is one pixel past
+   where the next layout will allow. Opening the file list is a layout, so the
+   browser clamped 378 to 377 and the source moved a pixel DOWN and stayed
+   there — `a-long-file-list-fits-on-one-row`'s "opening the file list moves
+   neither the source nor the row it opened from", and only ever with the pane
+   scrolled to its very bottom, which is why it read as flaky. Measured at
+   1440x900 on /aztec-testnet-frames/tx/0x0a807e4e…/debug, 33 documents: with
+   the pane parked at its maximum, 3 of 3 trials displaced here against 0 of 3
+   at 6aeb3e8, before this strip existed; 0 of 2 with the inset restored at the
+   top and 0 of 2 with it at the bottom; and the journey itself 4 of 4 green
+   after, against 2 of 3 RED before. It is restored at the bottom because the
+   top is the one place it cannot go: that is where the header is. */
+[data-register="debugger"] .lm_content.p-source:has(.srcstrip){
+  padding-top:0;padding-bottom:0.5rem}
 /* THE ROW'S OWN INSET STAYS, AND TAKING IT OUT TO LINE THIS STRIP UP WITH THE
    PANE TABS WAS TRIED TWICE AND PUT BACK BOTH TIMES.
    `.lm_tabs` has no padding, so the first pane tab is flush with its panel's
