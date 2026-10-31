@@ -922,7 +922,10 @@ jobs:
           # visitor's console.
           page="$(find site -path '*/tx/*/debug/index.html' -print -quit)"
           if [ -n "$page" ]; then
-            base="$(grep -oE 'data-replay-engine="[^"]*"' "$page" | head -1 |
+            # `awk NR==1` and not `head -1`: under `set -o pipefail` a `head` that
+            # closes the pipe early makes the pipeline fail on EPIPE, which took
+            # a Pages gate's whole diagnostic with it in run 41165206861.
+            base="$(grep -oE 'data-replay-engine="[^"]*"' "$page" | awk 'NR == 1' |
                     sed 's/.*="//; s/"$//')"
             echo "pages request their engine from: ${base:-<none>}"
             if [ "$base" != "/replay-engine/" ]; then
