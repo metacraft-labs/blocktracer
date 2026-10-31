@@ -58,7 +58,7 @@ import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import {
   CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
-  refuseOperation as refuse,
+  recorderProvenance, refuseOperation as refuse,
 } from './lib/producer-runtime.mjs';
 import {
   RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
@@ -144,6 +144,9 @@ async function main() {
   const inputsDir = flag('inputs');
   const captures = many('capture');
   const recorderCommit = flag('recorder-commit');
+  // The executable that ran, whose digest moves every trace address with it — see
+  // `recorderProvenance`. Optional so a hand run keeps working; every capture script passes it.
+  const recorderBinary = flag('recorder-binary');
   const outDir = flag('out');
   const ctPrint = ctPrintPath(flag('ct-print'));
   for (const [n, v] of [['block', blockPath], ['floor-probe', floorPath], ['inputs', inputsDir],
@@ -315,7 +318,7 @@ async function main() {
       chain: CHAIN_SLUG,
       label: 'Real Flow mainnet data',
       endpoint: anyTranscript.accessNode,
-      recorder: { ...RECORDER },
+      recorder: recorderProvenance(RECORDER, recorderBinary),
       prestateStrategy: PRESTATE_STRATEGY,
       reachReason: reachReasonFor(floor),
       verification: VERIFICATION,

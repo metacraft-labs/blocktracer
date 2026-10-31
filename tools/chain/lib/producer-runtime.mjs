@@ -42,6 +42,7 @@
 // 7→10 … Recorded for DEL-7, which is where a second producer's shapes are compared" —
 // and this is that comparison.
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 
 // ── the operational refusal, and the exit code it decides ─────────────────────────────
@@ -151,6 +152,41 @@ export function containerReaderPath({ explicit, fallbacks = [], hint = '' } = {}
     `no container reader found. Pass --ct-print <path> or set $CT_PRINT.`
     + (cands.length ? ` Tried: ${cands.join(', ')}.` : '')
     + (hint ? ` ${hint}` : ''));
+}
+
+// ── the recorder executable, as the trace address needs it ────────────────────────────
+
+/**
+ * `provenance.recorder`, with the digest of the executable that ran when one is named.
+ *
+ * THE RECORDER COMMIT IS NOT THE RECORDER. Every chain recorder links the trace writer
+ * statically, at a revision this repository pins, so its containers depend on two
+ * revisions and the address used to name one. On 2026-10-28 the writer pin moved
+ * `meta.dat` 6 -> 7 under unchanged recorder commits, and 36 eth/flow/sol/sui containers
+ * changed bytes at unchanged `/t/**` addresses: staging run 41103424764 refused every one
+ * as a determinism incident. `artifact` is the `sha256:` of the executable's bytes, which
+ * ingest folds into the recorder build hash (`ids.nim`'s three-argument
+ * `recorderBuildHash`), so whatever is linked into the recorder moves the address.
+ *
+ * Without `binary` the object is `recorder` unchanged, which keeps every earlier capture's
+ * address; the capture scripts always pass the binary they ran.
+ *
+ * Consumers (5): the five producers.
+ *
+ * @param {{id: string, traceSchema: string}} recorder the producer's `RECORDER`
+ * @param {string|undefined} binary path of the recorder executable that ran
+ */
+export function recorderProvenance(recorder, binary) {
+  if (!binary) return { ...recorder };
+  let bytes;
+  try {
+    bytes = readFileSync(binary);
+  } catch (e) {
+    throw refuseOperation(CONFIG_REFUSAL,
+      `--recorder-binary ${binary} is not readable: ${e.message}. Its digest is part of `
+      + `every trace address this snapshot publishes, so it cannot be skipped.`);
+  }
+  return { ...recorder, artifact: `sha256:${createHash('sha256').update(bytes).digest('hex')}` };
 }
 
 // ── reading a file the invocation named ───────────────────────────────────────────────

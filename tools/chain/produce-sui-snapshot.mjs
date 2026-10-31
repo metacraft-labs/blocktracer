@@ -53,7 +53,8 @@ import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
 import {
   CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
-  parseProducerArgs, readJsonOrRefuse as readJson, refuseOperation as refuse,
+  parseProducerArgs, readJsonOrRefuse as readJson, recorderProvenance,
+  refuseOperation as refuse,
 } from './lib/producer-runtime.mjs';
 import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL,
@@ -262,6 +263,9 @@ async function main(argv) {
   const acquisitionPath = need('acquisition');
   const replayRoot = resolve(need('replay-root'));
   const recorderCommit = need('recorder-commit');
+  // The executable that ran, whose digest moves every trace address with it — see
+  // `recorderProvenance`. Optional so a hand run keeps working; every capture script passes it.
+  const recorderBinary = args.one('recorder-binary');
   if (!/^[0-9a-f]{40}$/.test(recorderCommit)) {
     throw refuse(CONFIG_REFUSAL, `--recorder-commit must be a full 40-hex commit id; got `
       + `'${recorderCommit}'. It is the pin every traced row is attributed to.`);
@@ -499,7 +503,7 @@ async function main(argv) {
       chain,
       label,
       endpoint: acq.endpoint,
-      recorder: { ...RECORDER },
+      recorder: recorderProvenance(RECORDER, recorderBinary),
       prestateStrategy: PRESTATE_STRATEGY,
       identifierEncoding: { ...IDENTIFIER_ENCODING },
       ordering: 'checkpoint',
