@@ -314,11 +314,26 @@ ck(`transaction pages were found on at least two chains — ${pages.length} page
 // HYDRATION IS PART OF THE DESIGN, not a separate concern: without the bundle a
 // page is the pre-hydration fallback, which is a correct page and not the IDE.
 // Production served 7,942 bytes and zero script tags.
-const unscripted = pages.filter((p) => !/<script/.test(p.body));
-ck(`every sampled transaction page carries a script — without one it is the pre-hydration `
-   + `fallback, not the IDE (${pages.length} page(s))`,
-   pages.length > 0 && unscripted.length === 0,
-   unscripted.length ? `no script on: ${unscripted.map((p) => p.path).join(", ")}` : "all scripted");
+//
+// ONLY A SESSION PAGE HAS ANYTHING TO HYDRATE. A transaction with no published
+// trace is rendered in the explorer shell (`pageLayout`, `data-register=
+// "explorer"`), which deliberately carries no script — layout.nim: "The explorer
+// shell has no session to hydrate". Requiring one there was a false negative,
+// and on production it was the ONLY failure: run 40977644036 (live 21d6aa9)
+// sampled three untraced live Aztec transactions ("Not observable … ingested
+// without --replay"), 8,827 bytes each, and failed this row on them while every
+// /demo session page carried the bundle. So the assertion is over the pages in
+// the debugger shell, and a sample with none of those is refused rather than
+// passed: no session page means this run did not look at hydration at all.
+const isSession = (p) => /<html[^>]*data-register="debugger"/.test(p.body);
+const sessions = pages.filter(isSession);
+const unscripted = sessions.filter((p) => !/<script/.test(p.body));
+ck(`every sampled SESSION page carries a script — without one it is the pre-hydration `
+   + `fallback, not the IDE (${sessions.length} session page(s) of ${pages.length}; `
+   + `${pages.length - sessions.length} explorer-shell page(s) have no session to hydrate)`,
+   sessions.length > 0 && unscripted.length === 0,
+   sessions.length === 0 ? "no sampled page is a session page"
+   : unscripted.length ? `no script on: ${unscripted.map((p) => p.path).join(", ")}` : "all scripted");
 // DOES THE SAMPLE CONTAIN THE KIND THAT WEARS THE SOURCE TABS? Some LIVE rows
 // are only reachable on a page that publishes SOURCE — `ct-tab` is written by
 // `debugger.nim`'s `srctab` strip — so a sample with no such page cannot judge
