@@ -3305,8 +3305,9 @@ jobs:
         # present" but "is the object this node will SELECT the right one".
         #
         # So: the census is printed in full (a reader can see what shipped),
-        # and the refusal is on the two linux-x64 prebuilds the runtime will
-        # actually dlopen, checked down to ELF class and machine rather than
+        # and the refusal is on the linux-x64 prebuild the runtime will
+        # actually dlopen (leveldown's; bb.js's three are removed on purpose
+        # and asserted absent), checked down to ELF class and machine rather than
         # just the four magic bytes. Read with `file`-free byte inspection,
         # because a NixOS runner's PATH need not carry `file`.
         run: |
@@ -3353,14 +3354,28 @@ jobs:
             }
             console.log("by format:", JSON.stringify(census));
             console.log("");
-            // The refusal. These two paths are what node resolves on
-            // linux-x64: bb.js keys its build directory on <arch>-<os>, and
-            // node-gyp-build / prebuildify pick <platform>-<arch> for leveldown.
+            // The refusal. This path is what node-gyp-build / prebuildify
+            // resolve for leveldown on linux-x64 (<platform>-<arch>).
             const must = [
-              "@aztec/bb.js/build/amd64-linux/nodejs_module.node",
               "leveldown/prebuilds/linux-x64/node.napi.glibc.node",
             ];
+            // AND THESE MUST BE ABSENT. bb.js's amd64-linux build is compiled
+            // with -march=skylake and dies of SIGILL on an x86-64-v2 host
+            // (high-mem-server: `mulx` in nodejs_module.node, from _dl_init).
+            // tools/chain/nix/default.nix removes all three so bb.js takes its
+            // WASM backend everywhere; one coming back is that defect returning.
+            const mustNot = [
+              "@aztec/bb.js/build/amd64-linux/nodejs_module.node",
+              "@aztec/bb.js/build/amd64-linux/bb",
+              "@aztec/bb.js/build/amd64-linux/aztec-wsdb",
+            ];
             let bad = 0;
+            for (const rel of mustNot) {
+              if (fs.existsSync(path.join(root, rel))) {
+                console.error(`  REFUSED: ${rel} is present; it needs x86-64-v3 and would SIGILL on v2 runners`);
+                bad++;
+              } else console.log(`  absent-on-purpose: ${rel}`);
+            }
             for (const rel of must) {
               const f = path.join(root, rel);
               if (!fs.existsSync(f)) { console.error(`  MISSING  ${rel}`); bad++; continue; }
@@ -3368,7 +3383,7 @@ jobs:
               console.log(`  selected-on-linux-x64: ${kind}  <-  ${rel}`);
               if (kind !== "ELF64-x86-64") { console.error(`  REFUSED: ${rel} is ${kind}, not ELF64-x86-64`); bad++; }
             }
-            if (bad) { console.error(`REFUSED: ${bad} of ${must.length} linux-x64 prebuilds are absent or the wrong object`); process.exit(1); }
+            if (bad) { console.error(`REFUSED: ${bad} of ${must.length + mustNot.length} linux-x64 prebuild checks failed`); process.exit(1); }
             fs.appendFileSync(process.argv[2],
               `native-prebuilds=${found.length}\nnative-prebuilds-by-format=${JSON.stringify(census)}\nnode-modules-dirs=${dirs}\n`);
           ' "${CHAIN_RUNTIME}" "${REPORT_DIR}/platform.txt"

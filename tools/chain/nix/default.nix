@@ -119,9 +119,10 @@
 #     those packages working as designed, and a gate that refused on its
 #     presence — the first version of this one did, and failed — would be
 #     unpassable everywhere. The question is which object node SELECTS. On
-#     linux-x64 that is `bb.js/build/amd64-linux/nodejs_module.node` and
+#     linux-x64 that was `bb.js/build/amd64-linux/nodejs_module.node` and
 #     `leveldown/prebuilds/linux-x64/node.napi.glibc.node`; both are
-#     ELF64-x86-64, and all three `@aztec` packages the replay driver declares
+#     ELF64-x86-64. (bb.js's is now removed, because it needs x86-64-v3; see
+#     the replay runtime's installPhase.) All three `@aztec` packages the replay driver declares
 #     import successfully under this `nodejs`. So a hash computed on darwin
 #     yields a working Linux tree. That was an open question; it is now a
 #     measured one.
