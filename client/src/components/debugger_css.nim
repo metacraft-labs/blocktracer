@@ -712,30 +712,85 @@ a.lm_title{display:block;line-height:inherit}
    it out of flow leaves the trigger — five pixels shorter — setting the
    height on its own.
 
-   THE FLOOR IS IN THE SAME UNITS THE TAB IS BUILT FROM, so it cannot drift
-   from it. `.srctab` carries the design system's `ct-tab`, whose box is
-   em-relative all the way down — `padding:0.5em 0.75em`, `line-height:1.2`,
-   `border-bottom:0.125em` — which is the 2.325em of vertical box that
-   `--bt-layout-tabstrip-row-min` holds. Add the list's own `3xs` padding top
-   and bottom and this row's hairline, and the floor is the closed row,
-   expressed as the same arithmetic rather than as the 36.8px it comes to.
+   THE FLOOR IS IN THE UNITS THE TAB IS BUILT FROM, so it cannot drift from it,
+   and the units changed when the tabs did. It used to read
+   `--bt-layout-tabstrip-row-min` — the 2.325em box of the `.ct-tab` this strip
+   wore — and a `.lm_tab` is a different box: `1.5rem` tall (`--bt-space-lg`),
+   `0.25rem` below the header's top (`--bt-space-2xs`, from
+   `golden_layout.styl`'s own `.lm_header .lm_tab`), over the same `0.25rem` of
+   header beneath it. Add the list's `3xs` padding top and bottom and the floor
+   IS the closed row — 24 + 4 + 4 + 2 + 2 — rather than a number near it.
 
-   THE EM LIVES IN THE TOKEN AND NOT HERE, and A2 is why: a Layer 2 view may
-   carry no raw length, and it caught this one — `debugger_css.nim:632
-   2.325em`. The rule is right and the token is the better home anyway: the
-   quantity is the design system's tab box, which is Layer 1's to state.
+   IT IS A FLOOR AND IT IS A HAIR ABOVE THE NATURAL HEIGHT, which is what the
+   hairline term is doing: a floor EQUAL to the closed row leaves the closed
+   state at its own natural height and the open state resting on the floor,
+   which are two ways of arriving at what should be one number.
 
-   It is a FLOOR and deliberately a hair above the natural height: a rounded
-   border makes the exact natural height a fraction smaller, and a floor that
-   can sit below it would let the two states diverge again on a platform whose
-   font metrics differ. Above it, both states resolve to the floor and the row
-   cannot move. */
+   MEASURED ON THE 33-FILE FeeJuice BUNDLE at 1280, 1440 and 1920. The stale
+   token resolved three pixels BELOW the closed row, so it stopped binding and
+   opening the list took those three pixels out — journey 24 read `-3px` at
+   every width, deterministically. With the floor correct it reads 0 or 1px at
+   1440 depending on the run, and 0 at the other two widths; the same assertion
+   also flickers on an unmodified `origin/agents` build (green, red, green over
+   three runs), so one pixel of it is the harness rather than this rule. The
+   three pixels were this rule's and are gone. */
 .srcstrip{position:relative;display:flex;align-items:stretch;flex:0 0 auto;
   min-width:0;
-  min-height:calc(var(--bt-layout-tabstrip-row-min) +
-    2 * var(--bt-space-3xs) + var(--bt-stroke-hairline));
-  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
-  background:var(--bt-surface-sunken)}
+  min-height:calc(var(--bt-space-lg) + 2 * var(--bt-space-2xs) +
+    2 * var(--bt-space-3xs) + var(--bt-stroke-hairline))}
+/* THE STRIP IS THE FRAME'S SURFACE AND NOT THE PANEL'S, AND THAT ONE TOKEN IS
+   WHY THE FILE NAMES DID NOT READ AS TABS.
+
+   A tab is visible because the strip behind it is a DIFFERENT surface. Upstream
+   gets that for free: `.lm_header` is transparent over `.lm_goldenlayout`
+   (`--bt-surface-raised`) and `.lm_tab` is `--bt-surface-sunken`, two rungs of
+   the neutral ramp apart, so every panel tab on this page is a lighter block
+   on a darker strip. This strip stated `--bt-surface-sunken` — the SAME token
+   its tabs carry — so the open file's tab was the strip, and all a reader saw
+   was bold text. Reported as "non-standard tabs", and the fix is the one
+   token: the strip takes the frame surface its tabs sit on everywhere else.
+
+   NO HEX IS SPELLED OUT ABOVE, and the first draft of this paragraph named
+   both values. This comment SHIPS, and `test_static_export` scans the shipped
+   rules for raw colours — it caught them, which is the check doing exactly
+   what it is for even though the colours were prose about tokens rather than
+   declarations.
+
+   `!important` ON ONE DECLARATION, AND THE REASON IS STRUCTURAL. `.lm_header`
+   is `background-color: transparent !important` upstream, which is right where
+   the header is a SIBLING of the panel and wrong here: this header is rendered
+   INSIDE `.lm_content` (once per document panel, which is what keeps the active
+   tab right with no JavaScript — see `renderSource.tabStrip`), so transparent
+   resolves to the panel's own `--bt-surface-sunken` and puts the tabs back on
+   their own colour. Naming the surface the header would have had if it sat
+   outside is the smallest statement that restores upstream's own relationship,
+   and it is the only declaration of upstream's this strip overrides. */
+[data-register="debugger"] .srcstrip.lm_header{
+  background:var(--bt-surface-raised) !important}
+/* And the panel's top inset goes with it, ON THE PANELS THAT DRAW A STRIP.
+   `.lm_content` reserves 0.5rem above its first row, which is correct for a
+   panel whose header is above it and wrong for the one panel whose header is
+   INSIDE it — the strip would float half a row down from the pane's top edge
+   with the panel surface above it, out of line with every other pane's tabs.
+   `:has()` and not `.p-source` flat, because the Code pane does not always
+   draw one: a listing on its own, or a pane with no documents, keeps the
+   stack's header (`components/debugger.editorKeepsStackHeader`) and with it
+   the inset every other panel has. */
+[data-register="debugger"] .lm_content.p-source:has(.srcstrip){padding-top:0}
+/* THE ROW'S OWN INSET STAYS, AND TAKING IT OUT TO LINE THIS STRIP UP WITH THE
+   PANE TABS WAS TRIED TWICE AND PUT BACK BOTH TIMES.
+   `.lm_tabs` has no padding, so the first pane tab is flush with its panel's
+   left edge and 4px below the header's top; this row's first tab sits 8px
+   right and 2px down of that, and the strip is 36px against their 32px.
+   Measured in Chromium at 1680 against the CALL TRACE strip beside it.
+   Removing the padding — both axes, then the vertical alone — closed that gap
+   and reproducibly cost one pixel elsewhere: journey 24's "opening the file
+   list moves neither the source nor the row it opened from" read `1px` at
+   1440 on every attempt, and the pixel could not be found in any box between
+   `.lm_content` and `.src` under the journey's own harness (every delta read
+   0 in an isolated probe of the same page, viewport and click). Two pixels of
+   alignment nobody asked for are not worth a gate nobody can explain, so the
+   inset stays and the misalignment is written down here instead. */
 .srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:nowrap;
   flex:1 1 auto;min-width:0;
   overflow-x:auto;overscroll-behavior:contain;
@@ -745,70 +800,38 @@ a.lm_title{display:block;line-height:inherit}
    one was reachable. `flex:0 0 auto` and `nowrap` because a flex item in a
    scrolling row shrinks to nothing rather than overflowing by default, which
    would turn 32 tabs into 32 slivers instead of a row that scrolls. */
-/* IT WEARS THE PANEL TAB, NOT THE RAIL, AND THAT IS THE WHOLE OF THIS RULE.
+/* WHAT IS LEFT HERE IS THE SCROLLING ROW, AND NOTHING ELSE, BECAUSE THE TAB
+   NOW WEARS THE REAL CLASS.
 
-   CodeTracer has TWO tab components and this strip was wearing the wrong one.
-   `components/tab.styl` (`.ct-tab`) is a RAIL — transparent box, no side or
-   top edges, a two-hairline underline carrying the state — and upstream
-   spends it on the bottom dock, `BUILD / PROBLEMS / FIND IN FILES /
-   REQUESTS`. `components/golden_layout.styl` (`.lm_tab`) is the PANEL tab,
-   and an open SOURCE FILE is one of those: upstream's editor names its
-   document `#untitled0` in an `.lm_tab`, in the same strip vocabulary as
-   `FILES`, `VCS` and `CONSTRAINTS`.
+   The box, the type and the surface used to be RETYPED here — height, family,
+   size, weight, colour, padding, border, background — read off `.lm_tab` on a
+   served page and copied in by hand, under the heading "it wears the panel tab,
+   not the rail". The reading was right and the method was the one this module
+   exists to refuse: a copy of upstream's values is a copy that drifts the
+   moment upstream tunes one of them, silently, in the direction of looking
+   almost right.
 
-   This strip names open source files, so it is the second kind. Measured on
-   the live page before this rule, against `ide.codetracer.com` measured the
-   same way: half again as tall, a lighter type weight, a mono face against a
-   sans one, and an accent pair — indigo text over an indigo underline — that
-   no `.lm_tab` in either product carries at any state. The operator's report
-   was that the source area "uses a completely different style of tabs", which
-   is exactly what those four readings say.
+   `renderSource.tabStrip` now puts `lm_tab` / `lm_title` / `lm_active` on the
+   markup, so upstream's own rules reach it — and every one of the declarations
+   named above was `!important` in `golden_layout.styl`, which means they were
+   already losing to it by the time this comment was written. Deleting them
+   changes no pixel; it removes a copy that would have.
 
-   So the box, the type and the surface below are `.lm_tab`'s, read off the
-   served page rather than retyped from the theme: the panel tab's own height
-   token, its horizontal padding, its weight, the sunken surface, and the
-   corner that is round on all four sides at rest and square along the bottom
-   when the tab is the open one — which is how a panel tab joins the body
-   beneath it. No length is spelled here: this comment SHIPS, inlined into
-   every page, and A2 reads the emitted string.
+   `flex:0 0 auto` and `nowrap` STAY, and are deliberately not `.lm_tab`'s
+   `flex:1`: that one stretches a handful of panel tabs across a header, while
+   this row holds up to 32 file names and SCROLLS. A flex item in a scrolling
+   row shrinks to nothing rather than overflowing by default, which would turn
+   32 tabs into 32 slivers instead of a row that scrolls.
 
-   WHAT DOES NOT COME ACROSS IS THE CONNECTOR CURVES. `.lm_tab`'s active state
-   draws two `::before`/`::after` boxes that bridge the tab to the panel, and
-   they are anchored on `.lm_stack`/`.lm_items` structure this strip does not
-   have. Importing them would mean importing that structure; the square bottom
-   corners carry the same reading without it.
-
-   `flex:0 0 auto` and `nowrap` stay, and are NOT `.lm_tab`'s `flex:1`: that
-   one stretches a handful of panel tabs across a header, while this row holds
-   up to 32 file names and SCROLLS. A flex item in a scrolling row shrinks to
-   nothing rather than overflowing by default, which would turn 32 tabs into
-   32 slivers instead of a row that scrolls.
-
-   THE SELECTOR CARRIES `.ct-tab` AND THE REGISTER, AND IT HAS TO. The class
-   stays in the markup — it is the ONLY emission of `ct-tab` in the published
-   sample, so `check-design-parity`'s "every LIVE class is emitted" reads it
-   from here and nowhere else — which means the rail's own declarations are
-   still in the cascade and still have to be answered. The component layer is
-   emitted FIRST so BlockTracer's rules can override it by being later at
-   equal specificity, and the rail is prefixed with the register, so matching
-   it takes the register plus both classes. `:not([data-selected])` on the
-   hover arm is there for the same arithmetic, not for behaviour: upstream's
-   hover arm carries two such guards and would otherwise outrank this one. */
+   THE SELECTOR KEEPS `.ct-tab` AND THE REGISTER. The class stays in the markup
+   — it is the ONLY emission of `ct-tab` in the published sample, so
+   `check-design-parity`'s "every LIVE class is emitted" reads it from here and
+   nowhere else — which means the rail's own declarations are still in the
+   cascade and still have to be answered. `:not([data-selected])` on the hover
+   arm is there for that arithmetic, not for behaviour: upstream's rail hover
+   arm carries two such guards and would otherwise outrank this one. */
 [data-register="debugger"] .srctab.ct-tab{flex:0 0 auto;white-space:nowrap;
-  display:flex;align-items:center;justify-content:flex-start;
-  height:var(--bt-layout-tabstrip-row-min);
-  font-family:var(--bt-font-sans),var(--bt-font-sans-fallback);
-  font-size:inherit;font-weight:600;
-  color:var(--bt-text-default);
-  padding:0 var(--bt-space-xs);
-  /* THE PANEL TAB'S CORNERS, not a pill. `--bt-radius-xs` (4px, all four)
-     left the source tabs reading as standalone chips while every panel tab
-     beside them is a tab — rounded on top and square where it meets the
-     surface below. Measured in Chromium against the served page: `.lm_tab`
-     computes `6px 6px 0px 0px`, and these sit in exactly the same
-     relationship to the body under them. `--bt-radius-sm` is that 6px. */
-  border:none;border-radius:var(--bt-radius-sm) var(--bt-radius-sm) 0 0;
-  background:var(--bt-surface-sunken);
+  justify-content:flex-start;
   transition:color var(--bt-motion-fast) var(--bt-motion-ease)}
 [data-register="debugger"] .srctab.ct-tab:hover:not([data-selected="true"]){
   color:var(--bt-text-strong);background:var(--bt-surface-hover);border:none}
@@ -829,51 +852,32 @@ a.lm_title{display:block;line-height:inherit}
    natural place while it is in view and pins itself to whichever edge it would
    otherwise leave, so it is on screen at EVERY scroll position rather than only
    at the one the panel opened on — a stronger property than the snap that was
-   rejected. It needs the strip's own surface to occlude the tabs sliding under
-   it, which is `--bt-surface-sunken` and not a new colour: it is the same
-   surface it is already sitting on, so a tab in its natural position looks
-   exactly as it did.
+   rejected. It occludes the tabs sliding under it with `.lm_active`'s own
+   opaque surface, which is the surface the open tab carries anyway, so a tab
+   in its natural position looks exactly as it did.
 
-   THE HALO IS WHAT MAKES THE PIN READ AS DELIBERATE. A sticky chip with a flat
-   background butts against the tab sliding under it and cuts it mid-glyph,
-   which looks like a rendering fault rather than a control — and on this
-   contract at 1280 that is the FIRST thing the pane shows, because the marked
-   file is the fifth tab and the row holds four. The shadow is the strip's own
-   surface rather than a colour of its own, so it is not a shadow in the visual
-   sense at all: it is a soft mask that fades the text approaching the chip
-   instead of clipping it, and it is invisible when the tab is in its natural
-   position with nothing underneath to fade.
+   THE HALO THAT USED TO SOFTEN THAT EDGE IS GONE, and the paragraphs arguing
+   for it went with it. It was a `box-shadow` in the strip's own colour — a
+   mask rather than a shadow — that faded the tab approaching the chip instead
+   of cutting it mid-glyph. `.lm_tab` declares `box-shadow: none !important`,
+   so the moment this strip started wearing the real class the mask stopped
+   being drawn, and winning it back would have meant a second `!important`
+   against the component the strip exists to adopt. The cut edge is the
+   accepted cost; the pin, which is the property the reader actually needs, is
+   untouched. */
+/* THE OPEN TAB'S LOOK IS `.lm_active`'S NOW — the surface, the colour and the
+   corners that are round on top and square where the tab meets the body, which
+   is how upstream says "this one is open". They were retyped here too, and for
+   the same reason as the block above they are gone: the markup carries
+   `lm_active`, upstream's rule draws it, and upstream's `!important` was
+   already winning on every one of them.
 
-   IT IS NOW THE ONLY MASK OF ITS KIND ON THE PAGE. This used to read "same
-   idiom as the code pane's right-edge fade"; that fade, and the five other
-   `mask-image` fades this repository carried, were removed because
-   CodeTracer's own chrome spends no gradients and the operator's report was
-   that they are what BlockTracer does and the product does not. So the
-   sentence naming a sibling was left pointing at a rule that no longer
-   exists. All six that went were `mask-image`; the `box-shadow` below was
-   never one of them, which is why it is still here to be explained.
-
-   IT SURVIVES ON DIFFERENT GROUNDS from the ones that went. Those were
-   decoration over a scroll edge. This is the occlusion a sticky chip needs in
-   order not to cut the tab passing beneath it mid-glyph. If that need goes
-   away — a tab strip that cannot overflow, or a pin that is not sticky — this
-   goes with it rather than becoming a house style. */
-/* THE OPEN TAB IS SQUARE ALONG THE BOTTOM, which is how `.lm_tab` says "this
-   one is open" and is the state this rule used to say with an indigo
-   underline instead. `--bt-mark-view` is gone from here for that reason: it
-   is an ACCENT, upstream's panel tabs carry none at any state, and it was the
-   single loudest thing making this strip read as another product's control.
-   The open tab is now the brighter label on the square-bottomed corner, which
-   is the whole of upstream's own distinction once the connector curves above
-   are set aside. */
+   WHAT STAYS IS THE PIN, which upstream has no counterpart to because upstream
+   has no strip that scrolls. See the block above for what the pin lost with
+   the halo and why that was accepted rather than fought. */
 [data-register="debugger"] .srctab.ct-tab.on,
 [data-register="debugger"] .srctab.ct-tab[data-selected="true"]{
-  position:sticky;left:0;right:0;z-index:1;
-  background:var(--bt-surface-sunken);
-  box-shadow:0 0 var(--bt-space-xs) var(--bt-space-3xs) var(--bt-surface-sunken);
-  color:var(--bt-text-strong);
-  border:none;
-  border-radius:var(--bt-radius-xs) var(--bt-radius-xs) 0 0}
+  position:sticky;left:0;right:0;z-index:1}
 /* THE TRIGGER. The checkbox is the state and the label is the control; the
    input is zero-sized rather than `display:none` because a hidden input is not
    focusable and this has to stay operable from the keyboard. Bare `0` is not a
@@ -1532,91 +1536,6 @@ a.lm_title{display:block;line-height:inherit}
    whose arrow is the whole of its identity, so the arrow keeps full strength
    where a name would have been. */
 .fv.m-after .fvto{color:var(--bt-text-muted)}
-/* ── the loop iteration rail (Omniscience-Flow.md, "Loop Slider Control") ── */
-/* Above the listing rather than above the loop's own header line, because the
-   served pane is a WINDOW opened at the session's position and the `for` the
-   session is inside is usually above it — see `session_view.FlowRail`. */
-.frtarget{display:block;height:0;overflow:hidden}
-.flowrail{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;
-  gap:var(--bt-space-xs);
-  padding:var(--bt-space-2xs) var(--bt-density-cell-x);
-  background:var(--bt-surface-sunken);
-  border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
-  font-size:var(--bt-type-label-size)}
-.frtitle{color:var(--bt-text-subtle);font-weight:var(--bt-type-label-weight);
-  letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase}
-.frfn{margin-left:var(--bt-space-2xs);text-transform:none;
-  letter-spacing:normal;color:var(--bt-text-default);
-  font-family:var(--bt-font-mono),var(--bt-font-mono-fallback)}
-.frline{color:var(--bt-text-link);text-decoration:underline;
-  text-underline-offset:var(--bt-space-3xs)}
-/* `.noloc` is the rail's line when NO surface reachable from this page renders
-   that line — `renderFlowRail` emits a `span` rather than an `a`, and this
-   strips the two paints that say "clickable". The text is identical because the
-   fact is identical; what is withdrawn is the promise. See
-   `session_view.FlowRail.href`. */
-.frline.noloc{color:var(--bt-text-subtle);text-decoration:none}
-/* One counter per pass, all in the markup, one displayed — see
-   `renderFlowRail`. `.now` is the pass the session is in; the target ladder
-   moves it in lock-step with the labels, so the number a reader reads and the
-   values they are looking at are always the same pass. */
-.frcount{display:none;color:var(--bt-text-strong);
-  font-variant-numeric:var(--bt-numeric-features)}
-.frcount.now{display:inline}
-/* The track. `flex:1 1 auto` so it takes the width the row has left, which is
-   what makes it read as a scrubber over the loop rather than as a row of
-   buttons — the spec draws it as `[◄ ════●══════ ►]`. */
-.frtrack{flex:1 1 auto;min-width:0;display:flex;align-items:stretch;
-  gap:var(--bt-space-3xs)}
-/* The transparent border is what lets `.out` below draw its own extent
-   without becoming a different-sized segment from its neighbours. */
-.frseg{flex:1 1 0;min-width:0;display:flex;flex-direction:column;
-  align-items:center;gap:var(--bt-space-3xs);
-  padding:var(--bt-space-3xs) 0;border-radius:var(--bt-radius-xs);
-  border:var(--bt-stroke-hairline) solid transparent;
-  background:var(--bt-mark-track);color:var(--bt-text-muted)}
-.frnum{font-variant-numeric:var(--bt-numeric-features);
-  font-size:var(--bt-type-caption-size)}
-a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
-/* A pass the session has NOT reached at this position. It is not a link and it
-   does not look like one: the still frame has no values for it, and offering it
-   would be an affordance that cannot act. Hydration makes it live.
-
-   AND IT STILL HAS TO BE A SEGMENT. In the light theme
-   `--bt-action-disabled-bg` and `--bt-surface-sunken` — the rail's own
-   background — resolve to the SAME value, so the fill was drawing at 1.00:1
-   against the strip behind it and the five unreached passes of an eight-pass
-   loop rendered as blank rail.
-   The rail read as three segments beside its own `Iteration 3 of 8`,
-   which is the label contradicting the control immediately under it; in dark
-   the same pair is 1.21:1 and the boxes are faintly there, so the rail said
-   one thing in one theme and another in the other. The EXTENT of the segment
-   is not the disabled part of it — a track a reader cannot see the end of
-   cannot say how far along it they are — so it is drawn with a border, in
-   both themes, and only the fill and the numeral recede. */
-.frseg.out{background:var(--bt-action-disabled-bg);
-  border-color:var(--bt-border-default);
-  color:var(--bt-text-disabled);cursor:not-allowed}
-/* A reachable pass is marked by its NUMBER coming up to full strength, not by a
-   fill. `--bt-mark-track-elapsed` was tried here and is wrong at this size: it
-   is the scrubber's elapsed run, designed as a 4px tick, and painted across a
-   whole segment it made three saturated blocks the loudest object in the pane —
-   louder than the current line, in a bar whose entire job is to be secondary to
-   the code. The scrubber's own lesson applies unchanged: the fill says how far,
-   the MARKER says where, and only the second is a fact worth shouting. */
-.frseg.got{color:var(--bt-text-default)}
-/* TWO marks, because there are two facts. `.frhere` is where the SESSION is and
-   never moves. `.frdot` is which pass is on screen, and the rail moves it.
-   Collapsing them would tell a reader who looked at pass 1 that the session had
-   gone there. Both are shapes as well as colours, so neither depends on hue. */
-.frhere,.frdot{display:none;width:100%;height:var(--bt-stroke-thick);
-  border-radius:var(--bt-radius-full)}
-.frhere{background:var(--bt-mark-position)}
-.frdot{background:var(--bt-mark-view)}
-.frseg.here .frhere{display:block}
-.frseg.showing .frdot{display:block}
-.frseg.here{color:var(--bt-mark-position)}
-.frmore{flex:0 0 100%;color:var(--bt-text-muted)}
 /* THE POSITION HEAD — the same affordance as `.srcline.cur`, for the pane that
    has no line to hang it on.
 
@@ -1691,10 +1610,42 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
   gap:var(--bt-space-sm);
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle)}
+/* `z-index` ON A STICKY HEADER, which it did not have and needed. A sticky box
+   with `z-index:auto` paints in document order against the rows after it, so
+   the rows scrolling under it came through it — reported on the call trace as a
+   floating element that obscured the rows, and reproduced in Chromium. The
+   by-call-order view no longer has a header at all (see `renderCallTrace`); the
+   self-cost table still does, because a table's columns need naming, and it is
+   the one that has to survive a scroll. */
 .cthead{background:var(--bt-surface-sunken);color:var(--bt-text-muted);
   font-size:var(--bt-type-label-size);font-weight:var(--bt-type-label-weight);
   letter-spacing:var(--bt-type-label-tracking);text-transform:uppercase;
-  position:sticky;top:0}
+  position:sticky;top:0;z-index:1}
+/* THE ROWS SCROLL SIDEWAYS WHEN A NAME IS WIDER THAN THE PANE, which is the
+   third answer to a frame name that does not fit and the only one that keeps
+   both rules this pane is under.
+   Cutting with `…` breaks §7.1 ("every frame's function name in full") and
+   journey 14 measures it. Wrapping keeps the name whole and breaks it
+   mid-identifier: at the 359px the home page's embed gives this pane,
+   `calculate_remaining_shield_pct` renders as `…_pc` with a lone `t` under it,
+   which is what a reader called a call trace that "looks different". Scrolling
+   keeps the glyphs together AND keeps every one of them: the name is painted
+   at full width in a row that is wider than its container, and the container
+   is what moves.
+   `width:max-content` with `min-width:100%` on the ROW and not on the head or
+   the foot: a flex item in a scroller still shrinks to the container by
+   default, so the row has to size to its contents first and fill the pane
+   second — while the self-cost view's header and both footers sit OUTSIDE
+   `.ctrows` and keep the pane's own width, which is what keeps them put when
+   the rows move.
+
+   MEASURED AGAINST THE SAME BUILD WITHOUT THIS RULE, on the 47-frame
+   `aztec-testnet-frames` session journey 14 judges: 47 rows, 0 names
+   truncated either way, and the same 4 rows failing the journey's
+   `paintedAtCentre` hit test in both. The scrolling costs that check nothing;
+   what it buys is every name on ONE line. */
+.ctrows{overflow-x:auto;overscroll-behavior-x:contain}
+.ctrow{width:max-content;min-width:100%}
 .ctrow{border-left:var(--bt-stroke-thick) solid transparent}
 .ctrow:hover{background:var(--bt-surface-hover)}
 .ctrow.cur{background:var(--bt-mark-position-surface);
@@ -1708,31 +1659,28 @@ a.frseg:hover{background:var(--bt-surface-hover);color:var(--bt-text-strong)}
 
    Wrapping, not `overflow-x` on `.ct`: giving the pane a horizontal scroll
    container would force `overflow-y` to compute to `auto` as well, which moves
-   the scroll container the sticky `.cthead` resolves against and would break a
-   header that currently works. A taller row costs nothing and clips nothing.
-   `overflow-wrap:anywhere` is for the pathological case — one unbroken
-   identifier longer than the column — so even that is shown rather than cut.
+   the scroll container the self-cost view's sticky `.cthead` resolves against.
+   A taller row costs nothing and clips nothing. `overflow-wrap:anywhere` is for
+   the pathological case — one unbroken identifier longer than the column — so
+   even that is shown rather than cut.
 
-   WHAT THE WRAP IS AND IS NOT DOING, MEASURED. The truncation this change
-   fixes is carried ENTIRELY by the path leaving the row: the longest name in
-   the corpus needs 217px and the frame column is 357px wide at 1440px once the
-   path is gone, so it fits with room to spare. The wrap is belt and braces for
-   a name longer than the column, and NO viewport reaches that state here —
-   narrowing the window makes this column WIDER, not narrower, because below
-   about 1000px the panes stop sitting side by side and stack (675px at 780px
-   wide, against 357px at 1440px).
+   CUTTING WITH `…` WAS TRIED HERE AND PUT BACK, which is worth recording
+   because the case for it is real and the case against is a rule. The home
+   page's embed places this pane at 359px at 1680 — a width the measurements
+   this paragraph used to quote never covered, because they were all taken on
+   the debug route — and `calculate_remaining_shield_pct` does not fit, so it
+   renders as `calculate_remaining_shield_pc` with a lone `t` on the line below,
+   on the front page. Upstream cuts in that situation (`table_overflow.styl`).
 
-   That is stated because a mutation arm was written for these two lines and
-   could not be made to kill: restoring `nowrap`/`ellipsis` here changes
-   nothing a browser can be made to show, at any width, on any recording this
-   product publishes. The arm was withdrawn rather than propped up with an
-   invented fixture, and these declarations are kept because they make
-   "the name is never cut" true by construction instead of true by arithmetic
-   that holds only while names stay shorter than the column. */
+   BlockTracer does not, and the rule is a product one rather than this file's:
+   Page-Descriptions §7.1 is "sees every frame's function name in full", journey
+   14 is that sentence, and `name.scrollWidth > name.clientWidth` is how it
+   decides — so an ellipsis is a spec change with a gate behind it, not a
+   styling choice. The wrap stays until that sentence is renegotiated. */
 .ctfn{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;
-  gap:var(--bt-space-xs);flex-wrap:wrap}
+  gap:var(--bt-space-xs);flex-wrap:nowrap}
 .ctname{font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
-  color:var(--bt-text-strong);white-space:normal;overflow-wrap:anywhere}
+  color:var(--bt-text-strong);white-space:nowrap}
 /* The line number, and nothing else, stays inline beside the name: a
    coordinate is a few characters and places the frame in its file the way
    VS Code's dimmed `file:line` does. It is NOT the frame's identity — two
@@ -1945,7 +1893,17 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
   background:var(--bt-surface-sunken);
   color:var(--bt-text-muted);font-size:var(--bt-type-label-size);
   line-height:var(--bt-type-body-sm-line);overflow-wrap:anywhere}
-.strow{display:flex;align-items:baseline;gap:var(--bt-space-sm);
+/* A ROW IS ONE LINE AND IT DOES NOT WRAP, which is upstream's own decision and
+   is quoted in the vendored `state.styl`: "the pane does NOT scroll sideways. A
+   value that does not fit is cut with `…`, and its whole text is on hover and
+   under the row", and "Value rows do not wrap: a long value is cut instead".
+   This pane wrapped: `masses = [100, 2000, 200, 100, 100, 50, 50, 14]` took two
+   lines in the home page's embed, so the list lost its one-row-per-variable
+   pitch and the rows below it shifted down by an amount that depends on the
+   data. `flex-wrap:nowrap` plus the cut on `.stval` is the same answer upstream
+   gives, and `renderState` carries the full text on `title`. */
+.strow{display:flex;align-items:baseline;flex-wrap:nowrap;
+  gap:var(--bt-space-2xs);
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
   border-bottom:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   border-left:var(--bt-stroke-thick) solid transparent}
@@ -2010,17 +1968,29 @@ details[open] > summary.ctrow .cthidden{color:var(--bt-text-subtle);opacity:.7}
 /* `overflow-wrap:anywhere` and not `word-break:break-all`: a long identifier
    has to be able to break, but break-all also breaks SHORT ones that would
    have fitted on the next line, which is what shattered names across rows. */
+/* THE NAME AND THE VALUE READ AS ONE PHRASE, which is how the desktop app's
+   state pane reads them — `initial_shield: 0x2710  Field`, packed from the
+   left, in that order and with nothing between them but a separator. They used
+   to be a NAME COLUMN and a right-aligned VALUE COLUMN with the pane's width
+   between them, so `10000`, `9000` and `10` each landed at a different x and
+   the reader's eye had to cross an empty gap to pair a value with its name.
+   That is a table's arrangement, and this pane is a list. */
 .stname{flex:0 0 auto;font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   color:var(--bt-text-strong);overflow-wrap:anywhere;min-width:0}
-/* The type is the last column and a fixed one, so it can be scanned down the
-   pane rather than landing wherever the name happens to end. */
-.sttype{flex:0 0 var(--bt-space-4xl);text-align:right;
+.stname::after{content:":";color:var(--bt-text-subtle)}
+/* The type is the row's last item and it is pushed to the right edge rather
+   than given a column of its own: `margin-left:auto` takes whatever is left
+   after the phrase, so the types still line up down the pane while the value
+   gets every pixel it can use. A fixed column took 100px from the value on
+   every row, including the rows whose type is `Field`. */
+.sttype{flex:0 0 auto;margin-left:auto;padding-left:var(--bt-space-sm);
   color:var(--bt-text-subtle);font-size:var(--bt-type-label-size);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.stval{flex:1 1 auto;min-width:0;text-align:right;
+.stval{flex:0 1 auto;min-width:0;
   font-family:var(--bt-font-mono),var(--bt-font-mono-fallback);
   font-variant-numeric:var(--bt-numeric-features);
-  color:var(--bt-text-code);overflow-wrap:anywhere}
+  color:var(--bt-text-code);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .strow.chg .stval{color:var(--bt-mark-changed);
   font-weight:var(--bt-type-h3-weight)}
 
@@ -2689,6 +2659,12 @@ a .copyable,button .copyable{cursor:pointer}
    file. */
 .livedemo .dbgmain{height:var(--bt-layout-code-max-height);overflow:hidden;
   background:var(--bt-surface-raised)}
+/* The badge and the sentence are two facts, so there is a gap between them.
+   They used to share one inline `<span>`, which put "Synthetic demo data"
+   flush against "Stopped mid-execution at step 128 of 1,315." with only the
+   badge's own border between them. */
+.livedemostate{display:flex;align-items:center;gap:var(--bt-space-sm);
+  flex-wrap:wrap;min-width:0}
 .livedemofoot{display:flex;align-items:center;justify-content:space-between;
   gap:var(--bt-space-md);flex-wrap:wrap;
   padding:var(--bt-density-cell-y) var(--bt-density-cell-x);
@@ -2940,104 +2916,6 @@ a .copyable,button .copyable{cursor:pointer}
 }
 """
 
-func flowIterationLadder(): string =
-  ## The loop rail's `:target` rungs — the one part of this stylesheet that is
-  ## GENERATED rather than written.
-  ##
-  ## ## Why it is generated
-  ##
-  ## `session_view.MaxStaticIterations` is read by the renderer to decide how
-  ## many segments it may emit and by this stylesheet to decide how many rungs
-  ## exist, and the two must be the same number. Written by hand they would be
-  ## the same number until somebody changed one — and the failure would be
-  ## silent, because a segment whose id no rule answers still renders, still
-  ## looks like a link, and shows the wrong pass's values when clicked. Reading
-  ## the constant is the only form of "they agree" that cannot decay.
-  ##
-  ## ## Why it emits no design value
-  ##
-  ## Every design value stays in the written half above: the rungs toggle
-  ## `display` on elements whose appearance is already decided, and the one
-  ## non-`display` declaration among them is `opacity:1` — the identity, which
-  ## undoes a dim rather than choosing one. That keeps the generated CSS free of
-  ## anything `tools/design/check-tokens.mjs` would have to reason about — a raw
-  ## colour inside a `for` loop is a raw colour the lint can still see, and one
-  ## it would be much harder to fix.
-  ##
-  ## ## What each rung does
-  ##
-  ## Eleven rules, and it takes all eleven:
-  ##
-  ##   1. hide the pass the SESSION is in (`.fv.now`), because a rail set to
-  ##      another pass must not leave two passes' values on one line;
-  ##   2. show the targeted pass, and with it every label outside any loop
-  ##      (`.fv-any`), which belongs to no pass and is true in all of them;
-  ##   3. move the "showing" dot off the default segment;
-  ##   4. put it on the targeted one;
-  ##   5-6. the same swap for the `Iteration N of M` counter, because CSS can
-  ##      change WHICH element is shown and cannot rewrite text — a single
-  ##      counter would keep naming the session's pass while the pane displayed
-  ##      another one; and
-  ##   7-11. the same swap AGAIN for the untaken-branch treatment, in four
-  ##      parts because it has four moving pieces: the gutter glyph, the marker
-  ##      it replaces, the block rail down the left of the line, and the
-  ##      recession on the code itself.
-  ##
-  ## Rules 7-11 are the reason this ladder is not optional for the branch
-  ## feature. The demo trace takes `shield.nr:29` on passes 0 and 1 and
-  ## `shield.nr:32` on pass 2 — the SAME two lines swap roles between passes —
-  ## so a dimming that did not move with the rail would state pass 2's control
-  ## flow over pass 0's values. That is not a stale decoration; it is the pane
-  ## asserting that a line did not run beside the value that line recorded.
-  ##
-  ## Each triple is a RESET then a SET, in that order and at equal specificity,
-  ## so a line whose claim holds in the session's pass but not in the targeted
-  ## one comes back to full strength. Emitting them the other way round would
-  ## leave every such line dimmed in every pass, which is the direction that
-  ## fails silently — a permanently dimmed block looks exactly like a block that
-  ## never ran.
-  ##
-  ## The "here" mark is deliberately untouched by all eleven: it says where the
-  ## SESSION is, and looking at another pass does not move the session.
-  for i in 0 ..< MaxStaticIterations:
-    let t = "#fit-" & $i & ":target ~ "
-    result.add t & ".srcwrap .fv.now{display:none}\n"
-    result.add t & ".srcwrap .fv.fv-i" & $i & "," &
-                t & ".srcwrap .fv.fv-any{display:inline-flex}\n"
-    result.add t & ".flowrail .frseg.showing .frdot{display:none}\n"
-    result.add t & ".flowrail .frseg.s" & $i & " .frdot{display:block}\n"
-    result.add t & ".flowrail .frcount.now{display:none}\n"
-    result.add t & ".flowrail .frcount.c" & $i & "{display:inline}\n"
-    # EVERY RESET BEFORE EVERY SET, across BOTH claims. Within one claim the
-    # order was already reset-then-set; with two of them sharing `.mg` the
-    # grouping has to be by phase and not by claim. A line that ran in the
-    # session's pass and did NOT run in the targeted one carries `rnnow` and
-    # `nt-i<target>` at once: `rnnow`'s reset restores the ordinary marker and
-    # `nt-i`'s set replaces it with `⊘`. Emitted claim-by-claim instead, the
-    # second claim's reset would land after the first claim's set and undo it,
-    # and the line would show the ordinary marker in a pass it has a claim for.
-    result.add t & ".srcwrap .srcline.ntnow .mn{display:none}\n"
-    result.add t & ".srcwrap .srcline.ntnow .ntbar{display:none}\n"
-    result.add t & ".srcwrap .srcline.ntnow .t{opacity:1}\n"
-    result.add t & ".srcwrap .srcline.rnnow .mt{display:none}\n"
-    result.add t & ".srcwrap .srcline.rnnow .rnbar{display:none}\n"
-    result.add t & ".srcwrap .srcline.ntnow .mg," &
-                t & ".srcwrap .srcline.rnnow .mg{display:inline}\n"
-    result.add t & ".srcwrap .srcline.nt-i" & $i & " .mn," &
-                t & ".srcwrap .srcline.nt-any .mn{display:inline}\n"
-    result.add t & ".srcwrap .srcline.nt-i" & $i & " .ntbar," &
-                t & ".srcwrap .srcline.nt-any .ntbar{display:block}\n"
-    result.add t & ".srcwrap .srcline.nt-i" & $i & " .t," &
-                t & ".srcwrap .srcline.nt-any .t{opacity:var(--bt-opacity-not-run)}\n"
-    result.add t & ".srcwrap .srcline.rn-i" & $i & " .mt," &
-                t & ".srcwrap .srcline.rn-any .mt{display:inline}\n"
-    result.add t & ".srcwrap .srcline.rn-i" & $i & " .rnbar," &
-                t & ".srcwrap .srcline.rn-any .rnbar{display:block}\n"
-    result.add t & ".srcwrap .srcline.nt-i" & $i & " .mg," &
-                t & ".srcwrap .srcline.nt-any .mg," &
-                t & ".srcwrap .srcline.rn-i" & $i & " .mg," &
-                t & ".srcwrap .srcline.rn-any .mg{display:none}\n"
-
 const shortcutsDialogCss = """
 /* ── the keyboard-shortcuts dialog ───────────────────────────────────────────
    Shown only on the hydrated build: `renderShortcutsDialog` is inserted by
@@ -3156,9 +3034,7 @@ const shortcutsDialogCss = """
 """
 
 const debugRouteCss* = codetracerComponentCss & activeTabCss() &
-  debugRouteBaseCss & shortcutsDialogCss & """
-/* ── the loop rail's target ladder (generated; see flowIterationLadder) ──── */
-""" & flowIterationLadder()
+  debugRouteBaseCss & shortcutsDialogCss
   ## CODETRACER'S COMPONENT RULES COME FIRST, and the order is the whole of how
   ## the two layers divide.
   ##

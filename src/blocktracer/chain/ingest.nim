@@ -1507,12 +1507,33 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
   let snapshotCommit = prov{"runtimeCommit"}.getStr
 
+  # ── THE EXECUTABLE THAT RAN, NOT ONLY THE COMMIT IT WAS BUILT FROM ──────────
+  #
+  # `recorderBuildHash` is "the hash of the exact recorder artifact"
+  # (Trace-Artifacts.md §2.1), and a source commit is not that. The chain
+  # recorders link the trace writer statically, at a revision this repository's
+  # flake pins. When that pin moved 7b8b587 -> e15374866 (`meta.dat` 6 -> 7,
+  # 60700a0), every container from eth, flow, sol and sui changed bytes and no
+  # recorder commit moved, so 36 `/t/**` addresses stayed where they were over
+  # different bytes. The staging publish refused all 36 as determinism incidents
+  # (run 41103424764), which is §2.8a working; the defect was the address.
+  #
+  # `provenance.recorder.artifact` is the digest of the recorder executable,
+  # stated by the producer that ran it. It describes the build behind
+  # `runtimeCommit`, so it is folded into that commit's ref only: a row that
+  # names a different commit of its own was recorded by some other executable
+  # this snapshot says nothing about, and keeps the commit-only form. A snapshot
+  # that states no artifact — every committed capture before this field — keeps
+  # every address it had.
+  let recorderArtifact = (if recNode == nil: "" else: recNode{"artifact"}.getStr)
+
   proc recorderFor(commit: string): RecorderRef =
     ## The recorder ref for one runtime commit. Pure, so two containers from one
     ## build get one ref and one `/t/**` prefix, and two from different builds
     ## necessarily get two.
     let v = "l3-" & shortHash(commit)
-    RecorderRef(id: recorderId, build: recorderBuildHash(recorderId, v),
+    let artifact = (if commit == snapshotCommit: recorderArtifact else: "")
+    RecorderRef(id: recorderId, build: recorderBuildHash(recorderId, v, artifact),
                 version: v)
 
   proc recorderForTx(txHash: string): RecorderRef =

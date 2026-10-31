@@ -57,7 +57,7 @@ const CONSUMER_FLOOR = 2;
  * Offline and host-independent — no container reader, no network — so the base IS the
  * total.
  */
-const BASE_ARMS = 33;
+const BASE_ARMS = 34;
 
 let passed = 0;
 let failed = 0;

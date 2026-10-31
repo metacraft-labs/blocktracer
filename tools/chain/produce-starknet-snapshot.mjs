@@ -55,7 +55,8 @@ import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 import {
   CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
-  parseProducerArgs, readJsonOrRefuse as readJson, refuseOperation as refuse,
+  parseProducerArgs, readJsonOrRefuse as readJson, recorderProvenance,
+  refuseOperation as refuse,
 } from './lib/producer-runtime.mjs';
 import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, INSTRUCTION_SET,
@@ -242,6 +243,9 @@ export async function main(argv) {
   if (args.has('help')) { console.log(USAGE); return; }
   const captureDirs = args.all('capture');
   const recorderCommit = args.one('recorder-commit');
+  // The executable that ran, whose digest moves every trace address with it — see
+  // `recorderProvenance`. Optional so a hand run keeps working; every capture script passes it.
+  const recorderBinary = args.one('recorder-binary');
   const outDir = args.one('out');
   if (captureDirs.length === 0) throw refuse(CONFIG_REFUSAL, `--capture is required\n${USAGE}`);
   if (!recorderCommit) throw refuse(CONFIG_REFUSAL, `--recorder-commit is required\n${USAGE}`);
@@ -518,7 +522,7 @@ export async function main(argv) {
       chain: CHAIN_SLUG,
       label: args.one('label', 'Real Starknet mainnet data'),
       endpoint: endpointLabel,
-      recorder: { ...RECORDER },
+      recorder: recorderProvenance(RECORDER, recorderBinary),
       prestateStrategy: PRESTATE_STRATEGY,
       identifierEncoding: { ...IDENTIFIER_ENCODING },
       capturedAt,

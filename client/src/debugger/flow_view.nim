@@ -255,21 +255,6 @@ type
       ## rail OPENS on, and getting it from anywhere else is issue #593 — a
       ## counter that reads 1 of 8 for as long as the session lasts however far
       ## into the loop the debugger actually is.
-    functionLabel*: string
-      ## The function the loop is in, for the rail's own label.
-
-func iterationsWithSteps(window: FlowLayoutWindow; loopIndex: int): Table[int, bool] =
-  ## Which passes this window actually carries steps for.
-  ##
-  ## Not the same as "which passes the loop ran". `rrTicksForIterations` names
-  ## every pass in the recording, and the static frame's window is cut at the
-  ## session's position, so the later passes are named and empty. The rail has
-  ## to be able to say "eight passes, and this frame reaches three of them"
-  ## rather than offering five empty ones as though the values were missing.
-  result = initTable[int, bool]()
-  for step in window.steps:
-    if step.loopIndex == loopIndex:
-      result[step.iteration] = true
 
 func focusedLoop*(window: FlowLayoutWindow): int =
   ## The loop whose control is on screen, or 0 for none.
@@ -284,34 +269,40 @@ func focusedLoop*(window: FlowLayoutWindow): int =
       return index
   0
 
-proc buildRail(input: FlowWindowInput; loopIndex: int;
-               anchorOf: proc(line: int): string): FlowRail =
+func iterationsWithSteps(window: FlowLayoutWindow; loopIndex: int): Table[int, bool] =
+  ## Which passes this window actually carries steps for.
+  ##
+  ## Not the same as "which passes the loop ran". `rrTicksForIterations` names
+  ## every pass in the recording, and the static frame's window is cut at the
+  ## session's position, so the later passes are named and empty. Laying one of
+  ## those out would produce a pass with no labels in it, which is not the same
+  ## thing as a pass whose labels are missing.
+  result = initTable[int, bool]()
+  for step in window.steps:
+    if step.loopIndex == loopIndex:
+      result[step.iteration] = true
+
+func reachedPasses(window: FlowLayoutWindow; loopIndex: int): seq[int] =
+  ## The passes of `loopIndex` this window records steps for, in order.
+  if loopIndex <= 0 or loopIndex >= window.loops.len: return
+  let loop = window.loops[loopIndex]
+  let carried = iterationsWithSteps(window, loopIndex)
+  let total = max(loop.rrTicksForIterations.len, loop.iterationSteps.len)
+  for i in 0 ..< total:
+    if carried.getOrDefault(i, false): result.add i
+
+proc buildRail(input: FlowWindowInput; loopIndex: int): FlowRail =
+  ## Which pass of `loopIndex` the session's position falls in.
+  ##
+  ## It built the whole loop-slider control until that control was removed
+  ## (`session_view.FlowRail`); what the pane still needs from the window is the
+  ## one number `applyFlow` lays the values out for.
   if loopIndex <= 0 or loopIndex >= input.window.loops.len:
     return FlowRail(loopIndex: 0)
   let loop = input.window.loops[loopIndex]
-  let carried = iterationsWithSteps(input.window, loopIndex)
-  let active = activeIteration(loop, input.locationTicks)
   result = FlowRail(
     loopIndex: loopIndex,
-    line: loop.registeredLine,
-    # A SAME-PAGE FRAGMENT, because the pane this rail is built against holds
-    # every line of the file. `applyFlow` runs before any narrowing — see the
-    # note in this file's Rule 4 section — so at this point the header line is
-    # always present and `#id` is the correct, cheapest thing to emit. The one
-    # caller that narrows afterwards (`source_document.windowAround`) is the one
-    # that has to revisit this, and it is given the rail to revisit it with.
-    href: "#" & anchorOf(loop.registeredLine),
-    label: input.functionLabel,
-    selected: active,
-    active: active,
-    iterations: @[])
-  let total = max(loop.rrTicksForIterations.len, loop.iterationSteps.len)
-  for i in 0 ..< total:
-    result.iterations.add FlowIteration(
-      index: i,
-      ticks: (if i < loop.rrTicksForIterations.len:
-                loop.rrTicksForIterations[i] else: 0),
-      reached: carried.getOrDefault(i, false))
+    selected: activeIteration(loop, input.locationTicks))
 
 # ---------------------------------------------------------------------------
 # Rule 4 — the branch that was not taken
@@ -573,16 +564,21 @@ proc applyFlow*(pane: var EditorPane; input: FlowWindowInput) =
   if index < 0: return
 
   let loopIndex = focusedLoop(input.window)
-  pane.flow = buildRail(input, loopIndex,
-                        proc(line: int): string = lineAnchor(input.path, line))
+  pane.flow = buildRail(input, loopIndex)
 
-  # Which passes to lay out. Every pass the window carries a step for, so the
-  # rail can reach them; `computeFlowLayout` is asked once per pass with that
-  # pass selected, which is exactly the entry point the loop slider drives.
-  var passes: seq[int] = @[]
-  if loopIndex > 0:
-    for it in pane.flow.iterations:
-      if it.reached: passes.add it.index
+  # Which passes to lay out. Every pass the window carries a step for.
+  #
+  # THAT IS MORE THAN THE PANE DRAWS, AND DELIBERATELY SO SINCE THE LOOP SLIDER
+  # WENT. The slider's `:target` segments used to switch which pass was
+  # displayed, so all of them had to be in the markup; with the slider gone
+  # `components/debugger.renderAnnotations` emits the SELECTED pass and drops
+  # the rest, which is where the saving is. What is laid out here is the whole
+  # of what the window records, because that is what this proc is: the pane's
+  # model of the recorded values, and the one thing `test_debug_route`'s
+  # omniscience suite checks the recording against pass by pass. Narrowing it
+  # to the drawn pass would shrink the subject of those checks to the one pass
+  # a screenshot already shows.
+  var passes = reachedPasses(input.window, loopIndex)
   if passes.len == 0: passes.add FirstIterationIndex
 
   # A line outside every loop is laid out identically by every pass, so it would

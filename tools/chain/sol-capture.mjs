@@ -77,5 +77,5 @@ console.error(`sol-capture: ${agreed} of ${bundles.length} bundle(s) replayed to
 // transaction costs published objects (see sol.nix).
 const windowFlags = [...(flag('from') ? ['--from', flag('from')] : []), ...(flag('to') ? ['--to', flag('to')] : [])];
 await run(process.execPath, [here('produce-sol-snapshot.mjs'), '--capture', capture,
-  '--recorder-commit', recorderCommit, '--ct-print', ctPrint, '--out', resolve(out), ...windowFlags],
+  '--recorder-commit', recorderCommit, '--recorder-binary', resolve(recorder), '--ct-print', ctPrint, '--out', resolve(out), ...windowFlags],
   { maxBuffer: 1 << 26 }).then(({ stderr }) => process.stderr.write(stderr));

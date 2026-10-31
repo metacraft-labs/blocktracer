@@ -264,9 +264,22 @@ suite "3 — a tour entry opens, on its own program":
     # The static frame cannot position itself inside a recording it has not
     # read. What it may NOT do is borrow another program's position — so the
     # three replay panes say so, and the controls report no position.
+    #
+    # AND THE SENTENCE IS THE ONE FOR A PAGE THAT WILL START AN ENGINE. These
+    # tour sessions publish a container, so hydration opens it and fills the
+    # panes; the note names that, in the present tense. The past-tense form
+    # ("which this page has not started") belongs to a session with no
+    # container, which the arm below pins so the two cannot be confused — a
+    # page promising an engine it will never start is the same defect pointed
+    # the other way. See `demo_session`'s `pending`.
     let body = renderedBody(renderDebug(root, DemoChainSlug, rows[0].tx))
-    check body.contains("replay engine, which this page has not started")
+    check body.contains("the replay engine reads it when this page loads it")
+    check body.contains("the replay engine reads them when this page loads it")
     check body.contains("No position yet")
+    # The page really does hand the engine something to read, which is what
+    # makes the present tense true rather than merely friendlier.
+    check body.contains("data-trace=\"/t/")
+    check not body.contains("no recording is published here")
 
   test "CONTROL: exactly the six M5c sessions still carry the fixture":
     # The seam keys on the bundle's contents, so it must not have swept the

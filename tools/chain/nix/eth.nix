@@ -120,8 +120,12 @@ let
 
   # `just eth-capture`, inside the sandbox: the transcript is served on loopback and the
   # replay endpoint has no upstream to fall through to, so no network is used or needed.
-  # The output is a §5 snapshot tree. It is NOT bit-reproducible (the recorder stamps a
-  # UUIDv7 recording id); `just eth-regen-check` is how two such trees are compared.
+  # The output is a §5 snapshot tree, and it IS bit-reproducible now that the capture
+  # passes `--recording-id derive` (the UUIDv7 stamp this note used to blame is gone).
+  # Measured 2026-10-30 at blocktracer 96b25d6 on high-mem-server: `nix build --rebuild`
+  # of this derivation reproduced its output, and the container differed from the one
+  # staging published from 6430643 in exactly one byte (offset 57349, `meta.dat` 6 -> 7:
+  # the writer pin). `just eth-regen-check` still compares two trees decoded.
   ethCaptureTree = stdenv.mkDerivation {
     name = "ethereum-mainnet-capture";
     src = captureSrc;

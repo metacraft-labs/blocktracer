@@ -10,7 +10,8 @@
     "l1ChainId": 1,
     "recorder": {
       "id": "example-recorder",
-      "traceSchema": "example-trace/v1"
+      "traceSchema": "example-trace/v1",
+      "artifact": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
     },
     "prestateStrategy": "self-contained",
     "ordering": "blockIndex",

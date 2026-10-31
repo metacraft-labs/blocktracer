@@ -57,7 +57,7 @@ import { recountSnapshot } from './lib/recount.mjs';
 import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import {
   CONFIG_REFUSAL, SOURCE_REFUSAL, containerVersion, dieOperational,
-  refuseOperation as refuse,
+  recorderProvenance, refuseOperation as refuse,
 } from './lib/producer-runtime.mjs';
 import {
   RECORDER, PRESTATE_STRATEGY, IDENTIFIER_ENCODING, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
@@ -123,6 +123,9 @@ async function main() {
   const captureDir = flag('capture');
   const outDir = flag('out');
   const recorderCommit = flag('recorder-commit');
+  // The executable that ran, whose digest moves every trace address with it — see
+  // `recorderProvenance`. Optional so a hand run keeps working; every capture script passes it.
+  const recorderBinary = flag('recorder-binary');
   if (!captureDir || !outDir || !recorderCommit) {
     throw refuse(CONFIG_REFUSAL, '--capture, --out and --recorder-commit are required');
   }
@@ -291,7 +294,7 @@ async function main() {
       chain,
       label,
       endpoint: capture.providers?.blocks ?? '',
-      recorder: { ...RECORDER },
+      recorder: recorderProvenance(RECORDER, recorderBinary),
       prestateStrategy: PRESTATE_STRATEGY,
       identifierEncoding: { ...IDENTIFIER_ENCODING },
       capturedAt,

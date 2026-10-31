@@ -353,9 +353,8 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
 
       s.close()
       dispose()
-
-  test "the loop rail arrives on the EVENT path, not on the reply":
-    ## Omniscience's loop control, over the real `FlowVM`.
+  test "the flow window arrives on the EVENT path, not on the reply":
+    ## Omniscience's loop pass selection, over the real `FlowVM`.
     ##
     ## `Omniscience-Flow.md` records the hazard this test is shaped around:
     ## `ct/load-flow`'s real answer is a queued `ct/updated-flow` EVENT
@@ -364,22 +363,26 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
     ## passed". Nothing here writes the window through a reply or through a
     ## setter: the ONLY way it reaches the ViewModel is `emitEvent`, which is
     ## the path a worker uses.
+    ##
+    ## IT USED TO JUDGE THE LOOP SLIDER and now judges what is left of it. The
+    ## rail was removed (`session_view.FlowRail`), and with it `projectFlowRail`
+    ## — the second producer this test drove. `applyLiveFlow` is the only one
+    ## now, so every assertion below goes through `projectSession`, which is the
+    ## path the route actually takes.
     createRoot proc(dispose: proc()) =
       let (s, mock) = openSessionWith()
       s.store.setSourceAvailability(savVerified)
       s.store.setSessionMode(completedReplay)
 
-      # ── before the event: no loop, and therefore no rail ─────────────────
+      # ── before the event: no loop, and therefore no pass to draw ─────────
       # The negative first, so the assertions after it cannot be satisfied by a
-      # rail that renders unconditionally.
+      # pane that reports a loop unconditionally.
       s.store.updateDebuggerPosition(175'u64, file = "src/shield.nr", line = 6)
       check s.flow.focusedLoop.val == -1
-      check projectFlowRail(s.flow, "src/shield.nr").loopIndex == 0
       let blank = projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
       check blank.editor.flow.loopIndex == 0
-      check "class=\"flowrail\"" notin panes.renderSource(blank.editor)
 
-      # …and the position change DID make the VM ask. A rail that appeared
+      # …and the position change DID make the VM ask. A window that appeared
       # without the request having been issued would be reading something else.
       var asked = false
       for received in mock.receivedCommands:
@@ -409,47 +412,56 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
       check s.flow.totalIterations.val == 8
       check s.flow.selectedIteration.val == 2      # the pass 175 falls inside
 
-      let rail = projectFlowRail(s.flow, "src/shield.nr")
-      check rail.loopIndex == 1
-      check rail.line == 4
-      # A same-page fragment: hydration runs on the debug route, which renders
-      # every line, so the header is on the page. The narrowed home embed is a
-      # different surface and is asserted in `test_debug_route`.
-      check rail.href == "#" & lineAnchor("src/shield.nr", 4)
-      check rail.selected == 2
-      check rail.navigable                          # a live session SEEKS
-      check rail.iterations.len == 8
-      check rail.iterations[5].ticks == 421
-
-      # ── and it reaches the markup, through the route's own renderer ──────
+      # ── and the PANE draws no pass, because this window has no steps ─────
+      #
+      # The payload above is a loop TABLE and nothing else — `loops`, with no
+      # `steps` beside them — which is what the old `projectFlowRail` consumed:
+      # it read `vm.loops` directly and could draw a slider over a window that
+      # carried no values at all. `applyFlow` is the only producer now and it
+      # refuses a window with no steps, so the pane reports no loop.
+      #
+      # That is the right answer rather than a loss. `flow.selected` exists to
+      # say which pass's VALUES are drawn, and a window with no steps has none
+      # to choose between. The pane-level claim is made where it can be made
+      # honestly: the captured-window block below drives a REAL `ct/updated-flow`
+      # from the pinned SDK, steps and all, and asserts `loopIndex` and
+      # `selected` off it.
       let view = projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
-      check view.editor.flow.loopIndex == 1
+      check view.editor.flow.loopIndex == 0
+
+      # And nothing of the removed control survives in the markup it renders.
       let html = panes.renderSource(view.editor)
-      check "class=\"flowrail\"" in html
-      check "Iteration 3 of 8" in html
-      # Every segment carries its pass's header tick, which is what
-      # `hydrate.bindGestures` hands to `ct/goto-ticks` — no new protocol, the
-      # same `data-step` a call-trace row already uses.
-      check "data-step=\"421\"" in html
-      # A live segment is NOT a `:target` link. That mechanism switches which
-      # recorded pass is displayed, and a live rail does something else: it
-      # moves the debugger. Offering both would be two meanings on one control.
-      check "href=\"#fit-" notin html
+      for gone in ["class=\"flowrail\"", "class=\"frseg", "class=\"frtarget\"",
+                   "href=\"#fit-", "Iteration 3 of 8"]:
+        check gone notin html
 
       s.close()
       dispose()
 
-  test "the rail refuses a window it cannot honestly draw":
-    # Fail-closed, in the two shapes the engine can actually produce. Neither is
-    # defensive coding: a rail is "this loop, at this line, N passes", and a
-    # window missing any of those would be drawn as `line -1` or as `of 0`.
+  test "the VM tells two unplaceable windows apart, and the pane draws neither":
+    # TWO SHAPES THE ENGINE CAN PRODUCE, told apart at the layer that can.
+    #
+    #   * A loop with NO RECORDED PASSES: `pickFocusedLoop` skips it, so the VM
+    #     reports no focused loop at all.
+    #   * A loop WITH passes and no line to attach anything to: the VM focuses
+    #     it and counts its passes, because both are facts the payload carries.
+    #
+    # The PANE draws neither, and for a reason that is the same in both: these
+    # payloads are loop tables with no `steps`, and `applyFlow` — the only
+    # producer of `EditorPane.flow` since the loop rail went — refuses a window
+    # with no values to lay out.
+    #
+    # `projectFlowRail` used to make the second case interesting: it read
+    # `vm.loops` directly, so it WOULD have drawn a slider here, and it had a
+    # rule of its own refusing a `registeredLine <= 0` because "Loop line -1" is
+    # worse than no rail. Both the producer and its rule are gone; the VM's own
+    # distinction is what is left to assert, and it is asserted.
     createRoot proc(dispose: proc()) =
       let (s, mock) = openSessionWith()
       s.store.setSourceAvailability(savVerified)
+      s.store.setSessionMode(completedReplay)
       s.store.updateDebuggerPosition(175'u64, file = "src/shield.nr", line = 6)
 
-      # A loop with no recorded passes: `pickFocusedLoop` skips it, so there is
-      # no focused loop at all.
       mock.emitEvent(%*{
         "kind": "CtUpdatedFlow",
         "data": {"location": {"rrTicks": 175},
@@ -457,51 +469,21 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
                                                  "registeredLine": 4,
                                                  "rrTicksForIterations": []}]}]}})
       check s.flow.focusedLoop.val == -1
-      check projectFlowRail(s.flow, "src/shield.nr").loopIndex == 0
+      check projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
+              .editor.flow.loopIndex == 0
 
-      # A loop with passes but no line to attach the control to. `parseFlowLoop`
-      # defaults `registeredLine` to -1, and a rail reading "Loop line -1" is
-      # worse than no rail: half of what the control says is where the loop is.
       mock.emitEvent(%*{
         "kind": "CtUpdatedFlow",
         "data": {"location": {"rrTicks": 175},
                  "viewUpdates": [{"loops": [{}, {"rrTicksForIterations": [13, 95]}]}]}})
       check s.flow.focusedLoop.val == 1
       check s.flow.totalIterations.val == 2
-      check projectFlowRail(s.flow, "src/shield.nr").loopIndex == 0
-
-      s.close()
-      dispose()
-
-  test "no verified source means no rail, on this producer too":
-    # §14's row, and the same rule `flow_view.applyFlow` enforces on the static
-    # side. Two producers of one frame, and the fidelity ladder has to bind both
-    # — a rail pointing at a loop header in a file the pane is not showing would
-    # be a control addressing nothing.
-    createRoot proc(dispose: proc()) =
-      let (s, mock) = openSessionWith()
-      s.store.setSessionMode(completedReplay)
-      s.store.updateDebuggerPosition(175'u64, file = "src/shield.nr", line = 6)
-      mock.emitEvent(%*{
-        "kind": "CtUpdatedFlow",
-        "data": {"location": {"rrTicks": 175},
-                 "viewUpdates": [{"loops": [{}, {"first": 4, "last": 15,
-                                                 "registeredLine": 4,
-                                                 "rrTicksForIterations": [13, 95, 175]}]}]}})
-      # The window IS loaded — so the absence below is the availability's doing
-      # and not an empty flow window's.
-      check s.flow.focusedLoop.val == 1
-
-      s.store.setSourceAvailability(savVerified)
       check projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
-              .editor.flow.loopIndex == 1
-      s.store.setSourceAvailability(savUnverified)
-      let degraded = projectSession(s, "src/shield.nr", ShieldNr, 175, 1315)
-      check degraded.editor.flow.loopIndex == 0
-      check "class=\"flowrail\"" notin panes.renderSource(degraded.editor)
+              .editor.flow.loopIndex == 0
 
       s.close()
       dispose()
+
 
   test "a source-less recording says WHY, in the pane that has no rows to say it beside":
     ## THE DEFECT, PINNED IN THE ONE PLACE A BROWSER CANNOT PIN IT.
@@ -907,8 +889,9 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
 # The captured window: a real `ct/updated-flow`, from the pinned Embed SDK
 # ---------------------------------------------------------------------------
 #
-# `projectFlowRail`'s header records why the VALUES did not cross before this
-# suite grew the block below:
+# `projectFlowRail`'s header — the proc is gone with the loop rail, and the
+# paragraph is quoted here because it is the reason this block exists —
+# recorded why the VALUES did not cross before this suite grew it:
 #
 #     neither the parse nor the rendering can be checked against anything here:
 #     a test written against a payload this repository invented would pass
@@ -1108,19 +1091,18 @@ suite "M8b — omniscience follows a live session":
       check passes.len == 8
       check wirePasses.len == passes.len
 
-      # EIGHT PASSES OF VALUES AND NINE ITERATIONS ON THE RAIL, and the two
-      # numbers are different because the ninth pass is the loop header's last
-      # evaluation — the one that ended the loop. The engine records a step for
-      # it (`exprOrder: ["i"]`, on line 4) and no values, so it is a pass the
-      # rail can reach and a pass with nothing to show. Asserting one number for
-      # both would have forced whichever is wrong onto the other.
-      check live.editor.flow.iterations.len == 9
+      # EIGHT PASSES OF VALUES, AND THE WINDOW RECORDS NINE. The ninth is the
+      # loop header's last evaluation — the one that ended the loop. The engine
+      # records a step for it (`exprOrder: ["i"]`, on line 4) and no values, so
+      # it is a pass that exists and a pass with nothing to show. The rail that
+      # used to COUNT them is gone (`session_view.FlowRail`), so the count is
+      # asserted where it still lives: the window the VM parsed.
+      check s.flow.totalIterations.val == 9
 
-      # And the rail opens on the pass the POSITION is in, derived from the
+      # And the pane opens on the pass the POSITION is in, derived from the
       # tick and not defaulted to 0 (issue #593). 121 falls between the second
       # and third iteration headers, which is pass 1.
       check live.editor.flow.loopIndex == 1
-      check live.editor.flow.line == 4
       check live.editor.flow.selected == 1
 
       # ── and moving inside the function RE-SELECTS THE PASS ────────────────
@@ -1179,6 +1161,13 @@ suite "M8b — omniscience follows a live session":
       let verified = projectSession(s, "src/shield.nr", shieldNr,
                                     int(ticks), 1315)
       check paneLabels(verified.editor, "src/shield.nr").len == 179
+      # …and the pane knows which loop pass those labels belong to, which is
+      # the other half of what `applyFlow` writes. §14's row binds BOTH, and a
+      # mock-driven test of this rule used to sit in the suite above — it drove
+      # a loop TABLE with no steps, which `applyFlow` refuses outright, so both
+      # of its arms would now read zero and prove nothing. The claim is made
+      # here instead, where the window is real and the positive arm is real.
+      check verified.editor.flow.loopIndex > 0
 
       s.store.setSourceAvailability(savUnverified)
       let degraded = projectSession(s, "src/shield.nr", shieldNr,

@@ -56,7 +56,7 @@
 when not defined(js):
   {.error: "hydrate is the browser bundle; it is built with `nim js`.".}
 
-import std/[dom, json, options, strutils]
+import std/[dom, hashes, json, options, strutils]
 
 import isonim/core/async_compat
 from isonim/core/batch import untrack
@@ -713,6 +713,66 @@ proc noteRevealAnchor(pane: Element) {.importjs: """
   ## files — which is what makes this readable off the DOM with no state carried
   ## between renders.
 
+proc moveSourceMark(pane: Element; anchor: cstring; number: cstring;
+                    step: cstring; total: cstring) {.importjs: """
+(function(pane, anchor, number, step, total){
+  // EXACTLY what `renderSource` emits for the current line, applied to rows
+  // that are already there: the row's `cur` class and `aria-current`, and
+  // the position cell `.p` (the glyph, its tab stop, `autofocus` and its
+  // label). Every other byte of the pane is the same as a full render would
+  // write — `writeEditor` only takes this path when the pane rendered
+  // without its position is byte-identical to what is already on screen.
+  //
+  // ATTRIBUTES AND CHARACTER DATA ONLY. A glyph or a number is changed by
+  // writing its existing text node's `data`, never by `textContent`, which
+  // replaces the node: a moved mark is not a rewrite of the pane, and the
+  // pane's children stay the same nodes (journey 15 counts child-list
+  // mutations as writes).
+  function setText(el, value) {
+    if (!el) return;
+    var t = el.firstChild;
+    if (t && t.nodeType === 3 && !t.nextSibling) {
+      if (t.data !== value) t.data = value;
+    } else if (el.textContent !== value) {
+      el.textContent = value;
+    }
+  }
+  // `String.fromCharCode(35)` is the id selector's hash sign: written
+  // literally, `importjs` would read it as a parameter placeholder.
+  var row = anchor ? pane.querySelector(String.fromCharCode(35) + CSS.escape(anchor)) : null;
+  var olds = pane.querySelectorAll(".srcline.cur");
+  if (!(row && olds.length === 1 && olds[0] === row)) {
+    for (var i = 0; i < olds.length; i++) {
+      var o = olds[i];
+      if (o === row) continue;
+      o.classList.remove("cur");
+      o.setAttribute("aria-current", "false");
+      var op = o.querySelector(":scope > .p");
+      if (op) {
+        op.removeAttribute("tabindex");
+        op.removeAttribute("autofocus");
+        op.removeAttribute("aria-label");
+        setText(op, " ");
+      }
+    }
+    if (row) {
+      row.classList.add("cur");
+      row.setAttribute("aria-current", "true");
+      var p = row.querySelector(":scope > .p");
+      if (p) {
+        p.setAttribute("tabindex", "-1");
+        p.setAttribute("autofocus", "autofocus");
+        p.setAttribute("aria-label", "the session is stopped on line " + number);
+        setText(p, "\u25B6");
+      }
+    }
+  }
+  var nums = pane.querySelectorAll(".srcpos .srcposlabel .num");
+  if (nums.length === 2) { setText(nums[0], step); setText(nums[1], total); }
+})(#, #, #, #, #)
+""".}
+  ## Move the source pane's position mark without rewriting the pane.
+
 proc revealCurrentLine(pane: Element) {.importjs: """
 (function(pane){
   // THE REVEAL SAYS IT RAN, and it is the only thing here that does.
@@ -877,6 +937,10 @@ type
     calltraceSelfCost, stateCaption, eventLogCaption: PaneWrite
       ## The sections `renderPanes` still writes in a pane whose rows are a
       ## mounted shared view.
+    editorShape: Hash
+      ## `editorShape` of the source pane as last written — everything it
+      ## renders except the session's position. See `writeEditor`.
+    editorShapeKnown: bool
 
 proc writePane(target: Element; html: string; hasContent: bool;
                pane: var PaneWrite) =
@@ -934,6 +998,74 @@ proc writeSlot(pane: Element; selector: cstring; html: string; outer: bool;
   slot.written = html
   if outer: target.outerHTML = html.cstring
   else: target.innerHTML = html.cstring
+
+proc editorShape(p: EditorPane; pos: DebugControlsPane): Hash =
+  ## Everything the source pane renders EXCEPT where the session stands: the
+  ## pane's own fields, each document's identity and length, and every line's
+  ## number, flags, annotations and flow passes. A line's text and anchor are
+  ## the island's, fixed for the page, so each document contributes its first
+  ## and last line rather than every one. Two panes with the same shape render
+  ## the same bytes apart from the current line's mark and the step in the
+  ## position head — which is what `moveSourceMark` writes.
+  var h: Hash = 0
+  h = h !& hash($p.availability) !& hash(p.reason) !& hash(p.listingCaption) !&
+      hash(p.attributionNote) !& hash(p.coverageNote) !& hash(p.activeIndex) !&
+      hash($p.flow) !& hash(p.breakpointsEnabled) !& hash(p.positionedSteps) !&
+      hash(p.positionedOf) !& hash(pos.positioned) !& hash(pos.totalSteps) !&
+      hash(p.documents.len)
+  for di in 0 ..< p.documents.len:
+    template d: untyped = p.documents[di]
+    h = h !& hash(d.path) !& hash(d.language) !& hash(d.lines.len)
+    if d.lines.len > 0:
+      h = h !& hash(d.lines[0].text) !& hash(d.lines[^1].text)
+    for li in 0 ..< d.lines.len:
+      template ln: untyped = d.lines[li]
+      h = h !& ln.number !&
+          (ord(ln.executed) or (ord(ln.compilerAttributed) shl 1) or
+           (ord(ln.breakpoint) shl 2))
+      if ln.annotations.len > 0: h = h !& hash($ln.annotations)
+      if ln.notTaken.len > 0: h = h !& hash(ln.notTaken)
+      if ln.ran.len > 0: h = h !& hash(ln.ran)
+  !$h
+
+proc writeEditor(target: Element; p: EditorPane; pos: DebugControlsPane;
+                 latch: var PaneLatch) =
+  ## The source pane: rewritten when its content changed, and only MARKED when
+  ## the session merely moved within it.
+  ##
+  ## A STOP USED TO REWRITE THE WHOLE PANE, and that is cheap for one Noir file
+  ## and ruinous for a Cairo transaction's CASM listings: 28,936 lines, about
+  ## 146,000 nodes, and every step held the page for 6 to 64 seconds while the
+  ## page re-rendered and the browser parsed and laid out the same listing
+  ## again (measured over `packages.site-starknet`, 2026-10-30). Most stops
+  ## change nothing in the pane but WHICH row is current.
+  ##
+  ## So the pane's `editorShape` — everything it renders except the position —
+  ## is compared with the shape of what is on screen. Equal means the two
+  ## renders differ only in what `renderSource` emits for the position, and
+  ## `moveSourceMark` applies exactly that. Anything else — another document
+  ## shown, a moved excerpt window, a breakpoint, a flow pass, a value overlay,
+  ## a new reason — changes the shape and takes the full rewrite as before.
+  let hasContent = p.documents.len > 0 or p.reason.len > 0
+  if not hasContent and not latch.editor.latched: return
+  let shape = editorShape(p, pos)
+  if latch.editor.latched and latch.editorShapeKnown and shape == latch.editorShape:
+    var anchor = ""
+    var number = 0
+    for di in 0 ..< p.documents.len:
+      for li in 0 ..< p.documents[di].lines.len:
+        if p.documents[di].lines[li].current:
+          anchor = p.documents[di].lines[li].anchor
+          number = p.documents[di].lines[li].number
+    moveSourceMark(target, anchor.cstring, ($number).cstring,
+                   ($pos.step).cstring, ($pos.totalSteps).cstring)
+    # What is on screen is no longer the last full render, so the next full
+    # render must not be skipped as "unchanged".
+    latch.editor.written = ""
+    return
+  writePane(target, panes.renderSource(p, pos), hasContent, latch.editor)
+  latch.editorShape = shape
+  latch.editorShapeKnown = latch.editor.latched
 
 proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch;
                  km: Keymap) =
@@ -1050,9 +1182,7 @@ proc renderPanes(ui: Ui; view: DebugSessionView; latch: var PaneLatch;
   # build the capture harness photographs and NOT on the build a visitor loads —
   # this route defers `/assets/hydrate.js`, and this call re-renders the pane the
   # static export drew. The two artefacts differ, and a fix has to land on both.
-  writePane(ui.editor, panes.renderSource(view.editor, view.controls),
-            view.editor.documents.len > 0 or view.editor.reason.len > 0,
-            latch.editor)
+  writeEditor(ui.editor, view.editor, view.controls, latch)
   # A pane holding a shared view keeps its rows up to date by itself; what is
   # written here is only the section around them that stays this site's.
   if latch.calltrace.mounted:
@@ -1717,7 +1847,49 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
       report = proc(v: Viewport; rowPx: float) = vm.setViewport(v),
       changed = proc() = discard store.locals.locals.val,
       heightFromPane = true)
-  if not h.latch.eventLog.mounted and view.eventLog.rows.len > 0:
+  # AN EMPTY SERVED PANE IS MOUNTED ONCE THE ENGINE IS LIVE, AND WITHOUT THAT
+  # SECOND CLAUSE THE PANE IS IN A DEADLOCK IT CANNOT LEAVE.
+  #
+  # `measureViewports` sizes an UNMOUNTED pane by counting the rows it was
+  # SERVED (`paneRowsOf(ui.eventLog, ".evrow")`), because those are what asks
+  # for the first window before anything is mounted. A pane served a NOTE
+  # instead of rows — `demo_session`'s branch for a bundle that describes a
+  # different program than its replay does — has none, so the viewport stays at
+  # zero, the EventLogVM asks the engine for nothing, no rows arrive, and a gate
+  # that asks for rows never fires. No rows because no request, no request
+  # because no rows. The Call Trace escapes it only because `CalltraceVM`
+  # auto-loads a window of its own, and the State pane because `projectState`
+  # produces a `note` for every state that is not "the values are in the store"
+  # — which is the escape this pane had no counterpart to.
+  #
+  # Measured on the published site at `/demo/tx/0xc065eddc…/debug/`: the Call
+  # Trace and Values panes filled from the engine, and the Event Log held
+  # "Reading it needs the replay engine, which this page has not started" for as
+  # long as the page was open — on a page whose engine had started, answered and
+  # positioned the session. Clicking the EVENT LOG tab did not help, because
+  # giving the pane a height does not give it a row to measure.
+  #
+  # THE CONDITION IS THE SERVED PANE'S EMPTINESS AND NOT THE PROJECTION'S.
+  # Mounting on `view.eventLog.rows.len == 0` would take over a pane whose
+  # served rows are still the only rows anywhere — §7.0's "no state renders
+  # less than the pre-hydration page", lost for the whole settle window. A pane
+  # that was served nothing has nothing to lose, which is the whole of why this
+  # arm is safe. `measureMounted` then measures the mounted view against
+  # `EventRowFallbackPx`, and that is the first viewport the VM can act on.
+  #
+  # ASKED OF THE DOM AND NOT OF `h.base`, WHICH WAS THE FIRST VERSION AND WAS
+  # WRONG ON EVERY PAGE. `servedFrame` builds `h.base` from the root's
+  # attributes — the engine's address, the step, the total, the content hash —
+  # and populates NO pane: `base.eventLog.rows` is empty whatever was served,
+  # so that condition fired everywhere and replaced eight served rows with an
+  # empty live pane. Caught on a local hydrated build at
+  # `/demo/tx/0xb636…/debug/`, where the served log holds eight rows and the
+  # pane went blank. The rows are in the DOM, which is the only place that
+  # knows, and `.evrow` is still there to count because this branch only runs
+  # while the pane is unmounted.
+  if not h.latch.eventLog.mounted and
+      (view.eventLog.rows.len > 0 or
+       (h.live and h.ui.eventLog.querySelectorAll(".evrow").len == 0)):
     ensureContextMenuHost()
     h.ui.eventLog.innerHTML = panes.renderLiveShell().cstring
     let vm = h.session.eventLog
@@ -1800,11 +1972,16 @@ proc paint(h: Hydration) =
   view.editor.breakpointsEnabled = true
   # §10.8's "the control says so", carried on the pane that owns the control.
   view.controls.outcome = h.continueOutcome
+  # PER DOCUMENT, NOT PER LINE. Asking the set about every line hashed the
+  # document's path once per line — 28,936 times a paint on a Cairo
+  # transaction's listings. A projected line starts with no breakpoint, so only
+  # the lines of a document that has some are visited.
   for di in 0 ..< view.editor.documents.len:
-    let path = view.editor.documents[di].path
+    let marked = h.breakpoints.linesFor(view.editor.documents[di].path)
+    if marked.len == 0: continue
     for li in 0 ..< view.editor.documents[di].lines.len:
       view.editor.documents[di].lines[li].breakpoint =
-        h.breakpoints.contains(path, view.editor.documents[di].lines[li].number)
+        view.editor.documents[di].lines[li].number in marked
   h.mountSharedPanes(view)
   renderPanes(h.ui, view, h.latch, h.keymap)
   # THE VISITOR'S `:target` SURVIVES THE PAINT. `renderPanes` has just replaced

@@ -122,54 +122,30 @@ const JOURNAL = join(HERE, ".selftest-journal.json");
  * from the one described here, and a `replaceAll` would hide that.
  */
 const ARMS = [
-  {
-    id: "Z/link-to-a-line-that-is-not-there",
-    why:
-      "Stop `windowAround` re-aiming the flow rail's link after it narrows the pane." +
-      " This is the defect exactly as it shipped and exactly as it was reported —" +
-      " 'there is a link line 4 that does nothing when clicked'. The rail's href is" +
-      " built against the WHOLE document, the home page's embed is then narrowed to" +
-      " lines 20..44 around the position, and without this line the href still reads" +
-      " `#L-src-shield-nr-4` over a document whose ids start at 20. One anchor," +
-      " twenty-five ids, no overlap: the browser has nothing to scroll to." +
-      " The arm is aimed at the SCROLL assertion rather than at the href, because a" +
-      " check that the anchor's target exists in the DOM passes on a target that" +
-      " sits in a container fragment navigation cannot move.",
-    file: join(CLIENT, "src", "debugger", "source_document.nim"),
-    find: `          fullDocumentUrl & "#" & lineAnchor(doc.path, result.flow.line)`,
-    replace: `          result.flow.href`,
-    journey: "a-link-to-a-line-arrives-at-that-line",
-    assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
-  },
-  {
-    id: "Z/live-paint-drops-the-target",
-    why:
-      "Stop re-pointing `:target` after a live paint. `renderPanes` replaces the" +
-      " element the visitor's `#L-src-shield-nr-4` named, and `:target` does not" +
-      " follow an id to a new element: the address bar keeps the fragment and" +
-      " `:target` matches nothing. Measured 2026-10-29 on 98fa6fd and on the meta.dat 7" +
-      " engine alike — the live session lands on `src/main.nr`, and the line the link" +
-      " promised is in a document that is no longer shown. It was green only while the" +
-      " engine was slow enough for the journey to read the served frame instead.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `    discard retargetFragment(fragment[1 .. ^1])`,
-    replace: `    discard fragment`,
-    journey: "a-link-to-a-line-arrives-at-that-line",
-    assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
-  },
-  {
-    id: "Z/line-link-cannot-select-its-document",
-    why:
-      "Remove the rule that shows an alternate source document when a LINE in it is" +
-      " the `:target`. Only the document's own id selected it, so a link to a line of" +
-      " any document other than the active one arrived at an element with an all-zero" +
-      " rect: present, targeted, and invisible.",
-    file: join(CLIENT, "src", "components", "debugger_css.nim"),
-    find: `.srcdoc.alt:has(:target){display:flex}`,
-    replace: `.srcdoc.alt:has(:target){}`,
-    journey: "a-link-to-a-line-arrives-at-that-line",
-    assertion: "and it is inside the viewport — the click arrived somewhere a reader can see",
-  },
+  // ── THREE ARMS RETIRED WITH THE LOOP RAIL ───────────────────────────────
+  //
+  // `Z/link-to-a-line-that-is-not-there`, `Z/live-paint-drops-the-target` and
+  // `Z/line-link-cannot-select-its-document` all named the journey
+  // `a-link-to-a-line-arrives-at-that-line`, and that journey had exactly one
+  // subject: the flow rail's "line 4" link on the home page. The rail was
+  // removed at a reader's request (`components/debugger.renderSource`), the
+  // journey went with it, and an arm naming a journey that does not exist is a
+  // mutation nothing can judge.
+  //
+  // The first of the three also mutated a line that no longer exists:
+  // `source_document.windowAround` re-aimed the rail's href when the narrowing
+  // dropped its target, and that whole block is gone with the only link it
+  // protected. Measured on the built tree before retiring them: `href="#L-`
+  // occurs ZERO times across every page the exporter writes, so there is no
+  // in-page line link left for any of the three to be about.
+  //
+  // WHAT THEY GUARDED IS NOT ALL GONE. `hydrate.retargetFragment` and
+  // `.srcdoc.alt:has(:target)` are still in the product and still matter to a
+  // visitor who arrives on a SHARED `#L-…` URL — `session_view.lineAnchor`'s
+  // ids are stable and are what such a link names. Nothing drives that path
+  // today, and it is written here rather than left for the next reader to
+  // rediscover: a journey that loads a line fragment directly, with no link to
+  // click, is what brings these three back.
   {
     id: "A/no-position-mark",
     why:
@@ -247,9 +223,19 @@ const ARMS = [
       " non-vacuity control was satisfied by exactly those rows. Note which" +
       " assertion this targets — the pane is full, it is just full of another" +
       " frame, so every count of it stays green.",
+    // RE-AIMED 2026-10-30. The mutation used to narrow `writePane`'s latch for
+    // the State pane, which a live page no longer writes: since 7ffa280 the
+    // pane is CodeTracer's shared State view, mounted by `mountSharedPanes`.
+    // Keeping that view from mounting is not the defect either — the pane is
+    // then written by `renderPanes` with the live values (measured: SURVIVED).
+    // The served values stand only when a live paint writes nothing, so that
+    // is the mutation: the paint neither mounts nor renders.
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `            view.state.values.len > 0 or view.state.note.len > 0, latch.state)`,
-    replace: `            view.state.values.len > 0, latch.state)`,
+    find: `  h.mountSharedPanes(view)\n  renderPanes(h.ui, view, h.latch, h.keymap)`,
+    // `h.session` is never nil here, so the guard keeps both calls compiled
+    // (removing them lets the bundle drop code a build gate requires) and
+    // runs neither.
+    replace: `  if h.session.isNil: h.mountSharedPanes(view)  # MUTATED: the live paint writes nothing\n  if h.session.isNil: renderPanes(h.ui, view, h.latch, h.keymap)`,
     journey: "a-stepped-session-shows-the-values-it-is-at",
     assertion: "no reading of the Values pane is the SERVED frame's values",
   },
@@ -285,54 +271,14 @@ const ARMS = [
     journey: "tx-page-is-the-session",
     assertion: "no page offers to open a debugger",
   },
-  {
-    id: "G/the-seek-lands-somewhere-else",
-    why:
-      "Seek one tick past the row the visitor clicked. This arm exists to prove the" +
-      " jump journey asserts the DESTINATION and not merely motion: with it in place" +
-      " both CONTROLS stay green (the click still reaches the engine and `?t=` still" +
-      " advances), the mark still moves, and the pane still shows a line — every" +
-      " symptom of a working jump — while the session is at a step nobody asked for." +
-      " A journey that had written `after.step !== before.step` would score this as a" +
-      " pass, which is why the assertion is an equality against the step the row" +
-      " names in its own markup.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `      try: h.gotoTicks(parseInt(step)) except CatchableError: discard)`,
-    replace: `      try: h.gotoTicks(parseInt(step) + 1) except CatchableError: discard)`,
-    journey: "a-jump-moves-the-position",
-    assertion: "the session's reported step is the step the call-trace row named",
-  },
-  {
-    id: "H/the-event-log-rows-are-not-bound",
-    why:
-      "Stop binding the event log's rows, leaving the call trace's binding alone." +
-      " The two navigation regions are separate `rowHandler` calls over separate" +
-      " pane bodies, so one can go dead while the other keeps working — and the" +
-      " event log is the region a visitor cannot even see until its tab is chosen," +
-      " which is how it came to be the region no assertion had ever reached. This is" +
-      " the README's `currentEntryRequest()` shape: the machinery present, the" +
-      " gesture wired to nothing, every component contract still green. The arm is" +
-      " surgical on purpose — the six call-trace assertions must stay green, or it" +
-      " would be proving something weaker than it claims.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  rowHandler(h.ui.eventLog, ".evrow")`,
-    replace: `  discard h.ui.eventLog`,
-    journey: "a-jump-moves-the-position",
-    // REPOINTED, AND THE OLD TARGET IS THE FINDING. This arm named "the
-    // session's reported step is the step the event-log row named" and SURVIVED
-    // it in three independent runs, because that assertion — and every other
-    // reading in that block — is taken AFTER the gesture settles, and an
-    // unbound row settles in exactly the right place: the browser follows the
-    // anchor's href, tears the document down, and a new session opens at the
-    // named step. Right step, right mark, right `?t=`, 18 MB of engine
-    // refetched to move one frame.
-    //
-    // The assertion that bites is the one that reads DURING: a token stamped on
-    // `window` before the click survives a seek and cannot survive a
-    // navigation. The old assertion is kept and still made — it is a true claim
-    // about where the session ends up — it simply never was this arm's.
-    assertion: "the event-log jump SEEKS the open session and does not reload the page",
-  },
+  // `G/the-seek-lands-somewhere-else` MOVED TO CODETRACER, 2026-10-30. It mutated `hydrate.rowHandler`'s seek, which the shared Call Trace's rows do not use: their click is the SDK's,
+  // so it SURVIVED (selftest at b801c56): the job is the SDK's since the
+  // shared views were mounted (7ffa280). Graded there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm G — `calltrace_vm.doubleClickEntry` jumps one tick past the row — killed by "a call-trace row's click jumps to that row's own tick" (codetracer 4e957b2a90).
+  // `H/the-event-log-rows-are-not-bound` MOVED TO CODETRACER, 2026-10-30. It mutated `hydrate.rowHandler`'s binding on the event log's rows, which the shared Event Log's rows do not use: their click is the SDK's,
+  // so it SURVIVED (selftest at b801c56): the job is the SDK's since the
+  // shared views were mounted (7ffa280). Graded there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm H — `event_log_vm.doubleClickRow` returns before it seeks — killed by "an event-log row's click jumps to that event" (codetracer 4e957b2a90).
   {
     id: "M/the-calltrace-reply-is-discarded-again",
     why:
@@ -502,34 +448,18 @@ const ARMS = [
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "a value's origin is actually CLASSIFIED, not merely answered",
   },
-  {
-    id: "O2/a-control-on-every-row",
-    why:
-      "Offer the origin control wherever a summary arrived, instead of wherever the" +
-      " summary says something. A summary is present on essentially every local (6" +
-      " of 6, measured), so this is the exact shape NR-05 calls 'a confident-looking" +
-      " affordance that resolves nothing … worse than the absence': the control" +
-      " appears on every row of every session, including recordings that published" +
-      " no source, and answers 'unknown' on all of them. It is aimed at the" +
-      " source-less arm because that is where the mistake is unambiguous — there," +
-      " no control can possibly answer.",
-    file: join(CLIENT, "hydrate", "live_origin.nim"),
-    // ALL THREE GUARDS, and a non-empty fallback. Dropping only the
-    // `unknownSource` test does NOT reproduce the defect — the confidence
-    // guard still suppresses the control and `terminatorExpr` is empty on an
-    // unattributed summary, so the surface is unchanged and the arm SURVIVES.
-    // That happened, and it is what this harness is for: a mutation has to
-    // change the behaviour, not merely the source.
-    find: `  if summary.isPlaceholder: return ""
-  if summary.terminatorKind == tkwUnknownSource: return ""
-  if summary.confidence <= 0.0: return ""
-  summary.terminatorExpr`,
-    replace: `  if summary.isPlaceholder: return ""
-  if summary.terminatorExpr.len > 0: return summary.terminatorExpr
-  "unknown"`,
-    journey: "a-value-can-be-traced-to-its-origin",
-    assertion: "NO-SOURCE: and it offers no origin control, because none could answer",
-  },
+  // `O2/a-control-on-every-row` RETIRED, 2026-10-30. It mutated
+  // `client/hydrate/live_origin.nim` to offer an origin control on every row
+  // that had a summary. That file was removed when the live session became the
+  // Embed SDK's DebuggerSession (0f412a6), and the State pane became CodeTracer's
+  // shared view (7ffa280), which badges EVERY summarized row by specification:
+  // codetracer-pm `spec/GUI/Debugging-Features/Value-Origin-Tracking.md`
+  // §3.2.1, "Every variable row in the Variable State Pane carries a compact
+  // inline origin badge", with a question-mark glyph for `UnknownSource`. The
+  // defect this arm planted is now the specified behaviour, so there is nothing
+  // to mutate toward it. What the journey still guards — that no badge CLAIMS an
+  // origin where none could be classified — is asserted by journey 07's
+  // NO-SOURCE arm over the shared view's badges (`ct-origin-icon-question`).
   {
     id: "Q1/the-lead-in-window-comes-back",
     why:
@@ -608,52 +538,23 @@ const ARMS = [
       " position moves, the values are the engine's: every reading taken AFTER a" +
       " step is green, which is why this survived journeys 03, 09 and 11 for the" +
       " life of the route. Only a reading taken during the step can see it.",
+    // RE-AIMED 2026-10-31. This removed `writePane`'s guard, which a live page
+    // reaches almost never now: the source pane moves its mark in place
+    // (`writeEditor`) and the other three panes are CodeTracer's shared views,
+    // whose sections around them are written by `writeSlot` on every paint —
+    // and SURVIVED for that reason (selftest at 3c1d0d6). `writeSlot`'s own
+    // guard is now the one that keeps a paint from rewriting what a pane
+    // already says.
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  if pane.latched and html == pane.written: return`,
-    replace: `  if false and pane.latched and html == pane.written: return`,
+    find: `  if html == slot.written: return\n  let target = pane.querySelector(selector)`,
+    replace: `  let target = pane.querySelector(selector)  # MUTATED: no content guard`,
     journey: "a-step-repaints-only-what-it-changed",
     assertion: "no pane write rewrote the markup the pane already held",
   },
-  {
-    id: "FL2/the-panes-move-before-the-values-arrive",
-    why:
-      "Paint each stop as soon as it is known instead of when the move has settled." +
-      " `applyStop` has the position about 13 ms before the engine answers with its" +
-      " values, and a frame is 16.7 ms, so the page paints one frame in which it" +
-      " contradicts itself: the new line marked, the new step on the toolbar, and" +
-      " the Values pane empty because there is nothing in it yet. Measured on the" +
-      " unmutated tree, a six-step walk paints that frame six or seven times. It is" +
-      " the flicker the visitor actually reported, and it is invisible to every" +
-      " reading this suite could take before per-frame sampling existed — the" +
-      " content guard alone does NOT fix it, which is why the two are separate arms." +
-      " AND IT IS AIMED AT `renderAfterMove`, NOT AT `paintWhenSettled`, BECAUSE THE" +
-      " DIFFERENCE BETWEEN THEM IS THE WHOLE BITE." +
-      " The first spelling was `if false and h.session.locals.settlingPosition() and`," +
-      " and that does not paint the stop as soon as it is known \u2014 it paints it ONE" +
-      " ANIMATION FRAME later, because `paintWhenSettled` is already inside" +
-      " `onNextFrame` and all that mutation removes is the RE-ARMING. So the defect it" +
-      " plants is 16.7 ms, the locals round trip it has to beat is about 13 ms, and the" +
-      " arm kills only when a frame boundary happens to fall in a 3.7 ms gap. It was" +
-      " written with a margin \u2014 the note further down records 3, 4, 4, 4, 5, 5, 6 and 6" +
-      " blinks over eight runs \u2014 and the margin decayed to nothing. CI scored" +
-      " `counted 1` on ef24db5 and `counted 0` on fe201e81 over the SAME nine-arm shard:" +
-      " one coin, landing twice. Measured on one tree and one build: the old mutation" +
-      " blinks at 1 position of 7 through a direct `run.mjs`, and at 0 of 7 through this" +
-      " harness \u2014 which is a SURVIVED verdict decided by scheduling noise, not by the" +
-      " product." +
-      " This mutation takes `renderAfterMove`'s early-return branch for EVERY move" +
-      " instead of only the first, so the stop is painted synchronously and the" +
-      " scheduler is never reached \u2014 the sentence at the top of this note, as code." +
-      " Measured on the same tree: blinks at positions 1,2,3,4,5,6 of the 7 that settle" +
-      " with values, 8 frames of 736, with every other assertion in the journey still" +
-      " green. `h.everPainted = true` inside the branch is idempotent, so nothing else" +
-      " in the proc changes meaning.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: `  if not h.everPainted:`,
-    replace: `  if true:`,
-    journey: "a-step-repaints-only-what-it-changed",
-    assertion: "no painted frame showed an empty Values pane at a position that has values",
-  },
+  // `FL2/the-panes-move-before-the-values-arrive` MOVED TO CODETRACER, 2026-10-30. It mutated `renderAfterMove`'s first-paint guard; the shared State view keeps its rows until the store's answer, so painting early no longer empties it,
+  // so it SURVIVED (selftest at b801c56): the job is the SDK's since the
+  // shared views were mounted (7ffa280). Graded there: codetracer `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py`
+  // arm FL2 — `stop_loader.loadLocals` clears the values before its answer — killed by "a move keeps the values on screen until its answer arrives" (codetracer 4e957b2a90).
   // `VD1/the-mark-follows-the-selection-again` MOVED TO CODETRACER, 2026-10-29. The code it mutated
   // (`client/hydrate/live_*.nim`, or the landing call in `hydrate.nim`)
   // was removed when the live session became the Embed SDK's
@@ -687,23 +588,14 @@ const ARMS = [
     journey: "a-value-can-be-traced-to-its-origin",
     assertion: "NO-SOURCE: the pane says why a value here cannot be traced",
   },
-  {
-    id: "Z/the-plus-comes-back",
-    why:
-      "Put the reported defect back exactly as it was. `.ctname` and `.evlabel` carry" +
-      " `.copyable`, so restoring `cursor:copy` on a copyable inside a clickable row" +
-      " returns the plus to the widest cell of every navigable row — which is the" +
-      " part of the row a pointer actually rests on, and is what the visitor saw. The" +
-      " row's own `a.ctrow{cursor:pointer}` is untouched by this arm, which is the" +
-      " point: the rule that looks correct in the stylesheet stays correct, and the" +
-      " surface still lies.",
-    file: join(CLIENT, "src", "components", "debugger_css.nim"),
-    find: `a .copyable,button .copyable{cursor:pointer}`,
-    replace: `a .copyable,button .copyable{cursor:copy}`,
-    journey: "a-clickable-surface-shows-the-hand",
-    assertion:
-      "copyable value cells sitting inside a navigable row — each computes `pointer`",
-  },
+  // `Z/the-plus-comes-back` RETIRED, 2026-10-30, with the assertion it named
+  // ("copyable value cells sitting inside a navigable row — each computes
+  // `pointer`", journey 12). It mutated the `a .copyable` cursor rule, which
+  // matched the name cell of BlockTracer's own anchor rows. Every live page
+  // mounts CodeTracer's shared Call Trace view instead (7ffa280), whose rows
+  // carry no `.copyable` cell, so the assertion measured the row itself — the
+  // same elements as "call-trace rows" — and the rule it guarded is reached by
+  // no live row. The arm SURVIVED for that reason (selftest at b801c56).
   {
     id: "Q/the-copy-control-loses-its-cursor",
     why:
@@ -1696,8 +1588,12 @@ const ARMS = [
       " the flag, so nothing looks missing; it only declines to write the" +
       " pointer, which is the shape the defect actually had.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: "    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)",
-    replace: "    h.frameSeeded = true  # MUTATED: the landing selects no frame",
+    // RE-AIMED 2026-10-29: the landing is seeded by `selectCalltraceFrame`
+    // over the held rows, with `selectLandingFrame` only as the fallback,
+    // since the shared call trace landed on the frame a link names (3943455).
+    // Neither runs under this mutation, so no frame is selected.
+    find: "      let named = h.landingAnchor.len > 0 and\n        h.session.selectCalltraceFrame(h.landingAnchor)\n      if not named:\n        discard h.session.selectLandingFrame(\"\")",
+    replace: "      let named = true  # MUTATED: the landing selects no frame",
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     // RE-AIMED, and the move is the point rather than a detail. This arm used
     // to name the CONTROL assertion, which reads the pane before the engine —
@@ -1726,43 +1622,21 @@ const ARMS = [
       " identity, not the index, is the thing that must survive the change of" +
       " numbering between 47 served rows and 48 live ones.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: "    h.frameSeeded = h.session.selectLandingFrame(h.landingAnchor)",
-    replace: "    h.frameSeeded = h.session.selectLandingFrame(\"\")  # MUTATED: the anchor is dropped",
+    // RE-AIMED 2026-10-29: the anchor is resolved by `selectCalltraceFrame`
+    // since 3943455; dropping it falls back to the landing frame.
+    find: "        h.session.selectCalltraceFrame(h.landingAnchor)",
+    replace: "        h.session.selectCalltraceFrame(\"\")  # MUTATED: the anchor is dropped",
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     assertion: "and it is STILL the frame the link named, carried across by anchor",
   },
-  {
-    id: "CT1/two-frames-answer-to-one-identity",
-    why:
-      "Give ONE live frame another frame's `call:` path, so two rows on screen" +
-      " answer to one identity. `Click-Navigation.md` §2.2: the identity that IS" +
-      " injective is the frame's position in the call tree, and \"a wrongly" +
-      " numbered path is a link that lands in a real frame that is not the one" +
-      " it named — the failure mode with no visible symptom\". That" +
-      " symptomlessness is the whole reason for this arm, and it is why the" +
-      " mutation is ONE duplicate rather than a flattened numbering: the pane" +
-      " still renders, every row still carries an anchor, the six rows sharing a" +
-      " coordinate still carry six distinct ones, every click still marks the row" +
-      " it was given, and every link still resolves to SOMETHING. Only the" +
-      " whole-pane uniqueness record notices — which is the record §5" +
-      " prescribes for §2.2, and the reason it is quantified over the pane" +
-      " rather than over the six.\n\n" +
-      "      Mutated in the LIVE projection and not in `callPath` itself, which" +
-      " both producers share: `searchboot` reaches that module too, so a" +
-      " mutation there restales the search bundle this arm does not rebuild and" +
-      " the run scores DID-NOT-BUILD instead of measuring anything. Measured:" +
-      " it did, once.",
-    file: join(CLIENT, "hydrate", "session_project.nim"),
-    find: "  withCallAnchors(result)\n  for i in 0 ..< result.frames.len:\n    result.frames[i].href = positionQuery(",
-    replace:
-      "  withCallAnchors(result)\n" +
-      "  # MUTATED: the last frame answers to the first frame's identity\n" +
-      "  if result.frames.len > 1: result.frames[^1].anchor = result.frames[0].anchor\n" +
-      "  for i in 0 ..< result.frames.len:\n    result.frames[i].href = positionQuery(",
-    journey: "a-call-trace-row-lands-on-the-frame-it-names",
-    assertion:
-      "over the WHOLE pane, every row carries a frame identity no other row carries",
-  },
+  // `CT1/two-frames-answer-to-one-identity` MOVED TO CODETRACER, 2026-10-31.
+  // It mutated `session_project.withCallAnchors`, the served projection's
+  // anchors, and SURVIVED: the live rows are the shared Call Trace's, and
+  // the identity journey 25 reads off them (`data-call-key`) is the call key
+  // the SDK's store takes from the engine. Graded there: codetracer
+  // `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py` arm CT1 —
+  // `replay_data_store` blanks every row's call key — killed by "every
+  // call-trace row carries its own call key" (codetracer 52dc517ffc).
   {
     id: "PP1/the-hydrated-pane-has-one-answer-again",
     why:
@@ -2099,6 +1973,35 @@ const KNOWN_SURVIVORS = loadKnownSurvivors();
 const isRegistered = (id) => Object.prototype.hasOwnProperty.call(KNOWN_SURVIVORS, id);
 
 /**
+ * ARMS THAT CANNOT BE GRADED, because the assertion they name is red before
+ * any mutation for a cause outside the journey — an upstream defect with its
+ * own record. `known-survivors.json`'s `known_blocked` section, with the same
+ * discipline as the survivors beside it: an entry needs every field, it excuses
+ * only the case it describes (a NEVER RAN whose assertion was ALREADY RED), and
+ * an entry whose arm is KILLED fails the run until it is deleted — the target
+ * went green, so the arm can be graded and must be.
+ */
+const BLOCKED_FIELDS = ["reason", "cause", "closed_by", "recorded"];
+
+function loadKnownBlocked() {
+  try {
+    const parsed = JSON.parse(readFileSync(join(HERE, "known-survivors.json"), "utf8"));
+    return parsed.known_blocked ?? {};
+  } catch {
+    return {};
+  }
+}
+
+const KNOWN_BLOCKED = loadKnownBlocked();
+
+const isBlocked = (id) => Object.prototype.hasOwnProperty.call(KNOWN_BLOCKED, id);
+
+/** Whether an arm's recorded verdict is one a register entry excuses. */
+const isExcused = (a) =>
+  (a.verdict === "survived" && isRegistered(a.id)) ||
+  (a.verdict === "blocked" && isBlocked(a.id));
+
+/**
  * What is WRONG WITH THE REGISTER ITSELF, as a list of sentences.
  *
  * Checked before anything is spent, in `main` and in `combine`, because both of
@@ -2121,6 +2024,19 @@ function registerProblems() {
       );
     }
   }
+  for (const [id, entry] of Object.entries(KNOWN_BLOCKED)) {
+    if (!ARMS.some((a) => a.id === id)) {
+      out.push(`A BLOCKED ARM NO LONGER IN THIS FILE  ${id}  (known_blocked is stale)`);
+      continue;
+    }
+    if (isRegistered(id)) {
+      out.push(`AN ARM IN BOTH REGISTERS  ${id}  — it is either blocked or a survivor, not both.`);
+    }
+    const missing = BLOCKED_FIELDS.filter((f) => !String(entry?.[f] ?? "").trim());
+    if (missing.length > 0) {
+      out.push(`INCOMPLETE BLOCKED ENTRY  ${id}  — missing ${missing.join(", ")}.`);
+    }
+  }
   return out;
 }
 
@@ -2130,6 +2046,14 @@ function printRegister(excusedIds) {
   log("");
   log(`  ${excusedIds.length} registered survivor(s) — recorded, not excused away:`);
   for (const id of excusedIds) {
+    if (isBlocked(id)) {
+      const b = KNOWN_BLOCKED[id];
+      log(`  ${id}  (BLOCKED, recorded ${b.recorded})`);
+      log(`    reason:     ${b.reason}`);
+      log(`    cause:      ${b.cause}`);
+      log(`    closed by:  ${b.closed_by}`);
+      continue;
+    }
     const e = KNOWN_SURVIVORS[id];
     log(`    ${id}   (recorded ${e.recorded})`);
     log(`      needs a subject: ${e.subject.split(". ")[0]}.`);
@@ -2264,16 +2188,16 @@ function combine(n) {
       `${notKilled.filter((a) => a.verdict === "survived").length} survived, ` +
       `${notKilled.filter((a) => a.verdict === "never").length} never ran`);
   for (const a of notKilled) {
-    log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}  [shard ${a.shard}]`);
+    log(`  ${a.verdict === "survived" ? "SURVIVED " : a.verdict === "blocked" ? "BLOCKED  " : "NEVER RAN"}  ${a.id}  [shard ${a.shard}]`);
   }
 
   // THE REGISTER IS APPLIED HERE TOO, and this is the place it most has to be:
   // `--combine` is where "the full set" is claimed, so a rule the shards apply
   // and the combine does not would make the suite's own headline verdict
   // disagree with every leg of it.
-  const excused = all.filter((a) => a.verdict === "survived" && isRegistered(a.id));
-  const revived = all.filter((a) => a.verdict === "killed" && isRegistered(a.id));
-  const unexcused = notKilled.filter((a) => !(a.verdict === "survived" && isRegistered(a.id)));
+  const excused = all.filter(isExcused);
+  const revived = all.filter((a) => a.verdict === "killed" && (isRegistered(a.id) || isBlocked(a.id)));
+  const unexcused = notKilled.filter((a) => !isExcused(a));
   for (const a of unexcused.filter((x) => isRegistered(x.id))) {
     log(`  ${a.id} IS IN known-survivors.json, AND THAT DOES NOT COVER A ${a.verdict.toUpperCase()}.`);
   }
@@ -3041,6 +2965,14 @@ async function main() {
       continue;
     }
     if (!before.ok) {
+      if (isBlocked(arm.id)) {
+        log(`    BLOCKED  — the assertion is ALREADY RED, and known_blocked says why:`);
+        log(`               ${KNOWN_BLOCKED[arm.id].cause}`);
+        log(`               (${before.detail})`);
+        recordArm(arm, "blocked", started);
+        log("");
+        continue;
+      }
       log(`    NEVER RAN — the assertion is ALREADY RED before the mutation`);
       log(`               (${before.detail})`);
       log(`               A mutation cannot demonstrate anything about an assertion that`);
@@ -3234,11 +3166,11 @@ async function main() {
 
   // THE REGISTER, BOTH DIRECTIONS. `excused` is what it tolerates, `revived` is
   // what it refuses. What is wrong with the FILE was refused at the top of `main`.
-  const excused = journal.arms.filter((a) => a.verdict === "survived" && isRegistered(a.id));
-  const revived = journal.arms.filter((a) => a.verdict === "killed" && isRegistered(a.id));
-  const unexcused = journal.arms.filter(
-    (a) => a.verdict !== "killed" && !(a.verdict === "survived" && isRegistered(a.id)),
+  const excused = journal.arms.filter(isExcused);
+  const revived = journal.arms.filter(
+    (a) => a.verdict === "killed" && (isRegistered(a.id) || isBlocked(a.id)),
   );
+  const unexcused = journal.arms.filter((a) => a.verdict !== "killed" && !isExcused(a));
 
   log(
     `${arms.length} arm(s): ${killed} killed, ${survived} survived, ${neverRan} never ran` +
@@ -3252,7 +3184,7 @@ async function main() {
     // through the log; the arms that are not killed are known here, and a dead
     // arm is the finding this suite exists to produce.
     for (const a of unexcused) {
-      log(`  ${a.verdict === "survived" ? "SURVIVED " : "NEVER RAN"}  ${a.id}`);
+      log(`  ${a.verdict === "survived" ? "SURVIVED " : a.verdict === "blocked" ? "BLOCKED  " : "NEVER RAN"}  ${a.id}`);
       if (isRegistered(a.id)) {
         log(`               IT IS IN known-survivors.json, AND THAT DOES NOT COVER THIS.`);
         log(`               The register excuses a SURVIVAL — the mutation reaching the`);
@@ -3262,6 +3194,11 @@ async function main() {
     }
     for (const a of revived) {
       log(`  REGISTERED BUT KILLED  ${a.id}`);
+      if (isBlocked(a.id)) {
+        log(`               known_blocked says this arm's assertion is red upstream, and`);
+        log(`               it ran and was killed. The cause is gone; DELETE THE ENTRY.`);
+        continue;
+      }
       log(`               known-survivors.json says this arm's assertion cannot see its`);
       log(`               mutation, and it just did. The gap is closed; DELETE THE ENTRY.`);
       log(`               (recorded ${KNOWN_SURVIVORS[a.id].recorded} — it needed: ` +

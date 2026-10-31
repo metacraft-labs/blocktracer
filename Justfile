@@ -161,7 +161,7 @@ test: recordings-test prepare-recordings
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 49 + 36 + 8 + 33 + 24 = 1378 counted assertions —
+# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 49 + 36 + 8 + 34 + 24 = 1379 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be

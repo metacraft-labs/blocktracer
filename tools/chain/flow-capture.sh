@@ -84,4 +84,5 @@ node tools/chain/produce-flow-snapshot.mjs \
   --inputs "$inputs" \
   "${capture_args[@]}" \
   --recorder-commit "$recorder_commit" \
+  --recorder-binary "$recorder_abs" \
   --out "$out"
