@@ -80,12 +80,12 @@
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "dev",
-  "commit": "c0408ecadd28772a027168e447485863f26e9ef7",
+  "commit": "1ab428f2947803864f615066cc90ec74c5b8ace7",
   "files": [
     {
       "path": "src/frontend/styles/components/button.styl",
       "local": "frontend/styles/components/button.styl",
-      "sha256": "f8bafade89bf02d4a262629577786fa96757ed38ff44594c9a9bde9d9ff503df"
+      "sha256": "c25da59b18fd560ef3d554d34a29a10cdf987c25fe2e8ad9a4c8d6ea65ef233f"
     },
     {
       "path": "src/frontend/styles/components/input.styl",
@@ -120,7 +120,7 @@
     {
       "path": "src/frontend/styles/components/text_editor.styl",
       "local": "frontend/styles/components/text_editor.styl",
-      "sha256": "6fc333ce674228c2994fd3c1c81a778760f23090ede0015117afb5ef9e72a0a3"
+      "sha256": "7d8df582bfcaeaef2be2820fe78c30842a5f56690c797dfa3b9b8c599494adf6"
     },
     {
       "path": "src/frontend/styles/components/event_log.styl",
@@ -130,27 +130,27 @@
     {
       "path": "src/frontend/styles/components/data_tables.styl",
       "local": "frontend/styles/components/data_tables.styl",
-      "sha256": "bf91d7d6a191cf6a00fc764f3c85aa838c516c60ad1fd53a562099390319d385"
+      "sha256": "fae863ed512bd2a832fd137937ccbd2d32abbadfe1afc9037e10e7a594e053bb"
     },
     {
       "path": "src/frontend/styles/components/calltrace.styl",
       "local": "frontend/styles/components/calltrace.styl",
-      "sha256": "e767b22ed37ab1ef0840a90eb524e1aca120cf64c80cda604707266495331e97"
+      "sha256": "f7ec8895a2d67b973452bd3c3eb40e6c59c6bd5cad5ff91b8233264217ebef0b"
     },
     {
       "path": "src/frontend/styles/components/list_scrubber.styl",
       "local": "frontend/styles/components/list_scrubber.styl",
-      "sha256": "032eeceb75835a6bb31ebc78404a0f2603b1e4751cd2f3f960f403cf01a02ea1"
+      "sha256": "720cd01c6b2e144bfcaee6909552c8e5175e991e2d0822a45f2350a69e210b76"
     },
     {
       "path": "src/frontend/styles/components/golden_layout.styl",
       "local": "frontend/styles/components/golden_layout.styl",
-      "sha256": "75b94eaf80803b3dce11b05b45b9fa5ce9c104f55e8a097ab884f20798526448"
+      "sha256": "d19a429472426053a743360c215801c7e28f88d9150e7f64b0c80260ad93a6f5"
     },
     {
       "path": "src/frontend/styles/components/state.styl",
       "local": "frontend/styles/components/state.styl",
-      "sha256": "e84f19534658f07f7b4c8137d09a25ddd421f5bfa0c6c4a6de65dcd6841f90c7"
+      "sha256": "c3019f989a0b1b85773a3746f2ec28f4a0cb8d3ac571214b003739ae9954e328"
     },
     {
       "path": "src/frontend/styles/components/empty_states.styl",

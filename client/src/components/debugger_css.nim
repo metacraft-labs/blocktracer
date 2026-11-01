@@ -625,9 +625,25 @@ a.lm_title{display:block;line-height:inherit}
    them.
 
    THE VALUE IS DERIVED, NOT CHOSEN, like `.srcstrip`'s directly below. It is
-   that same strip row — the tab box plus the list's `3xs` padding and the
-   row's hairline — plus eight rows of code at the code type's own size and
-   line height, and it resolves to 222px. Eight because the pane has to show a
+   that same strip row — the `.lm_tab` box plus the `2xs` a pane header leaves
+   above a tab and below it — plus eight rows of code at the code type's own
+   size and line height. The strip's two terms moved with the strip, because a
+   floor describing a row the row no longer has is the kind of arithmetic that
+   outlives what it was measured against: it used to spend the list's `3xs`
+   padding and a hairline, and the list spends no padding now.
+
+   WHAT IT RESOLVES TO, MEASURED RATHER THAN RESTATED: 216.8px, read off
+   `getComputedStyle` on the subject below at 1280x720, 1440x900 and
+   1920x1080. The 222px this paragraph claimed for the previous arithmetic was
+   stale before these terms changed — the code type's own tokens have moved
+   since, and the rows are 23.09px each today. AND THE FLOOR IS DORMANT ON THIS
+   LAYOUT: the same three readings give `.srcwrap` 490.8, 724.3 and 925.9px,
+   all far above it, because the pane now SCROLLS the bands rather than
+   squeezing the listing — 924 over 499 at 1280x720, with `.srcrung` 99,
+   `.srccause` 195 and `.srcattr` 139 above the listing inside a 499px pane.
+   The floor is insurance against the zero-row squeeze recorded above, not a
+   number anything currently rests on, and the six-rows reading below is that
+   older layout's. Eight because the pane has to show a
    position IN CONTEXT: the marked line, and enough either side of it to read
    what it is doing.
 
@@ -645,12 +661,12 @@ a.lm_title{display:block;line-height:inherit}
    AT A HEALTHY VIEWPORT THIS CHANGES NOTHING, which is the other half of the
    claim. Measured at 1920x1080 on the same subject, before and after: pane
    797px, `.srcwrap` 336px, `.src` 289px, 12 rows, `scrollHeight ==
-   clientHeight` — identical readings. The floor is 222px, under the 336 the
+   clientHeight` — identical readings. The floor is 216.8px, under the 336 the
    layout already gives it, so it does not bind. At 1280x720 and 1440x900 it
    does, and the pane scrolls (813 over 435, and 757 over 617). */
 .srcwrap{display:flex;flex-direction:column;height:100%;
   min-height:calc(var(--bt-layout-tabstrip-row-min) +
-    2 * var(--bt-space-3xs) + var(--bt-stroke-hairline) +
+    2 * var(--bt-space-2xs) +
     8 * var(--bt-type-code-size) * var(--bt-type-code-line))}
 /* One panel per document, switched by `:target`. The ACTIVE document is
    emitted last so every alternate can reach forward and hide it — CSS has
@@ -712,19 +728,22 @@ a.lm_title{display:block;line-height:inherit}
    it out of flow leaves the trigger — five pixels shorter — setting the
    height on its own.
 
-   THE FLOOR IS IN THE UNITS THE TAB IS BUILT FROM, so it cannot drift from it,
-   and the units changed when the tabs did. It used to read
-   `--bt-layout-tabstrip-row-min` — the 2.325em box of the `.ct-tab` this strip
-   wore — and a `.lm_tab` is a different box: `1.5rem` tall (`--bt-space-lg`),
-   `0.25rem` below the header's top (`--bt-space-2xs`, from
-   `golden_layout.styl`'s own `.lm_header .lm_tab`), over the same `0.25rem` of
-   header beneath it. Add the list's `3xs` padding top and bottom and the floor
-   IS the closed row — 24 + 4 + 4 + 2 + 2 — rather than a number near it.
+   THE FLOOR IS THE PANE HEADER'S OWN ARITHMETIC, and that is the whole of it:
+   `--bt-layout-tabstrip-row-min` is the `.lm_tab` box this strip's tabs now
+   wear — `1.5rem`, as `golden_layout.styl` declares it — and `--bt-space-2xs`
+   is the `0.25rem` that same file puts above a tab and leaves below it. 24 + 4
+   + 4 is 32, and 32 is what a `.lm_header` measures beside this row. Measured
+   at 1680 on the home page's session and at 1440 on the 33-file FeeJuice
+   bundle: the strip read 37 and 38 against a 32px header before, and reads 32
+   on both after.
 
-   IT IS A FLOOR AND IT IS A HAIR ABOVE THE NATURAL HEIGHT, which is what the
-   hairline term is doing: a floor EQUAL to the closed row leaves the closed
-   state at its own natural height and the open state resting on the floor,
-   which are two ways of arriving at what should be one number.
+   THE LIST'S OWN PADDING IS NO LONGER IN THIS SUM, because the list no longer
+   spends any — see `.srctabs` below, where it went and what it was costing.
+   Nor is the hairline that used to sit on top of this floor to keep it a hair
+   above the natural height: with the padding gone, the natural closed row and
+   this floor are the same 32 by construction rather than two numbers a
+   hairline had to separate, and the floor binds in BOTH states, which is what
+   lets the trigger beside the list stop deciding how tall this row is.
 
    MEASURED ON THE 33-FILE FeeJuice BUNDLE at 1280, 1440 and 1920. The stale
    token resolved three pixels BELOW the closed row, so it stopped binding and
@@ -736,8 +755,8 @@ a.lm_title{display:block;line-height:inherit}
    three pixels were this rule's and are gone. */
 .srcstrip{position:relative;display:flex;align-items:stretch;flex:0 0 auto;
   min-width:0;
-  min-height:calc(var(--bt-space-lg) + 2 * var(--bt-space-2xs) +
-    2 * var(--bt-space-3xs) + var(--bt-stroke-hairline))}
+  min-height:calc(var(--bt-layout-tabstrip-row-min) +
+    2 * var(--bt-space-2xs))}
 /* THE STRIP IS THE FRAME'S SURFACE AND NOT THE PANEL'S, AND THAT ONE TOKEN IS
    WHY THE FILE NAMES DID NOT READ AS TABS.
 
@@ -775,26 +794,59 @@ a.lm_title{display:block;line-height:inherit}
    `:has()` and not `.p-source` flat, because the Code pane does not always
    draw one: a listing on its own, or a pane with no documents, keeps the
    stack's header (`components/debugger.editorKeepsStackHeader`) and with it
-   the inset every other panel has. */
-[data-register="debugger"] .lm_content.p-source:has(.srcstrip){padding-top:0}
-/* THE ROW'S OWN INSET STAYS, AND TAKING IT OUT TO LINE THIS STRIP UP WITH THE
-   PANE TABS WAS TRIED TWICE AND PUT BACK BOTH TIMES.
-   `.lm_tabs` has no padding, so the first pane tab is flush with its panel's
-   left edge and 4px below the header's top; this row's first tab sits 8px
-   right and 2px down of that, and the strip is 36px against their 32px.
-   Measured in Chromium at 1680 against the CALL TRACE strip beside it.
-   Removing the padding — both axes, then the vertical alone — closed that gap
-   and reproducibly cost one pixel elsewhere: journey 24's "opening the file
-   list moves neither the source nor the row it opened from" read `1px` at
-   1440 on every attempt, and the pixel could not be found in any box between
-   `.lm_content` and `.src` under the journey's own harness (every delta read
-   0 in an isolated probe of the same page, viewport and click). Two pixels of
-   alignment nobody asked for are not worth a gate nobody can explain, so the
-   inset stays and the misalignment is written down here instead. */
+   the inset every other panel has.
+
+   THE INSET IS MOVED, NOT DROPPED, and `--bt-space-xs` below is that same
+   inset: 8px, the value `golden_layout.styl` spells PANEL_INSET. The token and
+   not the literal, because a raw length in a Layer 2 view is design check A2 —
+   written as `0.5rem` first, this rule was the only thing A2 found in 303,846
+   characters of scanned source, and it failed `visual-design` in run
+   41225561301.
+   Zeroing it outright was the first answer and it cost a pixel: with no inset
+   on either side this pane's children fill its fractional height exactly, the
+   scroll maximum lands on a fraction while `scrollHeight - clientHeight`
+   reports a whole number, and `scrollTop` at that maximum is one pixel past
+   where the next layout will allow. Opening the file list is a layout, so the
+   browser clamped 378 to 377 and the source moved a pixel DOWN and stayed
+   there — `a-long-file-list-fits-on-one-row`'s "opening the file list moves
+   neither the source nor the row it opened from", and only ever with the pane
+   scrolled to its very bottom, which is why it read as flaky. Measured at
+   1440x900 on /aztec-testnet-frames/tx/0x0a807e4e…/debug, 33 documents: with
+   the pane parked at its maximum, 3 of 3 trials displaced here against 0 of 3
+   at 6aeb3e8, before this strip existed; 0 of 2 with the inset restored at the
+   top and 0 of 2 with it at the bottom; and the journey itself 4 of 4 green
+   after, against 2 of 3 RED before. It is restored at the bottom because the
+   top is the one place it cannot go: that is where the header is. */
+[data-register="debugger"] .lm_content.p-source:has(.srcstrip){
+  padding-top:0;padding-bottom:var(--bt-space-xs)}
+/* THE ROW HAS NO INSET OF ITS OWN, AND THAT IS WHAT MAKES THESE FILE NAMES
+   PANE TABS RATHER THAN NEARLY PANE TABS.
+   `.lm_tabs` has no padding: a pane tab is flush with its panel's left edge
+   and sits `--bt-space-2xs` below the header's top. This row's padding put
+   its first tab 8px right and 2px down of that and made the strip 5 to 6px
+   taller than the header beside it — reported as non-standard tabs, and the
+   last of it after the tabs themselves became `.lm_tab`s.
+
+   IT STAYED THAT WAY FOR TWO ROUNDS ON A PREMISE THAT HAS SINCE EXPIRED, and
+   the expiry is the point. The paragraph here used to record that removing
+   this padding — both axes, then the vertical alone — "reproducibly cost one
+   pixel elsewhere": journey 24's "opening the file list moves neither the
+   source nor the row it opened from" read `1px` at 1440 on every attempt. That
+   pixel was real and it was NOT this padding's. It was the pane inset zeroed
+   by the rule above this one, which left this pane's children filling a
+   fractional height exactly, and it is fixed there. Re-measured here with a
+   deterministic instrument — the pane parked at its scroll maximum, the list
+   opened and closed, every box between `.lm_content` and `.src` read — all
+   four variants of this padding displace 0 of 3 trials, against 3 of 3 before
+   that fix. The alignment is free now, so it is taken.
+
+   THE OPEN MENU KEEPS ITS INNER PADDING, which is its own `3xs` further down
+   and not this one: this row is a strip and that one is a menu, and only the
+   strip has a header to line up with. */
 .srctabs{display:flex;gap:var(--bt-space-3xs);flex-wrap:nowrap;
   flex:1 1 auto;min-width:0;
   overflow-x:auto;overscroll-behavior:contain;
-  padding:var(--bt-space-3xs) var(--bt-density-cell-x)}
+  padding:0}
 /* A tab is a real link to its document, so it gets a real hit area and a real
    hover — the strip used to be four inert `<span>`s naming four files of which
    one was reachable. `flex:0 0 auto` and `nowrap` because a flex item in a
@@ -881,32 +933,50 @@ a.lm_title{display:block;line-height:inherit}
 /* THE TRIGGER. The checkbox is the state and the label is the control; the
    input is zero-sized rather than `display:none` because a hidden input is not
    focusable and this has to stay operable from the keyboard. Bare `0` is not a
-   length, so this stays inside A2 without inventing a token for "no size". */
-.srcallt{appearance:none;-webkit-appearance:none;
+   length, so this stays inside A2 without inventing a token for "no size".
+
+   THE REGISTER IS IN THE SELECTOR BECAUSE WITHOUT IT THIS RULE LOSES, and it
+   lost silently for as long as it has existed. The vendored type rule for this
+   register sets `padding: 0.25em 0.75em` on every `input` it reaches; an
+   attribute plus a type outranks one class, so the zero-sized input measured
+   21x7 and took a 21px slot at the head of the strip — which is most of what
+   made the first file tab look indented. Measured at 1440 on the 33-file
+   FeeJuice bundle: the first tab sat 29px right of the strip's left edge
+   against a pane tab's 0, and sits at 0 with the register in the selector. */
+[data-register="debugger"] .srcallt{appearance:none;-webkit-appearance:none;
   width:0;height:0;margin:0;padding:0;border:0;background:none;flex:0 0 auto}
 /* The label carries the focus ring, because the ring the global
    `:focus-visible` rule puts on the input itself would be drawn around nothing.
    No new tokens — the same three the global rule uses. */
 .srcallt:focus-visible ~ .srcall{outline:var(--bt-focus-width) solid var(--bt-focus-ring);
   outline-offset:var(--bt-focus-offset)}
-/* IT STRETCHES, AND ITS VERTICAL PADDING IS THE ROW'S HEIGHT WHEN THE LIST IS
-   OUT OF FLOW. This is the one place the menu form costs something the
-   disclosure did not: the open list is absolutely positioned, so it stops
-   contributing height, and the trigger is then the ONLY thing holding the row
-   open. `2xs` is exactly the `3xs` the list's own padding spends plus the `3xs`
-   a tab spends — the two boxes the row's 26px used to come from — so the row is
-   the same height open and closed and the source below it does not shift by a
-   pixel when the menu appears. That is the whole property the report asked for,
-   and it is worth stating that it rests on a padding rung and not on a
-   coincidence. `align-self` is left alone for the same reason: stretched, the
-   trigger's own left border becomes the row's full-height divider rather than a
-   stub that stopped where a two-pixel padding did.
+/* IT STRETCHES, AND IT NO LONGER DECIDES HOW TALL THE ROW IS — the floor on
+   the strip does, in both states. That is a change of owner and worth stating
+   as one. This trigger used to carry `2xs` top and bottom for exactly one
+   reason: the open list is absolutely positioned, so it stops contributing
+   height, and the trigger was then the only thing holding the row open. It
+   held it too well. Its box came to 34px — 4 + 4 of padding over a 24px line
+   over the `thick` rule below — against a pane header's 32, so a strip with a
+   trigger in it was 6px taller than every header on the page, and that was
+   visible as the file names not sitting where tabs sit.
 
-   AND IT RESERVES A TAB'S OWN TRANSPARENT UNDERLINE, the last two pixels of
-   that sum and measured rather than reasoned: a tab's box is its padding PLUS
-   the `thick` rule it holds for the active mark, and a trigger without one shrank
-   the row 27px to 25px the moment the list left flow — a 2px jump of the whole
-   document, on the one interaction whose entire claim is that it moves nothing.
+   THE FLOOR TOOK THE JOB OVER, which is what it was written for: "THE ROW'S
+   HEIGHT IS ITS OWN, NOT ITS TALLEST CHILD'S" is the heading above
+   `.srcstrip`, and with the floor at the header's own 32 the trigger can be
+   shorter than the row without the row moving. Measured on the 33-file
+   FeeJuice bundle at 1440, the pane parked at its scroll maximum: the strip is
+   32 closed and 32 open, and the source below it displaces 0 of 3 trials.
+   `align-self` is still left alone, and now matters more: stretched, the
+   trigger fills the row's full 32 and its left border is the row's full-height
+   divider.
+
+   IT STILL RESERVES A TAB'S OWN TRANSPARENT UNDERLINE, and that is deliberately
+   not removed with the padding. A tab's box is its padding PLUS the `thick`
+   rule it holds for the active mark, and a trigger without one once shrank the
+   row 27px to 25px the moment the list left flow. The floor now stops that
+   happening, so this is belt and braces rather than the mechanism — but a
+   trigger two pixels shorter than the tabs beside it would be a second thing
+   to re-derive the next time this row is touched.
 
    `margin-left:auto` PINS IT TO THE END OF THE ROW IN BOTH STATES, also caught
    in the screenshots. Closed, the list is a `1 1 auto` item that fills the row
@@ -917,7 +987,7 @@ a.lm_title{display:block;line-height:inherit}
 .srcall{flex:0 0 auto;margin-left:auto;cursor:pointer;white-space:nowrap;
   display:flex;align-items:center;
   font-size:var(--bt-type-label-size);color:var(--bt-text-subtle);
-  padding:var(--bt-space-2xs) var(--bt-density-cell-x);
+  padding:0 var(--bt-density-cell-x);
   border-left:var(--bt-stroke-hairline) solid var(--bt-border-subtle);
   border-bottom:var(--bt-stroke-thick) solid transparent;
   transition:color var(--bt-motion-fast) var(--bt-motion-ease)}

@@ -343,20 +343,22 @@ LIVE class history-location bundle
 LIVE class history-value bundle
 LIVE class value-changed bundle
 LIVE class border-value-* bundle
-LIVE class variables-toolbar bundle
-LIVE class hide-other-process-watches bundle
+LIVE class state-tabs bundle
 LIVE class watch-invalid bundle
 LIVE class watch-pending bundle
     THE SHARED STATE VIEW, MOUNTED BY THE LIVE BUILD, for the reason the call
     trace rows above give: `renderStatePanel` from `views/isonim_state_view.
     nim`, in `hydrate.js` only. `border-value-*` is a pattern because the view
     writes `"border-value-" & depth`; the bundle carries the prefix, and the
-    port emits the depths `state.styl` draws. The four rows above
-    `border-value-*`'s reason came with the Embed SDK pin at c0408ecad: the
-    view's variables toolbar, its "hide other processes' watches" toggle and
-    a watch's invalid and pending states, which that `state.styl` styles and
-    the view writes. `state-tabs` left with the same re-vendor: upstream's
-    stylesheet no longer names it and no view writes it.
+    port emits the depths `state.styl` draws. The three rows after
+    `border-value-*` came with the Embed SDK pin at c0408ecad: the view's
+    toolbar and a watch's invalid and pending states, which that `state.styl`
+    styles and the view writes. With the pin at 1ab428f29 (codetracer
+    66bd1d60b, which restored the view's tab strip) the toolbar's class went
+    back to `state-tabs`, which `isonim_state_view.nim` writes and
+    `state.styl` styles; neither names `variables-toolbar` any more. The
+    "hide other processes' watches" toggle that came with c0408ecad is INERT
+    below since the same pin.
 
 LIVE class eventLog bundle
 LIVE class ct-flex bundle
@@ -657,6 +659,14 @@ INERT class fif-*
     distinction this family turns on: the shared rule is used, the per-pane
     ones name panes that do not exist.
 
+
+INERT class hide-other-process-watches
+    The State view's "hide other processes' watches" toggle. `state.styl`
+    still styles it, but since codetracer 66bd1d60b (in the Embed SDK pin at
+    1ab428f29) `isonim_state_view.nim` no longer renders the toggle: its
+    `hideToggleClass` survives with no caller, so the class string is dead
+    code and the hydration bundle carries no token for it. It comes back LIVE
+    when the shared view renders the toggle again.
 
 INERT class value-expanded-compound
 INERT class value-load-more-button
