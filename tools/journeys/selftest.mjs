@@ -182,12 +182,25 @@ const ARMS = [
       " false for every file in every session and no hydrated session marks a" +
       " line. This shipped, and it hid behind the Nargo.toml fix: an unmatched" +
       " position clears currentLine, so the pane marked none instead of marking" +
-      " the wrong one — indistinguishable from a bundle that lacks the file.",
+      " the wrong one — indistinguishable from a bundle that lacks the file." +
+      " RE-AIMED 2026-10-31, from `decodeSourceIsland`'s resolver call to" +
+      " `decodeSourceIslandAt`'s, because the first one stopped being the" +
+      " resolver the hydrated mark goes through. fe404a1 split the decode in" +
+      " two — the island is decoded ONCE with no position, and each stop" +
+      " applies the position to the kept copy — and from that commit on," +
+      " `decodeSourceIsland` has exactly ONE caller in the shipping client" +
+      " (`cachedIslandBase = decodeSourceIsland(raw, \"\", NoRow)`), which" +
+      " passes an EMPTY path. An empty `currentPath` resolves to -1 under both" +
+      " the rule and the mutation, so the old mutation reached the bundle and" +
+      " could not change one rendered line: it SURVIVED in CI run 41165206831," +
+      " `journeys-bite (3)`, the only non-killed arm of that shard. The move is" +
+      " not a weakening — the mutation is the same narrowing, on the call the" +
+      " live session now makes.",
     file: join(CLIENT, "src", "debugger", "source_island.nim"),
-    find: `  let positionIndex = positionDocumentIndex(paths, currentPath)`,
-    replace: `  var positionIndex = -1
-  for pi, pp in paths:
-    if pp == currentPath: positionIndex = pi`,
+    find: `  let at = positionDocumentIndex(cachedIslandPaths, currentPath)`,
+    replace: `  var at = -1
+  for pi, pp in cachedIslandPaths:
+    if pp == currentPath: at = pi`,
     journey: "position-survives-hydration",
     assertion: "HYDRATED: exactly one line carries the position mark",
   },

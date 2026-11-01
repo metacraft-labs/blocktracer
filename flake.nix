@@ -18,11 +18,11 @@
     # got sha256-L+Cy…; the CI runners got sha256-qNVe…). GitHub archive tarball unpacks the same
     # under every Nix version measured, to sha256-qNVe….
     isonim = {
-      url = "https://github.com/metacraft-labs/isonim/archive/bc0a4edd91937d3b731ec9e3b04799b2cf2b9197.tar.gz";
+      url = "https://github.com/metacraft-labs/isonim/archive/6927da97dfd0ff92b24662d54f6d261528811632.tar.gz";
       flake = false;
     };
     nim-everywhere = {
-      url = "github:metacraft-labs/nim-everywhere/95977e85e3aa9f3d8f54ecb42fdc9505ac3d3107";
+      url = "github:metacraft-labs/nim-everywhere/2a41b67a6c0d41cbb55359c702f300eb2696682f";
       flake = false;
     };
     # The Embed SDK's editor core reads IsoNim-TUI's width tables
@@ -31,7 +31,7 @@
     # names at `ci/embed-sdk-pin.env`'s CODETRACER_REF — the same three values
     # that file records, so the bundle nix builds is the one the pin names.
     isonim-tui = {
-      url = "github:metacraft-labs/isonim-tui/70124210a3e72a2687bcbc646de296ddd71f2efd";
+      url = "github:metacraft-labs/isonim-tui/1d123c35bd241a4af853b2df6b21c973fba9e6b7";
       flake = false;
     };
 
@@ -130,7 +130,7 @@
     codetracer = {
       # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
       # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=c0408ecadd28772a027168e447485863f26e9ef7&submodules=0";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=1ab428f2947803864f615066cc90ec74c5b8ace7&submodules=0";
       flake = false;
     };
 

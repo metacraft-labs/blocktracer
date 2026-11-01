@@ -77,6 +77,11 @@ function tree(mutate = (p) => p) {
     bundlePath: BUNDLE_PATH,
     withSrctab: true,
     chains: ["aztec", "aztec-testnet"],
+    register: "debugger",
+    // An untraced transaction's page: the explorer shell, which carries no
+    // script by design. Present in every tree, so every arm runs over a sample
+    // that has one, as production's does.
+    untraced: true,
   };
   const p = mutate(parts);
   write(root, "index.html", `<html><head><link href="${p.cssName}" rel="stylesheet"></head><body>i</body></html>`);
@@ -91,10 +96,16 @@ function tree(mutate = (p) => p) {
       "export const marks = [" + p.bundleClasses.map((c) => JSON.stringify(c)).join(",") + "];\n");
   p.chains.forEach((chain, i) => {
     const tx = `/${chain}/tx/0x${String(i + 1).repeat(8)}`;
-    write(root, `/${chain}/index.html`, `<html><body><a href="${tx}">tx</a></body></html>`);
+    const untracedTx = `/${chain}/tx/0x${String(i + 7).repeat(8)}`;
+    write(root, `/${chain}/index.html`, `<html><body>`
+      + (p.untraced ? `<a href="${untracedTx}">tx</a>` : "") + `<a href="${tx}">tx</a></body></html>`);
     write(root, `${tx}/index.html`,
-      `<html><head>${p.pageScript}</head><body class="${p.pageClasses}">`
+      `<html data-register="${p.register}"><head>${p.pageScript}</head><body class="${p.pageClasses}">`
       + `${i === 0 && p.withSrctab ? '<a class="srctab ct-tab">s</a>' : ""}</body></html>`);
+    if (p.untraced) {
+      write(root, `${untracedTx}/index.html`,
+        `<html data-register="explorer"><head></head><body class="${p.pageClasses}">Not observable</body></html>`);
+    }
   });
   return root;
 }
@@ -160,6 +171,15 @@ console.log("");
   rmSync(root, { recursive: true, force: true });
 }
 {
+  // Run 40977644036's sample: the only pages are untraced, explorer-shell ones.
+  // That is not a hydration pass, and it is not a hydration failure either.
+  const root = tree((p) => ({ ...p, register: "explorer", pageScript: "" }));
+  const r = run(root);
+  bite("a sample with NO session page is refused, and says so, rather than judged on explorer pages",
+       r.status === 1 && /no sampled page is a session page/.test(r.out));
+  rmSync(root, { recursive: true, force: true });
+}
+{
   const root = tree((p) => ({ ...p, pageClasses: p.pageClasses.replace("component-container", "") }));
   const r = run(root);
   bite("a page that does not EMIT a LIVE class fails even though the rule is served — the register's own defect 1",
@@ -171,7 +191,7 @@ console.log("");
   const r = run(root);
   bite("a sample with NO source-bearing page says so, so a class-emission result is not read as a verdict",
        /the sample contains a page that publishes SOURCE/.test(r.out)
-       && /0 of 2 page\(s\)/.test(r.out));
+       && /0 of 4 page\(s\)/.test(r.out));
   rmSync(root, { recursive: true, force: true });
 }
 {
@@ -227,7 +247,7 @@ console.log("");
 }
 
 console.log("");
-const EXPECTED = 13;
+const EXPECTED = 14;
 if (asserted !== EXPECTED) {
   console.log(`ASSERTION COUNT IS ${asserted}, EXPECTED ${EXPECTED} — an arm was added, removed or skipped.`);
   failures.push("assertion count");

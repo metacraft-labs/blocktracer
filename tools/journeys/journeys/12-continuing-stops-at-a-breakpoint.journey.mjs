@@ -64,7 +64,7 @@ export const id = "continuing-stops-at-a-breakpoint";
 export const claim =
   "A visitor who marks lines can continue to them, forwards and backwards.";
 export const spec = "Debugger-Integration.md §10.8 — BlockTracer";
-export const assertions = 29;
+export const assertions = 30;
 export const needsEngine = true;
 
 /** Wrap the worker before any page script runs, and count DAP frames by name. */
@@ -338,8 +338,23 @@ export async function run({ browser, site, j }) {
     );
 
     // ── THE VERDICT: WHERE CONTINUE STOPS ─────────────────────────────────
+    //
+    // THE SESSION OPENS PAST THE FIRST MARKED LINE, so the walk starts from a
+    // reverse continue. It opens on the entry function's first executable step,
+    // which is line 13 of the demo's `main.nr`, and line 12 (the signature) is
+    // an executed line behind that. §10.8: a stop is a visit to a line, so no
+    // forward continue from there can reach line 12, and a walk that began at
+    // the open position could only ever report two of the three lines. Reading
+    // that as an engine defect is how a tick-by-tick walk was once recorded as
+    // "reaches 2 of 3". The stop this rewind lands on is the walk's first stop.
+    const rewind = await continueOnce(page, "reverse-continue");
+    j.expect(
+      Number(rewind.line) === chosen[0],
+      "reversing from the open position lands on the first marked line",
+      `line ${rewind.line} (step ${rewind.step}), first marked ${chosen[0]}`,
+    );
     const forwardWalk = await walk(page, "continue");
-    const forward = forwardWalk.stops;
+    const forward = [{ step: rewind.step, line: Number(rewind.line) }, ...forwardWalk.stops];
     j.atLeast(forward.length, 3, "continuing forward stops at least three times");
     j.countIs(
       forward.filter((s) => chosen.includes(s.line)).length,
