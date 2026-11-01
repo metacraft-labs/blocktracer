@@ -777,7 +777,12 @@ a.lm_title{display:block;line-height:inherit}
    stack's header (`components/debugger.editorKeepsStackHeader`) and with it
    the inset every other panel has.
 
-   THE INSET IS MOVED, NOT DROPPED, and the 0.5rem below is the same 0.5rem.
+   THE INSET IS MOVED, NOT DROPPED, and `--bt-space-xs` below is that same
+   inset: 8px, the value `golden_layout.styl` spells PANEL_INSET. The token and
+   not the literal, because a raw length in a Layer 2 view is design check A2 —
+   written as `0.5rem` first, this rule was the only thing A2 found in 303,846
+   characters of scanned source, and it failed `visual-design` in run
+   41225561301.
    Zeroing it outright was the first answer and it cost a pixel: with no inset
    on either side this pane's children fill its fractional height exactly, the
    scroll maximum lands on a fraction while `scrollHeight - clientHeight`
@@ -794,7 +799,7 @@ a.lm_title{display:block;line-height:inherit}
    after, against 2 of 3 RED before. It is restored at the bottom because the
    top is the one place it cannot go: that is where the header is. */
 [data-register="debugger"] .lm_content.p-source:has(.srcstrip){
-  padding-top:0;padding-bottom:0.5rem}
+  padding-top:0;padding-bottom:var(--bt-space-xs)}
 /* THE ROW'S OWN INSET STAYS, AND TAKING IT OUT TO LINE THIS STRIP UP WITH THE
    PANE TABS WAS TRIED TWICE AND PUT BACK BOTH TIMES.
    `.lm_tabs` has no padding, so the first pane tab is flush with its panel's
