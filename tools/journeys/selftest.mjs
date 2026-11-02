@@ -2552,6 +2552,84 @@ async function rebuild({ hydration = true } = {}) {
 }
 
 /** Run one journey and return its per-assertion records. Never an exit code. */
+/**
+ * WHICH OF THE FOUR MISSES, at BOTH call sites, because one of them used to
+ * throw the diagnosis away.
+ *
+ * `verdictFor` returns `why` (`no-report` / `no-journey` / `no-record`) and,
+ * for a text that matches more than one record, `ambiguous`. The UNMUTATED
+ * call site named all of them at length; the MUTATED one printed a single
+ * sentence — "the assertion vanished from the mutated run" — and dropped
+ * every field that says which vanishing it was.
+ *
+ * MEASURED COST, which is why this is a function and not a comment:
+ * `journeys-bite (1)` of runs 41360663488, 41363664689 and 41366146526 — three
+ * runs over byte-identical trees — each failed on
+ * `Q3/the-files-last-line-is-dropped` with that one sentence and nothing else.
+ * From a CI log there is no way to tell a journey that STOPPED BEFORE
+ * RECORDING the assertion (a mutation that throws upstream of it) from one
+ * whose wording the mutation changed, and those call for opposite repairs. The
+ * comment above `verdictFor` already records this exact shape costing "a CI
+ * afternoon each time it happens"; this is the other half of that closure.
+ *
+ * THE INFERENCE DIFFERS BY PHASE AND SO DOES THE WORDING. On the unmutated
+ * tree a missing record means the arm names an assertion that is not there any
+ * more. In the mutated run the assertion WAS there a moment ago — the arm only
+ * reaches this point because the baseline was found and green — so a missing
+ * record means the mutated journey did not get as far as recording it.
+ */
+function logMissDiagnosis(miss, arm, phase) {
+  const mutated = phase === "mutated";
+  if (miss.why === "no-report") {
+    if (mutated) {
+      log(`               THE MUTATED RUN PRODUCED NO REPORT AT ALL — it did not exit 2`);
+      log(`               (that is raised as DID NOT RUN), so it ran and judged nothing.`);
+    } else {
+      log(`               THE UNMUTATED RUN PRODUCED NO REPORT AT ALL — it did not`);
+      log(`               exit 2 (that is raised as DID NOT RUN), so it ran and judged`);
+      log(`               nothing. Every arm after this one will say the same thing.`);
+    }
+    const tail = miss.tail ?? [];
+    if (tail.length) {
+      log(`               ITS LAST LINES, which are the only evidence there is:`);
+      for (const line of tail) log(`                 ${line}`);
+    } else {
+      log(`               Run \`node tools/journeys/run.mjs --only ${arm.journey}\` and`);
+      log(`               read ITS output; the cause is there and not here.`);
+    }
+  } else if (miss.why === "no-journey") {
+    log(`               THE REPORT HOLDS NO JOURNEY '${arm.journey}'. It holds:`);
+    log(`               ${(miss.saw ?? []).join(", ") || "(none)"}`);
+    log(`               An arm names a journey by id; this one names one that did not run.`);
+  } else if (miss.why === "no-record") {
+    if (mutated) {
+      log(`               THE MUTATED JOURNEY RAN — ${miss.records} assertion(s) — and none of`);
+      log(`               them contains that text, though the unmutated run recorded it and`);
+      log(`               it was GREEN. So the mutation did not make this assertion FAIL, it`);
+      log(`               stopped the journey REACHING it: either the journey threw upstream`);
+      log(`               of the assertion, or a guard above it stopped holding. Run`);
+      log(`               \`node tools/journeys/run.mjs --only ${arm.journey}\` over the`);
+      log(`               mutated tree and read where it stops.`);
+    } else {
+      log(`               THE JOURNEY RAN — ${miss.records} assertion(s) — and none of them`);
+      log(`               contains that text. The assertion was reworded and this arm`);
+      log(`               still names the old wording.`);
+    }
+  }
+  // AND WHICH OF THE TWO WAYS IT MISSED. `verdictFor` matches with
+  // `r.what.includes(assertion)` and treats any count but 1 as no match, so
+  // "the assertion was renamed" and "a SECOND assertion's text now CONTAINS
+  // this one" arrive here identically — and the second is a live hazard,
+  // because every journey that grows a REAL-capture arm grows a set of
+  // near-duplicate assertion texts. Naming the count turns a puzzling
+  // NEVER RAN into a one-word diagnosis.
+  if (miss.ambiguous > 1) {
+    log(`               AMBIGUOUS: ${miss.ambiguous} assertions contain that text.`);
+    log(`               An arm must name exactly one. Reword whichever assertion`);
+    log(`               CONTAINS the other — a "REAL: " + verbatim copy is the usual cause.`);
+  }
+}
+
 async function verdictFor(journey, assertion) {
   // THE PREVIOUS READING IS DELETED BEFORE THIS ONE IS TAKEN.
   //
@@ -2936,42 +3014,7 @@ async function main() {
     const before = await verdictFor(arm.journey, arm.assertion);
     if (!before.found) {
       log(`    NEVER RAN — no single assertion matched that name on the unmutated tree`);
-      // WHICH OF THE THREE MISSES, named rather than left to be guessed. See
-      // `verdictFor` for what each one means and what it cost to read them as
-      // one.
-      if (before.why === "no-report") {
-        log(`               THE UNMUTATED RUN PRODUCED NO REPORT AT ALL — it did not`);
-        log(`               exit 2 (that is raised as DID NOT RUN), so it ran and judged`);
-        log(`               nothing. Every arm after this one will say the same thing.`);
-        const tail = before.tail ?? [];
-        if (tail.length) {
-          log(`               ITS LAST LINES, which are the only evidence there is:`);
-          for (const line of tail) log(`                 ${line}`);
-        } else {
-          log(`               Run \`node tools/journeys/run.mjs --only ${arm.journey}\` and`);
-          log(`               read ITS output; the cause is there and not here.`);
-        }
-      } else if (before.why === "no-journey") {
-        log(`               THE REPORT HOLDS NO JOURNEY '${arm.journey}'. It holds:`);
-        log(`               ${(before.saw ?? []).join(", ") || "(none)"}`);
-        log(`               An arm names a journey by id; this one names one that did not run.`);
-      } else if (before.why === "no-record") {
-        log(`               THE JOURNEY RAN — ${before.records} assertion(s) — and none of them`);
-        log(`               contains that text. The assertion was reworded and this arm`);
-        log(`               still names the old wording.`);
-      }
-      // AND WHICH OF THE TWO WAYS IT MISSED. `verdictFor` matches with
-      // `r.what.includes(assertion)` and treats any count but 1 as no match, so
-      // "the assertion was renamed" and "a SECOND assertion's text now CONTAINS
-      // this one" arrive here identically — and the second is a live hazard,
-      // because every journey that grows a REAL-capture arm grows a set of
-      // near-duplicate assertion texts. Naming the count turns a puzzling
-      // NEVER RAN into a one-word diagnosis.
-      if (before.ambiguous > 1) {
-        log(`               AMBIGUOUS: ${before.ambiguous} assertions contain that text.`);
-        log(`               An arm must name exactly one. Reword whichever assertion`);
-        log(`               CONTAINS the other — a "REAL: " + verbatim copy is the usual cause.`);
-      }
+      logMissDiagnosis(before, arm, "unmutated");
       neverRan += 1;
       recordArm(arm, "never", started);
       log("");
@@ -3068,6 +3111,7 @@ async function main() {
         const after = await verdictFor(arm.journey, arm.assertion);
         if (!after.found) {
           log(`    NEVER RAN — the assertion vanished from the mutated run`);
+          logMissDiagnosis(after, arm, "mutated");
           verdict = "never";
         } else if (after.ok) {
           log(`    SURVIVED — the assertion is still GREEN with the defect in place.`);

@@ -83,6 +83,38 @@ on:
           Name a staging bucket unless you mean production.
         type: string
         required: true
+      chain:
+        description: >-
+          Publish ONE chain instead of every chain in the tree, by name
+          (`demo`, `aztec`, `aztec-testnet`, `aztec-testnet-frames`). Empty
+          means every chain, which is this workflow's only behaviour so far.
+
+          WHY IT EXISTS: A FULL PASS IS HOURS AND A ONE-CHAIN PASS IS MINUTES.
+          `publisher.publishChain` already scopes a cycle to "keys belonging to
+          this chain, plus the chain-agnostic layers" — `d/{chain}/`,
+          `src/{chain}/`, and a first path segment that names the chain, which
+          is what `demo/tx/<hash>/debug/index.html` is — so the narrowing is
+          the publisher's own, not a new rule invented here. `--chain` has been
+          on the binary since M8 and nothing has ever passed it.
+
+          MEASURED on run 41420602459, the parity publish of 2026-11-02:
+          386,502 objects, and with `--refresh` the byte compare is one `aws`
+          process per object (`objectstore.runBytes`), whose per-object spawn
+          cost that module's own header calls out as the entire wall clock of a
+          1,693-object publish. Staging took 79 minutes, rendering 97, and the
+          upload was still running five hours in, against a 600-minute ceiling.
+          The nine stale `demo` debug pages that publish existed to refresh are
+          nineteen pages in one chain.
+
+          IT DOES NOT NARROW THE TREE, and that is what keeps the safety
+          guards meaningful: `render-over-live` still renders every chain, so
+          the registry the foreign-chain guard compares against the bucket is
+          unchanged, and `assertRegistryKeepsKnownChains` still sees every row.
+          Only the write scope narrows. The site-level objects — `index.html`,
+          `_a/**`, `replay-engine/**` — belong to every chain and are published
+          with whichever one is named.
+        type: string
+        default: ''
       allow-foreign-chains:
         description: >-
           Publish even though the bucket already serves chains this tree does
@@ -1167,12 +1199,28 @@ jobs:
                  "and superseded where the bytes differ. Without it the entry pages" \
                  "are skipped, because their keys already exist in the bucket."
           fi
+          # ONE CHAIN OR EVERY CHAIN. Empty is every chain, which is what
+          # every run before 2026-11-02 did; see the input's own description
+          # for why a one-chain pass is worth having.
+          CHAIN_ARG=""
+          if [ -n "${{ inputs.chain }}" ]; then
+            if [ ! -d "site/d/${{ inputs.chain }}" ]; then
+              echo "::error::chain '${{ inputs.chain }}' is not in this tree." \
+                   "The tree carries: $(ls site/d 2>/dev/null | tr '\n' ' ')." \
+                   "A name that is not there would publish nothing and report" \
+                   "success, which is the failure shape this workflow has been" \
+                   "bitten by before."
+              exit 1
+            fi
+            CHAIN_ARG="--chain ${{ inputs.chain }}"
+            echo "publishing ONE chain: ${{ inputs.chain }}"
+          fi
           nix develop .#ci --command ./blocktracer-publish \
             --tree site \
             --backend s3 \
             --bucket "$BUCKET" \
             --endpoint "$ENDPOINT" \
-            $REFRESH
+            $REFRESH $CHAIN_ARG
 
       # A green publish is a claim about a process; the objects being served
       # is a claim about the bucket. This project has been bitten by that
