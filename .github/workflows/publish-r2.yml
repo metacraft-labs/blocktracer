@@ -547,7 +547,49 @@ jobs:
           # the `set -e`: each attempt is idempotent, and the step still fails
           # loudly if the origin is genuinely unavailable.
           nix develop .#ci --command bash -euo pipefail -c '
-            for prefix in d idx t src; do
+            # `registry` IS IN THIS LIST AND WITHOUT IT A render-over-live
+            # PUBLISH SHIPS THE REAL CHAINS AS NON-DEBUGGABLE.
+            #
+            # `-d:dataOrigin` points every read at the staged tree, and the
+            # exporter reads the chain REGISTRY through it — `static_export`'s
+            # own cache note says the singletons it re-reads are "paths
+            # containing `/g/`, ending `/current.json`, or under `registry/`".
+            # A chain's row there is what carries its recording profile and
+            # trace schema, and `blocktracer_client/trace.resolveExec` refuses
+            # to derive a trace address without them:
+            #
+            #     if not session.hasPin:
+            #       result.kind = trkUnresolvable
+            #       result.reason = "no recording profile or trace schema
+            #         pinned for chain '…'; the trace address cannot be
+            #         derived (Trace-Artifacts.md §2.1)"
+            #
+            # `containerPath` is then empty, `session_view.canShare` is
+            # `hasFrame and containerPath.len > 0`, and `pages/debug` writes
+            # `data-trace=""` — which is how a page declines the engine. The
+            # transaction has a container, published and reachable, and its
+            # own page never asks for it.
+            #
+            # MEASURED, BOTH DIRECTIONS, on 2026-11-03 against an origin
+            # assembled exactly as this loop assembles one. Subject
+            # `/aztec-testnet-frames/tx/0x00689495…/debug`, whose trace
+            # container answers 200 at 174,196 bytes in the live bucket:
+            #
+            #   origin without registry/   data-trace=""            22,090 B
+            #   origin with    registry/   data-trace=/t/bt/6n/…   236,887 B
+            #
+            # The 22,090 is byte-for-byte the size production served after run
+            # 41420602459, so that run is the thing being reproduced and not a
+            # lookalike. A second subject moved the same way:
+            # `0x0a807e4e…` read `""` at 21,715 B and
+            # `/t/z7/au/z7aua7qyaolifq2xbfqilmy5z7/trace.ct` at 4,075,165 B.
+            #
+            # WHY IT WENT UNNOTICED: the demo chain is pointed at this build's
+            # own tree by `-d:chainOrigins=demo=dist`, and that tree HAS a
+            # registry — so demo's pages carried their containers while every
+            # live chain's did not, on the same publish. Every assertion that
+            # drives a live session drives the demo chain.
+            for prefix in d idx t src registry; do
               mkdir -p "$LIVE_ORIGIN/$prefix"
               t0=$(date +%s)
               attempt=1
@@ -571,7 +613,7 @@ jobs:
           '
           echo "LIVE_ORIGIN=$LIVE_ORIGIN" >> "$GITHUB_ENV"
           staged=$(find "$LIVE_ORIGIN" -type f | wc -l)
-          echo "staged $staged object(s) from s3://$LIVE_BUCKET/{d,idx,t,src}"
+          echo "staged $staged object(s) from s3://$LIVE_BUCKET/{d,idx,t,src,registry}"
           # AN EMPTY STAGE IS A REFUSAL. Every later step treats `$LIVE_ORIGIN`
           # as production's data plane: `-d:dataOrigin` renders through it, the
           # pointer pin reads `d/<chain>/current.json` out of it, and the
