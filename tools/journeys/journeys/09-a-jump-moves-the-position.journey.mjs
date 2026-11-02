@@ -108,6 +108,36 @@ const EV_LIVE = "tr.eventLog-row";
 const NAV_LIVE = `${CT_LIVE},${EV_LIVE}`;
 
 /**
+ * How long the engine gets to answer with a call trace before a wait for it is
+ * called a dead feed.
+ *
+ * IT IS A TOLERANCE FOR THE RUNNER, NOT THE CLAIM. The claim is "the engine's
+ * rows arrived"; both waits below are for the asserted condition, so a feed
+ * that never answers still runs the budget out and fails with the counts it
+ * would have failed with anyway.
+ *
+ * MEASURED ON THIS JOURNEY'S OWN REAL SUBJECT, idle, five trials: 1423, 1453,
+ * 1434, 1480 and 1503 ms from `ready` to the first `.calltrace-call-line`, four
+ * rows every time. The budget was 15000 — a tenfold margin — and it still ran
+ * out in CI, on a runner that was carrying a 386,502-object R2 staging job and
+ * three other `ci` runs: `journeys-bite (8)` of run 41363664689 reported this
+ * journey's REAL call-trace assertion as `served 6 call-trace row(s), hydrated
+ * 0 in the DOM`, which is the reading the mutation it was aimed at produces, so
+ * arm `M/the-calltrace-reply-is-discarded-again` recorded NEVER RAN — "the
+ * assertion is ALREADY RED before the mutation" — and proved nothing. A
+ * baseline that fails for the same reason as the defect cannot judge the
+ * defect.
+ *
+ * 45 SECONDS BECAUSE THE SUITE ALREADY SAYS SO: it is the prevailing
+ * page-level budget across `tools/journeys/journeys` (eleven uses against ten
+ * of 15000), so this stops being the outlier rather than becoming a new
+ * number. The comment on the demo arm's wait records the same failure mode
+ * arriving once before, on run 39352321787, "produced by a feed that was three
+ * seconds late rather than dead".
+ */
+const ENGINE_ANSWER_MS = 45000;
+
+/**
  * The rows of one navigation region, as the page presents them.
  *
  * RENDERED, NOT PRESENT — the same rule probe.mjs states for `.srcline`. The
@@ -421,7 +451,7 @@ export async function run({ browser, site, j }) {
     // the lesson the paragraph above records for arm O's arithmetic.
     const navAnswered = await page
       .waitForFunction((ct) => document.querySelectorAll(ct).length > 0, CT_LIVE, {
-        timeout: 15000,
+        timeout: ENGINE_ANSWER_MS,
       })
       .then(() => true)
       .catch(() => false);
@@ -699,7 +729,7 @@ async function realArm(browser, site, j, subject) {
         // the call-trace assertion below would read early again.
         (ct) => document.querySelectorAll(ct).length > 0,
         CT_LIVE,
-        { timeout: 15000 },
+        { timeout: ENGINE_ANSWER_MS },
       )
       .then(() => true)
       .catch(() => false);
