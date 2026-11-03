@@ -273,3 +273,8 @@ fixtures/chain-health/readable-container/ct/*.ct
 # Test and demo recordings are generated from committed source and chain inputs.
 *.ct
 /.fixture-recordings/
+
+# `just aptos-range`/`just aptos-capture`: REST reads, the replay artifacts (each entered
+# module's bytecode and disassembly) and the recorded `.ct` containers the `.ct` ban refuses.
+/.aptos-range/
+/.aptos-capture/

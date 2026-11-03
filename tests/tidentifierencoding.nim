@@ -2490,7 +2490,10 @@ suite "the boundary: who knows about each half of the seam":
     #
     # NINE AND NOT EIGHT (2026-10-26): `merge-sui-windows.mjs`, the union of Sui's
     # windows, names the member to require every window to agree on it.
-    ck expectedLen("declaration", "tools") == 9
+    #
+    # TEN AND NOT NINE (2026-11-03): `produce-aptos-snapshot.mjs`, the fourth producer
+    # that declares the member (hex for every kind).
+    ck expectedLen("declaration", "tools") == 10
     ck expectedLen("caseRule", "src") == 6
     ck expectedLen("caseRule", "client") == 3
     ck expectedLen("caseRule", "tools") == 1
@@ -2749,4 +2752,6 @@ suite "the boundary: who knows about each half of the seam":
 # 921 -> 922: MINE. `merge-sui-windows.mjs` joined the `declaration`/`tools` census
 # (2026-10-26), and each `expected` entry contributes one `ck fileExists(...)` in the
 # sweep arm — the arithmetic the 894 -> 899 note above records.
-expectCount(922)
+# 922 -> 923: `produce-aptos-snapshot.mjs` joined the same census (2026-11-03,
+# Recorder-Move CXP-MOVE-7), one more `ck fileExists(...)` by the same arithmetic.
+expectCount(923)

@@ -161,7 +161,7 @@ test: recordings-test prepare-recordings
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 34 + 24 = 1382 counted assertions —
+# TWENTY-FOUR suites — 105 + 19 + 24 + 24 + 57 + 244 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 35 + 24 + 44 = 1428 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -491,6 +491,13 @@ chain-selftest:
     #   test_the_classification_can_be_wrong — judges the classification against the code
     #   in four directions, with a mis-classified component driven through each one.
     node tools/chain/classification-selftest.mjs
+    # Offline and toolchain-free: the Aptos producer's facts (the fee as gas used ×
+    # unit price in octas with the storage refund signed, the sponsored fee payer, the
+    # entry-function payload), the CLI's own mismatch sentence read back into the one
+    # fact that differed, rows carrying their ledger version with the protocol's
+    # transactions as system transactions, and the REST transcript. Rows with a
+    # recording need a container and are exercised by `just aptos-capture`.
+    node tools/chain/aptos-producer-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1814,6 +1821,38 @@ sui-capture RECORDER COMMIT OUT=".sui-capture/tree" *ARGS:
       trees+=(--tree ".sui-capture/w-$w")
     done
     node tools/chain/merge-sui-windows.mjs "${trees[@]}" --out {{OUT}}
+
+# Trace a window of APTOS blocks into one snapshot tree (Recorder-Move CXP-MOVE-7).
+# The twin of `sui-range`: tools/chain/capture-aptos-range.mjs reads the window over
+# the Aptos REST API, records each user transaction through `codetracer-move-recorder
+# aptos-replay` — which runs `aptos move replay --trace` from the CodeTracer fork
+# (metacraft-labs/aptos-core, branch codetracer/value-tracing), reading every state
+# value at the version before the transaction — and runs
+# tools/chain/produce-aptos-snapshot.mjs over the lot. `--record DIR` writes the REST
+# conversation as a transcript, waiting out the public node's rate limit.
+#
+#   just aptos-range ../codetracer-move-recorder/target/release/codetracer-move-recorder \
+#     $(git -C ../codetracer-move-recorder rev-parse HEAD) PATH/TO/aptos --from H --to H
+#
+# NOT in any gate: it needs the network, the recorder and the fork's CLI. Its offline
+# half is `aptos-producer-selftest.mjs` in `chain-selftest`.
+aptos-range RECORDER COMMIT APTOS *ARGS:
+    node tools/chain/capture-aptos-range.mjs --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --positions-reader {{RECORDER}} --aptos {{APTOS}} {{ARGS}}
+
+# The same capture with NO network, from the committed REST transcript of mainnet blocks
+# 1,158,421,321..1,158,421,323 (fixtures/chain-inputs/aptos-mainnet/), served on loopback:
+# a request it does not hold fails the run. Recording ids are derived from each
+# transaction and the clock pinned, so the tree is byte-identical run to run. Needs the
+# recorder, the fork's `aptos` CLI and `ct-print`; it is not yet a Nix derivation (the
+# fork's CLI is not packaged), so it is run by hand.
+aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
+    node tools/chain/capture-aptos-range.mjs \
+      --transcript fixtures/chain-inputs/aptos-mainnet/1158421321-1158421323 \
+      --from 1158421321 --to 1158421323 --max 1000 --fixed-time 2026-11-03T00:00:00.000Z \
+      --work .aptos-capture/work --out {{OUT}} \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} --positions-reader {{RECORDER}} \
+      --aptos {{APTOS}} {{ARGS}}
 
 # Is the Sui endpoint still serving the object versions it served when the
 # committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed

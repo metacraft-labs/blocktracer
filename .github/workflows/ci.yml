@@ -580,7 +580,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 243 assertions, and the reason it is offline is the reason it
+        # ING-3, 244 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -1066,7 +1066,7 @@ jobs:
         run: node tools/chain/solana-producer-selftest.mjs
 
       - name: Is every abstraction DEL-7 extracted reached by two chains?
-        # 34 assertions, host-independent: every arm is offline and needs only node.
+        # 35 assertions, host-independent: every arm is offline and needs only node.
         #
         # Chain-Delivery DEL-7's `test_every_abstraction_has_two_consumers`. Each export of
         # `lib/producer-runtime.mjs` is counted by the producers' and facts modules' own
@@ -1092,6 +1092,20 @@ jobs:
         # from the chain's own `PRESTATE_STRATEGY`, so the document cannot decide its own
         # test, and every judgement is re-run against a deliberately mis-classified copy.
         run: node tools/chain/classification-selftest.mjs
+
+      - name: Does the Aptos producer state its chain's facts and refuse a broken window?
+        # 44 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # The Aptos producer's identity, ordering and prestate declarations, its fee as
+        # gas used × unit price in octas with the storage refund as its own signed entry,
+        # the sponsored fee payer, the entry-function payload, the CLI's mismatch sentence
+        # read back into the one fact that differed, the derived recording id, and the
+        # producer over a container-free window: rows carry their ledger version, the
+        # protocol's transactions are system transactions, and a skipped block, torn
+        # versions, a pruned window and a foreign recording are refused; and the REST
+        # transcript's keys and its replay misses. Recorded rows need a container and are
+        # run by `just aptos-capture` from the committed transcript.
+        run: node tools/chain/aptos-producer-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this

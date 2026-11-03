@@ -1498,6 +1498,8 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // spawns the five producers but needs nothing but node to do it.
     ['abstraction-consumers-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
     ['classification-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // The Aptos producer's offline suite, in the commonest pattern.
+    ['aptos-producer-selftest.mjs', /asserted !== (\d+)\) \{/],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1822,7 +1824,10 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-THIRD suite joined `chain-selftest` — `era-analysis-selftest`, the era
 //       expectation judged on data (Recorder-Flow CXP-FLOW-5, 2026-10-23) — at the same
 //       single assertion.
-expectCount(243);
+//   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
+//       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
+//       2026-11-03) — at the same single assertion.
+expectCount(244);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);
