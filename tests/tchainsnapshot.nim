@@ -677,6 +677,12 @@ proc violate(id, dir: string): string =
     # row carries none, so deleting it reaches no rule at all. A finality rule
     # no table lists is the case the rule exists for.
     doc["provenance"]["identity"] = %*{"finality": {"rule": "a-rule-no-table-lists"}}
+  of "S5-VERSION-STATED":
+    # A VERSION-ORDERED SNAPSHOT WHOSE ROWS STATE NO VERSION. The ordering is
+    # in the set, so S5-ORDERING-CLOSED is satisfied and this rule is the only
+    # one broken: built anyway, every row would be published with an id and an
+    # order whose version is nothing.
+    doc["provenance"]["ordering"] = %"globalVersion"
   of "S5-COST-VECTOR":
     # MALFORMED RATHER THAN ABSENT, for the same reason: `cost` is required and
     # taken by an unguarded subscript, so deleting it is refused by the generated
@@ -768,7 +774,7 @@ const RuleCases = [
   "S5-CALLTRACE-FOLD-TALLY", "S5-CALLTRACE-FOLD-BOUND",
   "S5-SIDECAR-FORMAT-UNKNOWN", "S5-SIDECAR-CHAIN",
   "S5-RECORDER-STATED", "S5-PRESTATE-STATED", "S5-PRESTATE-CLOSED",
-  "S5-ORDERING-CLOSED", "S5-IDENTITY-DECLARED",
+  "S5-ORDERING-CLOSED", "S5-VERSION-STATED", "S5-IDENTITY-DECLARED",
   "S5-COST-VECTOR", "S5-EXECUTIONS-NAMED", "S5-EXECUTIONS-ONE-TRACED",
   "S5-POSITIONS-SCHEMA",
   "S5-IDENTIFIER-ENCODING-CLOSED", "S5-IDENTIFIER-ENCODING-SHARDABLE",
@@ -914,7 +920,9 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
   # Recorder-Solana spine need (f)), 1 × 4 = 4.
   # 187 → 191: ONE rule added (S5-IDENTITY-DECLARED, 2026-11-03, the registry's
   # identity members), 1 × 4 = 4.
-  expectCount(191)
+  # 191 → 195: ONE rule added (S5-VERSION-STATED, 2026-11-03, Aptos's
+  # `globalVersion` ordering), 1 × 4 = 4.
+  expectCount(195)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT
@@ -1893,7 +1901,43 @@ suite "the shipped conformance template passes all three checks, and every state
     checkpoint("rejected as: " & how)
     ck rejected
 
-  expectCount(34)
+  test "a version-ordered tree publishes its rows by VERSION, and a height-ordered one by hash":
+    # Static-Site-Architecture.md §2.3 gives Aptos `id: {kind: "version"}` and
+    # `order: {kind: "globalVersion"}`, and `version-ordered/` is the template's
+    # one tree that declares it. The facts object is what every page and the
+    # client read, so the claim is measured there: every published row of that
+    # tree carries the version union in BOTH members, with one version in both.
+    proc factsOf(outDir, chain: string): seq[JsonNode] =
+      for path in walkDirRec(outDir / "d" / chain / "tx"):
+        if path.endsWith(".json"): result.add parseJson(readFile(path))
+    let vOut = tempOut("tmpl-version-ordered")
+    defer: removeDir vOut
+    let vChain = ingestSnapshot(IngestConfig(outDir: vOut,
+                                             snapshotDir: templateRoot / "version-ordered",
+                                             generation: "1", scope: isFull)).chain
+    let vFacts = factsOf(vOut, vChain)
+    ck vFacts.len >= 1
+    ck vFacts.allIt(it["id"]["kind"].getStr == "version" and
+                    it["id"]["version"].getStr.len > 0 and
+                    it["id"]["hash"].getStr.len > 0)
+    ck vFacts.allIt(it["order"]["kind"].getStr == "globalVersion" and
+                    it["order"]["version"].getStr == it["id"]["version"].getStr)
+    # CONTROL: the complete tree declares `blockIndex`, and its rows keep the
+    # hash union — so the arm above is about the declaration and not about the
+    # reader writing `version` everywhere.
+    let hOut = tempOut("tmpl-hash-ordered")
+    defer: removeDir hOut
+    let hChain = ingestSnapshot(IngestConfig(outDir: hOut,
+                                             snapshotDir: templateRoot / "complete",
+                                             generation: "1", scope: isFull)).chain
+    let hFacts = factsOf(hOut, hChain)
+    ck hFacts.len >= 1
+    ck hFacts.allIt(it["id"]["kind"].getStr == "hash" and
+                    it["order"]["kind"].getStr == "blockIndex")
+
+  # 34 → 44: a third template tree (`version-ordered/`, 2026-11-03) adds the
+  # five per-tree assertions of the first test, and the arm above adds five.
+  expectCount(44)
 
 suite "the summary's tier tally is the manifests' own sourceLevel, counted":
 

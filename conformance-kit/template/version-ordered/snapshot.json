@@ -1,0 +1,68 @@
+{
+  "format": "blocktracer/chain-snapshot@2",
+  "provenance": {
+    "chain": "example-version",
+    "recorder": {
+      "id": "example-recorder",
+      "traceSchema": "example-trace/v1"
+    },
+    "prestateStrategy": "version-addressed",
+    "ordering": "globalVersion",
+    "identity": {
+      "caip2": "example:1",
+      "name": "Example Version-Ordered Chain",
+      "family": "example",
+      "nativeCurrency": {
+        "symbol": "EXV",
+        "decimals": 8
+      },
+      "blockTimeMs": 1000,
+      "finality": {
+        "rule": "instant"
+      }
+    }
+  },
+  "window": {
+    "tip": 1000,
+    "finalized": 1000,
+    "blocks": 1
+  },
+  "counts": {
+    "blocks": 1,
+    "transactions": 1,
+    "accountedFor": 1
+  },
+  "blocks": [
+    {
+      "number": 1000,
+      "hash": "0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+      "parentArchiveRoot": "0xc9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9",
+      "transactions": [
+        "0xf2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2"
+      ]
+    }
+  ],
+  "transactions": [
+    {
+      "txHash": "0xf2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2",
+      "blockNumber": 1000,
+      "txIndexInBlock": 0,
+      "version": "9007199254740993",
+      "outcome": "not-attempted",
+      "revertCode": 0,
+      "reason": "This run enumerated the transaction and stopped before tracing it. Nothing about the transaction or about the chain declined it; the run did.",
+      "refusalReason": "not-attempted",
+      "cost": [
+        {
+          "name": "compute",
+          "used": "0"
+        }
+      ],
+      "executions": [
+        {
+          "selector": "main"
+        }
+      ]
+    }
+  ]
+}

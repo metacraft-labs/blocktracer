@@ -700,9 +700,11 @@ proc checkTransaction(v: var Validator, chain, txHash, gen, tsv: string) =
   # `id` is a union and only its `hash` member is an encoded identifier —
   # Substrate's `blockIndex` is a pair, which is why a kind may be omitted from a
   # declaration at all — so a union of another kind carries nothing for the body
-  # half of this check to be about.
+  # half of this check to be about. Aptos's `version` kind carries the
+  # transaction's hash BESIDE the version, under the same member name, and that
+  # hash is the identifier the object is keyed by, so it is checked too.
   v.checkIdentifierForms(chain, frel, KindTransaction, txHash,
-                         (if f != nil and f{"id"}{"kind"}.getStr == "hash":
+                         (if f != nil and f{"id"}{"kind"}.getStr in ["hash", "version"]:
                             f{"id"}{"hash"}.getStr else: ""))
   var execIds = initTable[string, string]()
   if f != nil:

@@ -59,6 +59,9 @@ const
   LiveMainnet = RepoRoot / "tests" / "fixtures" / "chain-snapshots" /
                 "aztec-mainnet-live"
   ListingCapture = RepoRoot / "client" / "fixtures" / "chain" / "aztec-testnet"
+  # The conformance kit's version-ordered tree: the one committed snapshot that
+  # declares `provenance.ordering: "globalVersion"` (Aptos's ordering).
+  VersionOrdered = RepoRoot / "conformance-kit" / "template" / "version-ordered"
   RegistryRel = "registry/chains.v1.json"
   # THE TOKENS THIS FILE DECLARES, and they are deliberately not any producer's.
   # A test that read the token out of the module under test would assert that the
@@ -79,6 +82,9 @@ doAssert fileExists(LiveMainnet / "snapshot.json"),
   "the capture with a replay boundary and no instruction listing cannot be " &
   "driven, and half of what this file grades is that the two members are " &
   "independent."
+doAssert fileExists(VersionOrdered / "snapshot.json"),
+  "conformance-kit/template/version-ordered/snapshot.json is missing; the one " &
+  "capture ordered by ledger version cannot be driven."
 doAssert fileExists(ListingCapture / "snapshot.json"),
   "client/fixtures/chain/aztec-testnet/snapshot.json is missing; the capture " &
   "whose published listings declare an instruction set cannot be driven."
@@ -484,8 +490,20 @@ suite "both producers state what they MEASURED, and nothing they did not":
     ck not rowFor("ing-ver-none", nil).hasKey("verification")
     ck not rowFor("ing-ver-blank", %"  ").hasKey("verification")
 
+  test "a version-ordered capture declares `globalVersion`, and its tree validates":
+    # The ordering kind is the kind of the rows the run wrote, so a capture that
+    # declares `globalVersion` publishes a registry row saying so — the third
+    # inhabitant of the union a producer can reach. The CONTROL is the first arm
+    # of this suite: the same reader over a capture that declares nothing states
+    # `blockIndex`.
+    let tree = buildIngest("ing-version", VersionOrdered)
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    ck row["ordering"]["kind"].getStr == $tokGlobalVersion
+    ck validateTree(tree).len == 0
+    removeDir tree
+
   test "assertion count":
-    expectCount(9 + 2 + 8 + 4 + 5 + 5 + 5 + 5 + 4)
+    expectCount(9 + 2 + 8 + 4 + 5 + 5 + 5 + 5 + 4 + 2)
 
 # ───────────────────────────────────────────────────────────────────────────
 suite "a producer that declares one thing and publishes another is caught":
@@ -516,6 +534,19 @@ suite "a producer that declares one thing and publishes another is caught":
     var named = 0
     for f in found:
       if $tokCheckpoint in f and $tokBlockIndex in f: inc named
+    ck named > 0
+    removeDir tree
+
+  test "a version-ordered row under a registry declaring blocks is reported":
+    # The validator reads the row's own `order.kind`, so a `globalVersion` row
+    # under a `blockIndex` declaration is the same finding as a checkpoint one
+    # would be — named with both kinds.
+    let tree = buildIngest("val-version", VersionOrdered)
+    let found = findingsWith(tree, proc(row: JsonNode) =
+      row["ordering"] = %*{"kind": $tokBlockIndex})
+    var named = 0
+    for f in found:
+      if $tokGlobalVersion in f and $tokBlockIndex in f: inc named
     ck named > 0
     removeDir tree
 
@@ -590,7 +621,7 @@ suite "a producer that declares one thing and publishes another is caught":
     removeDir tree3
 
   test "assertion count":
-    expectCount(1 + 2 + 3 + 5 + 3)
+    expectCount(1 + 2 + 1 + 3 + 5 + 3)
 
 # ───────────────────────────────────────────────────────────────────────────
 suite "the additive rule: a client built for the current schema reads all four":
