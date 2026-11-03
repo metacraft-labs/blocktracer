@@ -326,6 +326,17 @@ jobs:
         # asserting that the check WRITTEN for it is the one that goes red.
         run: node tools/deploy/check-assets-selftest.mjs
 
+      - name: Does the recording/page agreement gate bite? (the registry incident)
+        # Eleven arms over the gate that would have caught run 41420602459,
+        # which published a site in which every Aztec transaction served an
+        # empty `data-trace` while every post-check passed. Three of them assert
+        # it stays GREEN on a render-over-live tree that carries no containers
+        # at all — the shape every real publish of a live chain has — because a
+        # gate that reddens on a normal deploy is a gate that gets switched off.
+        # Two cover a DIVERGENT row whose page names a container, which rule R1
+        # never looks at and `check-assets.mjs` A1 deliberately stops counting.
+        run: node tools/deploy/check-recordings-named-selftest.mjs
+
       - name: Does the freshness gate bite? (provenance — the bytes are this commit's)
         # Its controls require the gate to stay GREEN over a
         # legitimately-changed world — a new upstream engine, a new capture, a

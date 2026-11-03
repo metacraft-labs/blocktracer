@@ -421,6 +421,29 @@ test: recordings-test prepare-recordings
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
 # reason its header gives: a gate that needs the busy Nix runner to prove it
 # can fail is a gate that gets skipped.
+# The deploy gate for the registry incident, runnable over any built tree
+# rather than extracted from `publish-r2.yml` — which is where it lived first,
+# and a reviewer said so.
+#
+# It asserts two things a tree can get wrong independently. R1: every
+# transaction whose TraceSelection overlay says `availability: ready` has a
+# debug page whose `data-trace` names a container. R2: every container a page
+# names RESOLVES. On a `render-over-live` publish the containers are the LIVE
+# bucket's and the tree holds none of them, so pass `--live-origin` pointing at
+# the staged copy; without one, R2 is the only check anywhere that looks at a
+# container named by a divergent row, since `check-assets.mjs` A1 stops
+# counting those references when `--require-traces` is absent.
+#
+# It exits 1 over an empty subject set rather than reporting success over
+# nothing, which is `tools/journeys/README.md` rule 3.
+check-recordings-named DIR="client/dist" *ARGS:
+    node tools/deploy/check-recordings-named.mjs --dir {{DIR}} {{ARGS}}
+
+# Eleven arms; three assert the gate above stays GREEN on a tree that carries
+# no containers at all.
+check-recordings-named-selftest:
+    node tools/deploy/check-recordings-named-selftest.mjs
+
 chain-selftest:
     node tools/chain/replay-selftest.mjs
     node tools/chain/freeze-snapshot-selftest.mjs

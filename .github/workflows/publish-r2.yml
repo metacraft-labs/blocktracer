@@ -1122,80 +1122,32 @@ jobs:
         # set: rule 3 of `tools/journeys/README.md`, "a test whose subject can
         # be empty passes vacuously".
         #
-        # MEASURED BOTH WAYS before it was wired in, on a complete built tree.
-        # Unmodified: "every ready recording is named by its own page -- 26
-        # transaction(s) over 4 chain(s)". With ONE page's `data-trace`
-        # blanked: that one transaction named, exit 1. The per-chain counts it
-        # prints — 5, 6, 2 and 13 — are the same numbers the exporter's own
-        # live-chain snapshot lines report, derived independently of it.
+        # THE SECOND RULE, which R1 above does not cover: every container a
+        # page names must RESOLVE, in this tree or in the staged copy of the
+        # live bucket. R1 only looks at the rows the overlay calls ready, so a
+        # DIVERGENT row whose page names a container is checked by nothing
+        # else — `check-assets.mjs` A1 deliberately stops counting container
+        # references when `--require-traces` is absent (its arms 6c/6d), and
+        # this is where that coverage went. A divergent recording may offer its
+        # bytes; it may not offer bytes nobody holds.
+        #
+        # MEASURED BOTH WAYS on a complete built tree. Unmodified: 26 ready
+        # over 4 chains, 28 named containers, 28 resolved, 2 of them named by a
+        # divergent row. With ONE page's `data-trace` blanked: that transaction
+        # named, exit 1. The per-chain counts it prints — 5, 6, 2 and 13 — are
+        # the same numbers the exporter's own live-chain snapshot lines report,
+        # derived independently of it.
+        #
+        # It is a script and not inline Python so that it is runnable over any
+        # tree without being extracted from this file first: `just
+        # check-recordings-named <dir>`, and
+        # `check-recordings-named-selftest.mjs` holds eleven arms, three of
+        # which assert it stays GREEN on a render-over-live tree that carries no
+        # containers at all.
         run: |
           set -euo pipefail
-          # Through the dev shell, like every other tool here, and `python3 -c`
-          # rather than a heredoc for the reason the step below gives: a
-          # heredoc terminator has to sit at column zero and everything here is
-          # inside a YAML block scalar.
-          nix develop .#ci --command python3 -c '
-          import json, os, re, sys, glob
-          q = chr(34)
-          tree = "site"
-          problems, checked, chains, resolved = [], 0, 0, 0
-          for cur in sorted(glob.glob(os.path.join(tree, "d", "*", "current.json"))):
-              chain = os.path.basename(os.path.dirname(cur))
-              try:
-                  ver = str(json.load(open(cur)).get("traceSelectionVersion", ""))
-              except Exception as e:
-                  problems.append(chain + ": current.json unreadable (" + str(e) + ")")
-                  continue
-              if not ver:
-                  problems.append(chain + ": current.json names no traceSelectionVersion")
-                  continue
-              chains += 1
-              ready = 0
-              for ov in sorted(glob.glob(os.path.join(tree, "d", chain, "ts", ver, "*", "*.json"))):
-                  try:
-                      o = json.load(open(ov))
-                  except Exception:
-                      continue
-                  tr = o.get("trace") or {}
-                  if tr.get("availability") != "ready":
-                      continue
-                  ready += 1
-                  tx = o.get("tx") or os.path.splitext(os.path.basename(ov))[0]
-                  page = os.path.join(tree, chain, "tx", tx, "debug", "index.html")
-                  if not os.path.exists(page):
-                      problems.append(chain + " " + tx + ": overlay says ready and there is no debug page")
-                      continue
-                  html = open(page, encoding="utf-8", errors="replace").read()
-                  m = re.search("data-trace=" + q + "([^" + q + "]*)" + q, html)
-                  checked += 1
-                  if m is None:
-                      problems.append(chain + " " + tx + ": page carries no data-trace attribute at all")
-                  elif m.group(1) == "":
-                      problems.append(chain + " " + tx + ": overlay says ready, page declines the engine (empty data-trace)")
-                  else:
-                      ref = m.group(1).lstrip("/")
-                      roots = [tree]
-                      live = os.environ.get("LIVE_ORIGIN", "")
-                      if live and os.path.isdir(live):
-                          roots.append(live)
-                      if any(os.path.exists(os.path.join(r, ref)) for r in roots):
-                          resolved += 1
-                      else:
-                          problems.append(chain + " " + tx + ": page names " + ref + " and no root holds it (looked in " + ", ".join(roots) + ")")
-              print("  " + chain + ": " + str(ready) + " transaction(s) the overlay calls ready")
-          if chains == 0:
-              print("::error::no chain published a current.json; this check measured nothing.")
-              sys.exit(1)
-          if checked == 0:
-              print("::error::no transaction in any chain has a ready TraceSelection entry, so this check measured nothing. A tree that publishes recordings must have some.")
-              sys.exit(1)
-          if problems:
-              print("::error::" + str(len(problems)) + " transaction(s) whose recording is published and whose page does not name it:")
-              for pr in problems[:40]:
-                  print("    " + pr)
-              sys.exit(1)
-          print("every ready recording is named by its own page -- " + str(checked) + " transaction(s) over " + str(chains) + " chain(s); " + str(resolved) + " named container(s) resolved in the tree or the staged bucket")
-          '
+          nix develop .#ci --command node tools/deploy/check-recordings-named.mjs \
+            --dir site --live-origin "$LIVE_ORIGIN"
 
       - name: Break stale publish leases
         if: ${{ inputs.dry-run == false && inputs.break-stale-leases == true }}
