@@ -40,7 +40,8 @@ const IDENTITY = {
 };
 
 /** A node that answers the four calls the check makes, with whatever this arm chose. */
-function fakeNode({ info, tip = 100, finalized = 90, txAtBlock = 99, body = { txHash: TX, data: '0x00' } }) {
+function fakeNode({ info, tip = 100, finalized = 90, txAtBlock = 99, txBelowFinalized = -1,
+                    body = { txHash: TX, data: '0x00' } }) {
   const server = createServer((req, res) => {
     let raw = '';
     req.on('data', (d) => { raw += d; });
@@ -54,7 +55,8 @@ function fakeNode({ info, tip = 100, finalized = 90, txAtBlock = 99, body = { tx
       if (method === 'node_getBlockNumber') return reply(params?.[0] === 'finalized' ? finalized : tip);
       if (method === 'node_getBlock') {
         const n = params?.[0];
-        return reply(n === txAtBlock ? { body: { txEffects: [{ txHash: TX }] } } : { body: { txEffects: [] } });
+        return reply(n === txAtBlock || n === txBelowFinalized
+          ? { body: { txEffects: [{ txHash: TX }] } } : { body: { txEffects: [] } });
       }
       if (method === 'node_getTxByHash') return reply(body);
       return reply(null);
@@ -63,6 +65,23 @@ function fakeNode({ info, tip = 100, finalized = 90, txAtBlock = 99, body = { tx
   // `keepAliveTimeout = 1` AND `closeAllConnections`, because `server.close()` waits for
   // idle keep-alive sockets and undici keeps one open after each request — which hung this
   // self-test on its first arm until the whole run was killed.
+  server.keepAliveTimeout = 200;
+  return new Promise((r) => server.listen(0, '127.0.0.1', () => r({
+    url: `http://127.0.0.1:${server.address().port}`,
+    close: () => new Promise((d) => { server.closeAllConnections?.(); server.close(d); }),
+  })));
+}
+
+/** A store that serves one key, with the leading-32-bytes property a real body has — so
+ *  `classify` passes and the DECODE is what the arm is actually about. `--body-store`
+ *  points the check here, which is what keeps every store arm offline. */
+function fakeStore({ serve = true }) {
+  const bytes = Buffer.concat([Buffer.from(TX.slice(2), 'hex'), Buffer.alloc(64, 7)]);
+  const server = createServer((req, res) => {
+    if (!serve) { res.writeHead(404); return res.end('nope'); }
+    res.writeHead(200, { 'content-type': 'application/octet-stream' });
+    res.end(bytes);
+  });
   server.keepAliveTimeout = 200;
   return new Promise((r) => server.listen(0, '127.0.0.1', () => r({
     url: `http://127.0.0.1:${server.address().port}`,
@@ -93,6 +112,8 @@ const stub = (bodyJs) => {
 };
 const DEC_OK = stub(`export async function decodeOne() { return { ok: true, publicCalls: 2, txHash: '${TX}' }; }\n`);
 const DEC_THROWS = stub(`export async function decodeOne() { throw new Error('Value 0x5f1b9f11ca0fbc75 is greater or equal to field modulus.'); }\n`);
+const DEC_STORE_OK = stub(`export async function decodeOne() { throw new Error('the node path must not be used in this arm'); }\nexport async function decodeBytes() { return { ok: true, publicCalls: 1, txHash: '${TX}' }; }\n`);
+const DEC_STORE_THROWS = stub(`export async function decodeOne() { throw new Error('the node path must not be used in this arm'); }\nexport async function decodeBytes() { throw new Error('Value 0xc0ea27fcdba81d7c is greater or equal to field modulus.'); }\n`);
 const DEC_WRONG_HASH = stub(`export async function decodeOne() { return { ok: true, publicCalls: 2, txHash: '0x' + 'ab'.repeat(32) }; }\n`);
 
 const arms = [
@@ -144,17 +165,41 @@ const arms = [
     expect: 'decoder-refused', says: /miss wearing a success/ },
 
   { name: 'a-quiet-window-is-not-a-verdict',
-    node: { info: nodeInfoFor(IDENTITY), txAtBlock: -1 }, args: [], decoder: DEC_OK,
+    node: { info: nodeInfoFor(IDENTITY), txAtBlock: -1 }, args: ['--source', 'node'], decoder: DEC_OK,
     expect: 'decode-not-attempted', says: /bursty — this is a quiet window and not a verdict/ },
+
+  // ── the second source, which is what makes the probe answerable at any hour ───────
+  { name: 'an-empty-live-window-falls-through-to-the-store', pass: true,
+    node: { info: nodeInfoFor(IDENTITY), txAtBlock: -1, txBelowFinalized: 85 },
+    store: { serve: true }, args: [], decoder: DEC_STORE_OK,
+    expect: 'compatible', says: /decoded block 85's .* from the store/ },
+
+  { name: 'the-store-decoder-refusing-is-still-a-refusal',
+    node: { info: nodeInfoFor(IDENTITY), txAtBlock: -1, txBelowFinalized: 85 },
+    store: { serve: true }, args: [], decoder: DEC_STORE_THROWS,
+    expect: 'decoder-refused', says: /from the store.*field modulus/ },
+
+  { name: 'a-store-that-holds-nothing-is-unmeasured-not-refuted',
+    node: { info: nodeInfoFor(IDENTITY), txAtBlock: -1, txBelowFinalized: 85 },
+    store: { serve: false }, args: [], decoder: DEC_STORE_OK,
+    expect: 'decode-not-attempted', says: /classify calls that absent.*unmeasured rather than refuted/s },
+
+  { name: 'neither-source-has-one-and-the-report-names-both',
+    node: { info: nodeInfoFor(IDENTITY), txAtBlock: -1 }, store: { serve: true },
+    args: [], decoder: DEC_STORE_OK,
+    expect: 'decode-not-attempted', says: /neither source could supply a transaction/ },
 ];
 
 let failures = 0;
 for (const arm of arms) {
   const problems = [];
   let n = null;
+  let s = null;
   try {
     n = arm.noNode ? { url: 'http://127.0.0.1:1', close: async () => {} } : await fakeNode(arm.node);
+    s = arm.store ? await fakeStore(arm.store) : null;
     const args = [CHECKER, '--url', n.url, '--expect', arm.declFile ?? declared,
+                  ...(s ? ['--body-store', s.url] : []),
                   ...(arm.args.includes('--chain') ? [] : ['--chain', 'aztec-testnet']), ...arm.args];
     const env = { ...process.env };
     if (arm.decoder) env.CHAIN_COMPAT_DECODER = arm.decoder; else delete env.CHAIN_COMPAT_DECODER;
@@ -183,6 +228,7 @@ for (const arm of arms) {
     problems.push(`threw: ${e.message}`);
   } finally {
     await n?.close();
+    await s?.close();
   }
   if (problems.length) {
     failures += 1;
@@ -199,8 +245,8 @@ rmSync(DIR, { recursive: true, force: true });
 // `chain-selftest`'s total has gone stale silently at least once, so a suite states its
 // own number here and the aggregate's copy is compared against it rather than retyped.
 const asserted = arms.length;
-if (asserted !== 13) {
-  console.log(`  FAIL  this suite declares 13 arms and ran ${asserted}`);
+if (asserted !== 17) {
+  console.log(`  FAIL  this suite declares 17 arms and ran ${asserted}`);
   failures += 1;
 }
 console.log(failures === 0

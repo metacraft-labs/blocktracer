@@ -161,7 +161,7 @@ test: recordings-test prepare-recordings
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-FIVE suites — 105 + 13 + 19 + 24 + 24 + 57 + 245 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 35 + 24 + 44 = 1442 counted assertions —
+# TWENTY-FIVE suites — 105 + 17 + 19 + 24 + 24 + 57 + 245 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 35 + 24 + 44 = 1446 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -465,9 +465,9 @@ check-recordings-named-selftest:
 check-chain-compat *ARGS:
     node tools/chain/check-chain-compat.mjs {{ARGS}}
 
-# Thirteen arms over a fake node and an injected decoder -- no chain, no AVM, no network.
-# Four of them require a PASS, because a probe that reddened on a healthy chain would be
-# switched off and then the silence returns with it nominally in place.
+# Seventeen arms over a fake node, a fake file store and injected decoders -- no chain, no
+# AVM, no network. Five of them require a PASS, because a probe that reddened on a healthy
+# chain would be switched off and then the silence returns with it nominally in place.
 check-chain-compat-selftest:
     node tools/chain/check-chain-compat-selftest.mjs
 

@@ -39,6 +39,25 @@
 // NON-ZERO unless `--identity-only` says that was the intent. A tool that quietly passed
 // on the half it could reach is how the two months above happened.
 //
+// ── TWO SOURCES, BECAUSE ONE OF THEM IS USUALLY EMPTY ─────────────────────────────────
+//
+// `getTxByHash` is a MEMPOOL query, so the only transactions it can serve are the ones
+// above the finalized tip — and on aztec-testnet that window is routinely empty. Measured
+// on 2026-11-04: three consecutive runs found no transaction in blocks 17528..17556, which
+// is correct reporting and useless as a signal. A probe that answers "quiet window" most
+// nights is a probe nobody reads, and that is how a silent guard starts.
+//
+// So when the live window is empty the check falls back to Aztec's keyless `TxFileStore`,
+// which holds bodies for FINALIZED transactions — the ones there are plenty of. The two
+// sources test different dialects and both are worth having:
+//
+//   node    `Tx.schema.parseAsync` over the JSON the RPC serves. The live wire dialect.
+//   store   `Tx.fromBuffer` over the content-addressed `.bin`. The archival dialect, and
+//           the one the historic backfill depends on.
+//
+// The outcome names which source answered, because "the node's JSON decodes and the
+// store's bytes do not" is a different finding from either alone.
+//
 // ── IT REFUSES TO PASS OVER NOTHING ───────────────────────────────────────────────────
 //
 // An undeclared chain, a declaration with no chains, a node that serves no transaction to
@@ -46,6 +65,10 @@
 // subject set. `tools/journeys/README.md` rule 3.
 
 import { readFileSync } from 'node:fs';
+// The store's URL shape, its path derivation and the leading-32-bytes rule all come from
+// the one implementation that owns them. Restating any of the three here is how two
+// readers of one source come to disagree.
+import { storeBasePath, bodyUrl, classify } from './backfill-bodies.mjs';
 
 export const OUTCOMES = [
   'compatible',              // identity matches and one transaction decoded
@@ -59,7 +82,11 @@ export const OUTCOMES = [
 
 export function parseArgs(argv) {
   const o = { url: '', chain: '', expect: 'tools/chain/chain-identity.json',
-              runtime: '', identityOnly: false, scan: 160, json: false };
+              runtime: '', identityOnly: false, scan: 160, json: false,
+              // `node`, `store`, or `auto` — the node's live window first and the store
+              // when it is empty, which is the mode that can answer at any hour.
+              source: 'auto', network: '', bodyStore: '',
+              config: 'https://raw.githubusercontent.com/AztecProtocol/networks/main/network_config.json' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--url') o.url = argv[++i];
@@ -68,12 +95,20 @@ export function parseArgs(argv) {
     else if (a === '--runtime') o.runtime = argv[++i];
     else if (a === '--scan') o.scan = Math.max(1, Number(argv[++i]));
     else if (a === '--identity-only') o.identityOnly = true;
+    else if (a === '--source') o.source = argv[++i];
+    else if (a === '--network') o.network = argv[++i];
+    else if (a === '--config') o.config = argv[++i];
+    else if (a === '--body-store') o.bodyStore = argv[++i];
     else if (a === '--json') o.json = true;
     else return { error: `unknown argument: ${a}` };
   }
   if (!o.chain) return { error: '--chain <name> is required' };
   if (!o.url) o.url = o.chain.includes('testnet') ? 'https://aztec-testnet.drpc.org'
                                                   : 'https://aztec.drpc.org';
+  if (!o.network) o.network = o.chain.includes('testnet') ? 'testnet' : 'mainnet';
+  if (!['auto', 'node', 'store'].includes(o.source)) {
+    return { error: `--source must be auto, node or store (got ${o.source})` };
+  }
   return o;
 }
 
@@ -118,7 +153,8 @@ async function loadDecoder({ runtime }) {
   if (injected) {
     const m = await import(injected.startsWith('.') || injected.startsWith('/')
       ? injected : `./${injected}`);
-    return { decodeOne: m.decodeOne, from: `CHAIN_COMPAT_DECODER=${injected}` };
+    return { decodeOne: m.decodeOne, decodeBytes: m.decodeBytes,
+             from: `CHAIN_COMPAT_DECODER=${injected}` };
   }
   if (!runtime) return null;
   const { pathToFileURL } = await import('node:url');
@@ -134,15 +170,19 @@ async function loadDecoder({ runtime }) {
   for (const sl of ['@aztec-labs/stdlib/dest/tx/index.js', '@aztec/stdlib/dest/tx/index.js']) {
     try {
       const { Tx } = await import(at(sl));
+      const shape = (tx) => ({ ok: true, publicCalls: tx.numberOfPublicCalls(),
+                               txHash: tx.getTxHash().toString() });
       return {
         from: sl.split('/dest')[0],
         // `parseAsync`, NOT `parse`: the schema became async in the 6.x line and the sync
         // call throws `Encountered Promise during synchronous parse`, which reads like a
         // malformed transaction and is not one.
-        decodeOne: async (json) => {
-          const tx = Tx.schema.parseAsync ? await Tx.schema.parseAsync(json) : Tx.schema.parse(json);
-          return { ok: true, publicCalls: tx.numberOfPublicCalls(), txHash: tx.getTxHash().toString() };
-        },
+        decodeOne: async (json) => shape(
+          Tx.schema.parseAsync ? await Tx.schema.parseAsync(json) : Tx.schema.parse(json)),
+        // The archival dialect. `Tx.toBuffer` serialises `txHash` first, which is why
+        // `backfill-bodies.mjs`'s `classify` can verify a payload before anyone decodes it
+        // — and why a `verified` from that function is NOT a statement that it decodes.
+        decodeBytes: async (bytes) => shape(Tx.fromBuffer(bytes)),
       };
     } catch { /* ditto */ }
   }
@@ -215,47 +255,119 @@ export async function run(o) {
              + `check exists because of. Pass --identity-only if that was the intent.` });
   }
 
-  // One real transaction of this node's, above the finalized tip so the body is still served.
   let tip, finalized;
   try { tip = await rpc('node_getBlockNumber'); finalized = await rpc('node_getBlockNumber', ['finalized']); }
   catch (e) { return finish('node-unreachable', { why: `the node stopped answering mid-check: ${e.message}` }); }
-  let subject = null;
-  for (let n = tip; n > Math.max(finalized, tip - o.scan) && !subject; n -= 1) {
-    const b = await rpc('node_getBlock', [n, { includeTransactions: true }]).catch(() => null);
-    const h = ((b?.body?.txEffects) ?? []).map((e) => e.txHash).filter(Boolean)[0];
-    if (h) subject = { block: n, hash: h };
+
+  /** The first transaction in a descending block range, or null. */
+  const findIn = async (from, to) => {
+    for (let n = from; n > to; n -= 1) {
+      const b = await rpc('node_getBlock', [n, { includeTransactions: true }]).catch(() => null);
+      const h = ((b?.body?.txEffects) ?? []).map((e) => e.txHash).filter(Boolean)[0];
+      if (h) return { block: n, hash: h };
+    }
+    return null;
+  };
+
+  // ── source 1: the node's live window, which is where a MEMPOOL query can answer ───
+  let subject = null, payload = null, via = '';
+  const liveFloor = Math.max(finalized, tip - o.scan);
+  if (o.source !== 'store') {
+    subject = await findIn(tip, liveFloor);
+    if (subject) {
+      payload = await rpc('node_getTxByHash', [subject.hash]).catch(() => null);
+      if (payload) via = 'node';
+      else if (o.source === 'node') {
+        return finish('decode-not-attempted', {
+          why: `block ${subject.block}'s ${subject.hash} finalized between enumeration and the fetch, `
+             + `so its body was pruned before the decoder saw it. Nothing is known about compatibility.` });
+      } else { subject = null; }
+    } else if (o.source === 'node') {
+      return finish('decode-not-attempted', {
+        why: `no transaction above the finalized tip in blocks ${liveFloor + 1}..${tip}, so the decoder `
+           + `was never asked. Arrivals on this chain are bursty — this is a quiet window and not a `
+           + `verdict. Re-run, widen --scan, or drop --source node so the file store can answer.` });
+    }
   }
-  if (!subject) {
-    return finish('decode-not-attempted', {
-      why: `no transaction above the finalized tip in blocks ${Math.max(finalized, tip - o.scan) + 1}..${tip}, `
-         + `so the decoder was never asked. Arrivals on this chain are bursty — this is a quiet `
-         + `window and not a verdict. Re-run, or widen --scan.` });
+
+  // ── source 2: the file store, which holds the FINALIZED ones ──────────────────────
+  //
+  // Reached when the live window is empty, which on this chain is the usual case. The
+  // store is keyed by hash and knows nothing about blocks, so the hashes come from the
+  // node's own archival `getBlock` — below the finalized tip, where there are plenty.
+  if (!subject && o.source !== 'node' && decoder.decodeBytes) {
+    let base = o.bodyStore;
+    try {
+      if (!base) {
+        const res = await fetch(o.config, { signal: AbortSignal.timeout(RPC_TIMEOUT_MS) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        base = (await res.json())?.[o.network]?.txCollectionFileStoreUrls?.[0] ?? '';
+      }
+    } catch (e) {
+      return finish('decode-not-attempted', {
+        why: `the live window ${liveFloor + 1}..${tip} held no transaction and ${o.config} could not be `
+           + `read (${e.message}), so neither source could supply one.` });
+    }
+    if (!base) {
+      return finish('decode-not-attempted', {
+        why: `the live window held no transaction and ${o.config} declares no `
+           + `txCollectionFileStoreUrls for ${o.network}, so there is no second source.` });
+    }
+    const basePath = storeBasePath(info);
+    const below = await findIn(finalized, Math.max(0, finalized - o.scan));
+    if (!below) {
+      return finish('decode-not-attempted', {
+        why: `neither source could supply a transaction: the live window ${liveFloor + 1}..${tip} is `
+           + `empty and so are blocks ${Math.max(0, finalized - o.scan) + 1}..${finalized} below the `
+           + `finalized tip. Widen --scan.` });
+    }
+    const url = bodyUrl(base, basePath, below.hash);
+    let bytes = null, status = 0;
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(RPC_TIMEOUT_MS) });
+      status = r.status;
+      if (status === 200) bytes = Buffer.from(await r.arrayBuffer());
+    } catch (e) {
+      return finish('decode-not-attempted', {
+        why: `the file store could not be reached for ${below.hash} (${e.message}), so nothing is known `
+           + `about compatibility. This is a fact about the run and not about the chain.` });
+    }
+    const c = classify(below.hash, status, bytes);
+    if (c.outcome !== 'verified') {
+      return finish('decode-not-attempted', {
+        why: `the file store answered ${status} for block ${below.block}'s ${below.hash} and `
+           + `classify calls that ${c.outcome}: ${c.reason} Nothing was decoded, so compatibility is `
+           + `unmeasured rather than refuted.` });
+    }
+    subject = below; payload = bytes; via = 'store';
   }
-  const json = await rpc('node_getTxByHash', [subject.hash]).catch(() => null);
-  if (!json) {
+
+  if (!subject || !payload) {
     return finish('decode-not-attempted', {
-      why: `block ${subject.block}'s ${subject.hash} finalized between enumeration and the fetch, so `
-         + `its body was pruned before the decoder saw it. Nothing is known about compatibility.` });
+      why: `no transaction could be obtained from either source, so the decoder was never asked` });
   }
 
   try {
-    const r = await decoder.decodeOne(json);
+    const r = via === 'store' ? await decoder.decodeBytes(payload) : await decoder.decodeOne(payload);
     // SELF-CONSISTENT, not merely non-throwing. `Tx.toBuffer` serialises `txHash` first, so a
     // decode that produces a different hash from the key requested decoded something else.
     if (r?.txHash && r.txHash.toLowerCase() !== subject.hash.toLowerCase()) {
       return finish('decoder-refused', {
-        why: `${decoder.from} decoded block ${subject.block}'s ${subject.hash} into a transaction whose `
+        source: via,
+        why: `${decoder.from} decoded block ${subject.block}'s ${subject.hash} (from the ${via}) into a `
+           + `transaction whose `
            + `own hash is ${r.txHash}. A decode that disagrees with the key it was given is a miss `
            + `wearing a success.` });
     }
     return finish('compatible', {
-      decoder: decoder.from, block: subject.block, tx: subject.hash, publicCalls: r?.publicCalls ?? null,
-      why: `${decoder.from} decoded block ${subject.block}'s ${subject.hash} (publicCalls=${r?.publicCalls ?? '?'}) `
-         + `and the decoded hash equals the key requested` });
+      decoder: decoder.from, source: via, block: subject.block, tx: subject.hash,
+      publicCalls: r?.publicCalls ?? null,
+      why: `${decoder.from} decoded block ${subject.block}'s ${subject.hash} from the ${via} `
+         + `(publicCalls=${r?.publicCalls ?? '?'}) and the decoded hash equals the key requested` });
   } catch (e) {
     return finish('decoder-refused', {
-      decoder: decoder.from, block: subject.block, tx: subject.hash,
-      why: `${decoder.from} refused block ${subject.block}'s ${subject.hash}: `
+      decoder: decoder.from, source: via, block: subject.block, tx: subject.hash,
+      why: `${decoder.from} refused block ${subject.block}'s ${subject.hash}, from the ${via}: `
          + `${String(e.message).split('\n')[0].slice(0, 200)}. The identity matched, so this is a `
          + `SERIALISATION difference under an unchanged deployment, or a decoder that is not the `
          + `one this deployment speaks.` });

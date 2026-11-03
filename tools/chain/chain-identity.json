@@ -31,13 +31,13 @@
         "package": "@aztec-labs/stdlib",
         "version": "6.0.0",
         "verifiedOn": "2026-11-03",
-        "evidence": "Tx.schema.parseAsync decoded block 17426's 0x284813bc0b7ecd556ab91ce564c5865cdd81f9e0a51bc28baa488f72a271c380 (publicCalls=2) and the decoded txHash equalled the key requested; Tx.fromBuffer decoded a 102,103-byte TxFileStore object for 0x0fe273bf0c0a16908db273557b7fb2248742cccafc63ff3676b74aaca827d462 (publicCalls=0)."
+        "evidence": "PAIRED AGAINST THE SAME TRANSACTION, so the verdict is about the decoder and not about the check. 2026-11-04, block 17494's 0x2ab526d49ebd9581bfe27e46dfef4e08f6c2075b05176e10e2f182d1d85297bb fetched from the file store: @aztec-labs/stdlib 6.0.0 decoded it (publicCalls=1, and the decoded txHash equals the key requested) while @aztec/stdlib 5.3.0-nightly.20260819 refused the identical bytes with `Value 0xe6414c6c0000000000080bc0... is greater or equal to field modulus`. Earlier the same day Tx.schema.parseAsync decoded block 17426's 0x284813bc... (publicCalls=2) straight from node_getTxByHash, so both dialects -- the live RPC JSON and the archival .bin -- decode under the renamed package."
       },
       "replayDecoder": {
         "package": "@aztec/stdlib",
         "version": "5.3.0-nightly.20260819",
         "verifiedOn": null,
-        "evidence": "THE DECODER THE REPLAY RUNTIME ACTUALLY USES, and it does NOT decode this deployment: every published @aztec/stdlib refuses these transactions with `is greater or equal to field modulus`. aztec-avm-runtime's replay/package.json pins this at dev tip 4c727bf and at the revision this repository's flake pins, 238a3a5b. Recorded with verifiedOn null rather than omitted, so the gap is a value and not an absence."
+        "evidence": "THE DECODER THE REPLAY RUNTIME ACTUALLY USES, and it does not decode this deployment. Refused block 17494's transaction on 2026-11-04 in the paired run above, and five published @aztec/stdlib versions refuse a live transaction identically -- this pin, 5.3.0 stable, 5.3.0-nightly.20261103, 6.0.0-nightly.20260828 and 6.0.0-nightly.20260823. aztec-avm-runtime's replay/package.json carries this at dev tip 4c727bf and at the revision this repository's flake pins, 238a3a5b. Recorded with verifiedOn null rather than omitted, so the gap is a value and not an absence."
       }
     }
   }
