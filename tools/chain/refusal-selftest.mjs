@@ -1446,6 +1446,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // patterns, both of which are visible in the array immediately below it.)
   const declared = [
     ['replay-selftest.mjs', /^\s*expectCount\((\d+)\);/m],
+    ['check-chain-compat-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['freeze-snapshot-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['watch-chain-selftest.sh', /"\$asserted" -ne (\d+) \]/],
     ['calltrace-fold-selftest.mjs', /asserted !== (\d+)\) \{/],
@@ -1827,7 +1828,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(244);
+expectCount(245);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

@@ -161,7 +161,7 @@ test: recordings-test prepare-recordings
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-FOUR suites — 105 + 19 + 24 + 24 + 57 + 244 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 35 + 24 + 44 = 1428 counted assertions —
+# TWENTY-FIVE suites — 105 + 13 + 19 + 24 + 24 + 57 + 245 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 35 + 24 + 44 = 1442 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -444,8 +444,36 @@ check-recordings-named DIR="client/dist" *ARGS:
 check-recordings-named-selftest:
     node tools/deploy/check-recordings-named-selftest.mjs
 
+# Is the chain we are following still the chain we can decode?
+#
+# Between 2026-09-04 and 2026-11-03 nothing was traced on any Aztec chain and no check
+# said so. aztec-testnet restarted onto a new rollup and moved its transaction
+# serialisation; `aztec-avm-runtime`'s own `ProtocolVersionMismatch` refusal and
+# `pins.json`'s `live_chain` declaration both exist for exactly that event, and neither
+# spoke, because the only thing that would have run them is a replay and a replay is what
+# had stopped working. This is the probe that does not depend on the broken path.
+#
+# A PASS NEEDS BOTH HALVES: the node's own identity against `chain-identity.json`, and one
+# of that node's transactions parsed by the installed decoder. A matching rollup address is
+# necessary and not sufficient -- a chain can keep its deployment and move its
+# serialisation underneath it. Without `--runtime` there is no decoder, so the run reports
+# `decode-not-attempted` and exits non-zero unless `--identity-only` says that was the
+# intent.
+#
+# It needs the network, so it is not in `deploy-gates`; `check-chain-compat-selftest` is
+# the offline half and that one is wired into CI.
+check-chain-compat *ARGS:
+    node tools/chain/check-chain-compat.mjs {{ARGS}}
+
+# Thirteen arms over a fake node and an injected decoder -- no chain, no AVM, no network.
+# Four of them require a PASS, because a probe that reddened on a healthy chain would be
+# switched off and then the silence returns with it nominally in place.
+check-chain-compat-selftest:
+    node tools/chain/check-chain-compat-selftest.mjs
+
 chain-selftest:
     node tools/chain/replay-selftest.mjs
+    node tools/chain/check-chain-compat-selftest.mjs
     node tools/chain/freeze-snapshot-selftest.mjs
     bash tools/chain/watch-chain-selftest.sh
     node tools/chain/calltrace-fold-selftest.mjs

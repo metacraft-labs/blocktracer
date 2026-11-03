@@ -551,6 +551,23 @@ jobs:
         # an ENOENT on a path that does not exist on NixOS.
         run: node tools/chain/replay-selftest.mjs
 
+      - name: Is the chain we follow still the chain we can decode?
+        # 13 arms over a fake node and an injected decoder. The check they cover
+        # exists because between 2026-09-04 and 2026-11-03 nothing was traced on
+        # any Aztec chain and no check said so: aztec-testnet restarted onto a
+        # new rollup AND moved its transaction serialisation, and the two guards
+        # written for that event — the runtime's own ProtocolVersionMismatch and
+        # pins.json's live_chain declaration — both stayed silent, because the
+        # only thing that would have run them is a replay and a replay is what
+        # had stopped working. Four arms require a PASS, including a rollup
+        # address differing only in case, because a probe that reddens on a
+        # healthy chain gets switched off. The decisive arm is the one where the
+        # identity MATCHES and the decoder refuses, which is the real state of
+        # aztec-testnet today, and it asserts the sentence says SERIALISATION
+        # rather than leaving a reader to infer a restart from a matching
+        # identity.
+        run: node tools/chain/check-chain-compat-selftest.mjs
+
       - name: Does the freeze gate refuse? (four checks, each re-asked of the chain)
         # 19 arms against a mock node. `frozen` is a conclusion the tool
         # reaches, not a flag a caller sets, and a gate that has never said no
@@ -591,7 +608,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 244 assertions, and the reason it is offline is the reason it
+        # ING-3, 245 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every

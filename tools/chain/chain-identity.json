@@ -1,0 +1,44 @@
+{
+  "_comment": [
+    "WHAT WE LAST VERIFIED WE CAN DECODE, per chain, and the deployment we verified it against.",
+    "",
+    "THIS IS THE FORWARD-LOOKING HALF. `retired-networks.json` is an obituary: it records that a",
+    "network which would have served a repair is gone, by hand, once somebody notices. This file",
+    "is what `check-chain-compat.mjs` compares a LIVE node against, so that noticing stops being",
+    "a matter of somebody noticing.",
+    "",
+    "WHY IT CARRIES A DECODER AND NOT ONLY AN IDENTITY. A matching rollup address is necessary",
+    "and not sufficient: a chain can keep its deployment and move its transaction serialisation",
+    "under it, and an identity check alone would call that compatible. It can also go the other",
+    "way, which is what happened here -- aztec-testnet restarted onto a new rollup AND moved its",
+    "serialisation, and the only thing that reported either was a human reading a decode error",
+    "two months later. So the check asks a node who it is, and then asks the installed decoder to",
+    "parse one of its transactions, and a pass requires both.",
+    "",
+    "AN ENTRY IS A MEASUREMENT WITH A DATE, NOT A WISH. `verifiedOn` is the day a decode actually",
+    "succeeded against that deployment with that decoder. Editing these values to make the check",
+    "pass is the one thing that empties it of meaning: the values describe what was observed, and",
+    "a divergence is the finding."
+  ],
+  "format": "blocktracer/chain-identity@1",
+  "chains": {
+    "aztec-testnet": {
+      "l1ChainId": 11155111,
+      "rollupVersion": 679261766,
+      "rollupAddress": "0x1f435a7f2da358caf887a470faeee7d5d5f4efba",
+      "nodeVersion": "6.0.0",
+      "decoder": {
+        "package": "@aztec-labs/stdlib",
+        "version": "6.0.0",
+        "verifiedOn": "2026-11-03",
+        "evidence": "Tx.schema.parseAsync decoded block 17426's 0x284813bc0b7ecd556ab91ce564c5865cdd81f9e0a51bc28baa488f72a271c380 (publicCalls=2) and the decoded txHash equalled the key requested; Tx.fromBuffer decoded a 102,103-byte TxFileStore object for 0x0fe273bf0c0a16908db273557b7fb2248742cccafc63ff3676b74aaca827d462 (publicCalls=0)."
+      },
+      "replayDecoder": {
+        "package": "@aztec/stdlib",
+        "version": "5.3.0-nightly.20260819",
+        "verifiedOn": null,
+        "evidence": "THE DECODER THE REPLAY RUNTIME ACTUALLY USES, and it does NOT decode this deployment: every published @aztec/stdlib refuses these transactions with `is greater or equal to field modulus`. aztec-avm-runtime's replay/package.json pins this at dev tip 4c727bf and at the revision this repository's flake pins, 238a3a5b. Recorded with verifiedOn null rather than omitted, so the gap is a value and not an absence."
+      }
+    }
+  }
+}
