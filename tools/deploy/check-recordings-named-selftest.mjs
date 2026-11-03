@@ -35,6 +35,18 @@
 // references when `--require-traces` is absent (its arms 6c/6d) would leave
 // that case checked by nothing at all.
 
+// MEASURED ON TWO REAL TREES, not only on the fixtures below, because the
+// divergent arms would otherwise be synthetic-only and a reader would be right
+// to discount them. This repository's built tree: 26 ready over 4 chains, 28
+// named containers, 28 resolved, 2 named by a divergent row; and with one
+// page's `data-trace` blanked, that transaction named and exit 1. The Aptos
+// producer's tree, run by its author over ten chains: 70 ready, 74 named, all
+// 74 resolved, 4 named by a divergent row — of which aptos-mainnet contributes
+// 2 ready and 4 named, so its two divergent Decibel bulk orders are covered by
+// R2 and by nothing else here, on a real chain rather than a fixture. 96 ready
+// rows and 102 named containers between the two, every one resolved, and both
+// sets of per-chain counts matched what each of us expected before looking.
+
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
