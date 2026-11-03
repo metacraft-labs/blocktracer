@@ -550,45 +550,51 @@ jobs:
             # `registry` IS IN THIS LIST AND WITHOUT IT A render-over-live
             # PUBLISH SHIPS THE REAL CHAINS AS NON-DEBUGGABLE.
             #
-            # `-d:dataOrigin` points every read at the staged tree, and the
-            # exporter reads the chain REGISTRY through it — `static_export`'s
-            # own cache note says the singletons it re-reads are "paths
-            # containing `/g/`, ending `/current.json`, or under `registry/`".
-            # A chain's row there is what carries its recording profile and
-            # trace schema, and `blocktracer_client/trace.resolveExec` refuses
-            # to derive a trace address without them:
+            # NO APOSTROPHES BELOW, AND THAT IS NOT A STYLE CHOICE: this whole
+            # loop is the body of `bash -c QUOTED`, so one apostrophe ends the
+            # string and everything after it runs on the bare runner PATH
+            # instead of in the dev shell. 64bb518 is the same defect in
+            # `chain-follower`, and the first draft of THIS comment reproduced
+            # it — run 41576026965 died with `aws: command not found` after
+            # four retries, because six apostrophes in a comment had closed the
+            # quote 140 lines earlier.
             #
-            #     if not session.hasPin:
-            #       result.kind = trkUnresolvable
-            #       result.reason = "no recording profile or trace schema
-            #         pinned for chain '…'; the trace address cannot be
-            #         derived (Trace-Artifacts.md §2.1)"
+            # `-d:dataOrigin` points every read at the staged tree, and the
+            # exporter reads the chain REGISTRY through it: the cache note in
+            # `static_export` says the singletons it re-reads are paths
+            # containing `/g/`, ending `/current.json`, or under `registry/`.
+            # The row for a chain there carries its recording profile and trace
+            # schema, and `blocktracer_client/trace.resolveExec` refuses to
+            # derive a trace address without them — `if not session.hasPin` is
+            # `trkUnresolvable`, reason `no recording profile or trace schema
+            # pinned for chain ... the trace address cannot be derived`
+            # (Trace-Artifacts.md section 2.1).
             #
             # `containerPath` is then empty, `session_view.canShare` is
-            # `hasFrame and containerPath.len > 0`, and `pages/debug` writes
-            # `data-trace=""` — which is how a page declines the engine. The
-            # transaction has a container, published and reachable, and its
-            # own page never asks for it.
+            # `hasFrame and containerPath.len > 0`, and `pages/debug` writes an
+            # empty `data-trace` — which is how a page declines the engine. The
+            # transaction has a container, published and reachable, and the page
+            # for it never asks.
             #
             # MEASURED, BOTH DIRECTIONS, on 2026-11-03 against an origin
             # assembled exactly as this loop assembles one. Subject
-            # `/aztec-testnet-frames/tx/0x00689495…/debug`, whose trace
+            # `/aztec-testnet-frames/tx/0x00689495.../debug`, whose trace
             # container answers 200 at 174,196 bytes in the live bucket:
             #
-            #   origin without registry/   data-trace=""            22,090 B
-            #   origin with    registry/   data-trace=/t/bt/6n/…   236,887 B
+            #   origin without registry/   empty data-trace         22,090 B
+            #   origin with    registry/   /t/bt/6n/... container  236,887 B
             #
             # The 22,090 is byte-for-byte the size production served after run
             # 41420602459, so that run is the thing being reproduced and not a
-            # lookalike. A second subject moved the same way:
-            # `0x0a807e4e…` read `""` at 21,715 B and
+            # lookalike. A second subject moved the same way: `0x0a807e4e...`
+            # read empty at 21,715 B and
             # `/t/z7/au/z7aua7qyaolifq2xbfqilmy5z7/trace.ct` at 4,075,165 B.
             #
-            # WHY IT WENT UNNOTICED: the demo chain is pointed at this build's
-            # own tree by `-d:chainOrigins=demo=dist`, and that tree HAS a
-            # registry — so demo's pages carried their containers while every
-            # live chain's did not, on the same publish. Every assertion that
-            # drives a live session drives the demo chain.
+            # WHY IT WENT UNNOTICED: the demo chain is pointed at the tree this
+            # build made, by `-d:chainOrigins=demo=dist`, and that tree HAS a
+            # registry — so the demo pages carried their containers while no
+            # live chain did, on the same publish. Every assertion that drives
+            # a live session drives the demo chain.
             for prefix in d idx t src registry; do
               mkdir -p "$LIVE_ORIGIN/$prefix"
               t0=$(date +%s)
