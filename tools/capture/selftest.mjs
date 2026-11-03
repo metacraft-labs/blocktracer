@@ -87,7 +87,19 @@ async function main() {
       [
         `stale image detected by the coverage check: ${detected}`,
         `removed by a full regeneration: ${gone}`,
+        `the regeneration exited 0: ${regen2.code === 0}`,
         `coverage clean afterwards: ${covAfter.code === 0}`,
+        // WHY, NOT ONLY WHETHER. Canary job 125889193924 (staging f75df28,
+        // garm-vdjc3wzzd6zt) failed this row and F's base case with nothing
+        // more than "false". The same tree passed 9/9 on high-mem-server, and
+        // the only trace left was a count: 307 images where the first
+        // regeneration made 308. The problems the coverage check named, and
+        // what the regeneration printed last, are what the next run needs.
+        ...(regen2.code === 0 ? [] : ["regeneration output (last 12 lines):",
+          ...regen2.out.trim().split("\n").slice(-12).map((l) => `  ${l}`)]),
+        ...(covAfter.code === 0 ? [] : ["coverage problems:",
+          ...covAfter.out.split("\n").filter((l) => /^\s*[A-F]: |FAIL/.test(l)).slice(0, 20)
+            .map((l) => `  ${l.trim()}`)]),
       ].join("\n"),
     );
 
