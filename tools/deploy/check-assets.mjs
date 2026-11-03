@@ -407,6 +407,7 @@ export function run({ dir, requireTraces }) {
   const relatives = tally();    // reported, not failed
   const distinct = new Set();           // resolved targets — only `.size` is read
   const containerRefs = tally();        // A3 — `/t/**/*.ct` named by a page
+  const liveContainerRefs = tally();    // A1 — named containers the LIVE bucket holds, not this tree
   const containerPages = new Set();     // A3 — how many PAGES name one
   const bundleRefs = tally();           // A4 — pages naming the hydration bundle
   const bundlePages = new Set();        // A4 — same, for the bundle
@@ -426,8 +427,31 @@ export function run({ dir, requireTraces }) {
 
       const r = resolveRef(dir, c.path);
       const where = { page: rel(page), attr, url: c.url, path: c.path };
+      // A CONTAINER THIS TREE WAS NEVER GOING TO CARRY IS NOT A DANGLING
+      // REFERENCE, and A3 one screen down has said so for longer than A1 has.
+      //
+      // On a `render-over-live` publish the pages are rendered over the live
+      // bucket's data plane and the `/t/**` containers are already in that
+      // bucket; the tree re-uploads none of them, which is what `--require-traces`
+      // being ABSENT declares. A1 counted those references as 404s anyway: the
+      // first dry run after `publish-r2` began staging the registry — so the
+      // pages could name their containers at all — failed A1 with 60 unresolved
+      // references, every one of them a `/t/**/trace.ct` that is in production
+      // and answers 200 there. Measured: `/t/bt/6n/bt6n2x2piaokfitras2gg6mttw/`
+      // `trace.ct` is 174,196 bytes in the live bucket.
+      //
+      // THE COVERAGE IS NOT DROPPED, IT MOVES to where the object actually is:
+      // `publish-r2`'s "every published recording is named by its own page" step
+      // resolves each named container against the STAGED copy of the bucket, so
+      // a reference to a container production does not hold still fails the
+      // publish — and fails it against the bucket rather than against a tree
+      // that was never meant to hold it. The exclusion is counted and printed
+      // below rather than silent.
+      const containerElsewhere = !requireTraces && TRACE_CONTAINER_RE.test(c.path);
       if (r.status === "ok") {
         distinct.add(r.target);
+      } else if (containerElsewhere) {
+        add_(liveContainerRefs, { ...where, target: rel(r.target) });
       } else if (r.status === "missing") {
         add_(missing, { ...where, want: r.want, target: rel(r.target) });
       } else if (r.status === "escapes") {
@@ -471,7 +495,12 @@ export function run({ dir, requireTraces }) {
       ? `${a1.length} unresolved reference(s) — each is a 404 for every visitor:\n` +
         fmt(a1, (v) => `${refLine(v)}  (${v.why})`)
       : `${kinds["same-origin"]} same-origin reference(s) across ${pages.length} page(s) all resolve; ` +
-        `${distinct.size} distinct asset(s)`);
+        `${distinct.size} distinct asset(s)` +
+        (liveContainerRefs.n
+          ? `; ${liveContainerRefs.n} container reference(s) NOT checked here because ` +
+            `--require-traces is absent, which declares them the live bucket's — ` +
+            `publish-r2 resolves those against the staged bucket instead`
+          : ""));
 
   // ── A2 — an asset that exists and is zero bytes ──────────────────────────
   //
