@@ -11,6 +11,11 @@
 ##     mnemonic table is SELECTED by identity instead of being unlocked by a
 ##     string comparison.
 ##
+## The chain's IDENTITY — CAIP-2 id, name, family, currency, block time,
+## finality rule — rides on the same object as `identity`, because it is read
+## out of the same row by the same readers. Its rules are its own module's,
+## `contract/chain_identity.nim`.
+##
 ## Configuration.md §2.1 is the schema and §2.2 the additive rule that makes
 ## writing them safe: every member here is optional, and a consumer built for a
 ## registry without them reads one carrying them and answers identically.
@@ -65,6 +70,8 @@
 import std/[json, strutils]
 
 import ./model
+import ./chain_identity
+export chain_identity
 
 type
   ReachKind* = enum
@@ -156,6 +163,10 @@ type
       ## and what happens to one that cannot be — verbatim, or empty when it said
       ## nothing. Like `historyFloor.reason` it is a QUOTATION: the reader composes
       ## no part of it, because only the producer knows what it compared.
+    identity*: ChainIdentity
+      ## What the chain IS — CAIP-2 id, name, family, currency, block time,
+      ## finality rule (`contract/chain_identity.nim`). Carried here so every
+      ## reader of the row reads it with the rest, in one parse.
 
 const
   ReachMember* = "reach"
@@ -313,7 +324,8 @@ func parseChainProfile*(row: JsonNode): ChainProfile =
     floor: parseHistoryFloor(row{FloorMember}),
     ordering: parseOrdering(row{OrderingMember}),
     vm: parseVmIdentity(row{VmMember}),
-    verification: parseVerification(row{VerificationMember}))
+    verification: parseVerification(row{VerificationMember}),
+    identity: parseChainIdentity(row))
 
 func refusals*(p: ChainProfile): seq[string] =
   ## Every sentence this row earned, in a fixed order so two runs over one tree
@@ -321,6 +333,7 @@ func refusals*(p: ChainProfile): seq[string] =
   if p.reach.refusal.len > 0: result.add p.reach.refusal
   if p.floor.refusal.len > 0: result.add p.floor.refusal
   if p.ordering.refusal.len > 0: result.add p.ordering.refusal
+  for r in p.identity.refusals: result.add r
 
 func profileConsistency*(p: ChainProfile): string =
   ## **The rule that keeps the kind and its parameter from drifting apart**, and
@@ -405,6 +418,7 @@ func chainProfileNode*(p: ChainProfile): JsonNode =
     result[VmMember] = %*{InstructionSetMember: p.vm.instructionSet}
   if p.verification.len > 0:
     result[VerificationMember] = %p.verification
+  for k, v in chainIdentityNode(p.identity): result[k] = v
 
 proc mergeChainProfile*(row: JsonNode; p: ChainProfile) =
   ## Write `p`'s stated members onto a registry row, in place.

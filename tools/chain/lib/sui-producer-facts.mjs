@@ -70,6 +70,30 @@ export const CALLTRACE_STREAM_SCHEMA = 'move-call-frames/1';
 export const INSTRUCTION_SET = 'sui-move';
 
 /**
+ * What the chain IS, declared as `provenance.identity` and carried onto the registry row
+ * (Configuration.md §2.1; Data-Contract.md §5.3, S5-IDENTITY-DECLARED).
+ *
+ *   caip2          `sui:mainnet` — the ChainAgnostic namespace for Sui
+ *                  (namespaces/sui/caip2.md) names networks, not genesis digests.
+ *   nativeCurrency SUI, 9 decimals (1 SUI = 10^9 MIST).
+ *   blockTimeMs    the nominal checkpoint cadence, MEASURED on mainnet 2026-11-03 over GraphQL
+ *                  `checkpoint.timestamp`: 100,000 checkpoints in 24,437 s (244 ms) and
+ *                  1,000,000 in 242,420 s (242 ms). A nominal figure, not a per-window one: a
+ *                  window's own timestamps would make two windows of one chain disagree,
+ *                  and `merge-sui-windows.mjs` requires them to agree.
+ *   finality       `instant` (tools/chain/finality-rules.json): a checkpoint is certified by
+ *                  a quorum of validators and is never reorganised.
+ */
+export const IDENTITY = Object.freeze({
+  caip2: 'sui:mainnet',
+  name: 'Sui Mainnet',
+  family: 'move',
+  nativeCurrency: Object.freeze({ symbol: 'SUI', decimals: 9 }),
+  blockTimeMs: 243,
+  finality: Object.freeze({ rule: 'instant' }),
+});
+
+/**
  * `executions[]`. One execution per transaction, whose selector names the whole
  * programmable transaction block. Whether a PTB is one execution or one per command is
  * CXP-MOVE-4's decision to take and record; until it is taken this states the coarse

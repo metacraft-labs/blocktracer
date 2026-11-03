@@ -155,6 +155,8 @@ contract/identifier-encodings.json  the closed set of identifier ENCODINGS a cha
                                   may declare, and per member the shard-key rule and
                                   the case rule that token implies — including which
                                   members can key a path at all
+contract/finality-rules.json      the closed set a chain's declared
+                                  `provenance.identity.finality.rule` is drawn from
 ```
 
 These are the *same files* the binary reads — they are compiled into it — so they
@@ -265,6 +267,32 @@ would publish into a nested directory, and the reader refuses a tree that
 declares it rather than doing that. If your chain is one of those, say so before
 you start — choosing a path-safe re-encoding is our decision to make, not yours
 to work around.
+
+## Say what your chain is: `provenance.identity`
+
+Your chain's page is titled with its slug and says nothing about what the chain is
+unless you declare it. `provenance.identity` is where you do, and every member is
+optional — declare what you know and leave out the rest:
+
+```json
+"provenance": {
+  "identity": {
+    "caip2": "sui:mainnet",
+    "name": "Sui Mainnet",
+    "family": "move",
+    "nativeCurrency": { "symbol": "SUI", "decimals": 9 },
+    "blockTimeMs": 243,
+    "finality": { "rule": "instant" }
+  }
+}
+```
+
+`caip2` is a CAIP-2 chain id (`namespace:reference`). `family` is one lowercase
+token. `nativeCurrency` states its symbol and decimals together. `blockTimeMs` is the
+chain's nominal cadence in milliseconds, and the same in every window you capture.
+`finality.rule` comes from the closed set in `contract/finality-rules.json` beside this
+file. A member in any other shape is refused by rule `S5-IDENTITY-DECLARED`, naming
+the member, rather than published as you wrote it.
 
 ## The two documents this file names
 

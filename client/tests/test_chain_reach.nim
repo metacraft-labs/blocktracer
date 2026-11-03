@@ -246,6 +246,32 @@ suite "the chain landing page states historical reach":
     check ReachHeading in html
     check "states no historical reach" in html
 
+suite "the chain landing page states what the chain is":
+  test "a declared identity is one line, in the chain's own unit":
+    var row = rowWith(ordering = %*{"kind": "checkpoint"})
+    row["caip2"] = %"sui:mainnet"
+    row["name"] = %"Sui Mainnet"
+    row["nativeCurrency"] = %*{"symbol": "SUI", "decimals": 9}
+    row["blockTimeMs"] = %243
+    row["finality"] = %*{"rule": "instant"}
+    let p = parseChainProfile(row)
+    check identityStatement(p) == "Chain ID sui:mainnet · native currency SUI " &
+      "(9 decimals) · a checkpoint about every 243 ms · final once committed"
+    check chainTitle(p, "sui") == "Sui Mainnet"
+
+  test "CONTROL: a row declaring no identity says nothing and keeps its slug":
+    let p = parseChainProfile(rowWith())
+    check identityStatement(p) == ""
+    check chainTitle(p, "sui") == "sui"
+
+  test "a malformed member is not rendered, and the rest of the line still is":
+    var row = rowWith()
+    row["caip2"] = %"not-a-chain-id"
+    row["blockTimeMs"] = %2000
+    let p = parseChainProfile(row)
+    check p.identity.refusals.len == 1
+    check identityStatement(p) == "A block about every 2000 ms"
+
 suite "the chain landing page states the debug tier as a count":
 
   test "a tree that published no tally states no tier, and that is not zero":

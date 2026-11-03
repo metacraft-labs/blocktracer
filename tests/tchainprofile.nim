@@ -754,3 +754,112 @@ suite "the additive rule: a client built for the current schema reads all four":
     #   the control: 7
     #   unknown members: 6
     expectCount(8 + 2 + 17 + 7 + 6)
+
+# ───────────────────────────────────────────────────────────────────────────
+suite "the chain's identity: declared by the producer, carried verbatim, refused when malformed":
+  asserted = 0
+
+  ## Configuration.md §2.1's six identity members, by `vm`'s route. The values
+  ## are this file's own, not any chain's, for `DeclaredFormat`'s reason: a test
+  ## that read Sui's values out of its producer would assert the producer agrees
+  ## with itself.
+  let stated = %*{
+    "caip2": "testns:a-reference", "name": "A Declared Chain", "family": "a-family",
+    "nativeCurrency": {"symbol": "DCL", "decimals": 7}, "blockTimeMs": 1234,
+    "finality": {"rule": FinalityRules[0].id}}
+
+  proc ingestWithIdentity(tag: string; identity: JsonNode): (string, string) =
+    ## A copy of the live capture with `provenance.identity` set (or left
+    ## absent when `identity` is nil), ingested. Returns (tree, snapDir).
+    let snapDir = tmpDir(tag & "-snap")
+    copyDir(LiveMainnet, snapDir / "capture")
+    let capture = snapDir / "capture"
+    var doc = parseJson(readFile(capture / "snapshot.json"))
+    if identity != nil: doc["provenance"]["identity"] = identity
+    writeFile(capture / "snapshot.json", $doc)
+    (buildIngest(tag, capture), snapDir)
+
+  test "a declared identity reaches the row verbatim, and reads back through the one parse":
+    let (tree, snapDir) = ingestWithIdentity("id-declared", stated)
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    for m in IdentityMembers:
+      ck row[m] == stated[m]
+    let id = parseChainProfile(row).identity
+    ck id.caip2 == "testns:a-reference"
+    ck id.name == "A Declared Chain"
+    ck id.currencyStated and id.currencySymbol == "DCL" and id.currencyDecimals == 7
+    ck id.blockTimeMs == 1234
+    ck id.finalityRule == FinalityRules[0].id
+    ck finalityLabel(id.finalityRule) == FinalityRules[0].label
+    ck validateTree(tree).len == 0
+    removeDir tree
+    removeDir snapDir
+
+  test "CONTROL: the same capture without a declaration publishes none of the six":
+    let (tree, snapDir) = ingestWithIdentity("id-absent", nil)
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    var present = 0
+    for m in IdentityMembers:
+      if row.hasKey(m): inc present
+    ck present == 0
+    ck not parseChainProfile(row).identity.stated
+    ck validateTree(tree).len == 0
+    removeDir tree
+    removeDir snapDir
+
+  test "a member declared in part publishes that member and no other":
+    let (tree, snapDir) = ingestWithIdentity("id-partial", %*{"caip2": "testns:only"})
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    ck row["caip2"].getStr == "testns:only"
+    ck not row.hasKey("name") and not row.hasKey("finality")
+    removeDir tree
+    removeDir snapDir
+
+  test "every malformed member is refused at ingest, naming the rule":
+    # One mutation per member, each the shape a producer could plausibly get
+    # wrong, and the ingest must refuse every one rather than publish it.
+    let bad = [
+      %*{"caip2": "not-a-caip2-id"},
+      %*{"name": ""},
+      %*{"family": "EVM"},
+      %*{"nativeCurrency": {"symbol": "X"}},
+      %*{"blockTimeMs": 0},
+      %*{"finality": {"rule": "a-rule-no-table-lists"}},
+      %*{"finality": "instant"},
+      %*"sui:mainnet"]
+    for b in bad:
+      var refused = false
+      try:
+        let (tree, snapDir) = ingestWithIdentity("id-bad", b)
+        removeDir tree
+        removeDir snapDir
+      except ValueError as e:
+        refused = "S5-IDENTITY-DECLARED" in e.msg
+      ck refused
+
+  test "the validator reports a malformed member on a published row, with the set":
+    let (tree, snapDir) = ingestWithIdentity("id-val", stated)
+    var reg = rawRegistry(tree)
+    reg["chains"][onlySlug(reg)]["finality"] = %*{"rule": "a-rule-no-table-lists"}
+    writeRegistry(tree, reg)
+    let found = validateTree(tree)
+    var named = 0
+    for f in found:
+      if "a-rule-no-table-lists" in f and finalityRuleList() in f: inc named
+    ck named == 1
+    removeDir tree
+    removeDir snapDir
+
+  test "CAIP-2's grammar, at its edges":
+    ck isCaip2("eip155:1")
+    ck isCaip2("sui:mainnet")
+    ck not isCaip2("ab:1")                       # namespace below 3
+    ck not isCaip2("abcdefghi:1")                # namespace above 8
+    ck not isCaip2("eip155:")                    # empty reference
+    ck not isCaip2("EIP155:1")                   # namespace is lowercase
+    ck not isCaip2("eip155:" & repeat('a', 33))  # reference above 32
+
+  test "assertion count":
+    #   declared: 6 members + 6 read-backs + validator = 13
+    #   absent: 3; partial: 2; malformed: 8; validator: 1; grammar: 7
+    expectCount(13 + 3 + 2 + 8 + 1 + 7)

@@ -1305,6 +1305,29 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # declaration and the row it becomes cannot be understood two ways. That is
   # `identifierEncoding`'s arrangement above and for its reason.
   let declaredVm = parseVmIdentity(prov{"vm"})
+  # WHAT THE CHAIN IS — its CAIP-2 id, name, family, currency, block time and
+  # finality rule (`contract/chain_identity.nim`) — by `vm`'s route, with one
+  # difference: a malformed member is REFUSED rather than read as silence.
+  # `vm` can collapse a bad shape into "nothing declared" because an empty
+  # identity selects no table either way; a chain name or a finality rule
+  # dropped for its shape would publish a page short of a fact its producer
+  # believes it stated, and nobody would hear about it.
+  let declaredIdentity =
+    if prov != nil and prov.kind == JObject: parseChainIdentity(prov{"identity"})
+    else: ChainIdentity()
+  if prov != nil and prov.kind == JObject and prov{"identity"} != nil and
+      prov{"identity"}.kind != JObject:
+    raise newException(ValueError,
+      RuleIdentityDeclared &
+      "the snapshot for chain '" & chain & "' at " & snapPath &
+      " states a `provenance.identity` that is not an object. " &
+      ruleStatement("S5-IDENTITY-DECLARED"))
+  if declaredIdentity.refusals.len > 0:
+    raise newException(ValueError,
+      RuleIdentityDeclared &
+      "the snapshot for chain '" & chain & "' at " & snapPath & ": " &
+      declaredIdentity.refusals.join("; ") & ". " &
+      ruleStatement("S5-IDENTITY-DECLARED"))
   # THE FLOOR'S REASON, WHEN THE PRODUCER STATES ONE. The reader's sentence below says what a
   # replaying producer observed — the node served prestate from here and not below. A
   # producer whose history is where its CAPTURE began (`forward-capture`) observed no such
@@ -3272,6 +3295,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # and a table selected by the wrong one would name the wrong instructions
   # confidently. A capture that declares no format and publishes no listing
   # declares nothing at all, which is the honest answer and not a default.
+  profile.identity = declaredIdentity
   if declaredVm.stated:
     profile.vm = declaredVm
   elif isaTokens.len == 1:

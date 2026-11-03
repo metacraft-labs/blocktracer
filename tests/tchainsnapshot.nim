@@ -672,6 +672,11 @@ proc violate(id, dir: string): string =
     # wrong ordering Static-Site-Architecture.md §2.3 makes ordering a union to
     # prevent.
     doc["provenance"]["ordering"] = %"an-ordering-no-reader-builds"
+  of "S5-IDENTITY-DECLARED":
+    # PRESENT AND OUTSIDE THE SET. An ABSENT member states no identity and the
+    # row carries none, so deleting it reaches no rule at all. A finality rule
+    # no table lists is the case the rule exists for.
+    doc["provenance"]["identity"] = %*{"finality": {"rule": "a-rule-no-table-lists"}}
   of "S5-COST-VECTOR":
     # MALFORMED RATHER THAN ABSENT, for the same reason: `cost` is required and
     # taken by an unguarded subscript, so deleting it is refused by the generated
@@ -763,7 +768,7 @@ const RuleCases = [
   "S5-CALLTRACE-FOLD-TALLY", "S5-CALLTRACE-FOLD-BOUND",
   "S5-SIDECAR-FORMAT-UNKNOWN", "S5-SIDECAR-CHAIN",
   "S5-RECORDER-STATED", "S5-PRESTATE-STATED", "S5-PRESTATE-CLOSED",
-  "S5-ORDERING-CLOSED",
+  "S5-ORDERING-CLOSED", "S5-IDENTITY-DECLARED",
   "S5-COST-VECTOR", "S5-EXECUTIONS-NAMED", "S5-EXECUTIONS-ONE-TRACED",
   "S5-POSITIONS-SCHEMA",
   "S5-IDENTIFIER-ENCODING-CLOSED", "S5-IDENTIFIER-ENCODING-SHARDABLE",
@@ -907,7 +912,9 @@ suite "a refusal names the §5 rule it enforces, and the repaired snapshot inges
   # 179 → 183: ONE rule added (S5-SYSTEM-TRANSACTIONS, 2026-10-22), 1 × 4 = 4.
   # 183 → 187: ONE rule added (S5-ADDRESS-HISTORY-BELOW-WINDOW, 2026-10-23,
   # Recorder-Solana spine need (f)), 1 × 4 = 4.
-  expectCount(187)
+  # 187 → 191: ONE rule added (S5-IDENTITY-DECLARED, 2026-11-03, the registry's
+  # identity members), 1 × 4 = 4.
+  expectCount(191)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  THE VERSION REFUSAL IS THE SAME STATEMENT IN BOTH HALVES OF THE CONTRACT

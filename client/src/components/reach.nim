@@ -172,6 +172,32 @@ func floorPhrase(f: ChainHistoryFloor; o: ChainOrdering): string =
   if f.stated: unit & $f.height & " and above"
   else: "a boundary this chain's registry row does not state the position of"
 
+func identityStatement*(p: ChainProfile): string =
+  ## What the chain IS, in one line under its name, from the registry row's
+  ## identity members (`contract/chain_identity.nim`) — or `""` when the row
+  ## states none, in which case the page says nothing rather than a default.
+  ## Each fact appears only when the producer declared it, and the block time
+  ## is counted in the chain's own unit, for `floorPhrase`'s reason.
+  let id = p.identity
+  var parts: seq[string]
+  if id.caip2.len > 0: parts.add "Chain ID " & id.caip2
+  if id.currencyStated:
+    parts.add "native currency " & id.currencySymbol & " (" &
+      $id.currencyDecimals & " decimals)"
+  if id.blockTimeMs > 0:
+    let unit = (if p.ordering.state == dsDeclared and p.ordering.kind == tokCheckpoint:
+                  "checkpoint" else: "block")
+    parts.add "a " & unit & " about every " & $id.blockTimeMs & " ms"
+  if id.finalityRule.len > 0:
+    parts.add finalityLabel(id.finalityRule).toLowerAscii
+  if parts.len == 0: return ""
+  result = parts.join(" · ")
+  result[0] = result[0].toUpperAscii
+
+func chainTitle*(p: ChainProfile; slug: string): string =
+  ## The declared display name, or the slug when the row declares none.
+  if p.identity.name.len > 0: p.identity.name else: slug
+
 func reachLead(p: ChainProfile): string =
   ## One sentence per state of the declaration, and the two non-declared states
   ## get their own rather than sharing a default.

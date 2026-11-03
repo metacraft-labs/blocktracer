@@ -161,7 +161,7 @@ test: recordings-test prepare-recordings
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 49 + 36 + 8 + 34 + 24 = 1379 counted assertions —
+# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 34 + 24 = 1382 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -1528,6 +1528,9 @@ conformance dir="conformance-kit/template/complete": prepare-template
 # became reachable: the README now tells a recorder to pick an encoding token out
 # of a closed set, and a closed set named in a README that does not travel with
 # the README is a set the recipient cannot read.
+#
+# `finality-rules.json` joined them for the same reason when `provenance.identity`
+# became declarable: its `finality.rule` is drawn from that closed set.
 conformance-kit-release out="conformance-kit-release": prepare-template
     #!/usr/bin/env bash
     set -euo pipefail
@@ -1543,6 +1546,7 @@ conformance-kit-release out="conformance-kit-release": prepare-template
     cp tools/chain/snapshot-format.json "$out/contract/snapshot-format.json"
     cp tools/chain/refusal-reasons.json "$out/contract/refusal-reasons.json"
     cp tools/chain/identifier-encodings.json "$out/contract/identifier-encodings.json"
+    cp tools/chain/finality-rules.json "$out/contract/finality-rules.json"
     echo "conformance kit staged in $out/ — run $out/bin/blocktracer-conformance --snapshot $out/template/complete"
 
 # Prove the released artifact needs no toolchain, no checkout and no network.

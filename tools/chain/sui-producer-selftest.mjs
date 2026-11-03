@@ -36,7 +36,7 @@ import { join } from 'node:path';
 
 import { graphqlUrlFor, inputVersionsOf } from './lib/sui-graphql.mjs';
 import {
-  CHAIN_SLUG, INSTRUCTION_SET, costVectorForRow, executionsForRow, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL, payloadForRow, PRESTATE_STRATEGY, reachReasonFor, RECORDER, rolesForRow, VERIFICATION,
+  CHAIN_SLUG, IDENTITY, INSTRUCTION_SET, costVectorForRow, executionsForRow, IDENTIFIER_ENCODING, MIN_TRACED_PROTOCOL, payloadForRow, PRESTATE_STRATEGY, reachReasonFor, RECORDER, rolesForRow, VERIFICATION,
 } from './lib/sui-producer-facts.mjs';
 import { ACQUISITION_FORMAT, effectsFacts, main as produce } from './produce-sui-snapshot.mjs';
 import { compareReadings } from './sui-horizon-probe.mjs';
@@ -335,6 +335,12 @@ test('§7 the producer\'s own reach and verification sentences');
      INSTRUCTION_SET === 'sui-move');
   ck('verification names the compared effects and what a mismatch becomes',
      /events digest/.test(VERIFICATION) && /published as divergent/.test(VERIFICATION));
+  const finalityRules = JSON.parse(readFileSync(
+    new URL('./finality-rules.json', import.meta.url), 'utf8')).rules.map((r) => r.id);
+  ck('the declared finality rule is a member of the closed set the ingest refuses outside of',
+     finalityRules.includes(IDENTITY.finality.rule));
+  ck('the CAIP-2 id is in the sui namespace and CAIP-2\'s grammar, so a wallet can parse it',
+     /^sui:[-_a-zA-Z0-9]{1,32}$/.test(IDENTITY.caip2) && IDENTITY.nativeCurrency.decimals === 9);
 }
 
 test('§8 the union of separately captured windows');
@@ -366,12 +372,14 @@ test('§8 the union of separately captured windows');
      threw(() => mergeWindows([a, { dir: '/c', snap: win(90, 90, { provenance: { runtimeCommit: 'beef' } }) }])));
   ck('CONTROL: a checkpoint the two windows describe differently is refused',
      threw(() => mergeWindows([a, { dir: '/d', snap: win(41, 41, { hashOf: () => 'other' }) }])));
+  ck('CONTROL: windows declaring different identities are refused, not merged',
+     threw(() => mergeWindows([a, { dir: '/e', snap: win(90, 90, { provenance: { identity: { name: 'x' } } }) }])));
 }
 
 // The count is a LITERAL because `refusal-selftest.mjs` reads it out of this line and
 // cross-checks it against the Justfile header and ci.yml.
-if (asserted !== 49) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 49 — a case was added, removed or skipped.`);
+if (asserted !== 52) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 52 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

@@ -41,7 +41,8 @@ export const ARTIFACT_MEMBERS = Object.freeze(['container', 'positions', 'callTr
 /** Provenance members every window must agree on: they are facts about the producer and
  *  the chain, and a union of windows that disagree on one is not one chain's history. */
 const AGREED_PROVENANCE = Object.freeze(['chain', 'recorder', 'prestateStrategy',
-  'identifierEncoding', 'ordering', 'runtimeCommit', 'reachReason', 'verification', 'vm']);
+  'identifierEncoding', 'ordering', 'runtimeCommit', 'reachReason', 'verification', 'vm',
+  'identity']);
 
 const canonical = (v) => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x)
   ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, x[k]])) : x));

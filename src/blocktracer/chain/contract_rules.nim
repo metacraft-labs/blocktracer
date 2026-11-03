@@ -242,6 +242,7 @@ const
   RulePrestateStated* = cite("S5-PRESTATE-STATED")
   RulePrestateClosed* = cite("S5-PRESTATE-CLOSED")
   RuleOrderingClosed* = cite("S5-ORDERING-CLOSED")
+  RuleIdentityDeclared* = cite("S5-IDENTITY-DECLARED")
   RuleCostVector* = cite("S5-COST-VECTOR")
   RuleExecutionsNamed* = cite("S5-EXECUTIONS-NAMED")
   RuleExecutionsOneTraced* = cite("S5-EXECUTIONS-ONE-TRACED")
