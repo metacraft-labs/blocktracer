@@ -105,6 +105,8 @@ import { replayTransaction, run, preflightToolchain, completeBlockCount, complet
   from './lib/replay.mjs';
 import { assertRefusalsAreClosed, refuseNotFirstInBlock,
          refuseBodyNotSoughtFromStore } from './lib/refusal.mjs';
+import { startBodyProxy } from './lib/body-proxy.mjs';
+import { storeBasePath } from './backfill-bodies.mjs';
 import { recountSnapshot } from './lib/recount.mjs';
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
 // §5.3's six facts, stated by the producer that knows them rather than by the reader.
@@ -124,6 +126,60 @@ const label = arg('label', chain === 'aztec-testnet' ? 'Real Aztec testnet data'
   : 'Real Aztec mainnet data');
 const snapDir = resolve(arg('snapshot', `client/fixtures/chain/${chain}`));
 const runtime = arg('runtime');
+
+// ── WHERE A BODY COMES FROM WHEN THE NODE NO LONGER HAS ONE ────────────────────────
+//
+// `getTxByHash` is a MEMPOOL QUERY and the pool drops a transaction when its block
+// finalizes, so the tip loop has always been racing a horizon measured in tens of
+// minutes: a window missed — the process restarted, the runtime was being rebuilt, a
+// burst arrived faster than one replay at a time could consume it — was missed
+// permanently, and `body-gone` is the event that recorded the loss.
+//
+// It need not be permanent. Bodies upload to Aztec's keyless `TxFileStore` on GOSSIP
+// ARRIVAL, which puts the store AHEAD of the replay window rather than behind it, and
+// `lib/body-proxy.mjs` already knows how to serve one to an unmodified replay driver —
+// that is how the historic backfill replays transactions whose bodies pruned months
+// ago. The tip loop simply never used it.
+//
+// Measured against the live testnet store on 2026-11-03, over blocks 17340..17380 at
+// tip 17380: 6 of 6 sampled bodies verified under the CURRENT rollup path
+// (`aztec-11155111-679261766-0x1f435a7f…`), both negative controls 404, and the
+// rejection proof held — one byte flipped inside the key reads `mismatched`, a payload
+// truncated to 31 bytes reads `truncated`. So the store serves the tip, not merely
+// history.
+//
+// ── WHAT THAT MEASUREMENT DOES NOT SAY, AND WHAT BLOCKS RECOVERY TODAY ────────────
+//
+// `backfill-bodies.mjs` applies `classify` and nothing else, so its "6 of 6 verified"
+// establishes that the bytes are RETRIEVABLE and SELF-VERIFYING — the leading 32 bytes
+// are the key — and says nothing about whether they can be DECODED. The proxy decodes,
+// and against the `aztec-avm-runtime` checkout at 4c727bf it cannot:
+//
+//   store      102,103 bytes, 200, leading 32 bytes == the requested key
+//   classify   verified
+//   decode     Tx.fromBuffer -> Error: Value 0xc0ea27fcdba81d7c000...
+//   outcome    truncated — the proxy's deliberate name for "a 200 that is not a body
+//              THIS protocol version can parse", chosen over `body-unavailable`
+//              precisely so a decoder-version problem is not published as a permanent
+//              property of the transaction
+//
+// So the wiring below is live and correct, and it recovers nothing yet: every body the
+// store serves for rollup 679261766 is refused at the decode. That is a PIN problem,
+// not a corpus problem, and it is visible in the log as `storeOutcome: "truncated"`
+// rather than as silence — which is the whole reason the store's answer is now on the
+// `body-gone` event. When the runtime pin can parse these bodies, recovery begins with
+// no further change here.
+//
+// DERIVED, NEVER PASTED. The base URL comes from `txCollectionFileStoreUrls` in
+// `AztecProtocol/networks`' `network_config.json`; the path segment beneath it is
+// computed from THIS node's own `node_getNodeInfo`, so the store location cannot drift
+// onto a deployment the hashes did not come from.
+const network = arg('network', chain === 'aztec-testnet' ? 'testnet' : 'mainnet');
+const configRef = arg('config',
+  'https://raw.githubusercontent.com/AztecProtocol/networks/main/network_config.json');
+const bodyStore = arg('body-store', '');
+const noBodyStore = flag('no-body-store');
+const replayRps = Math.max(1, Number(arg('replay-rps', 6)));
 const avm = arg('avm', process.env.AVM_WASM_PATH);
 const ctWriter = arg('ct-writer', process.env.CT_WRITER_WASM_PATH);
 
@@ -310,12 +366,86 @@ async function main() {
     (until > 0 && caught >= until)
     || (untilComplete > 0 && completeBlockCount(snap) >= untilComplete);
 
+  // ── THE SECOND BODY SOURCE, RESOLVED ONCE AND FAIL-SOFT ──────────────────────────
+  //
+  // FAIL-SOFT IS THE POINT, and it is not timidity. `lib/body-proxy.mjs`'s own header
+  // records what the alternative cost: a single 503 from the store's one host, treated
+  // as an answer, filed a key for the rest of a run, and the caller turned that into
+  // `body-unavailable` — durability PERMANENT — on rows whose bodies the store still
+  // served. A follower that REFUSED TO START because somebody else's host was down
+  // would be the same mistake at a larger scale: the node path works without the
+  // store, and losing a body is strictly better than losing the window.
+  //
+  // So every failure below logs a named event and leaves the loop on its node-only
+  // behaviour, which is exactly what this tool did before this source existed.
+  let proxy = null;
+  let replayUrl = url;
+  if (!dryRun && runtime && !noBodyStore) {
+    let base = bodyStore;
+    let why = '';
+    if (!base) {
+      try {
+        const res = await fetch(configRef);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        base = (await res.json())?.[network]?.txCollectionFileStoreUrls?.[0] ?? '';
+        if (!base) why = `${configRef} declares no txCollectionFileStoreUrls for ${network}`;
+      } catch (e) {
+        why = `could not read ${configRef}: ${e.message}`;
+      }
+    }
+    let basePath = '';
+    if (base && !why) {
+      try { basePath = storeBasePath(nodeInfo); }
+      catch (e) { why = `could not derive the store path from node_getNodeInfo: ${e.message}`; }
+    }
+    if (base && basePath) {
+      try {
+        proxy = await startBodyProxy({
+          upstreamUrl: url, runtime, storeBase: base, storeBasePath: basePath,
+          bodyDir: join(snapDir, 'bodies'), rps: replayRps,
+          log: (m) => log({ event: 'body-proxy', message: m }),
+        });
+        replayUrl = proxy.url;
+        log({ event: 'body-store', state: 'ready', store: `${base}/${basePath}/txs/`,
+              proxy: proxy.url, network, derivedFrom: 'node_getNodeInfo',
+              rollupVersion: nodeInfo.rollupVersion ?? null });
+      } catch (e) {
+        why = `the proxy would not start: ${e.message}`;
+      }
+    }
+    if (!proxy) {
+      // NOT a warning to be skimmed past. Every `body-gone` for the rest of this run is
+      // a transaction this follower could have recovered and did not, and the reason is
+      // on this line.
+      log({ event: 'body-store', state: 'unavailable', reason: why || 'not resolved',
+            consequence: 'a body pruned at the node is lost for this run, as before' });
+    }
+  } else if (!noBodyStore && !dryRun && !runtime) {
+    log({ event: 'body-store', state: 'not-applicable',
+          reason: 'no --runtime, so nothing is replayed and no body is needed' });
+  }
+
   const startedAt = Date.now();
   const deadline = startedAt + deadlineMin * 60_000;
   const seen = new Set(snap.transactions.map((t) => t.txHash));
   const knownBlocks = new Map(snap.blocks.map((b) => [b.number, b]));
   let caught = 0;
   let polls = 0;
+  let bodiesFromStore = 0;
+  /** The store's own tallies, named apart from the node's. A run that recovered nothing
+   *  still reports zeros, because "this source was up and was never needed" and "this
+   *  source was never asked" are different facts and a missing key states neither. */
+  const bodyStoreStats = () => (proxy ? {
+    bodyStore: {
+      recovered: bodiesFromStore,
+      served: proxy.stats.bodiesServed,
+      fromDisk: proxy.stats.bodiesFromDisk,
+      outcomes: proxy.stats.bodyOutcomes,
+      storeFaults: proxy.stats.storeFaults,
+      storeRetries: proxy.stats.storeRetries,
+      storeThrottled: proxy.stats.storeThrottled,
+    },
+  } : { bodyStore: null });
 
   log({ event: 'start', chain, url, nodeVersion: nodeInfo.nodeVersion,
         knownTransactions: seen.size, knownBlocks: knownBlocks.size,
@@ -379,10 +509,47 @@ async function main() {
     for (const c of replayable) {
       const byHash = await rpc('node_getTxByHash', [c.txHash]);
       const bodyRetained = !!byHash && !byHash.__err;
+      let bodySource = 'node';
+      let storeOutcome = null;
       if (!bodyRetained) {
-        // Inside the window by arithmetic and pruned in fact. Recorded, not replayed.
-        log({ event: 'body-gone', tx: c.txHash, block: c.blockNumber });
-        continue;
+        // Inside the window by arithmetic and pruned in fact — at THE NODE. That is an
+        // observation about the node's mempool and it is not, by itself, a statement
+        // about the transaction: the store may hold the body, and if it does the replay
+        // proceeds through the proxy with the driver none the wiser.
+        if (!proxy) {
+          log({ event: 'body-gone', tx: c.txHash, block: c.blockNumber,
+                askedStore: false, reason: 'no body store resolved for this run' });
+          continue;
+        }
+        // THE STORE'S OWN ANSWER, before a process is spent on it. `inspect` decodes the
+        // body once and caches it, so the replay a moment later pays nothing for this.
+        const ans = await proxy.inspect(c.txHash);
+        storeOutcome = ans.outcome;
+        if (ans.outcome !== 'verified') {
+          // NOT recorded as permanent here. `absent` is the store saying it holds no
+          // such body; `unavailable` is the store being unreachable, which says nothing
+          // about the transaction at all — `lib/refusal.mjs` keeps those apart and the
+          // guard on `refuseBodyUnavailable` refuses to let a run that only watched the
+          // node assert a permanence it did not check. This loop writes no row for
+          // either, exactly as it wrote none before; what has changed is that the
+          // reason is now the STORE's answer and not an assumption.
+          log({ event: 'body-gone', tx: c.txHash, block: c.blockNumber,
+                askedStore: true, storeOutcome: ans.outcome, storeReason: ans.reason });
+          continue;
+        }
+        if (proxy.storeThrottled) {
+          // The store has refused past the honoured wait. Every later transaction would
+          // read `unavailable` for a reason that is a property of this run, so the run
+          // stops asking rather than filing a queue of them.
+          log({ event: 'body-store', state: 'throttled', tx: c.txHash,
+                consequence: 'no further bodies are sought from the store this run' });
+          continue;
+        }
+        bodySource = 'store';
+        bodiesFromStore += 1;
+        log({ event: 'body-recovered', tx: c.txHash, block: c.blockNumber,
+              storeOutcome: ans.outcome, publicCalls: ans.publicCalls,
+              note: 'the node had pruned this body; the file store served it' });
       }
       log({ event: 'catch', tx: c.txHash, block: c.blockNumber, tip, finalized,
             blocksOfHeadroom: c.blockNumber - finalized });
@@ -395,7 +562,11 @@ async function main() {
       // wrote bundles into it — see `sourceBundleCount` there.
       const srcRel = `sources/${c.txHash}.json`;
       const decided = await replayTransaction({
-        nodeBin, runtime, url, txHash: c.txHash,
+        // THROUGH THE PROXY when one is up: it answers `getTxByHash` from the file store
+        // and forwards everything else, so a body the node has pruned is transparent to
+        // the driver — and the proxy is also the one choke point pacing the endpoint,
+        // which `aztec-testnet.drpc.org` makes necessary at 12 req/s sustained.
+        nodeBin, runtime, url: replayUrl, txHash: c.txHash,
         ctPath: join(snapDir, ctRel), ctRelative: ctRel,
         sourcesPath: join(snapDir, srcRel), sourcesRelative: srcRel,
         avm, ctWriter, compactThreshold,
@@ -412,7 +583,13 @@ async function main() {
         // the node said, not only what the published page needs.
         cost: costVectorForRow(c.transactionFee),
         executions: executionsForRow(),
-        bodyRetained: true,
+        bodyRetained,
+        // WHICH SOURCE SERVED THE BODY THIS ROW WAS REPLAYED FROM. `bodyRetained` used
+        // to be the constant `true` here because the loop could not reach this line any
+        // other way; now it can, and a row that says `true` when the node had pruned the
+        // body would misreport the one fact that makes the recovery visible.
+        bodySource,
+        ...(storeOutcome ? { storeOutcome } : {}),
         effectVisible: true,
         firstInBlock: true,
         capturedAt,
@@ -622,17 +799,26 @@ async function main() {
 
     if (stopReached()) {
       log({ event: 'done', reason: 'until-reached', caught, polls,
-            completeBlocks: completeBlockCount(snap),
-            completeBlockNumbers: completeBlockNumbers(snap) });
+            bodiesFromStore, completeBlocks: completeBlockCount(snap),
+            completeBlockNumbers: completeBlockNumbers(snap),
+            ...bodyStoreStats() });
+      await proxy?.close();
       return 0;
     }
     await sleep(intervalS * 1000);
   }
 
   log({ event: 'done', reason: 'deadline', caught, polls,
-        completeBlocks: completeBlockCount(snap),
+        bodiesFromStore, completeBlocks: completeBlockCount(snap),
         completeBlockNumbers: completeBlockNumbers(snap),
+        ...bodyStoreStats(),
         elapsedMin: Math.round((Date.now() - startedAt) / 60000) });
+  // THE SUMMARY IS THE EVIDENCE, and it is on the `done` event rather than only in the
+  // per-transaction lines, because a run of hours is read by its last line. `recount.mjs`
+  // counts `bodyRetained` over the committed rows and will now report fewer than
+  // `tracesPublished` whenever this source did its job — which is the correct reading and
+  // would otherwise look like a contradiction to anyone who had not seen these numbers.
+  await proxy?.close();
   return caught > 0 ? 0 : 1;
 }
 
