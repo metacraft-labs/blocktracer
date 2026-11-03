@@ -547,7 +547,49 @@ jobs:
           # the `set -e`: each attempt is idempotent, and the step still fails
           # loudly if the origin is genuinely unavailable.
           nix develop .#ci --command bash -euo pipefail -c '
-            for prefix in d idx t src; do
+            # `registry` IS IN THIS LIST AND WITHOUT IT A render-over-live
+            # PUBLISH SHIPS THE REAL CHAINS AS NON-DEBUGGABLE.
+            #
+            # `-d:dataOrigin` points every read at the staged tree, and the
+            # exporter reads the chain REGISTRY through it — `static_export`'s
+            # own cache note says the singletons it re-reads are "paths
+            # containing `/g/`, ending `/current.json`, or under `registry/`".
+            # A chain's row there is what carries its recording profile and
+            # trace schema, and `blocktracer_client/trace.resolveExec` refuses
+            # to derive a trace address without them:
+            #
+            #     if not session.hasPin:
+            #       result.kind = trkUnresolvable
+            #       result.reason = "no recording profile or trace schema
+            #         pinned for chain '…'; the trace address cannot be
+            #         derived (Trace-Artifacts.md §2.1)"
+            #
+            # `containerPath` is then empty, `session_view.canShare` is
+            # `hasFrame and containerPath.len > 0`, and `pages/debug` writes
+            # `data-trace=""` — which is how a page declines the engine. The
+            # transaction has a container, published and reachable, and its
+            # own page never asks for it.
+            #
+            # MEASURED, BOTH DIRECTIONS, on 2026-11-03 against an origin
+            # assembled exactly as this loop assembles one. Subject
+            # `/aztec-testnet-frames/tx/0x00689495…/debug`, whose trace
+            # container answers 200 at 174,196 bytes in the live bucket:
+            #
+            #   origin without registry/   data-trace=""            22,090 B
+            #   origin with    registry/   data-trace=/t/bt/6n/…   236,887 B
+            #
+            # The 22,090 is byte-for-byte the size production served after run
+            # 41420602459, so that run is the thing being reproduced and not a
+            # lookalike. A second subject moved the same way:
+            # `0x0a807e4e…` read `""` at 21,715 B and
+            # `/t/z7/au/z7aua7qyaolifq2xbfqilmy5z7/trace.ct` at 4,075,165 B.
+            #
+            # WHY IT WENT UNNOTICED: the demo chain is pointed at this build's
+            # own tree by `-d:chainOrigins=demo=dist`, and that tree HAS a
+            # registry — so demo's pages carried their containers while every
+            # live chain's did not, on the same publish. Every assertion that
+            # drives a live session drives the demo chain.
+            for prefix in d idx t src registry; do
               mkdir -p "$LIVE_ORIGIN/$prefix"
               t0=$(date +%s)
               attempt=1
@@ -571,7 +613,7 @@ jobs:
           '
           echo "LIVE_ORIGIN=$LIVE_ORIGIN" >> "$GITHUB_ENV"
           staged=$(find "$LIVE_ORIGIN" -type f | wc -l)
-          echo "staged $staged object(s) from s3://$LIVE_BUCKET/{d,idx,t,src}"
+          echo "staged $staged object(s) from s3://$LIVE_BUCKET/{d,idx,t,src,registry}"
           # AN EMPTY STAGE IS A REFUSAL. Every later step treats `$LIVE_ORIGIN`
           # as production's data plane: `-d:dataOrigin` renders through it, the
           # pointer pin reads `d/<chain>/current.json` out of it, and the
@@ -1040,6 +1082,99 @@ jobs:
       # `_leases/aztec.lock` survived it and run 38417127259 failed after four
       # and three-quarter hours with "chain 'aztec' is locked by another
       # publisher (lease held)".
+      - name: Every published recording is named by its own page
+        # THE CHECK THAT WOULD HAVE CAUGHT THE REGISTRY BEING UNSTAGED, and the
+        # reason it is here and not in `ci.yml`: the defect only exists in a
+        # tree rendered against a STAGED data plane, and no other job renders
+        # one.
+        #
+        # Run 41420602459 published the whole site and left every Aztec
+        # transaction serving an empty `data-trace`. Every post-check in this
+        # workflow passed, and each was right about what it asked: the
+        # containers were uploaded, the pointers were byte-identical to the
+        # bucket's, the global index had not shrunk, and the bucket held every
+        # site key the tree did. NOTHING COMPARED A PAGE AGAINST THE CONTAINER
+        # IT SHOULD HAVE NAMED, so a tree whose recordings and pages disagreed
+        # about each other was indistinguishable from a correct one.
+        #
+        # THE INVARIANT: for every transaction whose TraceSelection overlay in
+        # THIS tree says `availability: ready`, this tree must also hold a
+        # debug page whose `data-trace` names a container. The overlay is the
+        # producer saying a recording is published; `data-trace` is the page
+        # offering it to the engine (`session_view.canShare`, `pages/debug`).
+        # Different code, different inputs — which is what makes comparing
+        # them worth anything.
+        #
+        # IT REFUSES TO PASS OVER NOTHING. No chain pointer, or no ready
+        # overlay anywhere, exits 1 rather than reporting success over an empty
+        # set: rule 3 of `tools/journeys/README.md`, "a test whose subject can
+        # be empty passes vacuously".
+        #
+        # MEASURED BOTH WAYS before it was wired in, on a complete built tree.
+        # Unmodified: "every ready recording is named by its own page -- 26
+        # transaction(s) over 4 chain(s)". With ONE page's `data-trace`
+        # blanked: that one transaction named, exit 1. The per-chain counts it
+        # prints — 5, 6, 2 and 13 — are the same numbers the exporter's own
+        # live-chain snapshot lines report, derived independently of it.
+        run: |
+          set -euo pipefail
+          # Through the dev shell, like every other tool here, and `python3 -c`
+          # rather than a heredoc for the reason the step below gives: a
+          # heredoc terminator has to sit at column zero and everything here is
+          # inside a YAML block scalar.
+          nix develop .#ci --command python3 -c '
+          import json, os, re, sys, glob
+          q = chr(34)
+          tree = "site"
+          problems, checked, chains = [], 0, 0
+          for cur in sorted(glob.glob(os.path.join(tree, "d", "*", "current.json"))):
+              chain = os.path.basename(os.path.dirname(cur))
+              try:
+                  ver = str(json.load(open(cur)).get("traceSelectionVersion", ""))
+              except Exception as e:
+                  problems.append(chain + ": current.json unreadable (" + str(e) + ")")
+                  continue
+              if not ver:
+                  problems.append(chain + ": current.json names no traceSelectionVersion")
+                  continue
+              chains += 1
+              ready = 0
+              for ov in sorted(glob.glob(os.path.join(tree, "d", chain, "ts", ver, "*", "*.json"))):
+                  try:
+                      o = json.load(open(ov))
+                  except Exception:
+                      continue
+                  tr = o.get("trace") or {}
+                  if tr.get("availability") != "ready":
+                      continue
+                  ready += 1
+                  tx = o.get("tx") or os.path.splitext(os.path.basename(ov))[0]
+                  page = os.path.join(tree, chain, "tx", tx, "debug", "index.html")
+                  if not os.path.exists(page):
+                      problems.append(chain + " " + tx + ": overlay says ready and there is no debug page")
+                      continue
+                  html = open(page, encoding="utf-8", errors="replace").read()
+                  m = re.search("data-trace=" + q + "([^" + q + "]*)" + q, html)
+                  checked += 1
+                  if m is None:
+                      problems.append(chain + " " + tx + ": page carries no data-trace attribute at all")
+                  elif m.group(1) == "":
+                      problems.append(chain + " " + tx + ": overlay says ready, page declines the engine (empty data-trace)")
+              print("  " + chain + ": " + str(ready) + " transaction(s) the overlay calls ready")
+          if chains == 0:
+              print("::error::no chain published a current.json; this check measured nothing.")
+              sys.exit(1)
+          if checked == 0:
+              print("::error::no transaction in any chain has a ready TraceSelection entry, so this check measured nothing. A tree that publishes recordings must have some.")
+              sys.exit(1)
+          if problems:
+              print("::error::" + str(len(problems)) + " transaction(s) whose recording is published and whose page does not name it:")
+              for pr in problems[:40]:
+                  print("    " + pr)
+              sys.exit(1)
+          print("every ready recording is named by its own page -- " + str(checked) + " transaction(s) over " + str(chains) + " chain(s)")
+          '
+
       - name: Break stale publish leases
         if: ${{ inputs.dry-run == false && inputs.break-stale-leases == true }}
         env:
