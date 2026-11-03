@@ -1089,6 +1089,12 @@ jobs:
       # and three-quarter hours with "chain 'aztec' is locked by another
       # publisher (lease held)".
       - name: Every published recording is named by its own page
+        env:
+          # The staged copy of the live bucket, when there is one. A container
+          # named by a page on a render-over-live publish lives THERE and not
+          # in the tree, which is why A1 in check-assets stops counting those
+          # references and this step starts resolving them.
+          LIVE_ORIGIN: ${{ runner.temp }}/live-origin
         # THE CHECK THAT WOULD HAVE CAUGHT THE REGISTRY BEING UNSTAGED, and the
         # reason it is here and not in `ci.yml`: the defect only exists in a
         # tree rendered against a STAGED data plane, and no other job renders
@@ -1132,7 +1138,7 @@ jobs:
           import json, os, re, sys, glob
           q = chr(34)
           tree = "site"
-          problems, checked, chains = [], 0, 0
+          problems, checked, chains, resolved = [], 0, 0, 0
           for cur in sorted(glob.glob(os.path.join(tree, "d", "*", "current.json"))):
               chain = os.path.basename(os.path.dirname(cur))
               try:
@@ -1166,6 +1172,16 @@ jobs:
                       problems.append(chain + " " + tx + ": page carries no data-trace attribute at all")
                   elif m.group(1) == "":
                       problems.append(chain + " " + tx + ": overlay says ready, page declines the engine (empty data-trace)")
+                  else:
+                      ref = m.group(1).lstrip("/")
+                      roots = [tree]
+                      live = os.environ.get("LIVE_ORIGIN", "")
+                      if live and os.path.isdir(live):
+                          roots.append(live)
+                      if any(os.path.exists(os.path.join(r, ref)) for r in roots):
+                          resolved += 1
+                      else:
+                          problems.append(chain + " " + tx + ": page names " + ref + " and no root holds it (looked in " + ", ".join(roots) + ")")
               print("  " + chain + ": " + str(ready) + " transaction(s) the overlay calls ready")
           if chains == 0:
               print("::error::no chain published a current.json; this check measured nothing.")
@@ -1178,7 +1194,7 @@ jobs:
               for pr in problems[:40]:
                   print("    " + pr)
               sys.exit(1)
-          print("every ready recording is named by its own page -- " + str(checked) + " transaction(s) over " + str(chains) + " chain(s)")
+          print("every ready recording is named by its own page -- " + str(checked) + " transaction(s) over " + str(chains) + " chain(s); " + str(resolved) + " named container(s) resolved in the tree or the staged bucket")
           '
 
       - name: Break stale publish leases
