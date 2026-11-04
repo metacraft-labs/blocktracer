@@ -326,6 +326,18 @@ jobs:
         # asserting that the check WRITTEN for it is the one that goes red.
         run: node tools/deploy/check-assets-selftest.mjs
 
+      - name: Does the publish step pass the flags its inputs ask for?
+        # Five cases, each EXECUTING the step's flag-assembly fragment with the
+        # `${{ inputs.* }}` expressions substituted and `blocktracer-publish`
+        # stubbed to record its argv. The `chain` input shipped with that
+        # assembly below the dry-run branch, so a dry run of a one-chain publish
+        # rehearsed the every-chain path and printed a count for a publish
+        # nobody asked for — and nothing offline exercised either state, before
+        # or after the fix. A workflow step is the one place here where a defect
+        # costs a whole publish to discover. Demonstrated red against a copy of
+        # the workflow with the assembly moved back below the branch.
+        run: node tools/deploy/check-publish-flags.mjs
+
       - name: Does the stale-neighbour gate bite? (nothing the site points at is missing)
         # Sixteen arms over synthetic published trees. The gate guards a publish
         # mode this repository has not run yet — INCREMENTAL-PUBLISH.md §5 says

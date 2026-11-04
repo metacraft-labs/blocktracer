@@ -421,6 +421,23 @@ test: recordings-test prepare-recordings
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
 # reason its header gives: a gate that needs the busy Nix runner to prove it
 # can fail is a gate that gets skipped.
+# Does publish-r2's publish step hand the publisher the flags the inputs asked for?
+#
+# The `chain` input shipped with its REFRESH/CHAIN_ARG assembly BELOW the dry-run branch,
+# so a dry run of a one-chain publish rehearsed the every-chain path and printed an object
+# count for a publish nobody had asked for. Nothing offline exercised either state.
+#
+# It EXECUTES the decision rather than reading it: the flag-assembly fragment is extracted
+# by anchors, the `${{ inputs.* }}` expressions are substituted the way GitHub would, and
+# the fragment runs under bash with `blocktracer-publish` stubbed to record its argv. What
+# is asserted is the argv the publisher would have received. A static check would assert a
+# line position, which a comment can satisfy.
+#
+# `--workflow <path>` aims it at a copy, which is how its redness was demonstrated: over a
+# workflow whose assembly is moved back below the branch it refuses by name.
+check-publish-flags *ARGS:
+    node tools/deploy/check-publish-flags.mjs {{ARGS}}
+
 # Nothing the site points at is missing — the gate INCREMENTAL-PUBLISH.md §5 names as
 # the prerequisite for the first incremental publish, "not after".
 #
