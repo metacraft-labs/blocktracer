@@ -296,7 +296,7 @@ has drifted.
 | `--bt-space-sm` | bkToken | `{scale.450}` | — |
 | `--bt-space-xl` | bkToken | `{scale.750}` | — |
 | `--bt-space-xs` | bkToken | `{scale.350}` | — |
-| `--bt-stroke-hairline` | bkToken | `{border.border width.deafult}` | — |
+| `--bt-stroke-hairline` | bkToken | `{border.border width.default}` | — |
 | `--bt-stroke-thick` | bkToken | `{border.border width.thick}` | — |
 | `--bt-type-body-line` | bkLiteral | `1.6` | [D-01](#d-01) |
 | `--bt-type-body-size` | bkToken | `{type.fontSize.md}` | — |

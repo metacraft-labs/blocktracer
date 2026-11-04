@@ -676,9 +676,25 @@ async function run(opts) {
       return String(v);
     };
     resolved = new Map();
+    // ONE BAD REFERENCE MUST NOT KILL EVERY OTHER CHECK, and it did for over two
+    // months. `client/src/design_system/web.tokens.json` referenced
+    // `{border.border width.deafult}` — a typo for `default` — from the day the file
+    // was added in 8ce2225 (2026-08-28), and `deref` threw, so this exited 2 with a
+    // stack trace and A0 through D2 produced NO VERDICT AT ALL. It stayed invisible
+    // because reaching this path needs a built `client/dist` and CI never builds one:
+    // a check that cannot run is not a check that passes.
+    //
+    // An unresolvable reference is now a FINDING, named with the token that holds it,
+    // and the run continues so the other checks still decide. The run still fails —
+    // this is not a softening — but it fails saying which reference is wrong rather
+    // than where the resolver gave up.
+    const unresolvable = [];
     for (const t of tokens) {
       let value = t.value;
-      if (t.kind === "bkToken") value = deref(t.counterpart);
+      if (t.kind === "bkToken") {
+        try { value = deref(t.counterpart); }
+        catch (e) { unresolvable.push(`${t.cssVar} -> {${t.counterpart}}: ${e.message}`); continue; }
+      }
       if (t.type === "dimension" && /^-?\d*\.?\d+$/.test(value)) value += "px";
       // Keyed BOTH ways. `--bt-density-cell-y` exists once per register with a
       // different value in each; a map keyed by name alone silently keeps
@@ -686,6 +702,28 @@ async function run(opts) {
       // ends up measuring one register twice.
       resolved.set(t.cssVar, value);
       resolved.set(`${t.group}|${t.cssVar}`, value);
+    }
+    if (unresolvable.length) {
+      // The DIAGNOSIS travels with the finding, because the 57 that were hidden here
+      // share one cause and a reader should not have to re-derive it: the design system
+      // defines `colors.neutral.cold.*` and `colors.neutral.warm.*`, and these
+      // references omit the temperature segment. Which temperature is a design decision
+      // and not this file's to pick — `cold` resolves to `colors.grey.*` and `warm` to
+      // `colors.clay.*`. The shipped CSS is achromatic (`#dddddd`, `#101010`), which is
+      // consistent with `cold` and is not proof of it.
+      const neutralish = unresolvable.filter((u) => /\{colors\.neutral\.\d/.test(u)).length;
+      add("T0", "every token reference resolves", false,
+        `${unresolvable.length} reference(s) resolve to nothing: ${unresolvable.join("; ")}. `
+        + (neutralish
+            ? `${neutralish} of them name {colors.neutral.<level>}, and the design system `
+            + `defines colors.neutral.cold.<level> and colors.neutral.warm.<level> — the `
+            + `temperature segment is missing. cold resolves to colors.grey.*, warm to `
+            + `colors.clay.*; choosing between them is a design decision. `
+            : "")
+        + "Every check below still ran; this one is about the token layer itself.");
+    } else {
+      add("T0", "every token reference resolves", true,
+        `${tokens.length} token(s), every reference resolved`);
     }
   }
 

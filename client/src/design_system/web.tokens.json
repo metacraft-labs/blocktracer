@@ -144,7 +144,7 @@
     },
 
     "stroke": {
-      "hairline": { "$type": "dimension", "$value": "{border.border width.deafult}" },
+      "hairline": { "$type": "dimension", "$value": "{border.border width.default}" },
       "thick": { "$type": "dimension", "$value": "{border.border width.thick}" }
     },
 
