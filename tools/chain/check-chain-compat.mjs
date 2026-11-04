@@ -193,6 +193,16 @@ export async function run(o) {
   const say = [];
   const log = (m) => { say.push(m); if (!o.json) console.log(m); };
   const finish = (outcome, detail) => {
+    // THE CLOSED SET IS LOAD-BEARING OR IT IS DECORATION. `OUTCOMES` listed the names
+    // this check may answer with and nothing compared an answer against it — declared
+    // once, read nowhere, which is the same shape as a value computed and never printed.
+    // A typo in an outcome name would have travelled to the caller and to the log as a
+    // new, undocumented verdict.
+    if (!OUTCOMES.includes(outcome)) {
+      throw new Error(`check-chain-compat: ${outcome} is not one of the declared outcomes `
+        + `(${OUTCOMES.join(', ')}). An answer outside the closed set is a bug here, not a `
+        + `finding about the chain.`);
+    }
     const ok = outcome === 'compatible' || (outcome === 'identity-ok' && o.identityOnly);
     if (o.json) console.log(JSON.stringify({ outcome, chain: o.chain, ...detail }, null, 1));
     else log(`${ok ? '' : '::error::'}${o.chain}: ${outcome} — ${detail.why}`);

@@ -64,9 +64,10 @@ export function flagFragment(body) {
   const dry = body.indexOf(marker, start);
   if (dry < 0) return { error: "the dry-run branch is not below the flag assembly — " +
     "which is the defect 2ccbd0d fixed, so this is a refusal and not a parse failure" };
-  const end = body.indexOf("\n          fi", dry);
-  const close = body.indexOf("\n  exit 0", dry) >= 0 ? body.indexOf("\n  exit 0", dry) : end;
-  // Take to the end of the branch: `exit 0` is its last statement.
+  // To the end of the branch: `exit 0` is its last statement, and the `fi` after it
+  // closes the branch. (Two further bindings stood here, computed while this was being
+  // written and read by nothing — found by auditing my own files for exactly that, after
+  // three such values turned out to be the night's actual defects.)
   const tail = body.indexOf("exit 0", dry);
   if (tail < 0) return { error: "the dry-run branch has no `exit 0`" };
   const fiAfter = body.indexOf("fi", tail);

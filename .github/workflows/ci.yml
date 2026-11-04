@@ -593,7 +593,7 @@ jobs:
         run: node tools/chain/replay-selftest.mjs
 
       - name: Is the chain we follow still the chain we can decode?
-        # 17 arms over a fake node, a fake file store and injected decoders. The
+        # 18 arms over a fake node, a fake file store and injected decoders. The
         # check they cover
         # exists because between 2026-09-04 and 2026-11-03 nothing was traced on
         # any Aztec chain and no check said so: aztec-testnet restarted onto a
