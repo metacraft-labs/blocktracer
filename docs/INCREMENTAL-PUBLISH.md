@@ -95,7 +95,8 @@ or an index shard that names a transaction whose page was not written, or a page
 that names a container that was never uploaded. The second half already has a
 gate as of 2026-11-03 — `publish-r2`'s "every published recording is named by its
 own page", which resolves each named container against the tree or the staged
-bucket. The first half does not, and the shape it needs is the mirror of it:
+bucket. The first half **has one as of 2026-11-04**,
+`tools/deploy/check-no-stale-neighbours.mjs`, and it is the mirror of it:
 
 > every hash the index resolves, and every row a list page draws, has a page in
 > this tree or in the bucket
@@ -112,6 +113,14 @@ whose subject can be empty passes vacuously".
    taking the set from the follower's observation records — which already carry
    the transaction hashes and the three block tags.
 3. Add the stale-neighbour gate of §5 before the first incremental publish, not
-   after.
+   after. **Done 2026-11-04** — `tools/deploy/check-no-stale-neighbours.mjs`,
+   `just check-no-stale-neighbours`, sixteen arms, and a `deploy-gates` step.
+   It implements all three rules of §5 plus one §5 did not name: the index is
+   compared against its own `meta.json`, because a half-uploaded index is the
+   one state in which the first rule passes vacuously. Over the built tree it
+   reports 288 index entries across 87 shards resolving and 288 distinct
+   targets drawn by 381 pages over 1,480 links resolving — the same 288 both
+   ways, which the pass line states so that a future divergence between what
+   the index claims and what the pages draw is visible rather than inferred.
 4. Keep the whole-site pass as the thing that runs on a design change, a
    reorg, or a `--refresh`, because that is what it is good at.
