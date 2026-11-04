@@ -421,6 +421,31 @@ test: recordings-test prepare-recordings
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
 # reason its header gives: a gate that needs the busy Nix runner to prove it
 # can fail is a gate that gets skipped.
+# Nothing the site points at is missing — the gate INCREMENTAL-PUBLISH.md §5 names as
+# the prerequisite for the first incremental publish, "not after".
+#
+# The mirror of `check-recordings-named`: that one asks whether every recording is OFFERED
+# by a page, this one asks whether everything a page or the index POINTS AT exists. Three
+# rules: every hash the index resolves has a page; every entity link any page draws has a
+# page; and the index agrees with its own `meta.json`, which is the comparison that catches
+# a half-uploaded index — the one state in which the first rule passes over a subject set
+# the publish silently shrank.
+#
+# `--routes <file>` confines the second rule to the set a partial publish rewrote, which is
+# how §5 states it. `--live-origin` is for a render-over-live tree, where the neighbour a
+# page names lives in the staged bucket and not in the tree.
+#
+# Measured over this repository's built tree: 288 index entries over 87 shards resolve, and
+# 288 distinct targets drawn by 381 pages over 1,480 links resolve.
+check-no-stale-neighbours DIR="client/dist" *ARGS:
+    node tools/deploy/check-no-stale-neighbours.mjs --dir {{DIR}} {{ARGS}}
+
+# Sixteen arms; four require a PASS, including a hash whose last nibble is a real zero —
+# the false positive that reported 13 stale neighbours over 288 clean entries during
+# development — and a stale neighbour that sits OUTSIDE the `--routes` set.
+check-no-stale-neighbours-selftest:
+    node tools/deploy/check-no-stale-neighbours-selftest.mjs
+
 # The published hash index's shard format, read in one place.
 #
 # `hashshard.nim` writes TWO formats, tagged per shard, and they differ in the header AND

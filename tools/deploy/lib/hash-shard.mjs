@@ -157,6 +157,52 @@ export function parseHashShard(bytes) {
   return { fmt, prefixLen, unitLen, chains, encodings, entries, error: "" };
 }
 
+/**
+ * Build a shard of either format. The INVERSE of `parseHashShard`, in the same file for
+ * the same reason the reader is: the layout is one piece of knowledge, and a builder that
+ * drifted from the reader would make every arm that uses it agree with a format nothing
+ * publishes.
+ *
+ * It exists for the self-tests — `hash-shard-selftest.mjs` and
+ * `check-no-stale-neighbours-selftest.mjs` both need real bytes, and reading them out of
+ * `client/dist` is not available because that is a build output and not committed.
+ *
+ * NOT a second writer: `hashshard.nim` is the writer, and `just byte-identity` is what
+ * holds its output stable. This only has to round-trip through the reader above.
+ *
+ * @param {{fmt:number, unitLen?:number, prefixLen?:number, chains:string[],
+ *          encodings?:string[],
+ *          entries:{hex?:string, key?:string, chainIndex:number, encIndex?:number,
+ *                   kind:number}[]}} spec
+ */
+export function encodeHashShard(spec) {
+  const { fmt, unitLen = 32, prefixLen = 2, chains, encodings = [], entries } = spec;
+  const b = [...Buffer.from(HASH_MAGIC, "ascii"), fmt & 0xff, prefixLen & 0xff,
+             unitLen & 0xff, chains.length & 0xff];
+  if (fmt === FMT_KEY_FORM) b.push(encodings.length & 0xff);
+  const n = entries.length;
+  b.push(n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff);
+  const str8 = (s) => { const u = Buffer.from(s, "utf8"); b.push(u.length, ...u); };
+  for (const c of chains) str8(c);
+  if (fmt === FMT_KEY_FORM) for (const e of encodings) str8(e);
+  for (const e of entries) {
+    let unit;
+    if (fmt === FMT_KEY_FORM) {
+      const u = [...Buffer.from(e.key ?? "", "utf8")];
+      while (u.length < unitLen) u.push(0);          // NUL padding, which the reader strips
+      unit = u.slice(0, unitLen);
+    } else {
+      // Zero-padded decoded bytes, which is what makes the reader's trailing-zero strip
+      // ambiguous — see `candidates` above.
+      unit = [...Buffer.from((e.hex ?? "").padEnd(unitLen * 2, "0").slice(0, unitLen * 2), "hex")];
+    }
+    b.push(...unit, e.chainIndex & 0xff);
+    if (fmt === FMT_KEY_FORM) b.push((e.encIndex ?? 0) & 0xff);
+    b.push(e.kind & 0xff);
+  }
+  return new Uint8Array(b);
+}
+
 /** `hkTx` / `hkBlock` / `hkAddress` -> the route segment, which is `routeFor`'s own
  *  mapping read in this direction. A kind this does not know returns `null` rather than a
  *  guessed segment, because a wrong segment makes a gate assert a page that was never

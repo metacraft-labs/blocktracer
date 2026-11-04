@@ -23,31 +23,13 @@
 // Every shard below is built here, byte by byte, from the layout in the module's header.
 // Nothing reads `client/dist`, which is a build output and not committed.
 
-import { parseHashShard, routeFor, FMT_HEX_BYTES, FMT_KEY_FORM } from "./hash-shard.mjs";
+import { parseHashShard, encodeHashShard, routeFor, FMT_HEX_BYTES, FMT_KEY_FORM }
+  from "./hash-shard.mjs";
 
-const u8 = (n) => [n & 0xff];
-const u32le = (n) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff];
-const str8 = (s) => [s.length, ...[...Buffer.from(s, "utf8")]];
-const hexBytes = (hex) => [...Buffer.from(hex, "hex")];
-
-/** Build a shard of either format from the layout the module documents. */
-function shard({ fmt, unitLen = 32, prefixLen = 2, chains, encodings = [], entries }) {
-  const b = [...Buffer.from("BThx", "ascii"), ...u8(fmt), ...u8(prefixLen), ...u8(unitLen),
-             ...u8(chains.length)];
-  if (fmt === FMT_KEY_FORM) b.push(...u8(encodings.length));
-  b.push(...u32le(entries.length));
-  for (const c of chains) b.push(...str8(c));
-  if (fmt === FMT_KEY_FORM) for (const e of encodings) b.push(...str8(e));
-  for (const e of entries) {
-    const unit = fmt === FMT_KEY_FORM
-      ? [...Buffer.from(e.key, "utf8"), ...new Array(Math.max(0, unitLen - e.key.length)).fill(0)]
-      : hexBytes(e.hex.padEnd(unitLen * 2, "0"));
-    b.push(...unit.slice(0, unitLen), ...u8(e.chainIndex));
-    if (fmt === FMT_KEY_FORM) b.push(...u8(e.encIndex ?? 0));
-    b.push(...u8(e.kind));
-  }
-  return new Uint8Array(b);
-}
+// The builder is `encodeHashShard` in the module beside the reader: the layout is one
+// piece of knowledge, and a builder that drifted from the reader would make every arm
+// below agree with a format nothing publishes.
+const shard = encodeHashShard;
 
 /** Journey 22's reader, transcribed verbatim from its inline block — format-1 offsets,
  *  no encoding dictionary. Present so the two can be compared, not to be used. */

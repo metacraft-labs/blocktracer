@@ -326,6 +326,20 @@ jobs:
         # asserting that the check WRITTEN for it is the one that goes red.
         run: node tools/deploy/check-assets-selftest.mjs
 
+      - name: Does the stale-neighbour gate bite? (nothing the site points at is missing)
+        # Sixteen arms over synthetic published trees. The gate guards a publish
+        # mode this repository has not run yet — INCREMENTAL-PUBLISH.md §5 says
+        # it must exist before the first incremental publish, "not after" — so it
+        # has no incident to point at and these arms are the only evidence it
+        # does anything. Four require a PASS: the control, a page living only in
+        # the staged bucket, a hash whose last nibble is a real zero (the false
+        # positive that reported 13 stale neighbours over 288 clean entries), and
+        # a stale neighbour OUTSIDE the --routes set, which is not a partial
+        # publish's business. One arm found a real ordering defect while being
+        # written: a truncated shard decodes to zero entries, and the vacuity
+        # refusal was firing ahead of the cause the run already knew.
+        run: node tools/deploy/check-no-stale-neighbours-selftest.mjs
+
       - name: Does the hash-index reader tell the two formats apart?
         # Eleven arms over shards built byte by byte from the format's layout.
         # `hashshard.nim` writes two formats, tagged per shard, differing in the
