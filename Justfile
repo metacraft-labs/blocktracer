@@ -458,11 +458,12 @@ check-no-stale-neighbours-selftest:
 #
 # `hashshard.nim` writes TWO formats, tagged per shard, and they differ in the header AND
 # in the per-entry width -- so a reader that knows only format 1 does not FAIL on a
-# format-2 shard, it returns confident nonsense. Journey 22 carries exactly such a reader
-# inline; two of these arms pin that duplication by requiring the two to agree on format 1
-# and to disagree on format 2, so the copy cannot drift in silence.
+# format-2 shard, it returns confident nonsense. Journey 22 used to carry exactly such a
+# reader inline and now imports this module, so the arms that pinned that duplication are
+# replaced by the invariant they protected: nothing outside this module and the Nim
+# producer names the format's magic, which a new hand-rolled decoder cannot avoid doing.
 #
-# Eleven arms, every shard built byte by byte from the layout rather than read out of
+# Ten arms, every shard built byte by byte from the layout rather than read out of
 # `client/dist`, which is a build output and not committed.
 hash-shard-selftest:
     node tools/deploy/lib/hash-shard-selftest.mjs

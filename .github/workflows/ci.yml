@@ -341,13 +341,14 @@ jobs:
         run: node tools/deploy/check-no-stale-neighbours-selftest.mjs
 
       - name: Does the hash-index reader tell the two formats apart?
-        # Eleven arms over shards built byte by byte from the format's layout.
+        # Ten arms over shards built byte by byte from the format's layout.
         # `hashshard.nim` writes two formats, tagged per shard, differing in the
         # header AND the per-entry width — so a format-1-only reader does not
         # fail on a format-2 shard, it reads the encoding dictionary as entry
-        # data and answers confidently. Journey 22 carries such a reader inline;
-        # two arms require the two to AGREE on format 1 and DISAGREE on format
-        # 2, which is what makes that duplication bounded rather than hopeful.
+        # data and answers confidently. Journey 22 used to carry such a reader
+        # inline and now imports this module, so the two arms that bounded that
+        # duplication are replaced by the invariant they protected: nothing
+        # outside this module and the Nim producer names the format's magic.
         # One arm exists because this repository's own index needs it: 13 of 288
         # published entries resolve only under the UNSTRIPPED hex, their hash
         # genuinely ending in zero where format 1's strip ate it, so both

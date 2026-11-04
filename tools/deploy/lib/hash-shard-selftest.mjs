@@ -11,20 +11,24 @@
 // matter most here are not "does it parse" but "does it tell the formats apart, and does
 // it REFUSE what it cannot read instead of guessing".
 //
-// `tools/journeys/journeys/22-a-remembered-fragment-of-a-hash-finds-it.journey.mjs`
-// carries a second, inline reader for this format, format-1 only. Arm
-// `the-journeys-inline-reader-agrees-on-format-1` runs that reader's exact offsets beside
-// this module's and requires them to agree, and
-// `...-and-would-mis-parse-format-2` requires them to DISAGREE on a format-2 shard —
-// which is the measurement that says the duplication is real and bounded rather than
-// harmless. Moving the journey onto this module is the follow-up; until then these two
-// arms are what stops the copy drifting in silence.
+// Journey 22 USED TO carry a second, inline, format-1-only reader, and two arms here
+// pinned that duplication by requiring the two to agree on format 1 and disagree on
+// format 2. The journey now imports this module — the migration was verified
+// behaviour-preserving over the 288 published entries, same hex, chain, kind and chain
+// set — so those arms have been replaced by the invariant they existed to protect:
+// nothing outside this module and the Nim producer names the format's magic.
 //
 // Every shard below is built here, byte by byte, from the layout in the module's header.
 // Nothing reads `client/dist`, which is a build output and not committed.
 
 import { parseHashShard, encodeHashShard, routeFor, FMT_HEX_BYTES, FMT_KEY_FORM }
   from "./hash-shard.mjs";
+import { dirname, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 
 // The builder is `encodeHashShard` in the module beside the reader: the layout is one
 // piece of knowledge, and a builder that drifted from the reader would make every arm
@@ -97,29 +101,36 @@ const arms = [
         && r.encodings.join(",") === "hex,bech32";
   }],
 
-  ["the-journeys-inline-reader-agrees-on-format-1", () => {
-    const s = shard({ fmt: FMT_HEX_BYTES, chains: ["demo", "aztec"],
-                      entries: [{ hex: A, chainIndex: 0, kind: 1 },
-                                { hex: "cc".repeat(32), chainIndex: 1, kind: 2 }] });
-    const mine = parseHashShard(s).entries;
-    const theirs = journeyReader(s);
-    return theirs.length === mine.length
-        && theirs.every((t, i) => t.chain === mine[i].chain && t.kind === mine[i].kind);
-  }],
-
-  ["...-and-would-mis-parse-format-2", () => {
-    const s = shard({ fmt: FMT_KEY_FORM, unitLen: 16, chains: ["cardano"],
-                      encodings: ["hex", "bech32"],
-                      entries: [{ key: "addr1qxy", chainIndex: 0, encIndex: 1, kind: 3 }] });
-    const mine = parseHashShard(s);
-    let theirs = null;
-    try { theirs = journeyReader(s); } catch { theirs = "threw"; }
-    // THE POINT OF THE ARM: this module reads it, and the format-1 reader does not agree.
-    // If this ever starts passing by both being right, the journey has been moved over and
-    // this arm plus its sibling should go with the inline block.
-    const theyGotItRight = Array.isArray(theirs) && theirs.length === 1
-      && theirs[0].chain === "cardano" && theirs[0].kind === 3;
-    return mine.error === "" && mine.entries[0].identifier === "addr1qxy" && !theyGotItRight;
+  ["this-module-is-the-only-reader-of-the-format", () => {
+    // WHAT THE TWO ARMS HERE USED TO DO. Journey 22 carried a second, inline,
+    // format-1-only reader, and those arms required the two to agree on format 1 and
+    // disagree on format 2 — pinning a duplication rather than removing it. The journey
+    // now imports this module (verified behaviour-preserving over the 288 published
+    // entries: same hex, same chain, same kind, same chain set), so the duplication is
+    // gone and the arms that bounded it would now be testing a transcription inside this
+    // file. This is their successor: the invariant they were protecting, asserted
+    // directly.
+    //
+    // The magic is the tell. A file that hand-rolls this layout has to name "BThx" to
+    // recognise it, so a new decoder cannot appear without tripping this.
+    const { execFileSync } = require("node:child_process");
+    const root = resolvePath(HERE, "..", "..", "..");
+    let hits = [];
+    try {
+      hits = execFileSync("git", ["grep", "-l", "BThx", "--", "tools", "client", "src"],
+                          { cwd: root, encoding: "utf8" }).trim().split("\n").filter(Boolean);
+    } catch (e) {
+      // `git grep` exits 1 on no match, which cannot be right — this file names it.
+      return false;
+    }
+    const allowed = new Set([
+      "tools/deploy/lib/hash-shard.mjs",            // the reader and the writer
+      "tools/deploy/lib/hash-shard-selftest.mjs",   // this file, which names it above
+      "src/blocktracer/contract/hashshard.nim",     // the producer, which owns the format
+    ]);
+    const strays = hits.filter((h) => !allowed.has(h));
+    if (strays.length) console.log(`        stray reader(s): ${strays.join(", ")}`);
+    return strays.length === 0 && hits.length >= 2;
   }],
 
   ["an-unknown-format-is-refused-BY-NAME-not-as-a-non-shard", () => {
@@ -174,8 +185,8 @@ for (const [name, fn] of arms) {
   else { failures += 1; console.log(`  FAIL  ${name}${why}`); }
 }
 const asserted = arms.length;
-if (asserted !== 11) {
-  console.log(`  FAIL  this suite declares 11 arms and ran ${asserted}`);
+if (asserted !== 10) {
+  console.log(`  FAIL  this suite declares 10 arms and ran ${asserted}`);
   failures += 1;
 }
 console.log(failures === 0
