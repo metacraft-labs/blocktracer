@@ -435,8 +435,16 @@ test: recordings-test prepare-recordings
 # how §5 states it. `--live-origin` is for a render-over-live tree, where the neighbour a
 # page names lives in the staged bucket and not in the tree.
 #
-# Measured over this repository's built tree: 288 index entries over 87 shards resolve, and
-# 288 distinct targets drawn by 381 pages over 1,480 links resolve.
+# Measured over this repository's built tree AS OF 2026-11-02: 288 index entries over 87
+# shards resolve, and 288 distinct targets drawn by 381 pages over 1,480 links resolve.
+#
+# THOSE NUMBERS DESCRIBE A TREE, NOT A COMMIT, and the default `client/dist` can predate
+# its own source without saying so. `tools/journeys/run.mjs` refuses exactly that — "a
+# journey run over a tree of unknown origin is a true sentence about an artefact nobody
+# chose, and reads exactly like a clean sweep" — and this recipe does NOT, because in CI
+# it runs over a `site/` built in the same job where staleness cannot arise. Running it
+# locally against a stale `client/dist` gives a true answer about the wrong bytes; rebuild
+# with `cd client && just export-hydrated` first if the answer is meant to be about HEAD.
 check-no-stale-neighbours DIR="client/dist" *ARGS:
     node tools/deploy/check-no-stale-neighbours.mjs --dir {{DIR}} {{ARGS}}
 
