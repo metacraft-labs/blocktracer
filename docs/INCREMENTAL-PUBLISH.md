@@ -107,11 +107,41 @@ whose subject can be empty passes vacuously".
 
 ## 6. The sequence this implies
 
-1. Narrow the staging to the chain being published (unmeasured, probably the
-   largest single win after the enumeration).
+1. Narrow the staging to the chain being published. **Measured 2026-11-04, and
+   the measurement moved this behind step 2.** Run 41628841080's staging step
+   reports its five prefixes separately:
+
+   | prefix | objects | time |
+   |---|---|---|
+   | `d/` | 460,813 | 1,851 s (31 min) |
+   | `t/` | 36,416 | 184 s |
+   | `src/` | 49 | 6 s |
+   | `idx/` | 91 | 2 s |
+   | `registry/` | 1 | 1 s |
+   | | **497,370** | **2,044 s (34 min)** |
+
+   So `d/` is 93% of the objects and 90% of the wall clock, and `d/` is exactly
+   the prefix that is per-chain — `d/{chain}/tx/…`, `d/{chain}/ts/…`. Narrowing
+   it to `s3://…/d/{chain}` is a one-word change to the sync.
+
+   **It is not safe on its own, and that is the finding.** The render still
+   builds every chain's pages, and for a live chain it builds them FROM the
+   staged origin. Stage one chain and the others render from nothing, so a
+   `render-over-live` publish would produce a tree missing chains — the exact
+   shape this repository has been bitten by, and the reason the `chain` input's
+   own description says it deliberately does not narrow the tree. The registry
+   guard is not what breaks: its subject is `registry/`, one object, always
+   staged. What breaks is the tree.
+
+   So step 1 is **blocked on step 2**: once the exporter renders a named route
+   set, a one-chain publish needs only that chain's data plane and staging it
+   alone becomes correct rather than merely cheaper. Ordering these two as
+   independent was wrong, and the numbers above are what showed it.
+
 2. Teach the exporter to render a named route set instead of enumerating one,
    taking the set from the follower's observation records — which already carry
-   the transaction hashes and the three block tags.
+   the transaction hashes and the three block tags. **This is now the first
+   step, not the second**, for the reason step 1 records.
 3. Add the stale-neighbour gate of §5 before the first incremental publish, not
    after. **Done 2026-11-04** — `tools/deploy/check-no-stale-neighbours.mjs`,
    `just check-no-stale-neighbours`, sixteen arms, and a `deploy-gates` step.
