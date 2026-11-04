@@ -421,6 +421,19 @@ test: recordings-test prepare-recordings
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
 # reason its header gives: a gate that needs the busy Nix runner to prove it
 # can fail is a gate that gets skipped.
+# The published hash index's shard format, read in one place.
+#
+# `hashshard.nim` writes TWO formats, tagged per shard, and they differ in the header AND
+# in the per-entry width -- so a reader that knows only format 1 does not FAIL on a
+# format-2 shard, it returns confident nonsense. Journey 22 carries exactly such a reader
+# inline; two of these arms pin that duplication by requiring the two to agree on format 1
+# and to disagree on format 2, so the copy cannot drift in silence.
+#
+# Eleven arms, every shard built byte by byte from the layout rather than read out of
+# `client/dist`, which is a build output and not committed.
+hash-shard-selftest:
+    node tools/deploy/lib/hash-shard-selftest.mjs
+
 # The deploy gate for the registry incident, runnable over any built tree
 # rather than extracted from `publish-r2.yml` — which is where it lived first,
 # and a reviewer said so.
