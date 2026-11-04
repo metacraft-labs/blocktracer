@@ -704,22 +704,27 @@ async function run(opts) {
       resolved.set(`${t.group}|${t.cssVar}`, value);
     }
     if (unresolvable.length) {
-      // The DIAGNOSIS travels with the finding, because the 57 that were hidden here
-      // share one cause and a reader should not have to re-derive it: the design system
-      // defines `colors.neutral.cold.*` and `colors.neutral.warm.*`, and these
-      // references omit the temperature segment. Which temperature is a design decision
-      // and not this file's to pick — `cold` resolves to `colors.grey.*` and `warm` to
-      // `colors.clay.*`. The shipped CSS is achromatic (`#dddddd`, `#101010`), which is
-      // consistent with `cold` and is not proof of it.
-      const neutralish = unresolvable.filter((u) => /\{colors\.neutral\.\d/.test(u)).length;
+      // THE DIAGNOSIS TRAVELS WITH THE FINDING, and the cause is almost always not a
+      // typo in this repository. `dsDir` above falls back to a SIBLING
+      // `../codetracer-design-system` when `DESIGN_SYSTEM_SRC` is unset, and a sibling
+      // drifts from the flake pin. Measured 2026-11-04: the pinned design system spells
+      // the border width `deafult` and defines `colors.neutral.<level>` flat, while the
+      // sibling spells it `default` and has restructured the neutrals under
+      // `colors.neutral.cold|warm.<level>`. So a run with the env var unset reported 58
+      // unresolvable references against a tree whose references are all correct — the
+      // same run with DESIGN_SYSTEM_SRC pointed at the pin resolves every one.
+      //
+      // So this failure names the source it resolved against, because "your reference is
+      // wrong" and "you are resolving against the wrong design system" are different
+      // problems and only one of them is in this repository.
       add("T0", "every token reference resolves", false,
         `${unresolvable.length} reference(s) resolve to nothing: ${unresolvable.join("; ")}. `
-        + (neutralish
-            ? `${neutralish} of them name {colors.neutral.<level>}, and the design system `
-            + `defines colors.neutral.cold.<level> and colors.neutral.warm.<level> — the `
-            + `temperature segment is missing. cold resolves to colors.grey.*, warm to `
-            + `colors.clay.*; choosing between them is a design decision. `
-            : "")
+        + `Resolved against ${dsDir}${process.env.DESIGN_SYSTEM_SRC ? " (DESIGN_SYSTEM_SRC)" : " (SIBLING FALLBACK — DESIGN_SYSTEM_SRC is unset)"}. `
+        + (process.env.DESIGN_SYSTEM_SRC ? "" :
+            "A sibling checkout drifts from the flake pin, and that is the usual cause of "
+            + "every reference here: re-run inside `nix develop .#ci`, which sets "
+            + "DESIGN_SYSTEM_SRC to the pinned design system, before concluding anything "
+            + "about this repository's tokens. ")
         + "Every check below still ran; this one is about the token layer itself.");
     } else {
       add("T0", "every token reference resolves", true,
