@@ -142,6 +142,29 @@ whose subject can be empty passes vacuously".
    taking the set from the follower's observation records — which already carry
    the transaction hashes and the three block tags. **This is now the first
    step, not the second**, for the reason step 1 records.
+
+   **Where it goes, read 2026-11-04.** `client/src/static_export.nim` is the
+   renderer and its shape is already the right one: line 899 is a single
+   `let routes = staticRoutes(root, …)`, line 927 is `for route in routes:`,
+   and nothing between them needs the set to have come from an enumeration. A
+   named-set mode is a substitution at one site.
+
+   **AND IT HAS A HAZARD OF ITS OWN, which is worse than step 1's.** Line 944
+   is `buildGlobalHashIndex(root, routes)` — the index is built over *the
+   routes just rendered*, by design, which is what makes it evidence rather
+   than a claim. Narrow `routes` and the published index narrows with it: not a
+   smaller index, but **an index that answers confidently and wrongly for every
+   chain it dropped**. That is the failure journey 22 already guards — "every
+   chain the site publishes is in the hash index", written after a 56-entry
+   index in which every entry was `demo`.
+
+   So a named-set render must either merge its entries into the index staged
+   from the bucket, or leave the index alone and have the publisher skip it.
+   The stale-neighbour gate's rule C does not cover this: an index missing a
+   whole chain is internally consistent and agrees with its own `meta.json`.
+   Journey 22's assertion is the one that bites, and it should be made to run
+   over an incrementally-published tree before the first such publish — the
+   same "before, not after" this document asks for in step 3.
 3. Add the stale-neighbour gate of §5 before the first incremental publish, not
    after. **Done 2026-11-04** — `tools/deploy/check-no-stale-neighbours.mjs`,
    `just check-no-stale-neighbours`, sixteen arms, and a `deploy-gates` step.
