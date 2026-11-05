@@ -2610,6 +2610,14 @@ function logMissDiagnosis(miss, arm, phase) {
       log(`               of the assertion, or a guard above it stopped holding. Run`);
       log(`               \`node tools/journeys/run.mjs --only ${arm.journey}\` over the`);
       log(`               mutated tree and read where it stops.`);
+      const texts = miss.texts ?? [];
+      if (texts.length) {
+        log(`               WHAT IT DID ASSERT, so the two sets can be compared without`);
+        log(`               another run — a subject chosen differently shows up here as`);
+        log(`               several unfamiliar lines, not one missing one:`);
+        for (const w of texts.slice(0, 20)) log(`                 · ${w}`);
+        if (texts.length > 20) log(`                 … and ${texts.length - 20} more`);
+      }
     } else {
       log(`               THE JOURNEY RAN — ${miss.records} assertion(s) — and none of them`);
       log(`               contains that text. The assertion was reworded and this arm`);
@@ -2748,6 +2756,16 @@ async function verdictFor(journey, assertion) {
       ambiguous: hits.length,
       why: hits.length === 0 ? "no-record" : "ambiguous",
       records: j.records.length,
+      // THE TEXTS, NOT JUST THE COUNT. A `no-record` on a mutated run says the
+      // journey ran and emitted a DIFFERENT set of assertions from the unmutated
+      // one, and the count alone cannot say which set: "12 assertions" is equally
+      // consistent with one assertion missing and with the journey having chosen a
+      // different subject and produced twelve other things. Journey 12's subject is
+      // `sourceLevel[0]` out of a corpus-dependent filter, so that is not a remote
+      // possibility — and the difference reproduces on CI and never locally, where
+      // the corpus is staged differently. These are what make the comparison
+      // possible from a CI log alone, without another run.
+      texts: j.records.map((r) => String(r.what ?? "")),
     };
   }
   // `vacuous` is carried through because a red that is only a poisoned
