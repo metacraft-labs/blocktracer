@@ -89,7 +89,15 @@ on:
           (`demo`, `aztec`, `aztec-testnet`, `aztec-testnet-frames`). Empty
           means every chain, which is this workflow's only behaviour so far.
 
-          WHY IT EXISTS: A FULL PASS IS HOURS AND A ONE-CHAIN PASS IS MINUTES.
+          WHY IT EXISTS: IT NARROWS THE UPLOAD, WHICH IS THE PART THAT RUNS FOR
+          HOURS. It does NOT narrow the stage or the render, and an earlier
+          version of this description said "a one-chain pass is MINUTES", which
+          was wrong by about three hours: staging copies the live bucket's whole
+          data plane and rendering builds every chain's pages, both measured
+          below at 79 and 97 minutes, and both happen whatever this input says.
+          What a one-chain pass saves is the upload, which on the run measured
+          below was still going after five hours.
+
           `publisher.publishChain` already scopes a cycle to "keys belonging to
           this chain, plus the chain-agnostic layers" — `d/{chain}/`,
           `src/{chain}/`, and a first path segment that names the chain, which
@@ -1122,80 +1130,32 @@ jobs:
         # set: rule 3 of `tools/journeys/README.md`, "a test whose subject can
         # be empty passes vacuously".
         #
-        # MEASURED BOTH WAYS before it was wired in, on a complete built tree.
-        # Unmodified: "every ready recording is named by its own page -- 26
-        # transaction(s) over 4 chain(s)". With ONE page's `data-trace`
-        # blanked: that one transaction named, exit 1. The per-chain counts it
-        # prints — 5, 6, 2 and 13 — are the same numbers the exporter's own
-        # live-chain snapshot lines report, derived independently of it.
+        # THE SECOND RULE, which R1 above does not cover: every container a
+        # page names must RESOLVE, in this tree or in the staged copy of the
+        # live bucket. R1 only looks at the rows the overlay calls ready, so a
+        # DIVERGENT row whose page names a container is checked by nothing
+        # else — `check-assets.mjs` A1 deliberately stops counting container
+        # references when `--require-traces` is absent (its arms 6c/6d), and
+        # this is where that coverage went. A divergent recording may offer its
+        # bytes; it may not offer bytes nobody holds.
+        #
+        # MEASURED BOTH WAYS on a complete built tree. Unmodified: 26 ready
+        # over 4 chains, 28 named containers, 28 resolved, 2 of them named by a
+        # divergent row. With ONE page's `data-trace` blanked: that transaction
+        # named, exit 1. The per-chain counts it prints — 5, 6, 2 and 13 — are
+        # the same numbers the exporter's own live-chain snapshot lines report,
+        # derived independently of it.
+        #
+        # It is a script and not inline Python so that it is runnable over any
+        # tree without being extracted from this file first: `just
+        # check-recordings-named <dir>`, and
+        # `check-recordings-named-selftest.mjs` holds eleven arms, three of
+        # which assert it stays GREEN on a render-over-live tree that carries no
+        # containers at all.
         run: |
           set -euo pipefail
-          # Through the dev shell, like every other tool here, and `python3 -c`
-          # rather than a heredoc for the reason the step below gives: a
-          # heredoc terminator has to sit at column zero and everything here is
-          # inside a YAML block scalar.
-          nix develop .#ci --command python3 -c '
-          import json, os, re, sys, glob
-          q = chr(34)
-          tree = "site"
-          problems, checked, chains, resolved = [], 0, 0, 0
-          for cur in sorted(glob.glob(os.path.join(tree, "d", "*", "current.json"))):
-              chain = os.path.basename(os.path.dirname(cur))
-              try:
-                  ver = str(json.load(open(cur)).get("traceSelectionVersion", ""))
-              except Exception as e:
-                  problems.append(chain + ": current.json unreadable (" + str(e) + ")")
-                  continue
-              if not ver:
-                  problems.append(chain + ": current.json names no traceSelectionVersion")
-                  continue
-              chains += 1
-              ready = 0
-              for ov in sorted(glob.glob(os.path.join(tree, "d", chain, "ts", ver, "*", "*.json"))):
-                  try:
-                      o = json.load(open(ov))
-                  except Exception:
-                      continue
-                  tr = o.get("trace") or {}
-                  if tr.get("availability") != "ready":
-                      continue
-                  ready += 1
-                  tx = o.get("tx") or os.path.splitext(os.path.basename(ov))[0]
-                  page = os.path.join(tree, chain, "tx", tx, "debug", "index.html")
-                  if not os.path.exists(page):
-                      problems.append(chain + " " + tx + ": overlay says ready and there is no debug page")
-                      continue
-                  html = open(page, encoding="utf-8", errors="replace").read()
-                  m = re.search("data-trace=" + q + "([^" + q + "]*)" + q, html)
-                  checked += 1
-                  if m is None:
-                      problems.append(chain + " " + tx + ": page carries no data-trace attribute at all")
-                  elif m.group(1) == "":
-                      problems.append(chain + " " + tx + ": overlay says ready, page declines the engine (empty data-trace)")
-                  else:
-                      ref = m.group(1).lstrip("/")
-                      roots = [tree]
-                      live = os.environ.get("LIVE_ORIGIN", "")
-                      if live and os.path.isdir(live):
-                          roots.append(live)
-                      if any(os.path.exists(os.path.join(r, ref)) for r in roots):
-                          resolved += 1
-                      else:
-                          problems.append(chain + " " + tx + ": page names " + ref + " and no root holds it (looked in " + ", ".join(roots) + ")")
-              print("  " + chain + ": " + str(ready) + " transaction(s) the overlay calls ready")
-          if chains == 0:
-              print("::error::no chain published a current.json; this check measured nothing.")
-              sys.exit(1)
-          if checked == 0:
-              print("::error::no transaction in any chain has a ready TraceSelection entry, so this check measured nothing. A tree that publishes recordings must have some.")
-              sys.exit(1)
-          if problems:
-              print("::error::" + str(len(problems)) + " transaction(s) whose recording is published and whose page does not name it:")
-              for pr in problems[:40]:
-                  print("    " + pr)
-              sys.exit(1)
-          print("every ready recording is named by its own page -- " + str(checked) + " transaction(s) over " + str(chains) + " chain(s); " + str(resolved) + " named container(s) resolved in the tree or the staged bucket")
-          '
+          nix develop .#ci --command node tools/deploy/check-recordings-named.mjs \
+            --dir site --live-origin "$LIVE_ORIGIN"
 
       - name: Break stale publish leases
         if: ${{ inputs.dry-run == false && inputs.break-stale-leases == true }}
@@ -1233,67 +1193,18 @@ jobs:
           nix develop .#ci --command nim c --hints:off -d:release \
             -o:blocktracer-publish src/blocktracer_publish.nim
 
-          if [ "${{ inputs.dry-run }}" = "true" ]; then
-            # The local backend mirrors the same key layout, so this exercises
-            # classification, the lease and the pointer order without a
-            # credential and without touching the bucket.
-            ./blocktracer-publish --tree site --backend local --dest "$RUNNER_TEMP/dry"
-            echo "dry run: $(find "$RUNNER_TEMP/dry" -type f | wc -l) objects would be written"
-            exit 0
-          fi
-
-          # REFUSE rather than publish blind if the credential is absent. An
-          # empty AWS_ACCESS_KEY_ID makes the aws CLI fail per object, which
-          # reads as a transport problem rather than a missing secret.
-          if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
-            echo "::error::R2_ACCESS_KEY_ID is not set on this repository." \
-                 "Mint an R2 token scoped Object Read & Write on the" \
-                 "'blocktracer' bucket only (DEPLOY.md Step 3) and seal it." \
-                 "Refusing to publish without it."
-            exit 1
-          fi
-
-          # EXPORTED for the same reason LIVE_ORIGIN is: the guard and the
-          # publisher below both run under `nix develop`, because both need
-          # `aws` on PATH — the guard calls it directly and
-          # `publish/objectstore.nim`'s `S3ObjectStore.putMany` shells out to
-          # `aws s3 cp --recursive`, once per Content-Encoding.
-          export BUCKET='${{ inputs.bucket }}'
-          export ENDPOINT='${{ secrets.R2_ENDPOINT }}'
-
-          # THE GUARD THAT MAKES THIS SAFE TO POINT AT PRODUCTION.
+          # ASSEMBLED BEFORE THE DRY RUN, AND THAT IS THE POINT OF A DRY RUN.
           #
-          # `assertRegistryKeepsKnownChains` stops the registry LOSING a chain
-          # row. It says nothing about the objects published beside the
-          # registry, and `index.html`, `404.html`, `_a/**` and
-          # `replay-engine/**` are shared by every chain rather than owned by
-          # one. So "the registry survived" and "production is unchanged" are
-          # different claims, and only the first has a guard.
+          # These two lines used to sit below the `dry-run` branch, so a dry run of a
+          # ONE-CHAIN publish rehearsed the EVERY-CHAIN path: the local backend was
+          # invoked with neither `--chain` nor `--refresh`, and the object count it
+          # printed was the count for a different publish from the one being
+          # rehearsed. A rehearsal that exercises a scope the real run will not is
+          # worse than no rehearsal, because it reports a number somebody will trust.
           #
-          # If the bucket already serves chains this tree does not contain,
-          # this tree is a SUBSET of what is live, and publishing it overwrites
-          # those shared objects with a build that was never rendered against
-          # the live history. Refuse, and say which chains.
-          live=$(nix develop .#ci --command \
-                   aws s3 cp "s3://$BUCKET/registry/chains.v1.json" - \
-                   --endpoint-url "$ENDPOINT" 2>/dev/null || true)
-          if [ -n "$live" ]; then
-            # `python3 -c`, not a heredoc: a heredoc terminator has to sit at
-            # column zero, and everything here is indented inside a YAML block
-            # scalar, so the quoted form would never terminate.
-            missing=$(nix develop .#ci --command python3 -c 'import json,sys; live=set(json.loads(sys.argv[1]).get("chains",{})); here=set(json.load(open("site/registry/chains.v1.json"))["chains"]); print(",".join(sorted(live-here)))' "$live")
-            if [ -n "$missing" ] && [ "${{ inputs.allow-foreign-chains }}" != "true" ]; then
-              echo "::error::s3://$BUCKET already serves chain(s) this tree does" \
-                   "not contain: $missing. This tree is a subset of what is" \
-                   "live, and the site objects it would overwrite (index.html," \
-                   "_a/**, replay-engine/**) are shared by every chain and are" \
-                   "NOT protected by the per-chain registry guard. Publish a" \
-                   "tree that contains them, or re-run with" \
-                   "allow-foreign-chains if you mean it."
-              exit 1
-            fi
-          fi
-
+          # The chain-not-in-tree refusal moves up with them, which is strictly
+          # better: a bad `chain` input is now caught by a dry run instead of only by
+          # the real one.
           # ── `--refresh` ON A RENDER-OVER-LIVE PUBLISH, AND WITHOUT IT THE
           #    PAGES DO NOT MOVE ────────────────────────────────────────────
           #
@@ -1372,6 +1283,71 @@ jobs:
             CHAIN_ARG="--chain ${{ inputs.chain }}"
             echo "publishing ONE chain: ${{ inputs.chain }}"
           fi
+
+          if [ "${{ inputs.dry-run }}" = "true" ]; then
+            # The local backend mirrors the same key layout, so this exercises
+            # classification, the lease and the pointer order without a
+            # credential and without touching the bucket.
+            ./blocktracer-publish --tree site --backend local --dest "$RUNNER_TEMP/dry" \
+              $REFRESH $CHAIN_ARG
+            echo "dry run: $(find "$RUNNER_TEMP/dry" -type f | wc -l) objects would be written" \
+                 "under the SAME flags the real run would use (${REFRESH:-no --refresh}," \
+                 "${CHAIN_ARG:-every chain})"
+            exit 0
+          fi
+
+          # REFUSE rather than publish blind if the credential is absent. An
+          # empty AWS_ACCESS_KEY_ID makes the aws CLI fail per object, which
+          # reads as a transport problem rather than a missing secret.
+          if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+            echo "::error::R2_ACCESS_KEY_ID is not set on this repository." \
+                 "Mint an R2 token scoped Object Read & Write on the" \
+                 "'blocktracer' bucket only (DEPLOY.md Step 3) and seal it." \
+                 "Refusing to publish without it."
+            exit 1
+          fi
+
+          # EXPORTED for the same reason LIVE_ORIGIN is: the guard and the
+          # publisher below both run under `nix develop`, because both need
+          # `aws` on PATH — the guard calls it directly and
+          # `publish/objectstore.nim`'s `S3ObjectStore.putMany` shells out to
+          # `aws s3 cp --recursive`, once per Content-Encoding.
+          export BUCKET='${{ inputs.bucket }}'
+          export ENDPOINT='${{ secrets.R2_ENDPOINT }}'
+
+          # THE GUARD THAT MAKES THIS SAFE TO POINT AT PRODUCTION.
+          #
+          # `assertRegistryKeepsKnownChains` stops the registry LOSING a chain
+          # row. It says nothing about the objects published beside the
+          # registry, and `index.html`, `404.html`, `_a/**` and
+          # `replay-engine/**` are shared by every chain rather than owned by
+          # one. So "the registry survived" and "production is unchanged" are
+          # different claims, and only the first has a guard.
+          #
+          # If the bucket already serves chains this tree does not contain,
+          # this tree is a SUBSET of what is live, and publishing it overwrites
+          # those shared objects with a build that was never rendered against
+          # the live history. Refuse, and say which chains.
+          live=$(nix develop .#ci --command \
+                   aws s3 cp "s3://$BUCKET/registry/chains.v1.json" - \
+                   --endpoint-url "$ENDPOINT" 2>/dev/null || true)
+          if [ -n "$live" ]; then
+            # `python3 -c`, not a heredoc: a heredoc terminator has to sit at
+            # column zero, and everything here is indented inside a YAML block
+            # scalar, so the quoted form would never terminate.
+            missing=$(nix develop .#ci --command python3 -c 'import json,sys; live=set(json.loads(sys.argv[1]).get("chains",{})); here=set(json.load(open("site/registry/chains.v1.json"))["chains"]); print(",".join(sorted(live-here)))' "$live")
+            if [ -n "$missing" ] && [ "${{ inputs.allow-foreign-chains }}" != "true" ]; then
+              echo "::error::s3://$BUCKET already serves chain(s) this tree does" \
+                   "not contain: $missing. This tree is a subset of what is" \
+                   "live, and the site objects it would overwrite (index.html," \
+                   "_a/**, replay-engine/**) are shared by every chain and are" \
+                   "NOT protected by the per-chain registry guard. Publish a" \
+                   "tree that contains them, or re-run with" \
+                   "allow-foreign-chains if you mean it."
+              exit 1
+            fi
+          fi
+
           nix develop .#ci --command ./blocktracer-publish \
             --tree site \
             --backend s3 \

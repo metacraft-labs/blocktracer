@@ -30,7 +30,8 @@
       "sui": "version-addressed",
       "sol": "forward-capture",
       "flow": "replay-preceding",
-      "aztec": "hydrated-from-node"
+      "aztec": "hydrated-from-node",
+      "aptos": "version-addressed"
     },
     "ledgerDisagreesOn": {
       "flow": "undetermined"
@@ -147,7 +148,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ],
       "sideEffect": "`.mjs` classes under tools/chain fell 10 -> 6. DEL-5's `test_no_abstraction_was_introduced` recorded the 7 -> 10 rise and left it 'for DEL-7, which is where a second producer's shapes are compared'."
     },
@@ -186,7 +188,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ],
       "parameterOf": "containerVersion"
     },
@@ -224,7 +227,8 @@
         "eth",
         "flow",
         "starknet",
-        "sui"
+        "sui",
+        "aptos"
       ],
       "notAConsumer": {
         "sol": "resolves its reader from --ct-print with its own default. Not made a consumer here: adding a fifth consumer for the count's sake is the self-fulfilling move this milestone refuses."
@@ -259,7 +263,8 @@
       "parameterVariationMeans": "Both consumers pass exactly (argv, { usage: USAGE }). Declared uniform, and a second argument group appearing at either call site is a red.",
       "consumers": [
         "starknet",
-        "sui"
+        "sui",
+        "aptos"
       ],
       "parameterOf": "parseProducerArgs"
     },
@@ -289,7 +294,8 @@
       ],
       "consumers": [
         "starknet",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -321,7 +327,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -422,7 +429,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -433,7 +441,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -444,7 +453,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -455,7 +465,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -466,7 +477,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -476,7 +488,8 @@
         "eth",
         "flow",
         "starknet",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -484,7 +497,8 @@
       "module": "tools/chain/lib/producer-runtime.mjs",
       "consumers": [
         "starknet",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -492,7 +506,8 @@
       "module": "tools/chain/lib/producer-runtime.mjs",
       "consumers": [
         "starknet",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -503,7 +518,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ]
     },
     {
@@ -514,7 +530,8 @@
         "flow",
         "starknet",
         "sol",
-        "sui"
+        "sui",
+        "aptos"
       ]
     }
   ],

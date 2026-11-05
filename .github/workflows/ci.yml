@@ -326,6 +326,46 @@ jobs:
         # asserting that the check WRITTEN for it is the one that goes red.
         run: node tools/deploy/check-assets-selftest.mjs
 
+      - name: Does the stale-neighbour gate bite? (nothing the site points at is missing)
+        # Sixteen arms over synthetic published trees. The gate guards a publish
+        # mode this repository has not run yet — INCREMENTAL-PUBLISH.md §5 says
+        # it must exist before the first incremental publish, "not after" — so it
+        # has no incident to point at and these arms are the only evidence it
+        # does anything. Four require a PASS: the control, a page living only in
+        # the staged bucket, a hash whose last nibble is a real zero (the false
+        # positive that reported 13 stale neighbours over 288 clean entries), and
+        # a stale neighbour OUTSIDE the --routes set, which is not a partial
+        # publish's business. One arm found a real ordering defect while being
+        # written: a truncated shard decodes to zero entries, and the vacuity
+        # refusal was firing ahead of the cause the run already knew.
+        run: node tools/deploy/check-no-stale-neighbours-selftest.mjs
+
+      - name: Does the hash-index reader tell the two formats apart?
+        # Ten arms over shards built byte by byte from the format's layout.
+        # `hashshard.nim` writes two formats, tagged per shard, differing in the
+        # header AND the per-entry width — so a format-1-only reader does not
+        # fail on a format-2 shard, it reads the encoding dictionary as entry
+        # data and answers confidently. Journey 22 used to carry such a reader
+        # inline and now imports this module, so the two arms that bounded that
+        # duplication are replaced by the invariant they protected: nothing
+        # outside this module and the Nim producer names the format's magic.
+        # One arm exists because this repository's own index needs it: 13 of 288
+        # published entries resolve only under the UNSTRIPPED hex, their hash
+        # genuinely ending in zero where format 1's strip ate it, so both
+        # readings travel on every entry.
+        run: node tools/deploy/lib/hash-shard-selftest.mjs
+
+      - name: Does the recording/page agreement gate bite? (the registry incident)
+        # Eleven arms over the gate that would have caught run 41420602459,
+        # which published a site in which every Aztec transaction served an
+        # empty `data-trace` while every post-check passed. Three of them assert
+        # it stays GREEN on a render-over-live tree that carries no containers
+        # at all — the shape every real publish of a live chain has — because a
+        # gate that reddens on a normal deploy is a gate that gets switched off.
+        # Two cover a DIVERGENT row whose page names a container, which rule R1
+        # never looks at and `check-assets.mjs` A1 deliberately stops counting.
+        run: node tools/deploy/check-recordings-named-selftest.mjs
+
       - name: Does the freshness gate bite? (provenance — the bytes are this commit's)
         # Its controls require the gate to stay GREEN over a
         # legitimately-changed world — a new upstream engine, a new capture, a
@@ -540,6 +580,24 @@ jobs:
         # an ENOENT on a path that does not exist on NixOS.
         run: node tools/chain/replay-selftest.mjs
 
+      - name: Is the chain we follow still the chain we can decode?
+        # 17 arms over a fake node, a fake file store and injected decoders. The
+        # check they cover
+        # exists because between 2026-09-04 and 2026-11-03 nothing was traced on
+        # any Aztec chain and no check said so: aztec-testnet restarted onto a
+        # new rollup AND moved its transaction serialisation, and the two guards
+        # written for that event — the runtime's own ProtocolVersionMismatch and
+        # pins.json's live_chain declaration — both stayed silent, because the
+        # only thing that would have run them is a replay and a replay is what
+        # had stopped working. Four arms require a PASS, including a rollup
+        # address differing only in case, because a probe that reddens on a
+        # healthy chain gets switched off. The decisive arm is the one where the
+        # identity MATCHES and the decoder refuses, which is the real state of
+        # aztec-testnet today, and it asserts the sentence says SERIALISATION
+        # rather than leaving a reader to infer a restart from a matching
+        # identity.
+        run: node tools/chain/check-chain-compat-selftest.mjs
+
       - name: Does the freeze gate refuse? (four checks, each re-asked of the chain)
         # 19 arms against a mock node. `frozen` is a conclusion the tool
         # reaches, not a flag a caller sets, and a gate that has never said no
@@ -580,7 +638,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 243 assertions, and the reason it is offline is the reason it
+        # ING-3, 245 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -1026,7 +1084,7 @@ jobs:
         run: node tools/chain/era-analysis-selftest.mjs
 
       - name: Does the Sui producer state its chain's facts and refuse a broken window?
-        # 49 assertions, host-independent: every arm is offline and needs only node.
+        # 52 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Sui producer's roles (sponsored, self-paid, system), its signed
         # storage-rebate cost entry, the seven-fact effects comparison a traced
@@ -1066,7 +1124,7 @@ jobs:
         run: node tools/chain/solana-producer-selftest.mjs
 
       - name: Is every abstraction DEL-7 extracted reached by two chains?
-        # 34 assertions, host-independent: every arm is offline and needs only node.
+        # 35 assertions, host-independent: every arm is offline and needs only node.
         #
         # Chain-Delivery DEL-7's `test_every_abstraction_has_two_consumers`. Each export of
         # `lib/producer-runtime.mjs` is counted by the producers' and facts modules' own
@@ -1092,6 +1150,20 @@ jobs:
         # from the chain's own `PRESTATE_STRATEGY`, so the document cannot decide its own
         # test, and every judgement is re-run against a deliberately mis-classified copy.
         run: node tools/chain/classification-selftest.mjs
+
+      - name: Does the Aptos producer state its chain's facts and refuse a broken window?
+        # 44 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # The Aptos producer's identity, ordering and prestate declarations, its fee as
+        # gas used × unit price in octas with the storage refund as its own signed entry,
+        # the sponsored fee payer, the entry-function payload, the CLI's mismatch sentence
+        # read back into the one fact that differed, the derived recording id, and the
+        # producer over a container-free window: rows carry their ledger version, the
+        # protocol's transactions are system transactions, and a skipped block, torn
+        # versions, a pruned window and a foreign recording are refused; and the REST
+        # transcript's keys and its replay misses. Recorded rows need a container and are
+        # run by `just aptos-capture` from the committed transcript.
+        run: node tools/chain/aptos-producer-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this

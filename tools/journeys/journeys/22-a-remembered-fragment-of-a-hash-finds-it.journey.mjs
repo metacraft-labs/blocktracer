@@ -64,6 +64,7 @@
 // is the point. See the commit message for the run.
 
 import { transactions } from "../lib/corpus.mjs";
+import { parseHashShard } from "../../deploy/lib/hash-shard.mjs";
 
 export const id = "a-remembered-fragment-of-a-hash-finds-it";
 export const claim =
@@ -156,30 +157,35 @@ export async function run({ browser, site, j }) {
   // fragments below are DERIVED from it — a fragment asserted to match exactly
   // one entity has to be one the published corpus actually makes unique, not
   // one this file guessed and got right today.
+  // THE SHARD FORMAT IS READ BY `tools/deploy/lib/hash-shard.mjs` AND NOT HERE.
+  //
+  // This block used to carry its own decoder, with format 1's offsets hardcoded —
+  // `d[7]` as the chain count, `getUint32(8)` as the entry count, and no encoding
+  // dictionary. `hashshard.nim` writes TWO formats, tagged per shard, and format 2
+  // inserts that dictionary's count into the header, so everything after it shifts by a
+  // byte and an entry is a byte wider. A format-1-only reader does not FAIL on a
+  // format-2 shard; it reads the dictionary as entry data and answers confidently. The
+  // index published today is format 1, so this file was right about what it reads and
+  // wrong about what the writer can emit.
+  //
+  // `hex` IS THE UNSTRIPPED READING, deliberately, which is what this block produced
+  // before. Format 1 stores zero-padded bytes and the module's `identifier` strips
+  // trailing zeros to recover the key form — ambiguous by construction, so it carries
+  // both readings in `candidates` and the unstripped one is `candidates[1]`. The
+  // fragments below are DERIVED from these entries and asserted to match exactly one
+  // entity, so the value has to be the same one the assertions were calibrated against.
   const indexedChains = new Set();
   const entries = [];
   for (const buf of shardBodies) {
-    const d = new Uint8Array(buf);
-    if (String.fromCharCode(...d.subarray(0, 4)) !== "BThx") continue;
-    // Header: magic(4) fmt(1) prefixLen(1) hashLen(1) chainCount(1) count(4),
-    // then `chainCount` u8-length-prefixed chain names, then the entries:
-    // hash(hashLen) chainIndex(1) kind(1).
-    const hashLen = d[6];
-    const count = new DataView(buf).getUint32(8, true);
-    let pos = 12;
-    const names = [];
-    for (let i = 0; i < d[7]; i++) {
-      const n = d[pos++];
-      names.push(new TextDecoder().decode(d.subarray(pos, pos + n)));
-      pos += n;
-    }
-    for (const n of names) indexedChains.add(n);
-    for (let i = 0; i < count; i++) {
-      const hex = [...d.subarray(pos, pos + hashLen)]
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-      pos += hashLen;
-      entries.push({ hex, chain: names[d[pos++]], kind: d[pos++] });
+    const parsed = parseHashShard(new Uint8Array(buf));
+    if (parsed.error) continue;
+    for (const c of parsed.chains) indexedChains.add(c);
+    for (const e of parsed.entries) {
+      entries.push({
+        hex: (e.candidates[e.candidates.length - 1] ?? e.identifier).replace(/^0x/, ""),
+        chain: e.chain,
+        kind: e.kind,
+      });
     }
   }
   const matching = (frag) => entries.filter((e) => e.hex.startsWith(frag));

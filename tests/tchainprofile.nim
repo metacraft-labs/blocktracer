@@ -59,6 +59,9 @@ const
   LiveMainnet = RepoRoot / "tests" / "fixtures" / "chain-snapshots" /
                 "aztec-mainnet-live"
   ListingCapture = RepoRoot / "client" / "fixtures" / "chain" / "aztec-testnet"
+  # The conformance kit's version-ordered tree: the one committed snapshot that
+  # declares `provenance.ordering: "globalVersion"` (Aptos's ordering).
+  VersionOrdered = RepoRoot / "conformance-kit" / "template" / "version-ordered"
   RegistryRel = "registry/chains.v1.json"
   # THE TOKENS THIS FILE DECLARES, and they are deliberately not any producer's.
   # A test that read the token out of the module under test would assert that the
@@ -79,6 +82,9 @@ doAssert fileExists(LiveMainnet / "snapshot.json"),
   "the capture with a replay boundary and no instruction listing cannot be " &
   "driven, and half of what this file grades is that the two members are " &
   "independent."
+doAssert fileExists(VersionOrdered / "snapshot.json"),
+  "conformance-kit/template/version-ordered/snapshot.json is missing; the one " &
+  "capture ordered by ledger version cannot be driven."
 doAssert fileExists(ListingCapture / "snapshot.json"),
   "client/fixtures/chain/aztec-testnet/snapshot.json is missing; the capture " &
   "whose published listings declare an instruction set cannot be driven."
@@ -484,8 +490,20 @@ suite "both producers state what they MEASURED, and nothing they did not":
     ck not rowFor("ing-ver-none", nil).hasKey("verification")
     ck not rowFor("ing-ver-blank", %"  ").hasKey("verification")
 
+  test "a version-ordered capture declares `globalVersion`, and its tree validates":
+    # The ordering kind is the kind of the rows the run wrote, so a capture that
+    # declares `globalVersion` publishes a registry row saying so — the third
+    # inhabitant of the union a producer can reach. The CONTROL is the first arm
+    # of this suite: the same reader over a capture that declares nothing states
+    # `blockIndex`.
+    let tree = buildIngest("ing-version", VersionOrdered)
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    ck row["ordering"]["kind"].getStr == $tokGlobalVersion
+    ck validateTree(tree).len == 0
+    removeDir tree
+
   test "assertion count":
-    expectCount(9 + 2 + 8 + 4 + 5 + 5 + 5 + 5 + 4)
+    expectCount(9 + 2 + 8 + 4 + 5 + 5 + 5 + 5 + 4 + 2)
 
 # ───────────────────────────────────────────────────────────────────────────
 suite "a producer that declares one thing and publishes another is caught":
@@ -516,6 +534,19 @@ suite "a producer that declares one thing and publishes another is caught":
     var named = 0
     for f in found:
       if $tokCheckpoint in f and $tokBlockIndex in f: inc named
+    ck named > 0
+    removeDir tree
+
+  test "a version-ordered row under a registry declaring blocks is reported":
+    # The validator reads the row's own `order.kind`, so a `globalVersion` row
+    # under a `blockIndex` declaration is the same finding as a checkpoint one
+    # would be — named with both kinds.
+    let tree = buildIngest("val-version", VersionOrdered)
+    let found = findingsWith(tree, proc(row: JsonNode) =
+      row["ordering"] = %*{"kind": $tokBlockIndex})
+    var named = 0
+    for f in found:
+      if $tokGlobalVersion in f and $tokBlockIndex in f: inc named
     ck named > 0
     removeDir tree
 
@@ -590,7 +621,7 @@ suite "a producer that declares one thing and publishes another is caught":
     removeDir tree3
 
   test "assertion count":
-    expectCount(1 + 2 + 3 + 5 + 3)
+    expectCount(1 + 2 + 1 + 3 + 5 + 3)
 
 # ───────────────────────────────────────────────────────────────────────────
 suite "the additive rule: a client built for the current schema reads all four":
@@ -754,3 +785,112 @@ suite "the additive rule: a client built for the current schema reads all four":
     #   the control: 7
     #   unknown members: 6
     expectCount(8 + 2 + 17 + 7 + 6)
+
+# ───────────────────────────────────────────────────────────────────────────
+suite "the chain's identity: declared by the producer, carried verbatim, refused when malformed":
+  asserted = 0
+
+  ## Configuration.md §2.1's six identity members, by `vm`'s route. The values
+  ## are this file's own, not any chain's, for `DeclaredFormat`'s reason: a test
+  ## that read Sui's values out of its producer would assert the producer agrees
+  ## with itself.
+  let stated = %*{
+    "caip2": "testns:a-reference", "name": "A Declared Chain", "family": "a-family",
+    "nativeCurrency": {"symbol": "DCL", "decimals": 7}, "blockTimeMs": 1234,
+    "finality": {"rule": FinalityRules[0].id}}
+
+  proc ingestWithIdentity(tag: string; identity: JsonNode): (string, string) =
+    ## A copy of the live capture with `provenance.identity` set (or left
+    ## absent when `identity` is nil), ingested. Returns (tree, snapDir).
+    let snapDir = tmpDir(tag & "-snap")
+    copyDir(LiveMainnet, snapDir / "capture")
+    let capture = snapDir / "capture"
+    var doc = parseJson(readFile(capture / "snapshot.json"))
+    if identity != nil: doc["provenance"]["identity"] = identity
+    writeFile(capture / "snapshot.json", $doc)
+    (buildIngest(tag, capture), snapDir)
+
+  test "a declared identity reaches the row verbatim, and reads back through the one parse":
+    let (tree, snapDir) = ingestWithIdentity("id-declared", stated)
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    for m in IdentityMembers:
+      ck row[m] == stated[m]
+    let id = parseChainProfile(row).identity
+    ck id.caip2 == "testns:a-reference"
+    ck id.name == "A Declared Chain"
+    ck id.currencyStated and id.currencySymbol == "DCL" and id.currencyDecimals == 7
+    ck id.blockTimeMs == 1234
+    ck id.finalityRule == FinalityRules[0].id
+    ck finalityLabel(id.finalityRule) == FinalityRules[0].label
+    ck validateTree(tree).len == 0
+    removeDir tree
+    removeDir snapDir
+
+  test "CONTROL: the same capture without a declaration publishes none of the six":
+    let (tree, snapDir) = ingestWithIdentity("id-absent", nil)
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    var present = 0
+    for m in IdentityMembers:
+      if row.hasKey(m): inc present
+    ck present == 0
+    ck not parseChainProfile(row).identity.stated
+    ck validateTree(tree).len == 0
+    removeDir tree
+    removeDir snapDir
+
+  test "a member declared in part publishes that member and no other":
+    let (tree, snapDir) = ingestWithIdentity("id-partial", %*{"caip2": "testns:only"})
+    let row = rawRegistry(tree)["chains"][onlySlug(rawRegistry(tree))]
+    ck row["caip2"].getStr == "testns:only"
+    ck not row.hasKey("name") and not row.hasKey("finality")
+    removeDir tree
+    removeDir snapDir
+
+  test "every malformed member is refused at ingest, naming the rule":
+    # One mutation per member, each the shape a producer could plausibly get
+    # wrong, and the ingest must refuse every one rather than publish it.
+    let bad = [
+      %*{"caip2": "not-a-caip2-id"},
+      %*{"name": ""},
+      %*{"family": "EVM"},
+      %*{"nativeCurrency": {"symbol": "X"}},
+      %*{"blockTimeMs": 0},
+      %*{"finality": {"rule": "a-rule-no-table-lists"}},
+      %*{"finality": "instant"},
+      %*"sui:mainnet"]
+    for b in bad:
+      var refused = false
+      try:
+        let (tree, snapDir) = ingestWithIdentity("id-bad", b)
+        removeDir tree
+        removeDir snapDir
+      except ValueError as e:
+        refused = "S5-IDENTITY-DECLARED" in e.msg
+      ck refused
+
+  test "the validator reports a malformed member on a published row, with the set":
+    let (tree, snapDir) = ingestWithIdentity("id-val", stated)
+    var reg = rawRegistry(tree)
+    reg["chains"][onlySlug(reg)]["finality"] = %*{"rule": "a-rule-no-table-lists"}
+    writeRegistry(tree, reg)
+    let found = validateTree(tree)
+    var named = 0
+    for f in found:
+      if "a-rule-no-table-lists" in f and finalityRuleList() in f: inc named
+    ck named == 1
+    removeDir tree
+    removeDir snapDir
+
+  test "CAIP-2's grammar, at its edges":
+    ck isCaip2("eip155:1")
+    ck isCaip2("sui:mainnet")
+    ck not isCaip2("ab:1")                       # namespace below 3
+    ck not isCaip2("abcdefghi:1")                # namespace above 8
+    ck not isCaip2("eip155:")                    # empty reference
+    ck not isCaip2("EIP155:1")                   # namespace is lowercase
+    ck not isCaip2("eip155:" & repeat('a', 33))  # reference above 32
+
+  test "assertion count":
+    #   declared: 6 members + 6 read-backs + validator = 13
+    #   absent: 3; partial: 2; malformed: 8; validator: 1; grammar: 7
+    expectCount(13 + 3 + 2 + 8 + 1 + 7)

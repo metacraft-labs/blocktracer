@@ -80,9 +80,9 @@
  "corpus": {
   "snapshots": 9,
   "totals": {
-   "rowsExamined": 998,
+   "rowsExamined": 999,
    "tracedRows": 46,
-   "untracedRows": 944,
+   "untracedRows": 945,
    "chainAbsentRows": 8,
    "unclassifiedRows": 0,
    "containersNamed": 46,
@@ -95,7 +95,7 @@
    "artifactsResolved": 5,
    "attributedRows": 45,
    "unattributedRows": 1,
-   "jointScopeRows": 925,
+   "jointScopeRows": 926,
    "declaredRungs": {
     "1": 1,
     "2": 2,

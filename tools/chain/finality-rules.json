@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "THE CLOSED SET a chain's `finality.rule` is drawn from. Configuration.md §2.1, the",
+    "registry's identity members; Data-Contract.md §5.3, `provenance.identity`.",
+    "",
+    "THIS FILE IS DATA BECAUSE TWO LANGUAGES NEED IT. A producer declares the rule in",
+    "JavaScript (`provenance.identity.finality.rule`) and `src/blocktracer/contract/",
+    "chain_identity.nim` reads this file with `staticRead` at compile time, so a member",
+    "added here is a member there without anyone copying it, and the ingest, the validator",
+    "and the client all refuse a rule outside it with the same sentence.",
+    "",
+    "A RULE NAMES HOW A BLOCK BECOMES FINAL, NOT HOW LONG IT TAKES. How long is",
+    "`blockTimeMs` and the chain's own finalized pointer (`window.finalized`), which a",
+    "capture measures. A chain whose mechanism is none of these is a gap in this table:",
+    "add a member saying what it means, rather than declaring the nearest one.",
+    "",
+    "`label` is the visitor-facing sentence the chain page states; `means` is the",
+    "definition a producer picks a member by."
+  ],
+  "format": "blocktracer/finality-rules@1",
+  "rules": [
+    {
+      "id": "instant",
+      "label": "Final once committed",
+      "means": "A block is final as soon as the chain's BFT consensus commits it; a committed block is never reorganised. Sui, Aptos, Flow."
+    },
+    {
+      "id": "checkpoint",
+      "label": "Final at a later finality checkpoint",
+      "means": "A block is produced first and becomes final when a later finality checkpoint justifies it; until then it can be reorganised. Ethereum (Casper FFG)."
+    },
+    {
+      "id": "confirmations",
+      "label": "Final after enough confirmations",
+      "means": "Finality is a depth: a block is treated as final once enough blocks (or enough vote lockout) are built on it. Bitcoin-style chains, Solana's rooted slots."
+    },
+    {
+      "id": "settlement",
+      "label": "Final when settled on its L1",
+      "means": "An L2 block is final when its state or proof is accepted on the chain it settles to. Starknet, Aztec."
+    }
+  ]
+}

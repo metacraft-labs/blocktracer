@@ -26,6 +26,7 @@ proc chainPage*(chain: string, info: ChainInfo,
                 degradation: ChainDegradation,
                 note: DegradationNotice,
                 tour: seq[TourRow] = @[]): string =
+  let identityLine = identityStatement(info.chainProfile)
   ui:
     section(class = "sec"):
       tdiv(class = "inner"):
@@ -36,7 +37,11 @@ proc chainPage*(chain: string, info: ChainInfo,
           span(class = "sep"): text "/"
           span: text chain
         tdiv(class = "eyebrow"): text "Chain overview"
-        h1(class = "h1"): text chain
+        h1(class = "h1"): text chainTitle(info.chainProfile, chain)
+        # WHAT THE CHAIN IS, as its producer declared it (Configuration.md §2.1's
+        # identity members); nothing at all for a chain that declared none.
+        if identityLine.len > 0:
+          p(class = "muted measure"): text identityLine
         tdiv(class = "stats"):
           tdiv(class = "stat"):
             tdiv(class = "k"): text "Head"

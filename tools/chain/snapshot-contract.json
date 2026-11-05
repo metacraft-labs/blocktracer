@@ -196,7 +196,15 @@
     },
     "S5-ORDERING-CLOSED": {
       "section": "§5.3",
-      "statement": "`provenance.ordering` is OPTIONAL and names the quantity that sequences this chain's transactions, from the closed set the reader can build from a snapshot: `blockIndex` (from `blocks[]`; also what an absent member means) and `checkpoint` (whose sequence number is each block's `number`). A value outside the set, or one that is not a string, is refused naming the set: building an unlisted ordering as a height would publish the silently-wrong ordering Static-Site-Architecture.md §2.3 makes ordering a union to prevent."
+      "statement": "`provenance.ordering` is OPTIONAL and names the quantity that sequences this chain's transactions, from the closed set the reader can build from a snapshot: `blockIndex` (from `blocks[]`; also what an absent member means), `checkpoint` (whose sequence number is each block's `number`) and `globalVersion` (whose quantity is each row's own `version`, S5-VERSION-STATED; the row is published with `id: {kind: \"version\", version, hash}` and `order: {kind: \"globalVersion\", version}`). A value outside the set, or one that is not a string, is refused naming the set: building an unlisted ordering as a height would publish the silently-wrong ordering Static-Site-Architecture.md §2.3 makes ordering a union to prevent."
+    },
+    "S5-VERSION-STATED": {
+      "section": "§5.3",
+      "statement": "Under `provenance.ordering: \"globalVersion\"` every transaction row states `version`: the ledger version that sequences it, as a DECIMAL STRING — the canonical spelling of an unsigned 64-bit integer, with no sign, no leading zero and no exponent. A JSON number is refused rather than accepted beside the string, because a version above 2^53 is read back as a different integer by a JavaScript consumer, and two spellings of one version would be two ids for one transaction. Under any other ordering a row states no `version`: nothing would publish it, and a producer that wrote one would believe it had stated an ordering the reader did not build. A row short of the member, or carrying it in another shape, is refused naming the row."
+    },
+    "S5-IDENTITY-DECLARED": {
+      "section": "§5.3",
+      "statement": "`provenance.identity` is OPTIONAL and states what the chain IS — `caip2`, `name`, `family`, `nativeCurrency` {`symbol`, `decimals`}, `blockTimeMs` and `finality` {`rule`} — each member optional on its own, carried verbatim onto the chain's registry row (Configuration.md §2.1). A member present in a shape the contract does not accept, or a `finality.rule` outside tools/chain/finality-rules.json, is refused naming the member and the set: the reader states no fact about a chain on a producer's behalf, and a malformed one published as stated would be the reader choosing what the chain is called."
     },
     "S5-COST-VECTOR": {
       "section": "§5.3",
@@ -457,11 +465,13 @@
         "prestateStrategy": {"required": true, "access": "optional", "enforcedBy": "S5-PRESTATE-STATED",
                              "holds": "how the producer obtained the state each execution ran against, from Chain-Support-Matrix.md §1.4's closed set — §5.3"},
         "ordering": {"required": false, "access": "optional", "enforcedBy": "S5-ORDERING-CLOSED",
-                     "holds": "the quantity that sequences this chain's transactions, from the closed set `blockIndex` / `checkpoint`. Absent means `blockIndex`, which is what every tree published before the member existed was built as — §5.3"},
+                     "holds": "the quantity that sequences this chain's transactions, from the closed set `blockIndex` / `checkpoint` / `globalVersion`. Absent means `blockIndex`, which is what every tree published before the member existed was built as — §5.3"},
         "identifierEncoding": {"required": false, "access": "optional", "enforcedBy": "S5-IDENTIFIER-ENCODING-CLOSED",
                                "holds": "how this chain writes its identifiers, per kind — the one declaration the reader keys every sharded path from AND publishes onto the registry row. Absent means hex, which is what every tree published before the member existed was keyed under — §5.6"},
         "vm": {"required": false, "access": "optional",
                "holds": "the executable format this chain's programs are executed from, as {\"instructionSet\": \"…\"} — the declaration that reaches the registry row's `vm` without an instruction listing. An absent member means the producer declared no format, which is NOT a claim that the chain has none — Configuration.md §2.1, §5.3"},
+        "identity": {"required": false, "access": "optional", "enforcedBy": "S5-IDENTITY-DECLARED",
+                     "holds": "what the chain IS — CAIP-2 id, display name, family, native currency, nominal block time and finality rule — each member optional, carried verbatim onto the registry row. Absent means the producer stated none, and the row carries none — Configuration.md §2.1, §5.3"},
         "reachReason": {"required": false, "access": "optional",
                         "holds": "the producer's own sentence for WHY this capture's history starts where `replayableFrom` says, published verbatim as the chain's floor reason in place of the reader's generic one. For a chain whose history is a capture start rather than a node's limit (`forward-capture`) the generic sentence reads as a node limit, which is wrong. Absent or empty means the reader's sentence — §5.3"},
         "verification": {"required": false, "access": "optional",
@@ -546,6 +556,9 @@
         "txHash": {"required": true, "access": "required", "holds": "the transaction's identifier"},
         "blockNumber": {"required": true, "access": "required", "holds": "the height of the block that settled it"},
         "txIndexInBlock": {"required": true, "access": "required", "holds": "its position within that block"},
+        "version": {"required": true, "access": "optional", "enforcedBy": "S5-VERSION-STATED",
+                    "onRows": "every row of a `globalVersion` snapshot — forbidden on any other",
+                    "holds": "the ledger version that sequences this transaction, as a decimal string; published as `id.version` and `order.version` — §5.3"},
         "outcome": {"required": true, "access": "required",
                     "holds": "which of the three populations this row is in — the partition is `snapshot-format.json`'s"},
         "revertCode": {"required": true, "access": "required",

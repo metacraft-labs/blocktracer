@@ -90,7 +90,7 @@ const threw = (fn) => { try { fn(); return null; } catch (e) { return e; } };
  *  conformance kit shipped, every snapshot this repository committed was one this
  *  repository's own producers had WRITTEN, so "every committed snapshot" and "every capture
  *  we took" were the same set and no rule below had to say which one it meant.
- *  `conformance-kit/template/` broke that: its two trees are hand-authored demonstrations of
+ *  `conformance-kit/template/` broke that: its trees are hand-authored demonstrations of
  *  §5, written to be exactly what a third-party recorder may write, and one rule below —
  *  the `counts.captureSessions` sweep — is about a PRODUCER-INTERNAL member that §5 does not
  *  name and no reader consumes. Requiring it of the templates would have made §5 an
@@ -100,6 +100,7 @@ const threw = (fn) => { try { fn(); return null; } catch (e) { return e; } };
 const KIT_TEMPLATE_SNAPSHOTS = Object.freeze([
   'conformance-kit/template/complete/snapshot.json',
   'conformance-kit/template/minimal/snapshot.json',
+  'conformance-kit/template/version-ordered/snapshot.json',
 ]);
 
 /** the snapshots a producer IN THIS REPOSITORY wrote — the captures */
@@ -1013,7 +1014,7 @@ test('no committed row claims a permanent body loss the store was never asked ab
   const root = new URL('../../', import.meta.url).pathname;
   const all = ALL_COMMITTED_SNAPSHOTS.map((p) => join(root, p));
   ck(`the corpus is the whole tree's — ${all.length} snapshot(s), and every one exists`,
-     all.length === 9 && all.every((p) => existsSync(p)));
+     all.length === 10 && all.every((p) => existsSync(p)));
 
   // ── AND IT IS A PARTITION, STATED, SO THE SCOPED RULE BELOW CANNOT WIDEN BACK ──────
   //
@@ -1029,7 +1030,7 @@ test('no committed row claims a permanent body loss the store was never asked ab
      + `own producers wrote, ${KIT_TEMPLATE_SNAPSHOTS.length} hand-authored kit template(s) `
      + `and ${READABLE_CONTAINER_SNAPSHOTS.length} readable-container fixture(s), and the `
      + `three make up the whole of it`,
-     OWN_CAPTURE_SNAPSHOTS.length === 6 && KIT_TEMPLATE_SNAPSHOTS.length === 2
+     OWN_CAPTURE_SNAPSHOTS.length === 6 && KIT_TEMPLATE_SNAPSHOTS.length === 3
      && READABLE_CONTAINER_SNAPSHOTS.length === 1
      && OWN_CAPTURE_SNAPSHOTS.length + KIT_TEMPLATE_SNAPSHOTS.length
         + READABLE_CONTAINER_SNAPSHOTS.length === ALL_COMMITTED_SNAPSHOTS.length);
@@ -1445,6 +1446,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
   // patterns, both of which are visible in the array immediately below it.)
   const declared = [
     ['replay-selftest.mjs', /^\s*expectCount\((\d+)\);/m],
+    ['check-chain-compat-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['freeze-snapshot-selftest.mjs', /asserted !== (\d+)\) \{/],
     ['watch-chain-selftest.sh', /"\$asserted" -ne (\d+) \]/],
     ['calltrace-fold-selftest.mjs', /asserted !== (\d+)\) \{/],
@@ -1497,6 +1499,8 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // spawns the five producers but needs nothing but node to do it.
     ['abstraction-consumers-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
     ['classification-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // The Aptos producer's offline suite, in the commonest pattern.
+    ['aptos-producer-selftest.mjs', /asserted !== (\d+)\) \{/],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1821,7 +1825,10 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-THIRD suite joined `chain-selftest` — `era-analysis-selftest`, the era
 //       expectation judged on data (Recorder-Flow CXP-FLOW-5, 2026-10-23) — at the same
 //       single assertion.
-expectCount(243);
+//   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
+//       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
+//       2026-11-03) — at the same single assertion.
+expectCount(245);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

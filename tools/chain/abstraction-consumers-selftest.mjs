@@ -57,7 +57,7 @@ const CONSUMER_FLOOR = 2;
  * Offline and host-independent — no container reader, no network — so the base IS the
  * total.
  */
-const BASE_ARMS = 34;
+const BASE_ARMS = 35;
 
 let passed = 0;
 let failed = 0;
@@ -221,27 +221,34 @@ for (const [b, chains] of live.by) {
 ck('no export is below the floor', live.findings.length === 0);
 if (live.findings.length > 0) for (const f of live.findings) console.error(`        ${f}`);
 
-section('§1 CONTROL: removing one consumer turns the SAME judgement red');
+section('§1 CONTROL: removing consumers below the floor turns the SAME judgement red');
 {
   // The binding with the FEWEST consumers is the one a removal can take below the floor,
   // so it is the one the control uses. Its import is deleted from an in-memory copy of one
   // real consumer file and `underfedBindings` — the same function arm 1 ran — is re-run.
   const [thinnest, thinChains] = [...live.by].sort((a, b) => a[1].length - b[1].length)[0];
-  const victimChain = thinChains[0];
-  const victim = files.find((x) => x.chain === victimChain
-                                   && bindingsTakenFrom(x.src, MODULE_BASENAME).has(thinnest));
-  ck(`a real consumer file to mutate was found for ${thinnest} (${victim?.file})`,
-     victim !== undefined);
-  const stripped = victim.src.replace(
+  // ENOUGH consumers are removed to cross the floor, not one: with a third chain on every
+  // binding (Aptos, 2026-11-03) the thinnest has three, and removing one leaves it AT the
+  // floor, where the judgement is rightly silent. The victims are the first chains the
+  // count names, and each import is deleted from an in-memory copy of a real file.
+  const victimChains = thinChains.slice(0, thinChains.length - CONSUMER_FLOOR + 1);
+  const victims = victimChains.map((c) => files.find((x) => x.chain === c
+    && bindingsTakenFrom(x.src, MODULE_BASENAME).has(thinnest)));
+  ck(`a real consumer file to mutate was found for ${thinnest} `
+     + `(${victims.map((v) => v?.file).join(', ')})`, victims.every((v) => v !== undefined));
+  const strip = (src) => src.replace(
     new RegExp(String.raw`(\{[^}]*?)\b` + thinnest + String.raw`\b(\s+as\s+[A-Za-z0-9_$]+)?,?\s*`, 's'),
     '$1');
-  ck('the mutation changed the file', stripped !== victim.src);
-  const mutatedFiles = files.map((x) => (x.file === victim.file ? { ...x, src: stripped } : x));
+  const stripped = new Map(victims.map((v) => [v.file, strip(v.src)]));
+  ck('the mutation changed every victim file',
+     victims.every((v) => stripped.get(v.file) !== v.src));
+  const mutatedFiles = files.map((x) => (stripped.has(x.file) ? { ...x, src: stripped.get(x.file) } : x));
   const after = underfedBindings(bindings, mutatedFiles);
   const beforeN = live.by.get(thinnest).length;
   const afterN = after.by.get(thinnest).length;
-  ck(`${thinnest}'s consumer count fell ${beforeN} -> ${afterN} when one consumer's import `
-     + `was removed, so the count tracks the code`, afterN === beforeN - 1);
+  ck(`${thinnest}'s consumer count fell ${beforeN} -> ${afterN} when ${victims.length} `
+     + `consumer(s)' imports were removed, so the count tracks the code`,
+     afterN === beforeN - victims.length && afterN === CONSUMER_FLOOR - 1);
   ck(`and the judgement REPORTS it (${after.findings.length} finding(s): `
      + `${after.findings.join('; ') || 'none'})`,
      after.findings.some((f) => f.startsWith(`${thinnest}:`)));
@@ -281,9 +288,10 @@ section('§2 CONTROL: the same judgement fires on a module that DOES dispatch');
 
 // ── arm 3. the shared exit-code path, observed on the real producers ───────────────────
 
-section('§3 all five producers exit through the shared refusal path');
+section('§3 all six producers exit through the shared refusal path');
 const producers = files.filter((x) => /^produce-/.test(x.file)).map((x) => x.file);
-ck(`five producers found (${producers.length})`, producers.length === 5);
+// Six since 2026-11-03, when `produce-aptos-snapshot.mjs` joined (one more arm below).
+ck(`six producers found (${producers.length})`, producers.length === 6);
 for (const p of producers) {
   // No arguments is a CONFIGURATION refusal on every one of them, and the shared
   // `dieOperational` maps that to 2. Read from the child's own status, not from a pipe.

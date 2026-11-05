@@ -715,12 +715,14 @@ test('exactly the expected files know about each half of the seam');
   // that declares it (base58 for every kind — signatures, addresses and blockhashes).
   // NINE AND NOT EIGHT (2026-10-26): `merge-sui-windows.mjs`, the union of Sui's windows,
   // names the member to require every window to agree on it, and refuses one that does not.
-  ck('seven under client/, and NINE under tools/ — this suite, the census check, '
-     + 'the hostile corpus that exempts the member, the Sui, Starknet and Solana producers '
-     + 'that declare it, the Sui window union that compares it, and the Sui and Starknet '
-     + 'selftests',
+  // TEN AND NOT NINE (2026-11-03): `produce-aptos-snapshot.mjs` joined as the fourth producer
+  // that declares it (hex for every kind — Aptos hashes and addresses).
+  ck('seven under client/, and TEN under tools/ — this suite, the census check, '
+     + 'the hostile corpus that exempts the member, the Sui, Starknet, Solana and Aptos '
+     + 'producers that declare it, the Sui window union that compares it, and the Sui and '
+     + 'Starknet selftests',
      sizeOf('declaration').client.length === 7
-     && sizeOf('declaration').tools.length === 9);
+     && sizeOf('declaration').tools.length === 10);
   ck('six files under src/ read the case rule', sizeOf('caseRule').src.length === 6);
   ck('three under client/ — the query canonicaliser, the route enumerator and the '
      + 'browser bundle — and one under tools/',

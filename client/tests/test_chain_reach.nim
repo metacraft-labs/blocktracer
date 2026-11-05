@@ -166,6 +166,22 @@ suite "the chain landing page states historical reach":
       reach = %"floor", floor = %*{"height": 67010})))
     check "recorded at block 67010 and above" in blockChain.lead
 
+  test "a version-ordered chain's floor is a block height, never a version":
+    # Aptos's row: ordered by `globalVersion`, while its window and floor are
+    # block heights (S5-VERSION-STATED keeps the version on the row). A floor
+    # rendered as "version N" would name a ledger version that is not N.
+    let aptos = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", ordering = %*{"kind": "globalVersion"},
+      floor = %*{"height": 1133248922})))
+    check "recorded at block 1133248922 and above" in aptos.lead
+    check "version 1133248922" notin aptos.lead
+    # CONTROL: the same floor on a checkpoint chain is counted in checkpoints,
+    # so the unit is chosen per ordering and not fixed to "block".
+    let cp = reachStatement(parseChainProfile(rowWith(
+      reach = %"floor", ordering = %*{"kind": "checkpoint"},
+      floor = %*{"height": 1133248922})))
+    check "recorded at checkpoint 1133248922 and above" in cp.lead
+
   test "a self-contained chain is not described with a floor":
     let st = reachStatement(parseChainProfile(rowWith(reach = %"self-contained")))
     check "carries the state it reads with it" in st.lead
@@ -245,6 +261,42 @@ suite "the chain landing page states historical reach":
     let html = reachSection(parseChainProfile(nil))
     check ReachHeading in html
     check "states no historical reach" in html
+
+suite "the chain landing page states what the chain is":
+  test "a declared identity is one line, in the chain's own unit":
+    var row = rowWith(ordering = %*{"kind": "checkpoint"})
+    row["caip2"] = %"sui:mainnet"
+    row["name"] = %"Sui Mainnet"
+    row["nativeCurrency"] = %*{"symbol": "SUI", "decimals": 9}
+    row["blockTimeMs"] = %243
+    row["finality"] = %*{"rule": "instant"}
+    let p = parseChainProfile(row)
+    check identityStatement(p) == "Chain ID sui:mainnet · native currency SUI " &
+      "(9 decimals) · a checkpoint about every 243 ms · final once committed"
+    check chainTitle(p, "sui") == "Sui Mainnet"
+
+  test "a version-ordered chain's cadence is counted in blocks":
+    # Aptos declares the cadence it measured from BLOCK timestamps; its
+    # transactions are numbered by version, but a version has no cadence of its own.
+    var row = rowWith(ordering = %*{"kind": "globalVersion"})
+    row["caip2"] = %"aptos:1"
+    row["blockTimeMs"] = %100
+    let p = parseChainProfile(row)
+    check identityStatement(p) == "Chain ID aptos:1 · a block about every 100 ms"
+    check "version" notin identityStatement(p)
+
+  test "CONTROL: a row declaring no identity says nothing and keeps its slug":
+    let p = parseChainProfile(rowWith())
+    check identityStatement(p) == ""
+    check chainTitle(p, "sui") == "sui"
+
+  test "a malformed member is not rendered, and the rest of the line still is":
+    var row = rowWith()
+    row["caip2"] = %"not-a-chain-id"
+    row["blockTimeMs"] = %2000
+    let p = parseChainProfile(row)
+    check p.identity.refusals.len == 1
+    check identityStatement(p) == "A block about every 2000 ms"
 
 suite "the chain landing page states the debug tier as a count":
 

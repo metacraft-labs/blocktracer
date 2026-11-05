@@ -15,6 +15,7 @@ conformance-kit/
   template/
     minimal/              the FLOOR: every required member, nothing else
     complete/             EVERY member, and every availability state a snapshot reaches
+    version-ordered/      the floor again, for a chain ordered by ledger VERSION (Aptos)
   contract/               (in a release) the contract as DATA — see "Resolving a rule id"
 ```
 
@@ -155,6 +156,8 @@ contract/identifier-encodings.json  the closed set of identifier ENCODINGS a cha
                                   may declare, and per member the shard-key rule and
                                   the case rule that token implies — including which
                                   members can key a path at all
+contract/finality-rules.json      the closed set a chain's declared
+                                  `provenance.identity.finality.rule` is drawn from
 ```
 
 These are the *same files* the binary reads — they are compiled into it — so they
@@ -164,19 +167,31 @@ compiled in is not the same as travelling with you: a recipient holding
 
 ## The template, and how to read it
 
-The two trees are not two examples of the same thing. They are the two ends of the
-contract. Between them every member you **may leave out** appears present in one tree
+`minimal/` and `complete/` are not two examples of the same thing. They are the two
+ends of the contract. Between them every member you **may leave out** appears present in one tree
 and absent in the other — which is how you learn, without reading §5.2b line by line,
 which those are. The **56** members the contract requires of every container appear in
 both, because a tree short of one of them is not a conforming tree and could not be
-shipped here as an example of one. (The census is 161 members: 56 required
-everywhere, 6 required on some rows and not others — `container` on a traced row,
-`refusalReason` on an untraced one — and 99 optional. The 105 that are not required
-everywhere are the ones shown both ways.)
+shipped here as an example of one. (The census is 163 members: 56 required
+everywhere, 7 required on some rows and not others — `container` on a traced row,
+`refusalReason` on an untraced one, `version` on a version-ordered snapshot's — and
+100 optional. The 107 that are not required everywhere are the ones shown both ways.)
 
 **`minimal/`** is the floor: one block, one untraced transaction, every member the
 contract requires and not one more. No sidecars, no `captures`, no
 `artifactResolution`. If your producer can write this, it can publish.
+
+**`version-ordered/`** is `minimal/` for a chain whose transactions are sequenced by
+a ledger version rather than by a block height — Aptos. It declares
+`provenance.ordering: "globalVersion"`, and so every row states its `version`, as a
+DECIMAL STRING (`"9007199254740993"`, which is 2^53 + 1: a JSON number would be read
+back as a different integer). The rows are published with
+`id: {kind: "version", version, hash}` and `order: {kind: "globalVersion", version}`.
+A row without one, a version written as a number, or a `version` on a snapshot of
+any other ordering is refused by rule `S5-VERSION-STATED`. It also declares
+`provenance.identity`, which the other two trees leave out, so that member is shown
+both ways. `blocks[]`, the window and
+the floor stay block heights: a version-ordered chain has blocks too.
 
 **`complete/`** carries everything. Six transactions, chosen so that each is a shape
 the contract treats differently:
@@ -203,13 +218,13 @@ A few shapes look odd on purpose:
 - the second source bundle, the second cost entry and the second `artifacts` entry
   each carry a **different** subset of their container's optional members, so no
   member is shown only one way;
-- `minimal/` and `complete/` use different chain slugs, because a slug another
+- the three trees use different chain slugs, because a slug another
   producer already published is refused rather than resolved (`S5-CHAIN-UNIQUE`).
   **That rule cannot fire inside this kit, and saying so is part of teaching it.**
   Each run publishes into an empty directory of its own — a `--out` you name must
   be empty or absent, and the temporary one is cleared — so there is never a
   second producer's tree beside yours for a slug to collide with. The rule is
-  about the site this tree is eventually published into. What the two slugs
+  about the site this tree is eventually published into. What the slugs
   demonstrate here is the *shape* a conforming producer writes, not a refusal you
   can reproduce with the kit.
 
@@ -265,6 +280,32 @@ would publish into a nested directory, and the reader refuses a tree that
 declares it rather than doing that. If your chain is one of those, say so before
 you start — choosing a path-safe re-encoding is our decision to make, not yours
 to work around.
+
+## Say what your chain is: `provenance.identity`
+
+Your chain's page is titled with its slug and says nothing about what the chain is
+unless you declare it. `provenance.identity` is where you do, and every member is
+optional — declare what you know and leave out the rest:
+
+```json
+"provenance": {
+  "identity": {
+    "caip2": "sui:mainnet",
+    "name": "Sui Mainnet",
+    "family": "move",
+    "nativeCurrency": { "symbol": "SUI", "decimals": 9 },
+    "blockTimeMs": 243,
+    "finality": { "rule": "instant" }
+  }
+}
+```
+
+`caip2` is a CAIP-2 chain id (`namespace:reference`). `family` is one lowercase
+token. `nativeCurrency` states its symbol and decimals together. `blockTimeMs` is the
+chain's nominal cadence in milliseconds, and the same in every window you capture.
+`finality.rule` comes from the closed set in `contract/finality-rules.json` beside this
+file. A member in any other shape is refused by rule `S5-IDENTITY-DECLARED`, naming
+the member, rather than published as you wrote it.
 
 ## The two documents this file names
 

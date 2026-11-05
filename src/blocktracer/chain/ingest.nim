@@ -1121,6 +1121,15 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # whose sequence number IS the `blocks[].number` a checkpoint-ordered producer
   # writes. Absent means `blockIndex`, which is what every tree published before
   # the member existed was built as, so no existing tree moves.
+  #
+  # `globalVersion` (Aptos) is the third, and the first whose quantity is NOT a
+  # block's: a ledger version numbers TRANSACTIONS, so it cannot be read off
+  # `blocks[]` and every row states its own `version` (S5-VERSION-STATED, checked
+  # per row below). The row is then published with `id: {kind: "version"}` as
+  # well as `order: {kind: "globalVersion"}` — Static-Site-Architecture.md §2.3
+  # gives Aptos both, and a version without the hash beside it would be an id no
+  # page is keyed by. `blocks[]` keeps meaning blocks: the window, the floor and
+  # every block page stay block heights, which a version-ordered chain also has.
   let orderingDecl = prov{"ordering"}
   if orderingDecl != nil and orderingDecl.kind != JString:
     raise newException(ValueError,
@@ -1134,13 +1143,62 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
       case orderingDecl.getStr
       of $tokBlockIndex: tokBlockIndex
       of $tokCheckpoint: tokCheckpoint
+      of $tokGlobalVersion: tokGlobalVersion
       else:
         raise newException(ValueError,
           RuleOrderingClosed &
           "the snapshot for chain '" & chain & "' at " & snapPath &
           " states ordering '" & orderingDecl.getStr & "', which is not in the " &
-          "closed set (" & $tokBlockIndex & ", " & $tokCheckpoint & "). " &
-          ruleStatement("S5-ORDERING-CLOSED"))
+          "closed set (" & $tokBlockIndex & ", " & $tokCheckpoint & ", " &
+          $tokGlobalVersion & "). " & ruleStatement("S5-ORDERING-CLOSED"))
+
+  # ---- A VERSION-ORDERED ROW STATES ITS VERSION; NO OTHER ROW STATES ONE -----
+  #
+  # Checked over EVERY row before anything is written, for the reason the
+  # row-member pass above is: a refusal half-way through the row loop would leave
+  # a tree with some transactions and not others.
+  #
+  # ONE SHAPE: a decimal string. A ledger version is an unsigned 64-bit integer,
+  # and a JSON number above 2^53 is read back as a different integer by every
+  # JavaScript consumer of the tree — so the integer shape is REFUSED rather than
+  # accepted beside the string, and a string that is not the canonical spelling
+  # of one (a sign, a leading zero, a space) is refused with it: two spellings of
+  # one version would be two ids for one transaction.
+  #
+  # AND A ROW OF ANY OTHER ORDERING CARRIES NONE. Nothing would read it — the
+  # row is published by height or by checkpoint — so a producer that wrote one
+  # would believe it had stated an ordering this reader did not publish.
+  var rowVersion = initTable[string, string]()
+  for t in snap["transactions"]:
+    let v = t{"version"}
+    let where = "a transaction row in " & snapPath &
+      (if t{"txHash"} != nil: " (" & shortHash(t{"txHash"}.getStr) & ")" else: "")
+    if orderingKind != tokGlobalVersion:
+      if v != nil:
+        raise newException(ValueError,
+          RuleVersionStated & where & " states a `version`, and the snapshot's " &
+          "ordering is '" & $orderingKind & "', not '" & $tokGlobalVersion & "'. " &
+          ruleStatement("S5-VERSION-STATED"))
+      continue
+    if v == nil or v.kind != JString:
+      raise newException(ValueError,
+        RuleVersionStated & where &
+        (if v == nil: " carries no `version`"
+         else: " states `version` as " & $v & ", which is not a decimal string") &
+        ", and the snapshot is ordered by '" & $tokGlobalVersion & "'. " &
+        ruleStatement("S5-VERSION-STATED"))
+    let s = v.getStr
+    var canonical = s.len > 0 and s.len <= 20 and s.allCharsInSet({'0'..'9'}) and
+                    (s == "0" or s[0] != '0')
+    if canonical:
+      try: discard parseBiggestUInt(s)
+      except ValueError: canonical = false
+    if not canonical:
+      raise newException(ValueError,
+        RuleVersionStated & where & " states `version` '" & s & "', which is " &
+        "not the canonical decimal spelling of an unsigned 64-bit integer. " &
+        ruleStatement("S5-VERSION-STATED"))
+    rowVersion[t["txHash"].getStr] = s
 
   # ---- how this chain writes its identifiers: ONE decision, both uses --------
   #
@@ -1305,6 +1363,29 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # declaration and the row it becomes cannot be understood two ways. That is
   # `identifierEncoding`'s arrangement above and for its reason.
   let declaredVm = parseVmIdentity(prov{"vm"})
+  # WHAT THE CHAIN IS — its CAIP-2 id, name, family, currency, block time and
+  # finality rule (`contract/chain_identity.nim`) — by `vm`'s route, with one
+  # difference: a malformed member is REFUSED rather than read as silence.
+  # `vm` can collapse a bad shape into "nothing declared" because an empty
+  # identity selects no table either way; a chain name or a finality rule
+  # dropped for its shape would publish a page short of a fact its producer
+  # believes it stated, and nobody would hear about it.
+  let declaredIdentity =
+    if prov != nil and prov.kind == JObject: parseChainIdentity(prov{"identity"})
+    else: ChainIdentity()
+  if prov != nil and prov.kind == JObject and prov{"identity"} != nil and
+      prov{"identity"}.kind != JObject:
+    raise newException(ValueError,
+      RuleIdentityDeclared &
+      "the snapshot for chain '" & chain & "' at " & snapPath &
+      " states a `provenance.identity` that is not an object. " &
+      ruleStatement("S5-IDENTITY-DECLARED"))
+  if declaredIdentity.refusals.len > 0:
+    raise newException(ValueError,
+      RuleIdentityDeclared &
+      "the snapshot for chain '" & chain & "' at " & snapPath & ": " &
+      declaredIdentity.refusals.join("; ") & ". " &
+      ruleStatement("S5-IDENTITY-DECLARED"))
   # THE FLOOR'S REASON, WHEN THE PRODUCER STATES ONE. The reader's sentence below says what a
   # replaying producer observed — the node served prestate from here and not below. A
   # producer whose history is where its CAPTURE began (`forward-capture`) observed no such
@@ -2228,9 +2309,13 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
 
     let facts = TransactionFacts(
       chain: chain,
-      id: TxId(kind: tikHash, hash: txHash),
+      id: (if orderingKind == tokGlobalVersion:
+             TxId(kind: tikVersion, vVersion: rowVersion[txHash], vHash: txHash)
+           else: TxId(kind: tikHash, hash: txHash)),
       order: (if orderingKind == tokCheckpoint:
                 TxOrder(kind: tokCheckpoint, cpSeq: $height)
+              elif orderingKind == tokGlobalVersion:
+                TxOrder(kind: tokGlobalVersion, gvVersion: rowVersion[txHash])
               else:
                 TxOrder(kind: tokBlockIndex, obBlock: blockHash, obHeight: height,
                         obIndex: idx)),
@@ -3272,6 +3357,7 @@ proc ingestSnapshot*(cfg: IngestConfig): IngestResult =
   # and a table selected by the wrong one would name the wrong instructions
   # confidently. A capture that declares no format and publishes no listing
   # declares nothing at all, which is the honest answer and not a default.
+  profile.identity = declaredIdentity
   if declaredVm.stated:
     profile.vm = declaredVm
   elif isaTokens.len == 1:

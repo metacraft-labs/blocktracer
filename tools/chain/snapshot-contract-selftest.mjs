@@ -1171,8 +1171,13 @@ test('§14 every tool that writes a transaction row states the lifted facts thro
   // THE NINTH IS SOLANA'S (Recorder-Solana CXP-SOL-3, 2026-10-20): `produce-sol-snapshot.mjs`
   // states an SBF recorder and the `forward-capture` prestate strategy — a token NOT yet in
   // §1.4's set, requested under Chain-Delivery DEL-3b — through `lib/solana-producer-facts.mjs`.
+  //
+  // THE TENTH IS APTOS'S (Recorder-Move CXP-MOVE-7, 2026-11-03): `produce-aptos-snapshot.mjs`
+  // states the Aptos dialect of the Move recorder, `version-addressed` prestate and the
+  // `globalVersion` ordering, through its own `lib/aptos-producer-facts.mjs`.
   const ROSTER = ['backfill-blocks.mjs', 'capture-chain.mjs', 'follow-chain.mjs',
-                  'ingest-range.mjs', 'produce-eth-snapshot.mjs', 'produce-flow-snapshot.mjs',
+                  'ingest-range.mjs', 'produce-aptos-snapshot.mjs',
+                  'produce-eth-snapshot.mjs', 'produce-flow-snapshot.mjs',
                   'produce-sol-snapshot.mjs', 'produce-starknet-snapshot.mjs',
                   'produce-sui-snapshot.mjs'];
   ck(`and they are exactly — ${live.producers.join(', ')}`,

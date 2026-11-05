@@ -367,7 +367,7 @@ fi
 # inside the sandbox, reads the rule id the kit itself printed, and requires that
 # id to be found in the shipped contract file — which is the thing a recipient
 # actually does. A `[ -f ... ]` check would pass over four empty files.
-for f in snapshot-contract.json snapshot-format.json refusal-reasons.json identifier-encodings.json; do
+for f in snapshot-contract.json snapshot-format.json refusal-reasons.json identifier-encodings.json finality-rules.json; do
 	if [ -s "${kit}/contract/${f}" ]; then
 		report_pass "the release carries contract/${f} ($(wc -c <"${kit}/contract/${f}") bytes)"
 	else

@@ -252,6 +252,10 @@
             "why": "the third PRODUCER to declare the member. Every Solana identifier — a transaction signature (87-88 characters), an address (43-44) and a blockhash — is base58 and case-significant, so a Solana tree that left `provenance.identifierEncoding` absent would be read as hex and every identifier lowercased into one that does not exist. It states the declaration it imports from `lib/solana-producer-facts.mjs` and derives no path from it. Joined this set on 2026-10-20 (Recorder-Solana)."
           },
           {
+            "path": "tools/chain/produce-aptos-snapshot.mjs",
+            "why": "the fourth PRODUCER to declare the member, and the second to declare `hex` explicitly: an Aptos transaction hash, block hash and account address are all `0x` + 64 hex on the REST API. It states the declaration it imports from `lib/aptos-producer-facts.mjs` and derives no path from it. Joined this set on 2026-11-03 (Recorder-Move CXP-MOVE-7)."
+          },
+          {
             "path": "tools/chain/starknet-producer-selftest.mjs",
             "why": "the Starknet producer's selftest asserts that the tree it produces DECLARES the member (hex for every kind). It reads one produced snapshot's member and derives nothing from it."
           },

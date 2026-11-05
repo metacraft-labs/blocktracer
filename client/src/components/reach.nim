@@ -158,6 +158,15 @@ const
     ## every producer can: so this clause states the limit and the producer's
     ## quoted sentence states why.
 
+func floorUnit(o: ChainOrdering): string =
+  ## The word for one position of this chain's window — what its floor and its
+  ## cadence are counted in. Only a checkpoint-ordered chain counts something
+  ## other than blocks; see `floorPhrase` for why a version-ordered one does not.
+  if o.state != dsDeclared: return "block"
+  case o.kind
+  of tokCheckpoint: "checkpoint"
+  of tokBlockIndex, tokGlobalVersion, tokConsensusTime, tokLogicalTime: "block"
+
 func floorPhrase(f: ChainHistoryFloor; o: ChainOrdering): string =
   ## "block 67,010 and above", or the honest alternative when the row states no
   ## position. `stated == false` is NOT height zero — a floor of zero is a chain
@@ -167,10 +176,40 @@ func floorPhrase(f: ChainHistoryFloor; o: ChainOrdering): string =
   ## checkpoint sequence number, and calling it a block names a thing that
   ## chain does not have. An undeclared ordering is `blockIndex`, as §5.3 says
   ## an absent member means.
-  let unit = (if o.state == dsDeclared and o.kind == tokCheckpoint: "checkpoint "
-              else: "block ")
+  ##
+  ## A `globalVersion` chain (Aptos) is the case the unit is easiest to get
+  ## wrong: its transactions are sequenced by a ledger version, but the floor is
+  ## a position in the window, and a snapshot's window is `blocks[].number` —
+  ## which a version-ordered producer writes as BLOCK heights (S5-VERSION-STATED
+  ## keeps the version on the row). So the floor is "block N" there, and calling
+  ## it "version N" would name a version that is not N.
+  let unit = floorUnit(o) & " "
   if f.stated: unit & $f.height & " and above"
   else: "a boundary this chain's registry row does not state the position of"
+
+func identityStatement*(p: ChainProfile): string =
+  ## What the chain IS, in one line under its name, from the registry row's
+  ## identity members (`contract/chain_identity.nim`) — or `""` when the row
+  ## states none, in which case the page says nothing rather than a default.
+  ## Each fact appears only when the producer declared it, and the block time
+  ## is counted in the chain's own unit, for `floorPhrase`'s reason.
+  let id = p.identity
+  var parts: seq[string]
+  if id.caip2.len > 0: parts.add "Chain ID " & id.caip2
+  if id.currencyStated:
+    parts.add "native currency " & id.currencySymbol & " (" &
+      $id.currencyDecimals & " decimals)"
+  if id.blockTimeMs > 0:
+    parts.add "a " & floorUnit(p.ordering) & " about every " & $id.blockTimeMs & " ms"
+  if id.finalityRule.len > 0:
+    parts.add finalityLabel(id.finalityRule).toLowerAscii
+  if parts.len == 0: return ""
+  result = parts.join(" · ")
+  result[0] = result[0].toUpperAscii
+
+func chainTitle*(p: ChainProfile; slug: string): string =
+  ## The declared display name, or the slug when the row declares none.
+  if p.identity.name.len > 0: p.identity.name else: slug
 
 func reachLead(p: ChainProfile): string =
   ## One sentence per state of the declaration, and the two non-declared states

@@ -161,7 +161,7 @@ test: recordings-test prepare-recordings
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-THREE suites — 105 + 19 + 24 + 24 + 57 + 243 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 49 + 36 + 8 + 34 + 24 = 1379 counted assertions —
+# TWENTY-FIVE suites — 105 + 17 + 19 + 24 + 24 + 57 + 245 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 35 + 24 + 44 = 1446 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -421,8 +421,106 @@ test: recordings-test prepare-recordings
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
 # reason its header gives: a gate that needs the busy Nix runner to prove it
 # can fail is a gate that gets skipped.
+# Nothing the site points at is missing — the gate INCREMENTAL-PUBLISH.md §5 names as
+# the prerequisite for the first incremental publish, "not after".
+#
+# The mirror of `check-recordings-named`: that one asks whether every recording is OFFERED
+# by a page, this one asks whether everything a page or the index POINTS AT exists. Three
+# rules: every hash the index resolves has a page; every entity link any page draws has a
+# page; and the index agrees with its own `meta.json`, which is the comparison that catches
+# a half-uploaded index — the one state in which the first rule passes over a subject set
+# the publish silently shrank.
+#
+# `--routes <file>` confines the second rule to the set a partial publish rewrote, which is
+# how §5 states it. `--live-origin` is for a render-over-live tree, where the neighbour a
+# page names lives in the staged bucket and not in the tree.
+#
+# Measured over this repository's built tree AS OF 2026-11-02: 288 index entries over 87
+# shards resolve, and 288 distinct targets drawn by 381 pages over 1,480 links resolve.
+#
+# THOSE NUMBERS DESCRIBE A TREE, NOT A COMMIT, and the default `client/dist` can predate
+# its own source without saying so. `tools/journeys/run.mjs` refuses exactly that — "a
+# journey run over a tree of unknown origin is a true sentence about an artefact nobody
+# chose, and reads exactly like a clean sweep" — and this recipe does NOT, because in CI
+# it runs over a `site/` built in the same job where staleness cannot arise. Running it
+# locally against a stale `client/dist` gives a true answer about the wrong bytes; rebuild
+# with `cd client && just export-hydrated` first if the answer is meant to be about HEAD.
+check-no-stale-neighbours DIR="client/dist" *ARGS:
+    node tools/deploy/check-no-stale-neighbours.mjs --dir {{DIR}} {{ARGS}}
+
+# Sixteen arms; four require a PASS, including a hash whose last nibble is a real zero —
+# the false positive that reported 13 stale neighbours over 288 clean entries during
+# development — and a stale neighbour that sits OUTSIDE the `--routes` set.
+check-no-stale-neighbours-selftest:
+    node tools/deploy/check-no-stale-neighbours-selftest.mjs
+
+# The published hash index's shard format, read in one place.
+#
+# `hashshard.nim` writes TWO formats, tagged per shard, and they differ in the header AND
+# in the per-entry width -- so a reader that knows only format 1 does not FAIL on a
+# format-2 shard, it returns confident nonsense. Journey 22 used to carry exactly such a
+# reader inline and now imports this module, so the arms that pinned that duplication are
+# replaced by the invariant they protected: nothing outside this module and the Nim
+# producer names the format's magic, which a new hand-rolled decoder cannot avoid doing.
+#
+# Ten arms, every shard built byte by byte from the layout rather than read out of
+# `client/dist`, which is a build output and not committed.
+hash-shard-selftest:
+    node tools/deploy/lib/hash-shard-selftest.mjs
+
+# The deploy gate for the registry incident, runnable over any built tree
+# rather than extracted from `publish-r2.yml` — which is where it lived first,
+# and a reviewer said so.
+#
+# It asserts two things a tree can get wrong independently. R1: every
+# transaction whose TraceSelection overlay says `availability: ready` has a
+# debug page whose `data-trace` names a container. R2: every container a page
+# names RESOLVES. On a `render-over-live` publish the containers are the LIVE
+# bucket's and the tree holds none of them, so pass `--live-origin` pointing at
+# the staged copy; without one, R2 is the only check anywhere that looks at a
+# container named by a divergent row, since `check-assets.mjs` A1 stops
+# counting those references when `--require-traces` is absent.
+#
+# It exits 1 over an empty subject set rather than reporting success over
+# nothing, which is `tools/journeys/README.md` rule 3.
+check-recordings-named DIR="client/dist" *ARGS:
+    node tools/deploy/check-recordings-named.mjs --dir {{DIR}} {{ARGS}}
+
+# Eleven arms; three assert the gate above stays GREEN on a tree that carries
+# no containers at all.
+check-recordings-named-selftest:
+    node tools/deploy/check-recordings-named-selftest.mjs
+
+# Is the chain we are following still the chain we can decode?
+#
+# Between 2026-09-04 and 2026-11-03 nothing was traced on any Aztec chain and no check
+# said so. aztec-testnet restarted onto a new rollup and moved its transaction
+# serialisation; `aztec-avm-runtime`'s own `ProtocolVersionMismatch` refusal and
+# `pins.json`'s `live_chain` declaration both exist for exactly that event, and neither
+# spoke, because the only thing that would have run them is a replay and a replay is what
+# had stopped working. This is the probe that does not depend on the broken path.
+#
+# A PASS NEEDS BOTH HALVES: the node's own identity against `chain-identity.json`, and one
+# of that node's transactions parsed by the installed decoder. A matching rollup address is
+# necessary and not sufficient -- a chain can keep its deployment and move its
+# serialisation underneath it. Without `--runtime` there is no decoder, so the run reports
+# `decode-not-attempted` and exits non-zero unless `--identity-only` says that was the
+# intent.
+#
+# It needs the network, so it is not in `deploy-gates`; `check-chain-compat-selftest` is
+# the offline half and that one is wired into CI.
+check-chain-compat *ARGS:
+    node tools/chain/check-chain-compat.mjs {{ARGS}}
+
+# Seventeen arms over a fake node, a fake file store and injected decoders -- no chain, no
+# AVM, no network. Five of them require a PASS, because a probe that reddened on a healthy
+# chain would be switched off and then the silence returns with it nominally in place.
+check-chain-compat-selftest:
+    node tools/chain/check-chain-compat-selftest.mjs
+
 chain-selftest:
     node tools/chain/replay-selftest.mjs
+    node tools/chain/check-chain-compat-selftest.mjs
     node tools/chain/freeze-snapshot-selftest.mjs
     bash tools/chain/watch-chain-selftest.sh
     node tools/chain/calltrace-fold-selftest.mjs
@@ -491,6 +589,13 @@ chain-selftest:
     #   test_the_classification_can_be_wrong — judges the classification against the code
     #   in four directions, with a mis-classified component driven through each one.
     node tools/chain/classification-selftest.mjs
+    # Offline and toolchain-free: the Aptos producer's facts (the fee as gas used ×
+    # unit price in octas with the storage refund signed, the sponsored fee payer, the
+    # entry-function payload), the CLI's own mismatch sentence read back into the one
+    # fact that differed, rows carrying their ledger version with the protocol's
+    # transactions as system transactions, and the REST transcript. Rows with a
+    # recording need a container and are exercised by `just aptos-capture`.
+    node tools/chain/aptos-producer-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1528,6 +1633,9 @@ conformance dir="conformance-kit/template/complete": prepare-template
 # became reachable: the README now tells a recorder to pick an encoding token out
 # of a closed set, and a closed set named in a README that does not travel with
 # the README is a set the recipient cannot read.
+#
+# `finality-rules.json` joined them for the same reason when `provenance.identity`
+# became declarable: its `finality.rule` is drawn from that closed set.
 conformance-kit-release out="conformance-kit-release": prepare-template
     #!/usr/bin/env bash
     set -euo pipefail
@@ -1543,6 +1651,7 @@ conformance-kit-release out="conformance-kit-release": prepare-template
     cp tools/chain/snapshot-format.json "$out/contract/snapshot-format.json"
     cp tools/chain/refusal-reasons.json "$out/contract/refusal-reasons.json"
     cp tools/chain/identifier-encodings.json "$out/contract/identifier-encodings.json"
+    cp tools/chain/finality-rules.json "$out/contract/finality-rules.json"
     echo "conformance kit staged in $out/ — run $out/bin/blocktracer-conformance --snapshot $out/template/complete"
 
 # Prove the released artifact needs no toolchain, no checkout and no network.
@@ -1810,6 +1919,38 @@ sui-capture RECORDER COMMIT OUT=".sui-capture/tree" *ARGS:
       trees+=(--tree ".sui-capture/w-$w")
     done
     node tools/chain/merge-sui-windows.mjs "${trees[@]}" --out {{OUT}}
+
+# Trace a window of APTOS blocks into one snapshot tree (Recorder-Move CXP-MOVE-7).
+# The twin of `sui-range`: tools/chain/capture-aptos-range.mjs reads the window over
+# the Aptos REST API, records each user transaction through `codetracer-move-recorder
+# aptos-replay` — which runs `aptos move replay --trace` from the CodeTracer fork
+# (metacraft-labs/aptos-core, branch codetracer/value-tracing), reading every state
+# value at the version before the transaction — and runs
+# tools/chain/produce-aptos-snapshot.mjs over the lot. `--record DIR` writes the REST
+# conversation as a transcript, waiting out the public node's rate limit.
+#
+#   just aptos-range ../codetracer-move-recorder/target/release/codetracer-move-recorder \
+#     $(git -C ../codetracer-move-recorder rev-parse HEAD) PATH/TO/aptos --from H --to H
+#
+# NOT in any gate: it needs the network, the recorder and the fork's CLI. Its offline
+# half is `aptos-producer-selftest.mjs` in `chain-selftest`.
+aptos-range RECORDER COMMIT APTOS *ARGS:
+    node tools/chain/capture-aptos-range.mjs --recorder {{RECORDER}} --recorder-commit {{COMMIT}} \
+      --positions-reader {{RECORDER}} --aptos {{APTOS}} {{ARGS}}
+
+# The same capture with NO network, from the committed REST transcript of mainnet blocks
+# 1,158,421,321..1,158,421,323 (fixtures/chain-inputs/aptos-mainnet/), served on loopback:
+# a request it does not hold fails the run. Recording ids are derived from each
+# transaction and the clock pinned, so the tree is byte-identical run to run. Needs the
+# recorder, the fork's `aptos` CLI and `ct-print`; it is not yet a Nix derivation (the
+# fork's CLI is not packaged), so it is run by hand.
+aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
+    node tools/chain/capture-aptos-range.mjs \
+      --transcript fixtures/chain-inputs/aptos-mainnet/1158421321-1158421323 \
+      --from 1158421321 --to 1158421323 --max 1000 --fixed-time 2026-11-03T00:00:00.000Z \
+      --work .aptos-capture/work --out {{OUT}} \
+      --recorder {{RECORDER}} --recorder-commit {{COMMIT}} --positions-reader {{RECORDER}} \
+      --aptos {{APTOS}} {{ARGS}}
 
 # Is the Sui endpoint still serving the object versions it served when the
 # committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed
