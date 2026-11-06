@@ -46,6 +46,13 @@
 // R2 and by nothing else here, on a real chain rather than a fixture. 96 ready
 // rows and 102 named containers between the two, every one resolved, and both
 // sets of per-chain counts matched what each of us expected before looking.
+//
+// THAT APTOS HALF IS HISTORY. It was measured with the CLI built on aptos-node
+// v1.49.6. Built on v1.49.8 (fork branch codetracer/value-tracing-aptos-node-v1.49.8),
+// the two Decibel bulk orders replay and match the chain, event root hash
+// included. A capture with that CLI has no divergent Aptos row, so R2 is covered
+// on a real chain only by the other chains in this measurement, and here by the
+// fixtures below.
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";

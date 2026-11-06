@@ -18,7 +18,8 @@ export const CHAIN_SLUG = 'aptos-mainnet';
 /**
  * `provenance.recorder` — `codetracer-move-recorder aptos-replay`, converting the value
  * trace `aptos move replay --trace` writes (metacraft-labs/aptos-core, branch
- * `codetracer/value-tracing`) into a CTFS container through the same converter as Sui.
+ * `codetracer/value-tracing-aptos-node-v1.49.8`) into a CTFS container through the same
+ * converter as Sui.
  */
 export const RECORDER = Object.freeze({ id: 'aptos-move', traceSchema: 'ctfs/v5' });
 

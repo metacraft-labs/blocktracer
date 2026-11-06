@@ -1941,7 +1941,8 @@ sui-capture RECORDER COMMIT OUT=".sui-capture/tree" *ARGS:
 # The twin of `sui-range`: tools/chain/capture-aptos-range.mjs reads the window over
 # the Aptos REST API, records each user transaction through `codetracer-move-recorder
 # aptos-replay` — which runs `aptos move replay --trace` from the CodeTracer fork
-# (metacraft-labs/aptos-core, branch codetracer/value-tracing), reading every state
+# (metacraft-labs/aptos-core, branch codetracer/value-tracing-aptos-node-v1.49.8, the
+# value tracer on mainnet's aptos-node v1.49.8), reading every state
 # value at the version before the transaction — and runs
 # tools/chain/produce-aptos-snapshot.mjs over the lot. `--record DIR` writes the REST
 # conversation as a transcript, waiting out the public node's rate limit.
