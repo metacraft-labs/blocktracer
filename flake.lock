@@ -88,18 +88,18 @@
     "codetracer": {
       "flake": false,
       "locked": {
-        "lastModified": 1793436011,
-        "narHash": "sha256-Jo2budRLuFfHSU6tnDHRCVwwXSXjr2GSzDw4v7Ns5tI=",
+        "lastModified": 1793985374,
+        "narHash": "sha256-1I39o/kWdCM8GmKpbtXt1vNTdmVFqpEpq3JatStiSn0=",
         "ref": "refs/heads/dev",
-        "rev": "1ab428f2947803864f615066cc90ec74c5b8ace7",
-        "revCount": 6066,
+        "rev": "f288cfadc391ba2d889243a71b3861cf8423c13f",
+        "revCount": 6224,
         "submodules": false,
         "type": "git",
         "url": "https://github.com/metacraft-labs/codetracer"
       },
       "original": {
         "ref": "refs/heads/dev",
-        "rev": "1ab428f2947803864f615066cc90ec74c5b8ace7",
+        "rev": "f288cfadc391ba2d889243a71b3861cf8423c13f",
         "submodules": false,
         "type": "git",
         "url": "https://github.com/metacraft-labs/codetracer"
@@ -313,30 +313,30 @@
     "isonim": {
       "flake": false,
       "locked": {
-        "lastModified": 1793296756,
-        "narHash": "sha256-zGtsR1JpkgUONQaWkBydkjQfwVKJFRo9uBS9Wx7wC7c=",
+        "lastModified": 1793654200,
+        "narHash": "sha256-UeULv9DjbnvKagPLI/7rmAtjBz7mMaxL4JDswVhWKyU=",
         "type": "tarball",
-        "url": "https://github.com/metacraft-labs/isonim/archive/6927da97dfd0ff92b24662d54f6d261528811632.tar.gz"
+        "url": "https://github.com/metacraft-labs/isonim/archive/196dfe18a3a3480c80a54f8bd60f371f601940e0.tar.gz"
       },
       "original": {
         "type": "tarball",
-        "url": "https://github.com/metacraft-labs/isonim/archive/6927da97dfd0ff92b24662d54f6d261528811632.tar.gz"
+        "url": "https://github.com/metacraft-labs/isonim/archive/196dfe18a3a3480c80a54f8bd60f371f601940e0.tar.gz"
       }
     },
     "isonim-tui": {
       "flake": false,
       "locked": {
-        "lastModified": 1793239327,
-        "narHash": "sha256-DHxt4kjzbvUcPFXg69Xq30+Ot1RpZK7RoD6og5HmO1E=",
+        "lastModified": 1793336115,
+        "narHash": "sha256-EOLvw3/bJI1z60NFHAh0ZEe/5kRbrwnZ6yVVUJ/fH7Y=",
         "owner": "metacraft-labs",
         "repo": "isonim-tui",
-        "rev": "1d123c35bd241a4af853b2df6b21c973fba9e6b7",
+        "rev": "ff295f7be6d7efc095ef4d249b1df0577d969c89",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "isonim-tui",
-        "rev": "1d123c35bd241a4af853b2df6b21c973fba9e6b7",
+        "rev": "ff295f7be6d7efc095ef4d249b1df0577d969c89",
         "type": "github"
       }
     },

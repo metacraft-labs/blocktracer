@@ -2652,7 +2652,7 @@ proc paneBody(kind: PaneKind; s: DebugSessionView): string =
   of paneFlow, paneSearch, panePointList, paneScratchpad,
      paneShell, paneFileTree, paneBuildOutput, paneVcs, paneAgentActivity,
      paneTerminalOutput, paneTestResults, paneConstraints, paneProblems,
-     paneRequests:
+     paneRequests, paneLowLevelCode:
     # Not placed by `blockTracerReplayLayout`, so unreachable today. Rendered as
     # a named, empty pane rather than left to `else: discard`, because the point
     # of the model's closed enum is that an unplaced pane is visible.
@@ -2669,6 +2669,11 @@ proc paneBody(kind: PaneKind; s: DebugSessionView): string =
     # terminal output, test results, constraints, problems, requests) and
     # removed the Timeline (PLAT-51). All seven are desktop or live-session
     # surfaces a recorded transaction does not have, so none is placed.
+    #
+    # The re-vendor at codetracer f288cfadc3 brought `paneLowLevelCode`, the
+    # desktop's own pane for a native frame's disassembly listing. BlockTracer
+    # draws a VM's instruction listing inside the Code pane instead (see
+    # `editorKeepsStackHeader`), so the separate pane is not placed.
     paneNote("The " & $kind & " pane is not part of BlockTracer's session.")
 
 func editorKeepsStackHeader*(p: EditorPane): bool =

@@ -80,62 +80,62 @@
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "dev",
-  "commit": "1ab428f2947803864f615066cc90ec74c5b8ace7",
+  "commit": "f288cfadc391ba2d889243a71b3861cf8423c13f",
   "files": [
     {
       "path": "src/frontend/styles/components/button.styl",
       "local": "frontend/styles/components/button.styl",
-      "sha256": "c25da59b18fd560ef3d554d34a29a10cdf987c25fe2e8ad9a4c8d6ea65ef233f"
+      "sha256": "916d90b628a64e29ea89adcfc80b6eedd5b0f58f6aa0da0eb3f4e8a6e70788f3"
     },
     {
       "path": "src/frontend/styles/components/input.styl",
       "local": "frontend/styles/components/input.styl",
-      "sha256": "9e92f803049dc16edcc3e66f66fb598deb6237e9dd044072a653d23982b8f00f"
+      "sha256": "bb41e8c7f03f47af778d6c520285ae72c2bb4d37751c1d037c8416f578fc69c0"
     },
     {
       "path": "src/frontend/styles/components/checkmark.styl",
       "local": "frontend/styles/components/checkmark.styl",
-      "sha256": "f24837a143cab2d25865fb5de17902c244692b75fbade4ea055d1fdd64990f55"
+      "sha256": "d07101cafa7ff5ff2b4e5011a49e8303ff3885f4ecd61bd8c8d69e42497a8a99"
     },
     {
       "path": "src/frontend/styles/components/menu_item.styl",
       "local": "frontend/styles/components/menu_item.styl",
-      "sha256": "da84d435055ad3d61d93fb994299018d332ce81e662ca4ca1ecf4a2de2034815"
+      "sha256": "204c1f12b8be3293434558f0974bdeea55954b682ce8adc61bd5bb37cc90db66"
     },
     {
       "path": "src/frontend/styles/components/tab.styl",
       "local": "frontend/styles/components/tab.styl",
-      "sha256": "1b14ac567b407bcf00f4adde34fc64b6e69e679e7d70b6ee648eaf22782fccbf"
+      "sha256": "9b0027f378cc8e8e200ee54c195175b3c8f21c0c627587e688f6ac05df05e950"
     },
     {
       "path": "src/frontend/styles/components/notifications.styl",
       "local": "frontend/styles/components/notifications.styl",
-      "sha256": "452d8def97997fa32d3a73ad04d159c030428cc0e3412e00f0488869d98fcb21"
+      "sha256": "e0896b876334d609bb6939c12c5bc573eb4c846d72c1032071c6930e74db013e"
     },
     {
       "path": "src/frontend/styles/components/shared_widgets.styl",
       "local": "frontend/styles/components/shared_widgets.styl",
-      "sha256": "c0bd80d4fbb9b48d1236cf10e35b18f168d3d5ed0ffbb1aad564b1afc4969a6e"
+      "sha256": "b390978f52c0335db85f8c67741bc82349bf49ca8f12439295f9459b98ef17af"
     },
     {
       "path": "src/frontend/styles/components/text_editor.styl",
       "local": "frontend/styles/components/text_editor.styl",
-      "sha256": "7d8df582bfcaeaef2be2820fe78c30842a5f56690c797dfa3b9b8c599494adf6"
+      "sha256": "f92955a6323cca082f30c5208132083faf92308caeab4a7da7fea56ea42869f5"
     },
     {
       "path": "src/frontend/styles/components/event_log.styl",
       "local": "frontend/styles/components/event_log.styl",
-      "sha256": "ea493ceadad15d68f635a4c03741b107b56fdfa4e5af14ed40337b6aa9504dfe"
+      "sha256": "5d559241a24d0051bd4e7ca6e44ef40c9838ba6d05840a5197d00c209fdc162f"
     },
     {
       "path": "src/frontend/styles/components/data_tables.styl",
       "local": "frontend/styles/components/data_tables.styl",
-      "sha256": "fae863ed512bd2a832fd137937ccbd2d32abbadfe1afc9037e10e7a594e053bb"
+      "sha256": "bba865f2a31c7f20051ffb68a9a4517905546bae33c999a7ca50a864ca561121"
     },
     {
       "path": "src/frontend/styles/components/calltrace.styl",
       "local": "frontend/styles/components/calltrace.styl",
-      "sha256": "f7ec8895a2d67b973452bd3c3eb40e6c59c6bd5cad5ff91b8233264217ebef0b"
+      "sha256": "0e180105350801b731e2aa2f0db313bf2d843372a0295c34cffb2386af261ccc"
     },
     {
       "path": "src/frontend/styles/components/list_scrubber.styl",
@@ -145,12 +145,12 @@
     {
       "path": "src/frontend/styles/components/golden_layout.styl",
       "local": "frontend/styles/components/golden_layout.styl",
-      "sha256": "d19a429472426053a743360c215801c7e28f88d9150e7f64b0c80260ad93a6f5"
+      "sha256": "9721c76a8438c2df28d031f5f5c05f1ab7f8f0f4c101f4ad9eddc9204ee117b7"
     },
     {
       "path": "src/frontend/styles/components/state.styl",
       "local": "frontend/styles/components/state.styl",
-      "sha256": "c3019f989a0b1b85773a3746f2ec28f4a0cb8d3ac571214b003739ae9954e328"
+      "sha256": "af6eefc5f2411db2e80096d26e9df56aa6373512de69bdde0fc18aa0a891cc36"
     },
     {
       "path": "src/frontend/styles/components/empty_states.styl",
