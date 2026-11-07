@@ -65,6 +65,12 @@ const ENDS_IN_ZERO = `${"bb".repeat(31)}b0`;
 // candidate set could not read back, and no arm here used to carry it.
 const ADDR_ENDS_IN_ZERO = `${"e7".repeat(19)}40`;   // last byte 0x40: last nibble is a 0
 const ADDR_ENDS_IN_ZERO_BYTE = `${"e7".repeat(19)}00`;   // last byte is itself 0x00
+// ODD-LENGTH IDENTIFIERS, WHICH ARE REAL AND PUBLISHED. Starknet writes a felt without
+// its leading zero nibble, and Aptos writes its framework address as `0x1`. `hexUnits`
+// gives such an identifier a TRAILING `0` to reach a byte boundary, so the stored unit
+// says nothing about whether that last `0` was the identifier's or the writer's.
+const STARKNET_FELT = "295683d081359be8f7b3d2f7384d2e2c56bf683c14543cfb5b1f6729849c79d";  // 63
+const APTOS_FRAMEWORK = "1";
 
 const arms = [
   ["format-1-parses-and-identifiers-carry-the-0x", () => {
@@ -80,17 +86,38 @@ const arms = [
         && r.entries[1].chain === "aztec" && r.entries[1].encoding === "hex";
   }],
 
-  ["format-1-reads-a-full-width-hash-ending-in-zero-as-itself", () => {
+  ["format-1-keeps-both-readings-of-a-full-width-hash-ending-in-zero", () => {
     const s = shard({ fmt: FMT_HEX_BYTES, chains: ["demo"],
                       entries: [{ hex: ENDS_IN_ZERO, chainIndex: 0, kind: 1 }] });
     const e = parseHashShard(s).entries[0];
-    // Nothing was padded, so there is ONE whole-byte reading and it is the stored width.
-    // The cosmetic `identifier` is a nibble shorter and is deliberately NOT a candidate:
-    // 63 hex chars is not a number of bytes.
-    return e.candidates.length === 1
-        && e.candidates[0] === `0x${ENDS_IN_ZERO}`
-        && e.identifier === `0x${ENDS_IN_ZERO.replace(/0+$/, "")}`
-        && e.identifier.length % 2 === 1;
+    // Two readings and no way to choose: this really is a 32-byte hash ending in a zero
+    // nibble, and it is byte-identical to a 63-digit identifier the writer padded.
+    return e.candidates.length === 2
+        && e.candidates[0] === `0x${ENDS_IN_ZERO.slice(0, -1)}`
+        && e.candidates.at(-1) === `0x${ENDS_IN_ZERO}`;
+  }],
+
+  // ── the 18 starknet/aptos reports of 2026-11-07, which falsified "identifiers are a
+  //    whole number of bytes" — the premise the previous candidate set was built on ─────
+  ["format-1-offers-an-ODD-length-starknet-felt-at-its-own-length", () => {
+    const s = shard({ fmt: FMT_HEX_BYTES, chains: ["starknet-mainnet"],
+                      entries: [{ hex: STARKNET_FELT, chainIndex: 0, kind: 1 }] });
+    const e = parseHashShard(s).entries[0];
+    // The page on disk is 65 chars (`0x` + 63). A whole-byte-only set rounds UP to 64 and
+    // appends a nibble no page has, which is how that set regressed 16 starknet entries.
+    return e.candidates.includes(`0x${STARKNET_FELT}`)
+        && STARKNET_FELT.length % 2 === 1
+        && e.candidates.at(-1) === `0x${STARKNET_FELT}0`;
+  }],
+
+  ["format-1-offers-a-one-digit-aptos-address", () => {
+    const s = shard({ fmt: FMT_HEX_BYTES, chains: ["aptos-mainnet"],
+                      entries: [{ hex: APTOS_FRAMEWORK, chainIndex: 0, kind: 3 }] });
+    const e = parseHashShard(s).entries[0];
+    // `aptos-mainnet/address/0x1` exists. The previous set's narrowest reading was `0x10`.
+    return e.candidates.includes("0x1")
+        && e.candidates[0] === "0x1"
+        && e.candidates.at(-1) === `0x1${"0".repeat(63)}`;
   }],
 
   // ── the 22 real stale-neighbour reports of 2026-11-07 ──────────────────────────────
@@ -103,7 +130,9 @@ const arms = [
     // a route. The true width must be IN the set, and the widest must still be last.
     return e.candidates.includes(`0x${ADDR_ENDS_IN_ZERO}`)
         && e.candidates.at(-1) === `0x${ADDR_ENDS_IN_ZERO}${"0".repeat(24)}`
-        && e.candidates.every((c) => (c.length - 2) % 2 === 0);
+        // NOT "every candidate is a whole number of bytes": odd lengths are legitimate,
+        // which is what the starknet and aptos arms above establish.
+        && e.candidates[0] === `0x${ADDR_ENDS_IN_ZERO.slice(0, -1)}`;
   }],
 
   ["format-1-offers-the-true-width-of-a-padded-address-ending-in-a-zero-BYTE", () => {
@@ -123,8 +152,11 @@ const arms = [
     const e = parseHashShard(s).entries[0];
     // A degenerate entry must not produce `0x`, which would make `routeFor` build a route
     // to the chain's listing page and let a nonsense entry resolve against it.
+    // The floor is ONE hex digit, not one byte — `0x0` is a conceivable identifier and
+    // `0x` is not an identifier at all.
     return e.candidates.length > 0 && !e.candidates.includes("0x")
-        && e.candidates.every((c) => c.length >= 4);
+        && e.candidates[0] === "0x0"
+        && e.candidates.every((c) => c.length >= 3);
   }],
 
   ["format-2-parses-its-key-form-and-its-encoding-dictionary", () => {
@@ -225,8 +257,8 @@ for (const [name, fn] of arms) {
   else { failures += 1; console.log(`  FAIL  ${name}${why}`); }
 }
 const asserted = arms.length;
-if (asserted !== 13) {
-  console.log(`  FAIL  this suite declares 13 arms and ran ${asserted}`);
+if (asserted !== 15) {
+  console.log(`  FAIL  this suite declares 15 arms and ran ${asserted}`);
   failures += 1;
 }
 console.log(failures === 0

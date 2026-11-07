@@ -139,42 +139,55 @@ export function parseHashShard(bytes) {
       identifier = `0x${hex.replace(/0+$/, "")}`;
       // A CONSUMER THAT PICKS ONE READING IS WRONG FOR SOME FRACTION OF ANY REAL INDEX.
       // Over the 288 transaction entries this repository published, 275 resolved under
-      // the stripped identifier and 13 ONLY under the unstripped hex — which is what the
-      // two-element set below was built for. It was not enough: those 288 were all
-      // FULL-WIDTH hashes, where the only ambiguity is one trailing nibble. A padded
-      // identifier shorter than the unit has a whole ladder of readings, and the set is
-      // now all of them.
-      // EVERY WHOLE-BYTE READING THE FORMAT PERMITS, narrowest first so the LAST element
-      // is the full-width one (journey 22 takes `candidates.at(-1)` and must keep getting
-      // that). An identifier is a whole number of bytes, so the only readings these bytes
-      // could have come from are the byte-boundary truncations whose remainder is all
-      // zero BYTES. The nibble strip in `identifier` above is not among them unless it
-      // happens to land on a boundary: it removes trailing zero CHARACTERS, so a 20-byte
-      // address ending `0x…40`, zero-padded into a 32-byte unit, comes back 39 hex chars
-      // long — an odd length, which no identifier can have.
+      // the stripped identifier and 13 ONLY under the unstripped hex. Those 288 were all
+      // FULL-WIDTH hashes, where the only ambiguity is one trailing nibble; an index that
+      // also holds addresses and felts has a whole ladder of readings per entry.
+      // EVERY PREFIX WHOSE REMAINDER IS ALL `0` CHARACTERS, narrowest first so the LAST
+      // element is the full-width one (journey 22 takes `candidates.at(-1)` and must keep
+      // getting that).
       //
-      // MEASURED on the real tree by bt-move-f0, 2026-11-07: 22 entries, every one kind 3
-      // (address) and every one an odd hex length, were reported stale while their pages
-      // existed under one more trailing `0`. The old two-element set could not find them:
-      // the stripped reading was a nibble short and the unstripped one carried 24 bytes of
-      // padding. 16 Ethereum addresses at 39 chars, 2 at 38, 1 demo, 3 Flow at 15.
+      // THIS IS THE WRITER'S RULE READ OFF THE WRITER, not a model of it.
+      // `hashshard.nim`'s `hexUnits` is two lines:
       //
-      // The contract says this outright — `hashshard.nim`: "the format-1 trailing-zero
-      // strip above is cosmetic for lookup; an exact match there compares bytes at the
-      // stored width". The shipped client never routes on the reconstruction: `lookupHash`
-      // pads the QUERY to `unitLen` and compares raw bytes, which is why journey 22 and
-      // `test_searchboot` stayed green over the same entries. This gate does route on it,
-      // so it needs the whole permitted set.
+      //     var s = identifierPayload(HashIndexLegacyEncoding, identifier)
+      //     if s.len mod 2 == 1: s = s & "0"
+      //
+      // an ODD identifier gains a trailing `0` NIBBLE, and `encodeHashShard` then
+      // zero-pads with whole BYTES to `unitLen`. Either way what is appended is `0`
+      // characters and nothing else, so the identifier is some prefix of the stored hex
+      // whose remainder is all zeros — and every such prefix could have produced these
+      // bytes. That is the set, and its length is not constrained to be even.
+      //
+      // TWO WRONGER SETS CAME FIRST, AND EACH WAS FALSIFIED BY A REAL TREE:
+      //
+      //  - `[nibble-stripped, full-width]` missed a 20-byte address ending `…40`
+      //    zero-padded into a 32-byte unit: the strip is a nibble short and the full width
+      //    carries 12 bytes of padding, so neither is the page. 22 such entries, measured
+      //    by bt-move-f0 2026-11-07 (16 Ethereum at 39 hex chars, 2 at 38, 1 demo, 3 Flow
+      //    at 15).
+      //  - whole-byte truncations only, which I wrote next on the premise that "an
+      //    identifier is a whole number of bytes". THAT PREMISE IS FALSE and the same
+      //    tree falsified it: Starknet writes felts without the leading zero nibble
+      //    (16 entries at 63 hex chars, pages on disk at 63) and Aptos writes its
+      //    framework address as `0x1`. Rounding those up to a byte appends a nibble the
+      //    page does not have, so that set REGRESSED 18 entries the first one resolved.
       //
       // The set is ambiguous BY CONSTRUCTION and that is format 1's cost, not a defect
-      // here: an address genuinely ending in a zero byte is indistinguishable from a
-      // shorter one that was padded. Format 2 stores the key form and has one reading.
-      const widths = [];
-      for (let end = hex.length; end >= 2; end -= 2) {
-        widths.push(end);
-        if (hex.slice(end - 2, end) !== "00") break;   // the first real byte ends it
+      // here: `0x1`, `0x10` and `0x100` store the same bytes, and so do a 20-byte address
+      // ending in a zero byte and a padded 19-byte one. Checked on the real tree for a
+      // mis-route — every page carries its chain's natural length (Ethereum and demo 42,
+      // Sui 66, Aptos 66 plus `0x1`, Flow 18, Starknet 65), so no shorter candidate has a
+      // page to match. Format 2 stores the key form and has exactly one reading.
+      //
+      // WHAT NO CANDIDATE CAN RECOVER: an identifier LONGER than `unitLen`, which the
+      // format truncates. Nothing stored says it happened, so this set cannot represent
+      // it — the entry will simply fail to resolve, which is the honest outcome.
+      let shortest = hex.length;
+      while (shortest > 1 && hex[shortest - 1] === "0") shortest -= 1;
+      candidates = [];
+      for (let end = shortest; end <= hex.length; end += 1) {
+        candidates.push(`0x${hex.slice(0, end)}`);
       }
-      candidates = widths.reverse().map((end) => `0x${hex.slice(0, end)}`);
     }
     entries.push({
       identifier, hex: identifier.replace(/^0x/, ""),

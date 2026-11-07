@@ -145,6 +145,39 @@ const arms = [
     },
     says: /1 index entry\/entries over 1 shard\(s\) resolve/ },
 
+  // ── the 18 odd-length reports of 2026-11-07 ───────────────────────────────────────
+  // These resolved under the ORIGINAL two-element set and were regressed by the
+  // whole-byte-only set that replaced it, so they are the arms that keep the third set
+  // honest in both directions.
+  { name: "an-odd-length-starknet-felt-resolves", pass: true,
+    setup: (r) => {
+      // 63 hex chars: a felt written without its leading zero nibble, as Starknet does.
+      const FELT = "295683d081359be8f7b3d2f7384d2e2c56bf683c14543cfb5b1f6729849c79d";
+      const sh = encodeHashShard({ fmt: FMT_HEX_BYTES, chains: ["starknet-mainnet"],
+        entries: [{ hex: FELT, chainIndex: 0, kind: 1 }] });
+      write(r, "idx/hash/1/aa.bin", Buffer.from(sh));
+      write(r, "idx/hash/meta.json", JSON.stringify(
+        { indexVersion: "1", prefixLen: 2, shardCount: 1, entryCount: 1 }));
+      write(r, `starknet-mainnet/tx/0x${FELT}/index.html`, "<html>tx</html>");
+      write(r, "starknet-mainnet/txs/index.html",
+        `<!doctype html><html><body><a href="/starknet-mainnet/tx/0x${FELT}">x</a></body></html>`);
+    },
+    says: /1 index entry\/entries over 1 shard\(s\) resolve/ },
+
+  { name: "a-one-digit-aptos-framework-address-resolves", pass: true,
+    setup: (r) => {
+      const sh = encodeHashShard({ fmt: FMT_HEX_BYTES, chains: ["aptos-mainnet"],
+        entries: [{ hex: "1", chainIndex: 0, kind: 3 }] });
+      write(r, "idx/hash/1/aa.bin", Buffer.from(sh));
+      write(r, "idx/hash/meta.json", JSON.stringify(
+        { indexVersion: "1", prefixLen: 2, shardCount: 1, entryCount: 1 }));
+      write(r, "aptos-mainnet/address/0x1/index.html", "<html>addr</html>");
+      // rule B needs a drawn entity link or it refuses for vacuity
+      write(r, `aptos-mainnet/tx/0x${TX_A}/index.html`, "<html>tx</html>");
+      write(r, "aptos-mainnet/txs/index.html", listPage("aptos-mainnet", [TX_A]));
+    },
+    says: /1 index entry\/entries over 1 shard\(s\) resolve/ },
+
   // ── rule C across TWO index versions ──────────────────────────────────────────────
   // Reported by bt-move-f0 on 2026-11-07: the gate reddened on every tree publishing a
   // second-format index, including trees built before their Aptos work. The cause was
@@ -277,8 +310,8 @@ for (const arm of arms) {
   }
 }
 const asserted = arms.length;
-if (asserted !== 20) {
-  console.log(`  FAIL  this suite declares 20 arms and ran ${asserted}`);
+if (asserted !== 22) {
+  console.log(`  FAIL  this suite declares 22 arms and ran ${asserted}`);
   failures += 1;
 }
 console.log(failures === 0
