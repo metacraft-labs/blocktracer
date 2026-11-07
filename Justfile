@@ -1972,7 +1972,9 @@ aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
 
 # The Aptos journey set (tools/journeys/aptos/) over a site that publishes Aptos and Sui:
 # a ledger version typed into search reaches its transaction, and the Sui rows beside it
-# are the hash-identity control. Aptos is not in `produced-captures` (flake.nix says why),
+# are the hash-identity control; and every step of an Aptos recording is on a document of
+# its debug page, Move source or disassembly, served and hydrated, with Sui's all-
+# disassembly recording as the control. Aptos is not in `produced-captures` (flake.nix says why),
 # so its tree is the producer's own output, given by local path — `just aptos-capture`
 # writes .aptos-capture/tree — and placed into `default` with Sui's produced tree.
 # NOT in any CI job, for the same reason.

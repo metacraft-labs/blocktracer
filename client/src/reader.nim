@@ -1178,6 +1178,19 @@ type
       ## agree; both are true, and only one of them was reaching the page.
     sourceBundle*: JsonNode        ## the recommended bundle's raw node, or nil
     sourceBundleReason*: string    ## why there is none
+    sourceBundles*: seq[JsonNode]
+      ## EVERY bundle the transaction's row names, in the row's code-hash order,
+      ## each resolved and checked exactly as `sourceBundle` is. The first code
+      ## hash's bundle, when it loaded, is the first element, so a one-contract
+      ## transaction reads the same bundle through either field.
+      ##
+      ## `sourceBundle` alone was the first code hash's, and a transaction that
+      ## entered more than one module had a document on the page for that module
+      ## only: an Aptos transfer enters 16, a Decibel order 45. Its steps in the
+      ## other modules' files had no document to stand on. A bundle that does
+      ## not load, or is filed under another code hash, is left out and
+      ## does not stop the others (Source-Resolution.md §4, §7: the boundary
+      ## between what resolved and what did not is per contract).
     instructions*: JsonNode
       ## The recording's per-step program counters, or nil.
       ##
@@ -1294,32 +1307,36 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
     result.ending = t.manifest.execution.ending
     result.languages = t.manifest.execution.languages
 
-  # The source bundle the manifest recommends, for the first code hash the
-  # transaction executed. One hash covers the demo's single-contract
-  # transactions; a multi-contract transaction resolves the rest the same way,
-  # and the pane shows whichever documents resolved.
+  # The source bundle the manifest recommends for EVERY code hash the
+  # transaction executed (Source-Resolution.md §6: "resolve sources for every
+  # code hash the execution actually entered"). Each is resolved through the
+  # same order — the manifest's recommendation, then the chain's pointer — and
+  # checked the same way. `sourceBundle` and its reason keep describing the
+  # FIRST code hash, as they always did; `sourceBundles` is the whole set.
   let hashes = codeHashes(tr.view.facts)
   if hashes.len == 0:
     result.sourceBundleReason = "this transaction executed no contract code"
     return
-  let reference = resolveSourceBundle(info.store, info.slug, t.manifest,
-                                      t.hasManifest, hashes[0])
-  if reference.origin == bsNone:
-    result.sourceBundleReason = reference.reason
-    return
-  let fetched = fetchSourceBundle(info.store, reference)
-  case fetched.outcome
-  of boLoaded:
-    let raw = info.store.getJson(reference.path)
-    if raw.found and raw.error.len == 0:
-      result.sourceBundle = raw.node
+  for i, h in hashes:
+    let reference = resolveSourceBundle(info.store, info.slug, t.manifest,
+                                        t.hasManifest, h)
+    if reference.origin == bsNone:
+      if i == 0: result.sourceBundleReason = reference.reason
+      continue
+    let fetched = fetchSourceBundle(info.store, reference)
+    case fetched.outcome
+    of boLoaded:
+      let raw = info.store.getJson(reference.path)
+      if raw.found and raw.error.len == 0:
+        result.sourceBundles.add raw.node
+        if i == 0: result.sourceBundle = raw.node
+      elif i == 0:
+        result.sourceBundleReason = raw.error
     else:
-      result.sourceBundleReason = raw.error
-  else:
-    # `boMismatched` in particular is REFUSED, never displayed: a bundle filed
-    # under a different code hash would attribute source to code that never
-    # ran (Source-Resolution.md §4).
-    result.sourceBundleReason = fetched.reason
+      # `boMismatched` in particular is REFUSED, never displayed: a bundle filed
+      # under a different code hash would attribute source to code that never
+      # ran (Source-Resolution.md §4).
+      if i == 0: result.sourceBundleReason = fetched.reason
 
 # ── the chain registry, as the /chains capability inventory ────────────────
 #
