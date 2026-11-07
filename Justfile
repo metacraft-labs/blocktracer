@@ -443,8 +443,9 @@ check-publish-flags *ARGS:
 #
 # The mirror of `check-recordings-named`: that one asks whether every recording is OFFERED
 # by a page, this one asks whether everything a page or the index POINTS AT exists. Three
-# rules: every hash the index resolves has a page; every entity link any page draws has a
-# page; and the index agrees with its own `meta.json`, which is the comparison that catches
+# rules: every hash the index resolves has a page, and so does every version a chain's
+# ledger-version index resolves; every entity link any page draws has a page; and each
+# index agrees with its own `meta.json`, which is the comparison that catches
 # a half-uploaded index — the one state in which the first rule passes over a subject set
 # the publish silently shrank.
 #
@@ -465,9 +466,12 @@ check-publish-flags *ARGS:
 check-no-stale-neighbours DIR="client/dist" *ARGS:
     node tools/deploy/check-no-stale-neighbours.mjs --dir {{DIR}} {{ARGS}}
 
-# Sixteen arms; four require a PASS, including a hash whose last nibble is a real zero —
-# the false positive that reported 13 stale neighbours over 288 clean entries during
-# development — and a stale neighbour that sits OUTSIDE the `--routes` set.
+# Thirty-seven arms; nine require a PASS, including a hash whose last nibble is a real
+# zero — the false positive that reported 13 stale neighbours over 288 clean entries during
+# development — and a stale neighbour that sits OUTSIDE the `--routes` set. Fifteen are
+# the ledger-version index (`idx/{chain}/version/`), one fixture per shape a version takes:
+# one digit, both sides of a bucket edge, neighbours sharing a bucket, two versions above
+# 2^53 that a Number would merge, and the u64 maximum.
 check-no-stale-neighbours-selftest:
     node tools/deploy/check-no-stale-neighbours-selftest.mjs
 

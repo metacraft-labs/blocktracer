@@ -339,7 +339,9 @@ jobs:
         run: node tools/deploy/check-publish-flags.mjs
 
       - name: Does the stale-neighbour gate bite? (nothing the site points at is missing)
-        # Sixteen arms over synthetic published trees. The gate guards a publish
+        # Thirty-seven arms over synthetic published trees, fifteen of them over a
+        # chain's ledger-version index with one fixture per shape a version takes
+        # (one digit, a bucket edge, a shared bucket, above 2^53, u64 max). The gate guards a publish
         # mode this repository has not run yet — INCREMENTAL-PUBLISH.md §5 says
         # it must exist before the first incremental publish, "not after" — so it
         # has no incident to point at and these arms are the only evidence it
