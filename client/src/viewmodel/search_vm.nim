@@ -19,6 +19,15 @@
 ## | Direct path (§4) | 1 | **built** — `resolve`, over every chain the registry publishes |
 ## | **Hash index (§5)** | 2 | **blocked** — `/idx/hash/{version}/{prefix}.bin` is a binary shard format, and `@blocktracer/client`'s facade exports no index reader |
 ## | **Name shards (§6)** | 1–2 | **blocked** — same |
+## | Ledger-version index | 2 | **built** — `resolveVersionOn`, on the chains whose registry row declares `ordering.kind: globalVersion` and no other |
+##
+## The ledger-version index (`/idx/{chain}/version/`, `contract/versionidx.nim`)
+## is the one index read here, and it is read with the codec the exporter wrote
+## it with and `client/searchboot/` reads it with — this module holds no second
+## copy of the shard format, the bucket rule or the version spelling. It is
+## scoped by the registry's declaration (`ChainRegistryVM.versionOrderedChains`):
+## a number on a deployment with no version-ordered chain makes no index request
+## at all, exactly as before, and means only what §3 makes it mean.
 ##
 ## The two blocked rows are blocked on a decision that is *already open* rather
 ## than on an oversight: Client-SDK.md §5 asks "how much of search belongs
@@ -65,6 +74,9 @@ import ./chain_degradation
 import ./chain_registry_vm
 import ./chain_vm
 import ./search_shapes
+# The ledger-version index's codec — the exporter's and the `/search` page's.
+from ../../../src/blocktracer/contract/versionidx import canonicalVersion,
+  versionBucket, versionMetaPath, versionShardPath, decodeVersionShard
 
 export search_shapes   # `QueryShape`, `shapesOf`, `canonicalHash`
 
@@ -103,6 +115,12 @@ type
       ## §14's row, literally. Every chain a `resolve` actually reached — not
       ## the registry's list, because a chain whose session failed to open was
       ## not checked and saying otherwise would be a false statement.
+    versionUnchecked*: Signal[seq[string]]
+      ## Version-ordered chains whose ledger-version index a `resolve` set out
+      ## to read and could not — the descriptor, or the bucket it names, did not
+      ## load or did not decode. NOT checked, so not in `chainsChecked`, and not
+      ## a miss: an answer with no result and a chain here is not reported as
+      ## "not on this chain" (`presence`), as `/search` reports it "not checked".
     resolved*: Signal[bool]
       ## Whether a `resolve` has run for the current query. Distinguishes "no
       ## results" from "not asked yet", which otherwise render the same.
@@ -151,6 +169,47 @@ proc resolveOn(vm: SearchVM; session: ChainSession; q: string;
       found.add SearchResult(kind: rkBlock, chain: session.chain, id: q,
                              path: "/" & session.chain & "/block/" & q)
 
+proc resolveVersionOn(vm: SearchVM; chain, version: string;
+                      found: var seq[SearchResult]): bool =
+  ## A decimal query as a ledger version, on one version-ordered chain: the
+  ## descriptor, then the one bucket it lists for `version` — two requests, as
+  ## `/search` spends. `version` is canonical (`canonicalVersion`). Returns
+  ## whether the chain was CHECKED: `false` means its index could not be read,
+  ## which is not "the version is not there".
+  ##
+  ## Exact, never a prefix: an entry answers only at precisely `version`. A hit
+  ## routes to the transaction's own page, which is named by its HASH — the
+  ## version is how it was found, not where it lives.
+  let meta = vm.store.getJson(versionMetaPath(chain))
+  if not meta.found or meta.error.len > 0 or meta.node.isNil or
+     meta.node.kind != JObject:
+    return false
+  # The bucket width is PUBLISHED, never compiled in (`VersionBucketDigits` is
+  # the exporter's choice, not this reader's).
+  let digits = meta.node{"bucketDigits"}.getInt(0)
+  let indexVersion = meta.node{"indexVersion"}.getStr("")
+  if digits <= 0 or indexVersion.len == 0: return false
+  let bucket = versionBucket(version, digits)
+  var listed = false
+  let shards = meta.node{"shards"}
+  if not shards.isNil and shards.kind == JArray:
+    for s in shards:
+      if s.kind == JString and s.getStr == bucket: listed = true
+  # A bucket the index never wrote is a definite miss at no further request:
+  # the index is exact over the chain's published transactions.
+  if not listed: return true
+  let shard = vm.store.get(versionShardPath(chain, indexVersion, bucket))
+  if not shard.found: return false
+  # Decoded first, so a shard this build cannot read is "not checked" and not
+  # an empty answer (`lookupVersion`'s note).
+  let dec = decodeVersionShard(shard.body)
+  if dec.err.len > 0: return false
+  for e in dec.entries:
+    if e.version == version:
+      found.add SearchResult(kind: rkTransaction, chain: chain, id: e.identifier,
+                             path: "/" & chain & "/tx/" & e.identifier)
+  true
+
 proc resolve*(vm: SearchVM) =
   ## Resolve the current query across every chain the registry publishes.
   ##
@@ -184,6 +243,21 @@ proc resolve*(vm: SearchVM) =
     # Local inference issues no request, so no chain was "checked" by it. The
     # list stays honest even when the answer came for free.
 
+  # A NUMBER IS ALSO A LEDGER VERSION, on the chains ordered by one and on no
+  # other. Both readings are carried (§2): the height above, from the head this
+  # VM holds, and the version here, from the chain's version index. A
+  # deployment with no version-ordered chain never enters the loop, so a number
+  # there costs exactly the zero requests it always cost. A decimal string is
+  # never hash-like (bare hex refuses all-digit strings), so this cannot shadow
+  # a hash reading; the guard says so rather than relying on it.
+  var unchecked: seq[string]
+  if qsDecimal in shapes and not isHashLike(shapes):
+    let version = canonicalVersion(raw)
+    if version.len > 0:
+      for slug in vm.registry.versionOrderedChains.val:
+        if vm.resolveVersionOn(slug, version, found): checked.add slug
+        else: unchecked.add slug
+
   if isHashLike(shapes):
     let q = canonicalHash(raw)
     for slug in vm.registry.chains.val:
@@ -197,11 +271,13 @@ proc resolve*(vm: SearchVM) =
 
   vm.results.val = found
   vm.chainsChecked.val = checked
+  vm.versionUnchecked.val = unchecked
 
 proc setQuery*(vm: SearchVM; q: string) =
   vm.query.val = q
   vm.results.val = @[]
   vm.chainsChecked.val = @[]
+  vm.versionUnchecked.val = @[]
   vm.resolved.val = false
 
 proc createSearchVM*(store: ObjectStore; registry: ChainRegistryVM;
@@ -212,6 +288,7 @@ proc createSearchVM*(store: ObjectStore; registry: ChainRegistryVM;
       query: createSignal(""),
       results: createSignal(newSeq[SearchResult]()),
       chainsChecked: createSignal(newSeq[string]()),
+      versionUnchecked: createSignal(newSeq[string]()),
       resolved: createSignal(false),
     )
 
@@ -231,6 +308,10 @@ proc createSearchVM*(store: ObjectStore; registry: ChainRegistryVM;
       # chain": nothing was looked in. Reporting absence for it would be the
       # false statement this VM's whole not-found story is built to avoid.
       elif vm.mechanism.val == smUnsupportedShape: opPresent
+      # A version index that could not be read was not looked in either: the
+      # chain was not checked, and "not on this chain" would be a claim about
+      # it. Only ever non-empty on a deployment with a version-ordered chain.
+      elif vm.versionUnchecked.val.len > 0: opPresent
       else: opNotOnThisChain)
 
     vm.snapshot = createMemo(proc(): ChainStateSnapshot =
