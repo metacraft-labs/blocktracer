@@ -840,9 +840,9 @@ suite "SearchVM — an Aptos ledger version resolves to its transaction":
   test "CONTROL: a Sui digest takes the hash branch, exactly as without the index":
     # A digest is not a number: it never reaches the version lookup, and what
     # the VM answers for it does not depend on whether Aptos is version-ordered.
-    # (What it answers is this VM's direct path, unchanged here: `canonicalHash`
-    # is hex-only, so a base58 digest is looked for on every opened chain and is
-    # not found — §5's index, which keys base58, is still blocked at the facade.)
+    # (This tree's Sui row declares no identifier encoding, so it is read as the
+    # legacy hex declaration and no chain here can spell a base58 digest; the
+    # suite below declares Sui's base58 and finds one.)
     let withIdx = buildVersionTree(tmpDir("version-control-sui"))
     let without = buildVersionTree(tmpDir("version-control-sui-none"),
                                    aptosOrdering = "blockIndex",
@@ -877,6 +877,98 @@ suite "SearchVM — an Aptos ledger version resolves to its transaction":
       if r.chain == "aptos-mainnet": inc onAptos
     check onChain == 1
     check onAptos == 0
+
+proc publishSuiDigest(t: Tree; digest: string) =
+  ## Declare Sui's identifier encoding as the published registry does —
+  ## transaction and checkpoint digests in base58 — and file a transaction under
+  ## `digest` at the path that declaration derives, as the ingest does.
+  let regPath = t.dir / "registry" / ("chains.v" & $ContractVersion & ".json")
+  let reg = parseFile(regPath)
+  reg["chains"]["sui-mainnet"]["identifierEncoding"] =
+    %*{"address": "hex", "block": "base58", "transaction": "base58"}
+  writeJsonNl(regPath, reg)
+  let enc = parseChainIdentifierEncoding(reg["chains"]["sui-mainnet"])
+  var facts = parseFile(t.dir / "d" / t.chain / "tx" / shardKeyFor("hex", t.tx) /
+                        (t.tx & ".json"))
+  facts["chain"] = %"sui-mainnet"
+  facts["id"]["hash"] = %digest
+  writeJsonNl(t.dir / txFactsPath("sui-mainnet", digest, enc), facts)
+
+proc readsOn(paths: seq[string]; chain, kind: string): int =
+  ## How many of `paths` read a `kind` object (`tx`, `block`) of `chain`.
+  for p in paths:
+    if ("/" & p).contains("/d/" & chain & "/" & kind & "/"): inc result
+
+suite "SearchVM — a number above int64, and a Sui digest, resolve as /search does":
+  test "A 20-DIGIT NUMBER IS A CLEAN MISS — it used to raise out of `parseInt`":
+    let t = buildTree(tmpDir("int64-overflow"), defaultOpts())
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    # Above int64, above u64, and the u64 maximum — all three raised before.
+    for q in ["9223372036854775808", "99999999999999999999", "18446744073709551615"]:
+      let reads = l.searchFrom(log, q)
+      check reads.len == 0                      # §3: a number costs no request
+      check l.search.results.val.len == 0
+      check l.search.mechanism.val == smLocalInference
+      check l.search.presence.val == opNotOnThisChain
+      check l.search.degradation.val == cdObjectNotFound
+    # CONTROL: the largest int64 was always a height (above the head: a miss),
+    # and a height at the head still resolves to its block.
+    discard l.searchFrom(log, "9223372036854775807")
+    check l.search.results.val.len == 0
+    check l.search.presence.val == opNotOnThisChain
+    discard l.searchFrom(log, $t.height)
+    check l.search.results.val.len == 1
+    check l.search.results.val[0].kind == rkBlock
+
+  test "a u64 version above int64 is still looked up as a version":
+    # The height reading is dropped, the version reading is a string and is not.
+    let t = buildVersionTree(tmpDir("int64-version"))
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    let reads = l.searchFrom(log, "18446744073709551615")
+    check reads == @[versionMetaPath("aptos-mainnet")]   # its bucket is unwritten
+    check l.search.chainsChecked.val == @["aptos-mainnet"]
+    check l.search.results.val.len == 0
+    check l.search.presence.val == opNotOnThisChain
+
+  test "A SUI DIGEST RESOLVES TO ITS TRANSACTION, as it does on /search":
+    let t = buildVersionTree(tmpDir("sui-digest"))
+    publishSuiDigest(t, SuiDigest)
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    let reads = l.searchFrom(log, SuiDigest)
+    check l.search.results.val.len == 1
+    check l.search.results.val[0].kind == rkTransaction
+    check l.search.results.val[0].chain == "sui-mainnet"
+    check l.search.results.val[0].id == SuiDigest
+    check l.search.results.val[0].path == "/sui-mainnet/tx/" & SuiDigest
+    check l.search.mechanism.val == smDirectPath
+    check l.search.presence.val == opPresent
+    check "sui-mainnet" in l.search.chainsChecked.val
+    # Asked of the chain that writes identifiers that way, as a transaction and as
+    # a checkpoint — and of no hex chain, which has no spelling for it.
+    check reads.readsOn("sui-mainnet", "tx") == 1
+    check reads.readsOn(t.chain, "tx") == 0
+    check reads.readsOn(t.chain, "block") == 0
+    check reads.versionReads.len == 0
+
+  test "a digest nobody published is not on any chain, and the chains are named":
+    let t = buildVersionTree(tmpDir("sui-digest-miss"))
+    publishSuiDigest(t, SuiDigest)
+    let l = openTree(t)
+    l.search.setQuery("3kksHv67Hcx8sJsdMRRXUCT6B7m3wg4ELS7dWbbi5LA6")
+    l.search.resolve()
+    check l.search.results.val.len == 0
+    check l.search.presence.val == opNotOnThisChain
+    check "sui-mainnet" in l.search.chainsChecked.val
+    # CONTROL: the hex hash on the hex chain still resolves on the direct path.
+    l.search.setQuery(t.tx)
+    l.search.resolve()
+    var onChain = 0
+    for r in l.search.results.val:
+      if r.path == "/" & t.chain & "/tx/" & t.tx: inc onChain
+    check onChain == 1
 
 suite "M12 — §14 row 3: trace awaiting generation":
   test "an on-demand overlay with no published artifact awaits generation":

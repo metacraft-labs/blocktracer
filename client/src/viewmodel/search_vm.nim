@@ -155,19 +155,40 @@ proc numericCandidates*(vm: SearchVM; height: int): seq[SearchResult] =
   result.add SearchResult(kind: rkBlockHeight, chain: session.chain,
                           id: $height, path: "/" & session.chain & "/blocks")
 
-proc resolveOn(vm: SearchVM; session: ChainSession; q: string;
-               shapes: set[QueryShape]; found: var seq[SearchResult]) =
-  ## §4's direct path, on one chain. One read per candidate meaning, and no
-  ## read at all for a shape that cannot address an object.
-  if isHashLike(shapes):
-    let tx = transaction(vm.store, session, q)
+func spellingsOn(keys: seq[tuple[encoding, identifier: string]];
+                 session: ChainSession; kind: string): seq[string] =
+  ## The query's spellings a chain can hold as an identifier of `kind`: the keys
+  ## whose encoding is the one the chain's registry row declares for that kind.
+  ##
+  ## `/search` reaches a Sui digest because its index entries are filtered by the
+  ## encoding the producer wrote them under; this is the same filter applied to
+  ## the direct path. It used to be one spelling for every chain —
+  ## `canonicalHash`, which is hex-only and is "" for a base58 digest — so the
+  ## view model asked every chain for an empty identifier and reported a Sui
+  ## transaction that is published as not on any chain. A chain whose declaration
+  ## omits the kind gets no spelling: `encodingFor` refuses to invent one.
+  var token = ""
+  try: token = session.identifierEncoding.encodingFor(kind)
+  except ValueError: return
+  for k in keys:
+    if k.encoding == token and k.identifier notin result:
+      result.add k.identifier
+
+proc resolveOn(vm: SearchVM; session: ChainSession;
+               keys: seq[tuple[encoding, identifier: string]];
+               found: var seq[SearchResult]) =
+  ## §4's direct path, on one chain. One read per candidate meaning the chain's
+  ## declared encodings admit, and no read for a spelling it cannot hold.
+  for id in spellingsOn(keys, session, KindTransaction):
+    let tx = transaction(vm.store, session, id)
     if tx.outcome == roFound:
-      found.add SearchResult(kind: rkTransaction, chain: session.chain, id: q,
-                             path: "/" & session.chain & "/tx/" & q)
-    let blk = blockDetail(vm.store, session, q)
+      found.add SearchResult(kind: rkTransaction, chain: session.chain, id: id,
+                             path: "/" & session.chain & "/tx/" & id)
+  for id in spellingsOn(keys, session, KindBlock):
+    let blk = blockDetail(vm.store, session, id)
     if blk.outcome == roFound:
-      found.add SearchResult(kind: rkBlock, chain: session.chain, id: q,
-                             path: "/" & session.chain & "/block/" & q)
+      found.add SearchResult(kind: rkBlock, chain: session.chain, id: id,
+                             path: "/" & session.chain & "/block/" & id)
 
 proc resolveVersionOn(vm: SearchVM; chain, version: string;
                       found: var seq[SearchResult]): bool =
@@ -238,8 +259,19 @@ proc resolve*(vm: SearchVM) =
 
   let shapes = shapesOf(raw)
   if qsDecimal in shapes:
-    for r in vm.numericCandidates(parseInt(raw)):
-      found.add r
+    # A HEIGHT IS AN `int`, AND A DECIMAL STRING CAN NAME A NUMBER NO HEIGHT
+    # REACHES. `parseInt` raised on anything above int64 — a 20-digit number, or
+    # an Aptos ledger version near the top of u64 — and the exception took the
+    # whole resolve with it. Such a number is above every chain's head, so as a
+    # height it is a candidate on no chain: the answer is "not on this chain",
+    # reached the same way a height above the head reaches it. Its reading as a
+    # ledger version, below, is a string and is unaffected.
+    var height = -1
+    try: height = parseInt(raw)
+    except ValueError: height = -1
+    if height >= 0:
+      for r in vm.numericCandidates(height):
+        found.add r
     # Local inference issues no request, so no chain was "checked" by it. The
     # list stays honest even when the answer came for free.
 
@@ -259,7 +291,10 @@ proc resolve*(vm: SearchVM) =
         else: unchecked.add slug
 
   if isHashLike(shapes):
-    let q = canonicalHash(raw)
+    # EVERY SPELLING THE QUERY ADMITS, each tried only on the chains that write
+    # identifiers that way (`spellingsOn`). For a hex query on a hex chain that
+    # is `canonicalHash(raw)` and nothing else, as before.
+    let keys = indexKeysOf(raw)
     for slug in vm.registry.chains.val:
       let opened = openChain(vm.store, slug)
       if opened.outcome != ooOpened:
@@ -267,7 +302,7 @@ proc resolve*(vm: SearchVM) =
         # searched, and listing it would claim a search that did not happen.
         continue
       checked.add slug
-      vm.resolveOn(opened.session, q, shapes, found)
+      vm.resolveOn(opened.session, keys, found)
 
   vm.results.val = found
   vm.chainsChecked.val = checked
@@ -298,7 +333,9 @@ proc createSearchVM*(store: ObjectStore; registry: ChainRegistryVM;
       let s = vm.shapes.val
       if qsEmpty in s: smNone
       elif qsDecimal in s: smLocalInference
-      elif qsHash32 in s or qsHexShort in s or qsAddress20 in s: smDirectPath
+      # `qsEncodedId` too: a base58 or bech32 identifier is resolved on the
+      # direct path of every chain that declares that encoding (`spellingsOn`).
+      elif isHashLike(s) or qsAddress20 in s: smDirectPath
       else: smUnsupportedShape)
 
     vm.presence = createMemo(proc(): ObjectPresence =
