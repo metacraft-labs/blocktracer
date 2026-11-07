@@ -1964,8 +1964,11 @@ aptos-range RECORDER COMMIT APTOS *ARGS:
 # 1,158,421,321..1,158,421,323 (fixtures/chain-inputs/aptos-mainnet/), served on loopback:
 # a request it does not hold fails the run. Recording ids are derived from each
 # transaction and the clock pinned, so the tree is byte-identical run to run. Needs the
-# recorder, the fork's `aptos` CLI and `ct-print`; it is not yet a Nix derivation (the
-# fork's CLI is not packaged), so it is run by hand.
+# recorder, the fork's `aptos` CLI and `ct-print`, given by path. The same tree is also
+# a Nix derivation, `nix build .#aptos-capture-tree` (tools/chain/nix/aptos.nix), which
+# packages all three and builds byte-identical to this recipe's output. It is not in
+# `produced-captures` or any CI job, because the fork's CLI takes about an hour to build
+# cold (flake.nix says why); this recipe is for a machine that already has the tools.
 aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
     node tools/chain/capture-aptos-range.mjs \
       --transcript fixtures/chain-inputs/aptos-mainnet/1158421321-1158421323 \
