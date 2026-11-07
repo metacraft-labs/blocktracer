@@ -64,6 +64,7 @@ import std/strutils
 import viewmodel/search_shapes
 import blocktracer_client_paths
 import blocktracer/contract/hashshard
+import blocktracer/contract/versionidx
 
 type
   IndexMeta* = object
@@ -407,8 +408,14 @@ type
     ## enumerates the chains, so it costs no additional request.
     slug*: string
     encoding*: ChainIdentifierEncoding
+    ordering*: string
+      ## The registry row's `ordering.kind`, verbatim, or "" when the row states none.
+      ## Only `globalVersion` is read here: it is what sends a decimal query to the
+      ## chain's ledger-version index (`versionChainsOf`). Any other value, and an absent
+      ## one, leaves a number meaning what it meant before.
 
-func chainRef*(slug, txEncodingToken, blockEncodingToken: string): ChainRef =
+func chainRef*(slug, txEncodingToken, blockEncodingToken: string;
+               ordering = ""): ChainRef =
   ## One chain's reference, from the slug and the tokens the registry declared for
   ## its TRANSACTION and BLOCK identifiers.
   ##
@@ -429,10 +436,15 @@ func chainRef*(slug, txEncodingToken, blockEncodingToken: string): ChainRef =
   ChainRef(slug: slug,
            encoding: chainIdentifierEncoding(
              {KindTransaction: declaredOrLegacy(txEncodingToken),
-              KindBlock: declaredOrLegacy(blockEncodingToken)}))
+              KindBlock: declaredOrLegacy(blockEncodingToken)}),
+           ordering: ordering)
 
 func parseChainRefs*(packed: string): seq[ChainRef] =
-  ## `slug:txEncoding:blockEncoding,…` from the JS boundary.
+  ## `slug:txEncoding:blockEncoding:ordering,…` from the JS boundary.
+  ##
+  ## The fourth field, the row's `ordering.kind`, is the late arrival. A row that stops
+  ## before it is read as stating no ordering, which is what every registry published
+  ## before the member existed says.
   ##
   ## A row with no `:` is a slug whose registry entry declared no encoding, and a
   ## row with one is a registry that declared a transaction encoding and no block
@@ -448,16 +460,16 @@ func parseChainRefs*(packed: string): seq[ChainRef] =
     else:
       let slug = row[0 ..< i]
       if slug.len == 0: continue
-      let rest = row[i + 1 .. ^1]
-      let j = rest.find(':')
-      let txToken = if j < 0: rest else: rest[0 ..< j]
-      let blockToken = if j < 0: "" else: rest[j + 1 .. ^1]
+      let fields = row[i + 1 .. ^1].split(':')
+      let txToken = fields[0]
+      let blockToken = if fields.len > 1: fields[1] else: ""
+      let ordering = if fields.len > 2: fields[2] else: ""
       # A token the registry declared that this build does not know is NOT read
       # as hex — `declaredOrLegacy` raises on it — so the chain is dropped from
       # the fan-out rather than probed at a path we would be guessing. Dropping
       # it is visible in the rendered "chains covered" list, which §14 requires
       # a miss to name; guessing would have produced a confident 404.
-      try: result.add chainRef(slug, txToken, blockToken)
+      try: result.add chainRef(slug, txToken, blockToken, ordering)
       except ValueError: discard
 
 func candidatesFor*(canonical: string; chains: openArray[ChainRef]):
@@ -524,6 +536,99 @@ func encodeCandidates(cs: seq[Candidate]): string =
   result.add "]"
 
 # ---------------------------------------------------------------------------
+# A ledger version, on a chain ordered by one (`contract/versionidx.nim`).
+#
+# Search-And-Routing §2 reads a decimal integer as "block number · slot · checkpoint",
+# and §3 resolves those locally, because their path is a function of the number. An Aptos
+# ledger version is a decimal integer too, and its path is NOT a function of it: the
+# object tree is keyed by hash. So a decimal query is ALSO looked up as a version — on the
+# chains whose registry row declares `ordering.kind: globalVersion`, and on no other. A
+# deployment with no such chain makes no request for a number, exactly as before.
+# ---------------------------------------------------------------------------
+
+func versionChainsOf*(chains: openArray[ChainRef]): seq[string] =
+  ## The chains a decimal query is looked up on as a ledger version: those whose
+  ## registry row declares `globalVersion`, in registry order.
+  for c in chains:
+    if c.ordering == GlobalVersionOrdering: result.add c.slug
+
+type
+  VersionMeta* = object
+    ## `/idx/{chain}/version/meta.json`, as the browser needs it. A zero
+    ## `bucketDigits` means the descriptor did not load.
+    chain*, indexVersion*: string
+    bucketDigits*: int
+    shards*: seq[string]
+      ## Every OCCUPIED bucket. A version whose bucket is not here is answered with no
+      ## further request: the index is exact over the chain's published transactions.
+
+  VersionRequest* = object
+    chain*, path*: string
+
+  VersionPlan* = object
+    ## Every request a version lookup makes, computed before any is made.
+    requests*: seq[VersionRequest]
+    unpublished*: seq[string]
+      ## Chains whose bucket for this version was never written: a definite miss there.
+    unreadable*: seq[string]
+      ## Chains whose descriptor did not load: NOT checked, and the page says so.
+
+func parseVersionMeta*(chain, packed: string): VersionMeta =
+  ## `indexVersion|bucketDigits|bucket,bucket,…` from the JS boundary, or "" for a
+  ## descriptor that did not load.
+  result.chain = chain
+  let parts = packed.split('|')
+  if parts.len != 3: return
+  var n = 0
+  try: n = parseInt(parts[1])
+  except ValueError: return
+  if n <= 0 or parts[0].len == 0: return
+  result.indexVersion = parts[0]
+  result.bucketDigits = n
+  for s in parts[2].split(','):
+    if s.len > 0: result.shards.add s
+
+func versionPlanFor*(metas: openArray[VersionMeta]; version: string): VersionPlan =
+  ## The shard each chain's index holds `version` in, if it holds a shard for it at all.
+  ## `version` is canonical (`canonicalVersion`). Pure: no fetch, no DOM.
+  for m in metas:
+    if m.bucketDigits <= 0:
+      result.unreadable.add m.chain
+      continue
+    let bucket = versionBucket(version, m.bucketDigits)
+    if bucket notin m.shards:
+      result.unpublished.add m.chain
+      continue
+    result.requests.add VersionRequest(chain: m.chain,
+      path: "/" & versionShardPath(m.chain, m.indexVersion, bucket))
+
+func versionHitsFor*(shardBytes, chain, version: string): seq[IndexHit] =
+  ## The transactions a fetched shard holds at exactly `version`, as index hits whose
+  ## route is the transaction's own page — the same `routeFor` §5's hits land on.
+  for e in lookupVersion(shardBytes, version):
+    result.add IndexHit(chain: chain, kind: hkTx, identifier: e.identifier,
+                        route: routeFor(chain, hkTx, e.identifier))
+
+func versionMissMessage*(version: string; checked, unreadable: openArray[string]): string =
+  ## What a decimal query that reached no transaction is told: which chains' version
+  ## indexes were read, which could not be, and that the block-height reading was not
+  ## looked up at all. The last is why the state stays "unsupported" rather than
+  ## "notfound": one reading of the number was not attempted.
+  result = "No published transaction is at ledger version <span class=\"mono\">" &
+    version & "</span>"
+  if checked.len > 0:
+    result.add " on " & checked.join(" · ") & ", whose transactions are numbered by " &
+      "version. That index is exact over what this deployment publishes."
+  else:
+    result.add "."
+  if unreadable.len > 0:
+    result.add " The version index of " & unreadable.join(" · ") &
+      " could not be read, so that chain was NOT checked."
+  result.add " As a block number it was not looked up: §3's local inference resolves " &
+    "a height from live head pointers, which this page does not hold. To search it " &
+    "as a hex identifier instead, write it with a <span class=\"mono\">0x</span>."
+
+# ---------------------------------------------------------------------------
 # The JavaScript boundary: I/O and the DOM, and no rules.
 # ---------------------------------------------------------------------------
 
@@ -541,7 +646,7 @@ proc registryChains(path: cstring; cb: proc(slugs: cstring)) {.importjs: """
   // and a search that silently skipped a chain would still print a confident
   // "chains checked" list naming it.
   //
-  // `slug:txEncoding:blockEncoding,…` — the slug AND the encodings the row
+  // `slug:txEncoding:blockEncoding:ordering,…` — the slug AND the encodings the row
   // declares for the two kinds of identifier this module builds a path for
   // (Configuration.md §2.1). The transaction path is sharded, so it depends on
   // the alphabet; the block path is not sharded and its object is still NAMED by
@@ -565,7 +670,12 @@ proc registryChains(path: cstring; cb: proc(slugs: cstring)) {.importjs: """
           var tok = function(kind){
             return (decl && typeof decl[kind] === 'string') ? decl[kind] : '';
           };
-          out.push(k + ':' + tok('transaction') + ':' + tok('block'));
+          // The row's ordering kind, verbatim: a chain ordered by `globalVersion`
+          // publishes a ledger-version index, and `versionChainsOf` reads this to
+          // find it. Passed on unvalidated, for the reason above.
+          var ord = (row && row.ordering && typeof row.ordering.kind === 'string')
+            ? row.ordering.kind : '';
+          out.push(k + ':' + tok('transaction') + ':' + tok('block') + ':' + ord);
         }
       }
       cb(out.join(','));
@@ -610,6 +720,19 @@ proc indexMeta(path: cstring; cb: proc(packed: cstring)) {.importjs: """
         return;
       }
       cb([j.indexVersion || '1', j.prefixLen, (j.shards || []).join(',')].join('|'));
+    })
+    .catch(function(){ cb(''); });
+})(#, #)""".}
+
+proc versionMeta(path: cstring; cb: proc(packed: cstring)) {.importjs: """
+(function(path, cb){
+  // `indexVersion|bucketDigits|bucket,…`, or "" when the descriptor is unreadable.
+  // The same split as `indexMeta`: this side carries bytes, the rules are Nim's.
+  fetch(path, { credentials: 'omit' })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){
+      if (!j || !j.bucketDigits || !j.indexVersion) { cb(''); return; }
+      cb([j.indexVersion, j.bucketDigits, (j.shards || []).join(',')].join('|'));
     })
     .catch(function(){ cb(''); });
 })(#, #)""".}
@@ -859,6 +982,62 @@ proc directPathFallback(ids: seq[string]; shown: string;
   runCandidates(cstring(ResultSlotId), cstring(encodeCandidates(cs)),
                 cstring(shown))
 
+proc resolveVersion(version: string; chains: seq[string]) =
+  ## A decimal query, looked up as a ledger version on every chain ordered by one.
+  ##
+  ## Two requests on the chain that holds it, as §5 spends on a hash: the descriptor, then
+  ## the bucket. Every chain's descriptor is fetched concurrently, and so is every bucket.
+  var metas: seq[VersionMeta] = @[]
+  var pendingMeta = chains.len
+
+  proc afterMetas() =
+    # The descriptors arrive in any order; the plan is made over them in registry order,
+    # so the requests, and a two-chain answer, do not depend on network timing.
+    var ordered: seq[VersionMeta] = @[]
+    for c in chains:
+      for m in metas:
+        if m.chain == c: ordered.add m
+    let plan = versionPlanFor(ordered, version)
+    var hits: seq[IndexHit] = @[]
+    var unreadable = plan.unreadable
+    var pending = plan.requests.len
+
+    proc finish() =
+      if hits.len > 0:
+        # One hit navigates, as every index hit does (`renderHits`).
+        renderHits(cstring(ResultSlotId), cstring(encodeHits(hits)), cstring(version))
+        return
+      var checked: seq[string] = @[]
+      for c in chains:
+        if c notin unreadable: checked.add c
+      renderNoQuery(cstring(ResultSlotId), "unsupported",
+        cstring(versionMissMessage(version, checked, unreadable)))
+
+    proc fire(req: VersionRequest) =
+      fetchShardHex(cstring(req.path), proc(hex: cstring) =
+        let bytes = bytesFromHex($hex)
+        if bytes.len == 0:
+          # The descriptor named this bucket and it did not arrive: that chain was not
+          # checked, which is not the same as "not there".
+          unreadable.add req.chain
+        else:
+          for h in versionHitsFor(bytes, req.chain, version): hits.add h
+        dec pending
+        if pending == 0: finish())
+
+    if pending == 0:
+      finish()
+      return
+    for req in plan.requests: fire(req)
+
+  proc ask(chain: string) =
+    versionMeta(cstring("/" & versionMetaPath(chain)), proc(packed: cstring) =
+      metas.add parseVersionMeta(chain, $packed)
+      dec pendingMeta
+      if pendingMeta == 0: afterMetas())
+
+  for c in chains: ask(c)
+
 proc boot(chainsCsv, packedMeta: cstring) =
   let raw = $rawQuery()
   fillQuery(cstring(raw))
@@ -874,6 +1053,21 @@ proc boot(chainsCsv, packedMeta: cstring) =
   let shapes = shapesOf(raw)
   let canonical = canonicalHash(raw)
   let meta = parseMeta($packedMeta)
+
+  # ── A NUMBER, ON A DEPLOYMENT WITH A CHAIN ORDERED BY LEDGER VERSION ──────────
+  #
+  # Looked up in that chain's version index, and only there. A chain ordered by block
+  # height or checkpoint is not asked, so on a deployment with none of the other kind
+  # this branch is never taken and a number costs no request, as it did before. A
+  # decimal string of a version's length is never hash-like (bare hex refuses all-digit
+  # strings, and base58's band starts at 32 characters), so this branch cannot shadow a
+  # hash reading.
+  if qsDecimal in shapes and not isHashLike(shapes):
+    let version = canonicalVersion(raw)
+    let versionChains = versionChainsOf(parseChainRefs($chainsCsv))
+    if version.len > 0 and versionChains.len > 0:
+      resolveVersion(version, versionChains)
+      return
 
   if not isHashLike(shapes):
     # §2's remaining rows — decimal, base58, bech32, plain text — resolve

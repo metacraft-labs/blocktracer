@@ -1970,6 +1970,33 @@ aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} --positions-reader {{RECORDER}} \
       --aptos {{APTOS}} {{ARGS}}
 
+# The Aptos journey set (tools/journeys/aptos/) over a site that publishes Aptos and Sui:
+# a ledger version typed into search reaches its transaction, and the Sui rows beside it
+# are the hash-identity control. Aptos is not in `produced-captures` (flake.nix says why),
+# so its tree is the producer's own output, given by local path — `just aptos-capture`
+# writes .aptos-capture/tree — and placed into `default` with Sui's produced tree.
+# NOT in any CI job, for the same reason.
+journeys-aptos APTOS_TREE=".aptos-capture/tree":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tree="$(realpath {{APTOS_TREE}})"
+    test -s "$tree/snapshot.json"
+    nix build --impure -o .journey-site-aptos-result --expr "
+      let f = builtins.getFlake (toString ./.); s = builtins.currentSystem; in
+      f.packages.\${s}.default.overrideAttrs (old: {
+        name = \"blocktracer-site-aptos\";
+        postPatch = (old.postPatch or \"\") + ''
+          cp -r \${builtins.path { path = $tree; name = \"aptos-mainnet-capture\"; }} client/fixtures/chain/aptos-mainnet
+          cp -r \${f.packages.\${s}.sui-capture-tree} client/fixtures/chain/sui-mainnet
+          chmod -R u+w client/fixtures/chain
+        '';
+      })"
+    rm -rf .journey-site-aptos && mkdir -p .journey-site-aptos
+    cp -R .journey-site-aptos-result/. .journey-site-aptos/
+    chmod -R u+w .journey-site-aptos
+    ./client/hydrate/fetch-engine.sh client/.replay-engine-cache
+    nix run .#capture-env -- node tools/journeys/run.mjs --set aptos --dist .journey-site-aptos
+
 # Is the Sui endpoint still serving the object versions it served when the
 # committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed
 # ladder of depths, for the exact versions transactions there consumed, with a

@@ -1073,6 +1073,17 @@ func headlineRefusal*(v: TxView): string =
     if s != seen[0]: return ""
   seen[0]
 
+proc txVersion*(r: DataRoot, info: ChainInfo, hash: string): string =
+  ## The ledger version a published transaction states as its identity
+  ## (`id: {kind: "version", version, hash}`, Static-Site-Architecture.md §2.3), or ""
+  ## when its identity is of another kind or the transaction cannot be read. The
+  ## exporter's version index is built from this, so it carries exactly what the
+  ## published row says.
+  let tr = transaction(info.store, info.session, hash)
+  if tr.outcome != roFound: return ""
+  let id = tr.view.facts.id
+  if id.kind == tikVersion: id.vVersion else: ""
+
 proc txRow*(r: DataRoot, info: ChainInfo, hash: string): TxRow =
   let v = txView(r, info, hash)
   result = TxRow(
