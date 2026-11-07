@@ -23,7 +23,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { encodeHashShard, FMT_HEX_BYTES } from "./lib/hash-shard.mjs";
+import { encodeHashShard, FMT_HEX_BYTES, FMT_KEY_FORM, LEGACY_ENCODING } from "./lib/hash-shard.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CHECKER = join(HERE, "check-no-stale-neighbours.mjs");
@@ -32,6 +32,7 @@ const CHAIN = "aztec-testnet";
 const TX_A = "a".repeat(64);
 const TX_B = "b".repeat(64);
 const TX_ZERO = `${"c".repeat(63)}0`;   // a hash whose last nibble is a real zero
+const TX_C = "d".repeat(64);            // in the v2 index only, as a non-hex encoding is
 
 const write = (root, rel, body) => {
   const p = join(root, rel);
@@ -51,15 +52,42 @@ const listPage = (chain, targets) =>
  */
 function build(root, {
   indexed = [TX_A, TX_B], paged = [TX_A, TX_B], drawn = [TX_A, TX_B],
-  pagesIn = root, meta = null, shardBytes = null, chain = CHAIN,
+  pagesIn = root, meta = null, shardBytes = null, chain = CHAIN, v2 = null,
 } = {}) {
   const shard = shardBytes ?? encodeHashShard({
     fmt: FMT_HEX_BYTES, chains: [chain],
     entries: indexed.map((h) => ({ hex: h, chainIndex: 0, kind: 1 })),
   });
   write(root, "idx/hash/1/aa.bin", Buffer.from(shard));
-  const declared = meta ?? { indexVersion: "1", prefixLen: 2, shardCount: 1,
-                             entryCount: indexed.length };
+
+  // THE SECOND FORMAT, WHICH THIS SUITE HAD NO FIXTURE FOR UNTIL 2026-11-07 — and that
+  // absence is the whole reason the per-version bug shipped. A real two-version publish
+  // does NOT hold the same entries in both: `client/src/static_export.nim` fills v1 from
+  // `hexEntries` and v2 from `entries`, every encoding, so v2 is a SUPERSET. An arm whose
+  // two versions agreed on their counts would exercise the loop and still never compare a
+  // v1 declaration against v2 shards, which is the comparison that was wrong.
+  const v2indexed = v2 ? (v2.indexed ?? indexed) : null;
+  if (v2) {
+    const v2shard = encodeHashShard({
+      fmt: FMT_KEY_FORM, unitLen: 66, prefixLen: 2, chains: [chain],
+      encodings: [LEGACY_ENCODING],
+      entries: v2indexed.map((h) => ({ key: `0x${h}`, chainIndex: 0, encIndex: 0, kind: 1 })),
+    });
+    write(root, "idx/hash/2/aa.bin", Buffer.from(v2shard));
+  }
+
+  const declared = meta ?? (v2
+    // Shaped as the writer shapes it: the top-level fields describe v1, and `versions`
+    // appears ONLY when there is a second version, carrying each version's own counts.
+    ? { indexVersion: "1", prefixLen: 2, shardCount: 1, entryCount: indexed.length,
+        preferredVersion: "2",
+        versions: [
+          { version: "1", format: 1, prefixLen: 2, shardCount: 1,
+            entryCount: indexed.length },
+          { version: "2", format: 2, prefixLen: 2, shardCount: 1,
+            entryCount: v2indexed.length },
+        ] }
+    : { indexVersion: "1", prefixLen: 2, shardCount: 1, entryCount: indexed.length });
   if (declared !== "omit") write(root, "idx/hash/meta.json", JSON.stringify(declared));
   for (const h of paged) write(pagesIn, `${chain}/tx/0x${h}/index.html`, "<html>tx</html>");
   write(root, `${chain}/txs/index.html`, listPage(chain, drawn));
@@ -96,6 +124,47 @@ const arms = [
   { name: "metajson-shardCount-disagreeing-is-a-failure",
     setup: (r) => build(r, { meta: { indexVersion: "1", shardCount: 7, entryCount: 2 } }),
     says: /declares shardCount 7 and idx\/hash\/1\/ holds 1 shard file/ },
+
+  // ── rule C across TWO index versions ──────────────────────────────────────────────
+  // Reported by bt-move-f0 on 2026-11-07: the gate reddened on every tree publishing a
+  // second-format index, including trees built before their Aptos work. The cause was
+  // that `metaPath` was computed inside the per-version loop but did not depend on the
+  // version, so v1's declared counts were compared against v2's shards. v2 is a superset,
+  // so that comparison could not pass.
+  { name: "a-two-version-index-passes", pass: true,
+    setup: (r) => build(r, { indexed: [TX_A, TX_B], paged: [TX_A, TX_B, TX_C],
+                             drawn: [TX_A, TX_B], v2: { indexed: [TX_A, TX_B, TX_C] } }),
+    says: /index 2: 1 shard\(s\), 3 entry\/entries/ },
+
+  // THE ARM THAT STOPS THE FIX BEING A SKIP. A "fix" that simply ignored any version the
+  // top-level fields do not describe would turn the arm above green while checking v2
+  // against nothing at all — the same silent pass rule C exists to refuse. This one fails
+  // unless the v2 declaration is really read and really compared.
+  { name: "metajson-v2-entryCount-disagreeing-with-the-v2-shards-is-a-failure",
+    setup: (r) => build(r, {
+      indexed: [TX_A, TX_B], paged: [TX_A, TX_B, TX_C], drawn: [TX_A, TX_B],
+      v2: { indexed: [TX_A, TX_B, TX_C] },
+      meta: { indexVersion: "1", prefixLen: 2, shardCount: 1, entryCount: 2,
+              preferredVersion: "2",
+              versions: [
+                { version: "1", format: 1, prefixLen: 2, shardCount: 1, entryCount: 2 },
+                { version: "2", format: 2, prefixLen: 2, shardCount: 1, entryCount: 99 },
+              ] },
+    }),
+    says: /versions\[2\] declares entryCount 99 and the shards under 2\/ decode to 3/ },
+
+  // A served index with no declaration is the hole the lookup could otherwise open: it
+  // must be NAMED, not skipped.
+  { name: "a-version-directory-metajson-describes-is-not-silently-skipped",
+    setup: (r) => {
+      build(r, { indexed: [TX_A, TX_B], paged: [TX_A, TX_B, TX_C], drawn: [TX_A, TX_B],
+                 v2: { indexed: [TX_A, TX_B, TX_C] } });
+      // a third version appears in the tree that meta.json says nothing about
+      const third = encodeHashShard({ fmt: FMT_HEX_BYTES, chains: [CHAIN],
+        entries: [{ hex: TX_A, chainIndex: 0, kind: 1 }] });
+      write(r, "idx/hash/3/aa.bin", Buffer.from(third));
+    },
+    says: /idx\/hash\/3\/ is served and idx\/hash\/meta\.json declares no version 3/ },
 
   { name: "no-metajson-means-the-partial-index-comparison-cannot-be-made",
     setup: (r) => build(r, { meta: "omit" }),
@@ -188,8 +257,8 @@ for (const arm of arms) {
   }
 }
 const asserted = arms.length;
-if (asserted !== 16) {
-  console.log(`  FAIL  this suite declares 16 arms and ran ${asserted}`);
+if (asserted !== 19) {
+  console.log(`  FAIL  this suite declares 19 arms and ran ${asserted}`);
   failures += 1;
 }
 console.log(failures === 0

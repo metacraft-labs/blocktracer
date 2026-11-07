@@ -97,11 +97,34 @@ export function run({ dir, liveOrigin, routes, maxReport }) {
   }
   let indexEntries = [];
   let shardsRead = 0;
+
+  // ONE meta.json DESCRIBES EVERY VERSION, AND NOT WITH ONE SET OF NUMBERS.
+  // `client/src/static_export.nim` writes the top-level `shardCount`/`entryCount` for
+  // version 1 and adds a `versions` array ONLY when a second version exists, each member
+  // carrying its own counts. So a version's declaration has to be LOOKED UP. Reading the
+  // top-level fields for every version compared v1's counts against v2's shards, and
+  // since v2 is a SUPERSET of v1 (every encoding, not just hex) that comparison could
+  // never pass: the gate reddened on every tree publishing a second-format index.
+  // Reported by bt-move-f0 on 2026-11-07, reproduced here before it was changed.
+  const descriptorFor = (meta, v) => {
+    if (!meta) return null;
+    if (Array.isArray(meta.versions)) {
+      return meta.versions.find((d) => String(d.version) === String(v)) ?? null;
+    }
+    // No `versions` array is the writer saying there is exactly one version, described by
+    // the top-level fields. It still has to be the version actually on disk.
+    return String(v) === String(meta.indexVersion) ? meta : null;
+  };
+
+  const metaPath = join(dir, "idx", "hash", "meta.json");
+  let meta = null;
+  try { meta = JSON.parse(readFileSync(metaPath, "utf8")); } catch { /* reported below */ }
+
   for (const v of versions) {
     const vdir = join(dir, "idx", "hash", v);
-    const metaPath = join(dir, "idx", "hash", "meta.json");
-    let meta = null;
-    try { meta = JSON.parse(readFileSync(metaPath, "utf8")); } catch { /* reported below */ }
+    const desc = descriptorFor(meta, v);
+    const where = meta && Array.isArray(meta.versions)
+      ? `idx/hash/meta.json versions[${v}]` : "idx/hash/meta.json";
     const names = readdirSync(vdir).filter((n) => n.endsWith(".bin")).sort();
     const entries = [];
     for (const n of names) {
@@ -114,20 +137,26 @@ export function run({ dir, liveOrigin, routes, maxReport }) {
       entries.push(...parsed.entries);
     }
     indexEntries.push(...entries);
-    if (meta) {
+    if (desc) {
       // THE CROSS-CHECK. A short read here is the state in which rule A passes over a
       // subject set the publish silently shrank.
-      if (Number(meta.shardCount) !== names.length) {
-        add(`idx/hash/meta.json declares shardCount ${meta.shardCount} and `
+      if (Number(desc.shardCount) !== names.length) {
+        add(`${where} declares shardCount ${desc.shardCount} and `
           + `idx/hash/${v}/ holds ${names.length} shard file(s)`);
       }
-      if (Number(meta.entryCount) !== entries.length) {
-        add(`idx/hash/meta.json declares entryCount ${meta.entryCount} and the shards `
+      if (Number(desc.entryCount) !== entries.length) {
+        add(`${where} declares entryCount ${desc.entryCount} and the shards `
           + `under ${v}/ decode to ${entries.length}`);
       }
-    } else {
+    } else if (!meta) {
       add(`idx/hash/meta.json is missing or unreadable, so the index cannot be checked `
         + `against its own declaration — the one comparison that catches a partial index`);
+    } else {
+      // THE HOLE THE LOOKUP WOULD OTHERWISE OPEN. Skipping a version meta.json does not
+      // describe would serve an index with nothing checking it, which is the silent pass
+      // this rule exists to refuse. Name it instead.
+      add(`idx/hash/${v}/ is served and idx/hash/meta.json declares no version ${v}, `
+        + `so that index is published with no declaration to check it against`);
     }
     console.log(`  index ${v}: ${names.length} shard(s), ${entries.length} entry/entries`);
   }
