@@ -290,7 +290,7 @@
     # The Move recorder at a revision with `aptos-replay`. A separate input from
     # Sui's above, so moving it does not move Sui's produced tree.
     codetracer-move-recorder-aptos = {
-      url = "github:metacraft-labs/codetracer-move-recorder/e01dab4f3ff9f074e27c2d7262bd177fc26bb617";
+      url = "github:metacraft-labs/codetracer-move-recorder/fed70f3decfec450efee9a42a970fb1e7ac78f1e";
       flake = false;
     };
     # Its Cargo path dependencies, at the revision that recorder revision's

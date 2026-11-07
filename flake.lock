@@ -193,17 +193,17 @@
     "codetracer-move-recorder-aptos": {
       "flake": false,
       "locked": {
-        "lastModified": 1793955213,
-        "narHash": "sha256-nnizdXXgfdWZLj8RbC8ZtxOH69lK13KusPh5D6zJd/I=",
+        "lastModified": 1794072037,
+        "narHash": "sha256-JXR2JgmCvfkhJWQ09aV+bOAk5L9fKcLwXgPZSpPFGMk=",
         "owner": "metacraft-labs",
         "repo": "codetracer-move-recorder",
-        "rev": "e01dab4f3ff9f074e27c2d7262bd177fc26bb617",
+        "rev": "fed70f3decfec450efee9a42a970fb1e7ac78f1e",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-move-recorder",
-        "rev": "e01dab4f3ff9f074e27c2d7262bd177fc26bb617",
+        "rev": "fed70f3decfec450efee9a42a970fb1e7ac78f1e",
         "type": "github"
       }
     },
