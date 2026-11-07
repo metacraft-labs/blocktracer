@@ -271,6 +271,34 @@
       url = "github:metacraft-labs/codetracer-move-recorder/6f27c33004012eb9d57bfa9f649a0486697ccf83";
       flake = false;
     };
+    # ── Aptos: the fork's CLI, its toolchain, and the recorder's Aptos path ───
+    # tools/chain/nix/aptos.nix says why each pin is where it is. None of these is
+    # reached by `produced-captures` or by any CI job; see the note there.
+    #
+    # The value tracer on mainnet's aptos-node v1.49.8: metacraft-labs/aptos-core,
+    # branch `codetracer/value-tracing-aptos-node-v1.49.8`.
+    aptos-core = {
+      url = "github:metacraft-labs/aptos-core/988a7e9288ca4f3b445e3c281872b03877f45485";
+      flake = false;
+    };
+    # Rust 1.94.1, which the fork's `rust-toolchain.toml` names. Only the Aptos
+    # derivations use it.
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay/fb3eee9d296214ebbcc53921f34e80bb4166e859";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    # The Move recorder at a revision with `aptos-replay`. A separate input from
+    # Sui's above, so moving it does not move Sui's produced tree.
+    codetracer-move-recorder-aptos = {
+      url = "github:metacraft-labs/codetracer-move-recorder/e01dab4f3ff9f074e27c2d7262bd177fc26bb617";
+      flake = false;
+    };
+    # Its Cargo path dependencies, at the revision that recorder revision's
+    # `repro.lock` names.
+    aptos-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/327d41aaa69520ce5a1ccc5daea6e73397757dfa";
+      flake = false;
+    };
     # ── Starknet: the Cairo recorder (and the transcript it commits) ──────────
     # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chains two and three.
@@ -294,6 +322,7 @@
             , codetracer-flow-recorder, flow-trace-format
             , codetracer-solana-recorder, sol-trace-format
             , codetracer-move-recorder
+            , aptos-core, rust-overlay, codetracer-move-recorder-aptos, aptos-trace-format
             , codetracer-cairo-recorder, cairo-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
@@ -564,6 +593,19 @@
           blocktracerRoot = ./.;
         };
 
+        aptos = pkgs.callPackage ./tools/chain/nix/aptos.nix {
+          nodejs = followerNodejs;
+          rustToolchain = (rust-overlay.lib.mkRustBin { } pkgs).stable."1.94.1".minimal;
+          aptosCoreSrc = aptos-core;
+          aptosCoreRev = aptos-core.rev;
+          recorderSrc = codetracer-move-recorder-aptos;
+          recorderRev = codetracer-move-recorder-aptos.rev;
+          aptosTraceFormatSrc = aptos-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
+
         starknet = pkgs.callPackage ./tools/chain/nix/starknet.nix {
           nodejs = followerNodejs;
           recorderSrc = codetracer-cairo-recorder;
@@ -629,6 +671,13 @@
         packages.sui-capture-tree = sui.suiCaptureTree;
         packages.sui-ct-print = sui.ctPrint;
 
+        # ── Aptos mainnet, produced the same way (Recorder-Move CXP-MOVE-7) ────────
+        # NOT in produced-captures (see the note there). x86_64-linux only. The CLI is
+        # the fork's, built for generic x86-64; see tools/chain/nix/aptos.nix.
+        packages.aptos-cli = aptos.aptosCli;
+        packages.aptos-move-recorder = aptos.moveRecorder;
+        packages.aptos-capture-tree = aptos.aptosCaptureTree;
+
         # ── Starknet mainnet, produced the same way (Recorder-Cairo CXP-CAIRO-6) ──
         packages.cairo-onchain-recorder = starknet.onchainRecorder;
         packages.starknet-capture-tree = starknet.starknetCaptureTree;
@@ -667,6 +716,13 @@
         # container to this output. That is sound only because each producer here
         # is byte-reproducible. A real copy rather than a linkFarm, because the
         # checker's walk does not follow symlinks.
+        #
+        # APTOS IS DELIBERATELY NOT HERE. `packages.aptos-capture-tree` produces
+        # `aptos-mainnet` the same way, byte-reproducibly, but it needs the fork's
+        # `aptos` CLI, which takes about an hour to build cold (58 and 64 minutes, measured on
+        # high-mem-server).
+        # Adding it here puts that build on every deploy that has no cached copy, and
+        # it puts Aptos on staging. Both are the operator's decision.
         packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } ''
           mkdir -p $out
           cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet

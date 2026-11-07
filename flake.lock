@@ -1,5 +1,39 @@
 {
   "nodes": {
+    "aptos-core": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793951915,
+        "narHash": "sha256-lm+DMh5Pu7h9CloMbdi1+q/8PAi9YcwnbZxSvgHB1qg=",
+        "owner": "metacraft-labs",
+        "repo": "aptos-core",
+        "rev": "988a7e9288ca4f3b445e3c281872b03877f45485",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "aptos-core",
+        "rev": "988a7e9288ca4f3b445e3c281872b03877f45485",
+        "type": "github"
+      }
+    },
+    "aptos-trace-format": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792931802,
+        "narHash": "sha256-sbqeo+2kO2FLUoGz1QbWwM6vu7+ZQCV06+5VSLQ3PQk=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "327d41aaa69520ce5a1ccc5daea6e73397757dfa",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "327d41aaa69520ce5a1ccc5daea6e73397757dfa",
+        "type": "github"
+      }
+    },
     "aztec-avm-runtime": {
       "flake": false,
       "locked": {
@@ -153,6 +187,23 @@
         "owner": "metacraft-labs",
         "repo": "codetracer-move-recorder",
         "rev": "6f27c33004012eb9d57bfa9f649a0486697ccf83",
+        "type": "github"
+      }
+    },
+    "codetracer-move-recorder-aptos": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793955213,
+        "narHash": "sha256-nnizdXXgfdWZLj8RbC8ZtxOH69lK13KusPh5D6zJd/I=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-move-recorder",
+        "rev": "e01dab4f3ff9f074e27c2d7262bd177fc26bb617",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-move-recorder",
+        "rev": "e01dab4f3ff9f074e27c2d7262bd177fc26bb617",
         "type": "github"
       }
     },
@@ -392,6 +443,8 @@
     },
     "root": {
       "inputs": {
+        "aptos-core": "aptos-core",
+        "aptos-trace-format": "aptos-trace-format",
         "aztec-avm-runtime": "aztec-avm-runtime",
         "aztec-trace-format-nim": "aztec-trace-format-nim",
         "cairo-trace-format": "cairo-trace-format",
@@ -401,6 +454,7 @@
         "codetracer-evm-recorder": "codetracer-evm-recorder",
         "codetracer-flow-recorder": "codetracer-flow-recorder",
         "codetracer-move-recorder": "codetracer-move-recorder",
+        "codetracer-move-recorder-aptos": "codetracer-move-recorder-aptos",
         "codetracer-solana-recorder": "codetracer-solana-recorder",
         "codetracer-trace-format": "codetracer-trace-format",
         "codetracer-trace-format-nim": "codetracer-trace-format-nim",
@@ -415,7 +469,29 @@
         "nim-unittest2": "nim-unittest2",
         "nixpkgs": "nixpkgs",
         "noir-fixture-recorder": "noir-fixture-recorder",
+        "rust-overlay": "rust-overlay",
         "sol-trace-format": "sol-trace-format"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793697474,
+        "narHash": "sha256-KgJnMIR0ltd7pMcpDWn5q40bzmC7xtlb71clPFNUu+Y=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "fb3eee9d296214ebbcc53921f34e80bb4166e859",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "fb3eee9d296214ebbcc53921f34e80bb4166e859",
+        "type": "github"
       }
     },
     "sol-trace-format": {
