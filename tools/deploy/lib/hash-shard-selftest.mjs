@@ -61,6 +61,10 @@ function journeyReader(bytes) {
 
 const A = "aa".repeat(32);
 const ENDS_IN_ZERO = `${"bb".repeat(31)}b0`;
+// A 20-byte address, which a 32-byte unit stores ZERO-PADDED. This is the shape the old
+// candidate set could not read back, and no arm here used to carry it.
+const ADDR_ENDS_IN_ZERO = `${"e7".repeat(19)}40`;   // last byte 0x40: last nibble is a 0
+const ADDR_ENDS_IN_ZERO_BYTE = `${"e7".repeat(19)}00`;   // last byte is itself 0x00
 
 const arms = [
   ["format-1-parses-and-identifiers-carry-the-0x", () => {
@@ -76,15 +80,51 @@ const arms = [
         && r.entries[1].chain === "aztec" && r.entries[1].encoding === "hex";
   }],
 
-  ["format-1-keeps-BOTH-readings-of-a-hash-ending-in-zero", () => {
+  ["format-1-reads-a-full-width-hash-ending-in-zero-as-itself", () => {
     const s = shard({ fmt: FMT_HEX_BYTES, chains: ["demo"],
                       entries: [{ hex: ENDS_IN_ZERO, chainIndex: 0, kind: 1 }] });
     const e = parseHashShard(s).entries[0];
-    // The strip is lossy and the format cannot say whether that zero was padding, so both
-    // readings travel. 13 of this repository's 288 published entries need the second.
-    return e.candidates.length === 2
-        && e.candidates[0] === `0x${ENDS_IN_ZERO.replace(/0+$/, "")}`
-        && e.candidates[1] === `0x${ENDS_IN_ZERO}`;
+    // Nothing was padded, so there is ONE whole-byte reading and it is the stored width.
+    // The cosmetic `identifier` is a nibble shorter and is deliberately NOT a candidate:
+    // 63 hex chars is not a number of bytes.
+    return e.candidates.length === 1
+        && e.candidates[0] === `0x${ENDS_IN_ZERO}`
+        && e.identifier === `0x${ENDS_IN_ZERO.replace(/0+$/, "")}`
+        && e.identifier.length % 2 === 1;
+  }],
+
+  // ── the 22 real stale-neighbour reports of 2026-11-07 ──────────────────────────────
+  ["format-1-offers-the-true-width-of-a-padded-address-ending-in-a-zero-nibble", () => {
+    const s = shard({ fmt: FMT_HEX_BYTES, chains: ["ethereum-mainnet"],
+                      entries: [{ hex: ADDR_ENDS_IN_ZERO, chainIndex: 0, kind: 3 }] });
+    const e = parseHashShard(s).entries[0];
+    // THE ARM THE BUG WOULD HAVE FAILED. The page lives at the 40-char address; the old
+    // set held a 39-char nibble-stripped reading and a 64-char padded one, and neither is
+    // a route. The true width must be IN the set, and the widest must still be last.
+    return e.candidates.includes(`0x${ADDR_ENDS_IN_ZERO}`)
+        && e.candidates.at(-1) === `0x${ADDR_ENDS_IN_ZERO}${"0".repeat(24)}`
+        && e.candidates.every((c) => (c.length - 2) % 2 === 0);
+  }],
+
+  ["format-1-offers-the-true-width-of-a-padded-address-ending-in-a-zero-BYTE", () => {
+    const s = shard({ fmt: FMT_HEX_BYTES, chains: ["ethereum-mainnet"],
+                      entries: [{ hex: ADDR_ENDS_IN_ZERO_BYTE, chainIndex: 0, kind: 3 }] });
+    const e = parseHashShard(s).entries[0];
+    // Here the ambiguity is real and unresolvable: a 20-byte address ending 0x00 and a
+    // 19-byte one that was padded produce the SAME bytes. Both must be offered — picking
+    // either would be wrong for the other, which is the cost format 2 removes.
+    return e.candidates.includes(`0x${ADDR_ENDS_IN_ZERO_BYTE}`)
+        && e.candidates.includes(`0x${ADDR_ENDS_IN_ZERO_BYTE.slice(0, -2)}`);
+  }],
+
+  ["format-1-never-offers-an-empty-identifier-for-an-all-zero-unit", () => {
+    const s = shard({ fmt: FMT_HEX_BYTES, chains: ["demo"],
+                      entries: [{ hex: "", chainIndex: 0, kind: 1 }] });
+    const e = parseHashShard(s).entries[0];
+    // A degenerate entry must not produce `0x`, which would make `routeFor` build a route
+    // to the chain's listing page and let a nonsense entry resolve against it.
+    return e.candidates.length > 0 && !e.candidates.includes("0x")
+        && e.candidates.every((c) => c.length >= 4);
   }],
 
   ["format-2-parses-its-key-form-and-its-encoding-dictionary", () => {
@@ -185,8 +225,8 @@ for (const [name, fn] of arms) {
   else { failures += 1; console.log(`  FAIL  ${name}${why}`); }
 }
 const asserted = arms.length;
-if (asserted !== 10) {
-  console.log(`  FAIL  this suite declares 10 arms and ran ${asserted}`);
+if (asserted !== 13) {
+  console.log(`  FAIL  this suite declares 13 arms and ran ${asserted}`);
   failures += 1;
 }
 console.log(failures === 0

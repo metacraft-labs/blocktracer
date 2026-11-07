@@ -137,15 +137,44 @@ export function parseHashShard(bytes) {
       // and a caller comparing SHORTER identifiers must know that.
       const hex = [...unit].map((b) => b.toString(16).padStart(2, "0")).join("");
       identifier = `0x${hex.replace(/0+$/, "")}`;
-      // BOTH READINGS ARE KEPT, because format 1 cannot tell them apart and a consumer
-      // that picks one is wrong for some fraction of any real index. MEASURED over the
-      // 288 entries this repository publishes: 275 resolve to a page under the stripped
-      // identifier and the other 13 ONLY under the unstripped hex, because their hash
-      // genuinely ends in zero and the writer's strip ate it. Nothing resolved under
-      // neither. A gate asserting page existence must accept either; a gate that took
-      // `identifier` alone would have reported 13 stale neighbours on a clean tree, which
-      // is the false-positive that gets a gate switched off.
-      candidates = [identifier, `0x${hex}`];
+      // A CONSUMER THAT PICKS ONE READING IS WRONG FOR SOME FRACTION OF ANY REAL INDEX.
+      // Over the 288 transaction entries this repository published, 275 resolved under
+      // the stripped identifier and 13 ONLY under the unstripped hex — which is what the
+      // two-element set below was built for. It was not enough: those 288 were all
+      // FULL-WIDTH hashes, where the only ambiguity is one trailing nibble. A padded
+      // identifier shorter than the unit has a whole ladder of readings, and the set is
+      // now all of them.
+      // EVERY WHOLE-BYTE READING THE FORMAT PERMITS, narrowest first so the LAST element
+      // is the full-width one (journey 22 takes `candidates.at(-1)` and must keep getting
+      // that). An identifier is a whole number of bytes, so the only readings these bytes
+      // could have come from are the byte-boundary truncations whose remainder is all
+      // zero BYTES. The nibble strip in `identifier` above is not among them unless it
+      // happens to land on a boundary: it removes trailing zero CHARACTERS, so a 20-byte
+      // address ending `0x…40`, zero-padded into a 32-byte unit, comes back 39 hex chars
+      // long — an odd length, which no identifier can have.
+      //
+      // MEASURED on the real tree by bt-move-f0, 2026-11-07: 22 entries, every one kind 3
+      // (address) and every one an odd hex length, were reported stale while their pages
+      // existed under one more trailing `0`. The old two-element set could not find them:
+      // the stripped reading was a nibble short and the unstripped one carried 24 bytes of
+      // padding. 16 Ethereum addresses at 39 chars, 2 at 38, 1 demo, 3 Flow at 15.
+      //
+      // The contract says this outright — `hashshard.nim`: "the format-1 trailing-zero
+      // strip above is cosmetic for lookup; an exact match there compares bytes at the
+      // stored width". The shipped client never routes on the reconstruction: `lookupHash`
+      // pads the QUERY to `unitLen` and compares raw bytes, which is why journey 22 and
+      // `test_searchboot` stayed green over the same entries. This gate does route on it,
+      // so it needs the whole permitted set.
+      //
+      // The set is ambiguous BY CONSTRUCTION and that is format 1's cost, not a defect
+      // here: an address genuinely ending in a zero byte is indistinguishable from a
+      // shorter one that was padded. Format 2 stores the key form and has one reading.
+      const widths = [];
+      for (let end = hex.length; end >= 2; end -= 2) {
+        widths.push(end);
+        if (hex.slice(end - 2, end) !== "00") break;   // the first real byte ends it
+      }
+      candidates = widths.reverse().map((end) => `0x${hex.slice(0, end)}`);
     }
     entries.push({
       identifier, hex: identifier.replace(/^0x/, ""),

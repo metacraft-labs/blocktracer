@@ -125,6 +125,26 @@ const arms = [
     setup: (r) => build(r, { meta: { indexVersion: "1", shardCount: 7, entryCount: 2 } }),
     says: /declares shardCount 7 and idx\/hash\/1\/ holds 1 shard file/ },
 
+  // ── the kind-3 shape that produced 22 false stale neighbours on the real tree ──────
+  // bt-move-f0, 2026-11-07: every one was an address whose last hex digit is 0, published
+  // and paged correctly, reported stale because the reader offered no whole-byte reading
+  // at the address's true width. An address is 20 bytes in a 32-byte unit, so it is
+  // ZERO-PADDED — a shape no arm in this suite carried.
+  { name: "a-padded-address-ending-in-a-zero-nibble-resolves", pass: true,
+    setup: (r) => {
+      const ADDR = `${"e7".repeat(19)}40`;          // 20 bytes, last byte 0x40
+      const sh = encodeHashShard({ fmt: FMT_HEX_BYTES, chains: [CHAIN],
+        entries: [{ hex: ADDR, chainIndex: 0, kind: 3 }] });
+      write(r, "idx/hash/1/aa.bin", Buffer.from(sh));
+      write(r, "idx/hash/meta.json", JSON.stringify(
+        { indexVersion: "1", prefixLen: 2, shardCount: 1, entryCount: 1 }));
+      write(r, `${CHAIN}/address/0x${ADDR}/index.html`, "<html>addr</html>");
+      // rule B needs a page that draws an entity link, or it refuses for vacuity
+      write(r, `${CHAIN}/tx/0x${TX_A}/index.html`, "<html>tx</html>");
+      write(r, `${CHAIN}/txs/index.html`, listPage(CHAIN, [TX_A]));
+    },
+    says: /1 index entry\/entries over 1 shard\(s\) resolve/ },
+
   // ── rule C across TWO index versions ──────────────────────────────────────────────
   // Reported by bt-move-f0 on 2026-11-07: the gate reddened on every tree publishing a
   // second-format index, including trees built before their Aptos work. The cause was
@@ -257,8 +277,8 @@ for (const arm of arms) {
   }
 }
 const asserted = arms.length;
-if (asserted !== 19) {
-  console.log(`  FAIL  this suite declares 19 arms and ran ${asserted}`);
+if (asserted !== 20) {
+  console.log(`  FAIL  this suite declares 20 arms and ran ${asserted}`);
   failures += 1;
 }
 console.log(failures === 0
