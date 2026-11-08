@@ -1650,6 +1650,16 @@ const ARMS = [
   // `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py` arm CT1 —
   // `replay_data_store` blanks every row's call key — killed by "every
   // call-trace row carries its own call key" (codetracer 52dc517ffc).
+  // `SE/a-failed-call-reads-as-returning-nothing` IS GRADED IN CODETRACER
+  // FROM THE START, 2026-11-02. Journey 01's failed-call verdicts read a
+  // Starknet entry point's Error return and Error event, and both are drawn
+  // by the SDK's shared views from the store's decode, none of it code in
+  // this repository. Arm SE in
+  // `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py` drops the
+  // return from the row in `replay_data_store.callReturnTextOf` and is killed
+  // by "a failed call's return is drawn as its error" (codetracer 324806f1ed).
+  // Journey 01's "jumping to an Error event marks a call whose return is an
+  // error" reads the same return on the live page.
   {
     id: "PP1/the-hydrated-pane-has-one-answer-again",
     why:
