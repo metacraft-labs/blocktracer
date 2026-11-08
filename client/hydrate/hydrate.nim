@@ -142,6 +142,16 @@ proc closestFrom(ev: Event; selector: cstring): Element {.importjs: """
 proc documentIsLoading(): bool {.importjs:
   "(document.readyState === 'loading')".}
 
+proc rowLinkParam(row: Element; name: cstring): cstring {.importjs: """
+(function(r, n){
+  // One parameter of the §6.0a URL a shared-view row links to (`rowLinksFor`
+  // builds it). `URLSearchParams` decodes it, so an anchor comes back as the
+  // `call:0.0.3` the row was built from rather than as `call%3A0.0.3`.
+  var a = r.querySelector('a[href]');
+  if (!a) return '';
+  return new URL(a.getAttribute('href'), document.baseURI).searchParams.get(n) || '';
+})(#, #)""".}
+
 proc isPlainActivation(ev: Event): bool {.importjs: """
 (function(e){
   // A left-button click with no modifier. Everything else is the visitor
@@ -1477,6 +1487,58 @@ proc upgradeCopyAffordances(root: Element) =
 # ---------------------------------------------------------------------------
 
 type
+  FramePin = object
+    ## A call-trace frame this page chose, held against the SDK's "follow the
+    ## debugger's call" while the session stays at the coordinate it was
+    ## chosen for.
+    ##
+    ## ## Why a choice has to be held at all
+    ##
+    ## The SDK marks the call the debugger is in after every move
+    ## (`CalltraceVM.followDebuggerCall`, which codetracer's `markReady` turns
+    ## on for an embedder since `f288cfadc3`). For a step or a jump that is the
+    ## right mark. For the two choices this page makes BY FRAME it is the
+    ## wrong one, because both move the session by COORDINATE and several
+    ## frames share one: on the deep capture six frames are open at step 59.
+    ## A §6.0a link names one of them and seeks to its step; a row click
+    ## selects its frame and seeks to its step. Either way the engine then
+    ## reports the innermost frame at that step as current, the follow marks
+    ## it, and the frame that was asked for is lost. Measured before this
+    ## existed: journey 26's six links all arrived at `enqueued-call-0`, and
+    ## journey 25's six clicks marked the clicked frame 5 times of 6.
+    ##
+    ## ## Held at ONE coordinate, then given back
+    ##
+    ## The pin settles once the session reaches its coordinate and is dropped
+    ## when the session leaves it, so the follow governs every later move,
+    ## which is what it is for (an Event Log jump to a failed call marks that
+    ## call). The coordinate, not the stop: a row click is two moves to the
+    ## same step (the shared view's own `ct/calltrace-jump` and this page's
+    ## `ct/goto-ticks`) that end at different stops, and holding for only the
+    ## first of them gave the second to the follow. While
+    ## held, it undoes only a FOLLOWED mark, one that holds a call key
+    ## (`selectCall`, which is how the follow selects). A selection by index
+    ## that this page did not write is a visitor's, and it ends the pin.
+    anchor: string
+      ## The §6.0a call path of the chosen frame; "" when nothing is pinned.
+    ticks: int
+      ## The coordinate the choice seeks to, or `-1` for "the first stop at
+      ## which the frame is held" (a link with no coordinate).
+    reachedAt: Option[uint64]
+      ## The coordinate the pin is held at; `none` until the session is there.
+    madeAt: string
+      ## The stop the choice was made at. A LATER stop at some other
+      ## coordinate means the move landed elsewhere, so a pin that was never
+      ## reached is released rather than left to override every later follow.
+    wrote: Option[int64]
+      ## The selection this page last wrote for the pin.
+    applying: bool
+      ## Set while this page writes the pin. `selectEntry` empties the call
+      ## key BEFORE it writes the entry, and each write re-runs the selection
+      ## effect synchronously: without this, that nested run sees the follow's
+      ## entry with no key, takes it for a visitor's choice, and drops the pin
+      ## it is in the middle of applying.
+
   Hydration = ref object
     ## The live session and everything that writes to the page for it.
     ##
@@ -1548,26 +1610,16 @@ type
       ## before hydration replaced them. See `servedLandingAnchor` for why the
       ## index cannot be carried instead.
     frameSeeded: bool
-      ## Whether the landing's call-trace selection is settled.
+      ## Whether the landing has been turned into a call-trace selection.
       ##
-      ## Once, and only once: `selectLandingFrame` re-derived on every stop
-      ## would overwrite a frame the visitor chose with the innermost frame at
-      ## that coordinate, which is the collision `Click-Navigation.md` §2.2
-      ## says a coordinate cannot decide.
-      ##
-      ## "Once" is once the LINK'S frame is selected, not once anything is. The
-      ## first render with rows can come before the landing seek: the window
-      ## then holds the entry frames, the link's anchor is not among them, and
-      ## the position fallback marks a step-1 frame. Settling there marked
-      ## that frame for good — on the deep capture all six links sharing step
-      ## 59 arrived at `enqueued-call-0` (journey 26, read off the shared Call
-      ## Trace view). So a link that names a frame keeps being resolved on
-      ## each render until its anchor is found, or until the visitor selects a
-      ## frame (`seededEntry`); a link that names none settles at once.
-    seededEntry: Option[int64]
-      ## The selection this page last wrote while settling the landing. A
-      ## different `selectedEntry` means the visitor chose a frame, which ends
-      ## the settling: the page never overwrites a visitor's choice.
+      ## A link that names a frame becomes the PINNED frame (`pin`), held at
+      ## the link's coordinate; a link that names none is answered once from
+      ## the position by `selectLandingFrame`. Once, because re-deriving it on
+      ## every stop would overwrite a frame the visitor chose with the
+      ## innermost frame at that coordinate, which is the collision
+      ## `Click-Navigation.md` §2.2 says a coordinate cannot decide.
+    pin: FramePin
+      ## The frame this page itself chose: the link's, or the clicked row's.
     breakpoints: BreakpointSet
       ## The lines the visitor has marked, and the ONLY copy of them on this
       ## page that anything reads.
@@ -1908,6 +1960,57 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
 
 proc paintWhenSettled(h: Hydration)
 
+proc pinFrame(h: Hydration; anchor: string; ticks: int) =
+  ## Choose the frame `anchor` names at the coordinate `ticks`; see `FramePin`.
+  ## A new choice replaces the previous one, held or not. Whatever the caller
+  ## has just selected for it counts as this page's own write.
+  h.pin = FramePin(anchor: anchor, ticks: ticks,
+                   madeAt: stopIdentityOf(h.session.store.debugger.val))
+  if not h.session.calltrace.isNil:
+    h.pin.wrote = h.session.calltrace.selectedEntry.val
+
+proc holdPinnedFrame(h: Hydration) =
+  ## Keep the pinned frame selected while the session is where it was chosen.
+  ##
+  ## Run from every render and from the selection effect `goLive` installs,
+  ## because the SDK's follow can land on either side of a render: it runs in
+  ## its own effect on the same call-trace answer the render reads.
+  if h.pin.anchor.len == 0 or h.pin.applying or h.session.calltrace.isNil:
+    return
+  let dbg = h.session.store.debugger.val
+  let atChoice = h.pin.ticks < 0 or dbg.rrTicks == h.pin.ticks.uint64
+  if (h.pin.reachedAt.isSome and dbg.rrTicks != h.pin.reachedAt.get) or
+      (h.pin.reachedAt.isNone and not atChoice and
+       stopIdentityOf(dbg) != h.pin.madeAt):
+    # The session moved on, or the choice's move landed somewhere else: from
+    # here the follow's mark is the right one.
+    h.pin = FramePin()
+    return
+  let entry = h.session.calltraceEntryOf(h.pin.anchor)
+  if entry.isNone:
+    return    # the window does not hold the frame yet; the next answer may
+  # Selected as soon as it is held, even while the seek the choice made is
+  # still in flight, so the pane never shows the previous stop's follow in
+  # between; but HELD only once the session is at the choice's coordinate,
+  # so the stops on the way there cannot use the pin up.
+  if h.pin.reachedAt.isNone and atChoice:
+    h.pin.reachedAt = some(dbg.rrTicks)
+  let vm = h.session.calltrace
+  let selected = vm.selectedEntry.val
+  if selected == entry: return
+  # Undo only a followed mark. An index selection this page did not write
+  # was the visitor's, and the page never overwrites a visitor's choice.
+  if selected.isSome and selected != h.pin.wrote and
+      vm.selectedCallKey.val.len == 0:
+    h.pin = FramePin()
+    return
+  h.pin.applying = true
+  try:
+    discard h.session.selectCalltraceFrame(h.pin.anchor)
+  finally:
+    h.pin.applying = false
+  h.pin.wrote = vm.selectedEntry.val
+
 proc paint(h: Hydration) =
   ## The panes, drawn from the live projection with everything this page owns
   ## stamped onto it — and then the address bar.
@@ -1944,16 +2047,15 @@ proc paint(h: Hydration) =
   # session whose phase moved was left with its controls never enabled.
   if h.session.calltrace.isNil: return
   if not h.frameSeeded and h.session.calltrace.visibleLines.val.len > 0:
-    let selected = h.session.calltrace.selectedEntry.val
-    if h.seededEntry.isSome and selected != h.seededEntry:
-      h.frameSeeded = true    # the visitor chose a frame; keep it
+    h.frameSeeded = true
+    if h.landingAnchor.len > 0:
+      # The link's own coordinate, which `afterReady` seeks to; a link with
+      # none settles wherever the frame is first held.
+      h.pinFrame(h.landingAnchor,
+                 if h.landing.coordinate > 0: h.landing.coordinate else: -1)
     else:
-      let named = h.landingAnchor.len > 0 and
-        h.session.selectCalltraceFrame(h.landingAnchor)
-      if not named:
-        discard h.session.selectLandingFrame("")
-      h.seededEntry = h.session.calltrace.selectedEntry.val
-      h.frameSeeded = named or h.landingAnchor.len == 0
+      discard h.session.selectLandingFrame("")
+  h.holdPinnedFrame()
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
   # THE MARKS GO ON HERE, INSIDE THE RENDER, and that placement is the whole
   # reason they survive.
@@ -2827,7 +2929,8 @@ proc bindGestures(h: Hydration) =
       # frame did the reader choose" after clicking one is "none" — which is a
       # real answer and has to be written, or the mark from the last call-trace
       # click would sit there describing a frame the reader has left.
-      discard h.session.selectCalltraceFrame(attr(row, "data-anchor"))
+      let anchor = attr(row, "data-anchor")
+      let chose = h.session.selectCalltraceFrame(anchor)
       # The row IS a link in a hydrated page, and its href is a real, valid
       # §6.0a URL — which is what makes middle-click, "open in new tab" and
       # copy-link-address all work, and what makes Enter activate it without a
@@ -2846,7 +2949,15 @@ proc bindGestures(h: Hydration) =
       # visitor had since navigated somewhere else entirely.
       h.continueOutcome = ""
       h.continueAwaiting = false
-      try: h.gotoTicks(parseInt(step)) except CatchableError: discard)
+      # The frame chosen above is held against the SDK's follow for the stop
+      # this seek makes (`FramePin`): at the row's step the engine reports the
+      # INNERMOST open frame as current, which is a different frame for every
+      # row but the innermost. A row that names no frame retires any pin.
+      try:
+        let ticks = parseInt(step)
+        if chose: h.pinFrame(anchor, ticks) else: h.pin = FramePin()
+        h.gotoTicks(ticks)
+      except CatchableError: discard)
 
   h.ui.controls.addEventListener("click", proc(ev: Event) =
     let btn = closestFrom(ev, ".dcbtn")
@@ -3079,6 +3190,23 @@ proc bindGestures(h: Hydration) =
     h.scrubSeek(want))
 
   rowHandler(h.ui.calltrace, ".ctrow")
+  # A click on a row of the SHARED Call Trace view, which `rowHandler` does
+  # not see: those rows carry no `data-step`, and the view handles the click
+  # itself (it selects the row's call and sends `ct/calltrace-jump`). The
+  # engine then reports the INNERMOST frame at the call's first step as
+  # current, and the SDK's follow marks that instead: measured over the 31
+  # rows of the deep capture, 6 clicks marked a deeper frame (`Map::at` ->
+  # `Poseidon2::hash_internal`). So the clicked frame is pinned (`FramePin`)
+  # at the coordinate its own link names. Registered on the pane, so it runs
+  # after the view's row handler: the view's selection is already in place
+  # and counts as this page's own write.
+  h.ui.calltrace.addEventListener("click", proc(ev: Event) =
+    let row = closestFrom(ev, ".calltrace-call-line")
+    if row == nil or not isPlainActivation(ev): return
+    let anchor = $rowLinkParam(row, "a")
+    if not anchor.startsWith("call:"): return
+    try: h.pinFrame(anchor, parseInt($rowLinkParam(row, "t")))
+    except ValueError: discard)
   rowHandler(h.ui.eventLog, ".evrow")
   # The loop rail's segments, through the SAME primitive. A segment's
   # `data-step` is its pass's loop-header tick, so "show me pass 6" is
@@ -3268,6 +3396,17 @@ proc goLive(h: Hydration) =
     # §8: the values of a stop get a deadline, so the pane never says
     # "Reading…" for as long as the tab is open. The stop loader keeps no
     # clock; the page does.
+    # THE PINNED FRAME, held against the SDK's follow wherever it lands. The
+    # render above re-applies it too, but the follow runs in its own effect on
+    # the same call-trace answer, so it can as easily run after the render as
+    # before it; this one reruns on the selection itself. See `FramePin`.
+    createEffect proc() =
+      if hh.session.calltrace.isNil: return    # see `paint`: no VMs yet
+      discard hh.session.calltrace.selectedEntry.val
+      discard hh.session.calltrace.selectedCallKey.val
+      discard hh.session.store.debugger.val
+      untrack(proc() =
+        if not hh.stopped: hh.holdPinnedFrame())
     var armedFor = ""
     createEffect proc() =
       let stop = stopIdentityOf(hh.session.store.debugger.val)

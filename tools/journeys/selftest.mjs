@@ -1601,12 +1601,11 @@ const ARMS = [
       " the flag, so nothing looks missing; it only declines to write the" +
       " pointer, which is the shape the defect actually had.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    // RE-AIMED 2026-10-29: the landing is seeded by `selectCalltraceFrame`
-    // over the held rows, with `selectLandingFrame` only as the fallback,
-    // since the shared call trace landed on the frame a link names (3943455).
-    // Neither runs under this mutation, so no frame is selected.
-    find: "      let named = h.landingAnchor.len > 0 and\n        h.session.selectCalltraceFrame(h.landingAnchor)\n      if not named:\n        discard h.session.selectLandingFrame(\"\")",
-    replace: "      let named = true  # MUTATED: the landing selects no frame",
+    // RE-AIMED 2026-11-08: the landing becomes a `FramePin` (`pinFrame`),
+    // with `selectLandingFrame` only for a link that names no frame. Neither
+    // runs under this mutation. The assertion moved with it, below.
+    find: "    if h.landingAnchor.len > 0:\n      # The link's own coordinate, which `afterReady` seeks to; a link with\n      # none settles wherever the frame is first held.\n      h.pinFrame(h.landingAnchor,\n                 if h.landing.coordinate > 0: h.landing.coordinate else: -1)\n    else:\n      discard h.session.selectLandingFrame(\"\")",
+    replace: "    discard  # MUTATED: the landing selects no frame",
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     // RE-AIMED, and the move is the point rather than a detail. This arm used
     // to name the CONTROL assertion, which reads the pane before the engine —
@@ -1616,7 +1615,14 @@ const ARMS = [
     // it and this arm SURVIVED, measured. The mutation is unchanged; what it
     // needed was an assertion that looks where the defect is, which is the
     // hydrated pane, and journey 26 now makes one.
-    assertion: "§7.0: hydration renders no LESS — the repainted pane still marks exactly one row",
+    //
+    // AND RE-AIMED AGAIN 2026-11-08, to the IDENTITY. Since the SDK follows
+    // the debugger's call (codetracer `markReady`, `f288cfadc3`) a row is
+    // marked after every move whatever the landing does, so the §7.0 floor
+    // holds under this mutation and naming it would let the arm survive.
+    // What the landing alone contributes now is WHICH frame, and that is
+    // what goes red: all six links arrive at the follow's frame.
+    assertion: "and it is STILL the frame the link named, carried across by anchor",
   },
   {
     id: "FJ4/the-landing-forgets-its-anchor-across-hydration",
@@ -1635,12 +1641,47 @@ const ARMS = [
       " identity, not the index, is the thing that must survive the change of" +
       " numbering between 47 served rows and 48 live ones.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    // RE-AIMED 2026-10-29: the anchor is resolved by `selectCalltraceFrame`
-    // since 3943455; dropping it falls back to the landing frame.
-    find: "        h.session.selectCalltraceFrame(h.landingAnchor)",
-    replace: "        h.session.selectCalltraceFrame(\"\")  # MUTATED: the anchor is dropped",
+    // RE-AIMED 2026-11-08: the anchor is the landing's `FramePin` since the
+    // SDK started following the debugger's call; a pin with no anchor holds
+    // nothing, so the follow's frame stays marked.
+    find: "      h.pinFrame(h.landingAnchor,",
+    replace: "      h.pinFrame(\"\",  # MUTATED: the anchor is dropped",
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     assertion: "and it is STILL the frame the link named, carried across by anchor",
+  },
+  {
+    id: "FP1/the-follow-overrides-the-chosen-frame",
+    why:
+      "Never undo the SDK's follow. Since codetracer `f288cfadc3` the shared" +
+      " Call Trace marks the call the debugger is in after every move, and a" +
+      " move BY FRAME (a §6.0a link, a row click) lands on a step several" +
+      " frames share, where the engine reports the innermost one as current." +
+      " `FramePin` holds the chosen frame against that mark at its coordinate;" +
+      " with the hold gone, every link and click on the six frames open at" +
+      " step 59 marks the follow's frame instead. Measured before the pin" +
+      " existed: all six links of journey 26 arrived at `enqueued-call-0`.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: "  if h.pin.anchor.len == 0 or h.pin.applying or h.session.calltrace.isNil:\n    return",
+    replace: "  return  # MUTATED: the SDK's follow is never undone",
+    journey: "a-link-to-a-frame-arrives-at-that-frame",
+    assertion: "and it is STILL the frame the link named, carried across by anchor",
+  },
+  {
+    id: "FP2/a-shared-row-click-pins-nothing",
+    why:
+      "Let a click on a row of the SHARED Call Trace pin nothing. The view" +
+      " handles that click itself (`selectCall` and `ct/calltrace-jump`), so" +
+      " BlockTracer's `rowHandler` never sees it, and after the jump the" +
+      " SDK's follow marks the innermost frame at the call's first step." +
+      " Measured over the 31 rows of the deep capture with this listener" +
+      " absent: 6 clicks marked a deeper frame (`Map::at` ->" +
+      " `Poseidon2::hash_internal`), which is the one assertion that reads" +
+      " the clicked row back.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: "    try: h.pinFrame(anchor, parseInt($rowLinkParam(row, \"t\")))",
+    replace: "    try: discard parseInt($rowLinkParam(row, \"t\"))  # MUTATED: the click pins nothing",
+    journey: "a-call-trace-row-lands-on-the-frame-it-names",
+    assertion: "the row that is marked is the row that was clicked",
   },
   // `CT1/two-frames-answer-to-one-identity` MOVED TO CODETRACER, 2026-10-31.
   // It mutated `session_project.withCallAnchors`, the served projection's
