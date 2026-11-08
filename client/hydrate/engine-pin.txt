@@ -523,14 +523,41 @@
 # apex serves). This change re-records none of them, and this engine opens or
 # refuses each on its own two versions, exactly as engine-opens.mjs reports.
 #
+# ── 2026-11-07: THE PIN MOVED TO THE ENGINE dev bc96593dd PUBLISHES. SAME
+#    GATES, SO THE CORPUS STAYS ─────────────────────────────────────────────
+#
+# WHAT PUBLISHED IT. `codetracer` `cloud` = `dev` = `bc96593dd` (the
+# agents-to-dev-2026-11-01 promotion, PR #903, plus hotfixes #912 and #913),
+# deployed by "Deploy ide.codetracer.com" run 42349214620 on `cloud`; the
+# deployment's /build-id.txt names that revision and run. Measured by
+# `just engine-pin-update`:
+#
+#     worker.js               12,180 B     sha256 ad2e6ce0ac902ba1…  (unchanged)
+#     pkg/db_backend.js       19,447 B     sha256 d7e166166c4d32d9…
+#     pkg/db_backend_bg.wasm  18,446,061 B sha256 d0f745178f9658ec…
+#
+# WHY IT MOVES. The HSF-B2 Starknet failed call (block 17,261,713) is read
+# through this engine: its `Error` event has to arrive with its own kind rather
+# than as `stdout`. That is codetracer `ca5879ccf4` ("only a Write event is
+# standard output"), which `bc96593dd` carries and `c0408ecad` does not.
+#
+# ITS GATES, read at `bc96593dd`, are the predecessor's: container {5, 6} and
+# `meta.dat` [7] only. `ctfs_container.rs` is unchanged since `c0408ecad`, and
+# `meta_dat.rs` only gains bounds on declared record counts. Confirmed on the
+# wasm's own bytes with `grep -a`: every needle the 2026-10-28 reading counted
+# reads the same, and the new count refusal `record(s) of at least` reads 1.
+# Asked of the engine: `engine-opens.mjs` over the prepared corpus opens 52 and
+# refuses the 3 placeholders, the figures CI asserts. Nothing in the corpus or
+# the chain writer has to move with it, so THE RULE ABOVE holds trivially.
+#
 # ── Provenance ─────────────────────────────────────────────────────────────
 #
 # origin       https://web-codetracer.pages.dev
-# measured     2026-10-28, against the production deployment of that day
+# measured     2026-11-07, against the production deployment of that day
 # descriptor   the hashed names are read from that deployment's own entry
 #              document, which is where `deploy-web-codetracer.yml` records
 #              them; they are not guessed from the hashes below.
 
 worker.js               worker.js                                   ad2e6ce0ac902ba18d0d208a56900f29f4c6c46986017d92d22ed2f42806e01d  12180     mutable
-pkg/db_backend.js       assets/db_backend.fb379c28fa65ca04.js       fb379c28fa65ca04a62d7713aad216d70c6f8a574eeef6a3fe44f5e3da55c963  19448     immutable
-pkg/db_backend_bg.wasm  assets/db_backend_bg.be148ba358bcddcb.wasm  be148ba358bcddcbaff939aa2dd6304c03f8671103b754d887c6c2ed7980ea4d  18049772  immutable
+pkg/db_backend.js       assets/db_backend.d7e166166c4d32d9.js       d7e166166c4d32d92105ea6380f520b60801e34a9cf0e8aac6a5e95f31acd8f1  19447     immutable
+pkg/db_backend_bg.wasm  assets/db_backend_bg.d0f745178f9658ec.wasm  d0f745178f9658ec98a78d6faf863e5dd9609cc5bc4504d69a157a27f37bbdd9  18446061  immutable
