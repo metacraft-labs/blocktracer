@@ -1317,7 +1317,20 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
   if hashes.len == 0:
     result.sourceBundleReason = "this transaction executed no contract code"
     return
+  # EVERY BUNDLE ONLY WHERE THE POSITIONS CAN PLACE A STEP IN IT. A Move position
+  # stream (`move-positions/1`, `move-disassembly-positions/1`) names each step's
+  # module file, so a document for every module is what lets the pane follow the
+  # session across modules. Every other stream positions steps in the first code
+  # hash's document only, so further bundles would be pages of text no step can
+  # mark — and on Starknet they tripled two debug pages (24.9 and 32.7 MB to 86.1
+  # and 65.6 MB), past Cloudflare Pages' 25 MiB file limit and the journey visit
+  # budget (#102, #103). Those chains keep the one bundle they always had.
+  let everyBundle = result.positions != nil and
+    result.positions.kind == JObject and
+    result.positions{"schema"}.getStr in ["move-positions/1",
+                                          "move-disassembly-positions/1"]
   for i, h in hashes:
+    if i > 0 and not everyBundle: break
     let reference = resolveSourceBundle(info.store, info.slug, t.manifest,
                                         t.hasManifest, h)
     if reference.origin == bsNone:
