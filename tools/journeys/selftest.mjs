@@ -1666,23 +1666,14 @@ const ARMS = [
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     assertion: "and it is STILL the frame the link named, carried across by anchor",
   },
-  {
-    id: "FP2/a-shared-row-click-pins-nothing",
-    why:
-      "Let a click on a row of the SHARED Call Trace pin nothing. The view" +
-      " handles that click itself (`selectCall` and `ct/calltrace-jump`), so" +
-      " BlockTracer's `rowHandler` never sees it, and after the jump the" +
-      " SDK's follow marks the innermost frame at the call's first step." +
-      " Measured over the 31 rows of the deep capture with this listener" +
-      " absent: 6 clicks marked a deeper frame (`Map::at` ->" +
-      " `Poseidon2::hash_internal`), which is the one assertion that reads" +
-      " the clicked row back.",
-    file: join(CLIENT, "hydrate", "hydrate.nim"),
-    find: "    try: h.pinFrame(anchor, parseInt($rowLinkParam(row, \"t\")))",
-    replace: "    try: discard parseInt($rowLinkParam(row, \"t\"))  # MUTATED: the click pins nothing",
-    journey: "a-call-trace-row-lands-on-the-frame-it-names",
-    assertion: "the row that is marked is the row that was clicked",
-  },
+  // `FP2/a-shared-row-click-pins-nothing` MOVED TO CODETRACER, 2026-11-08.
+  // A click on a shared Call Trace row is the SDK's: it selects the row's
+  // call with `selectCallForMove`, and the follow leaves that selection alone
+  // at the stop the click's jump lands on. Graded there:
+  // `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py` arm CK —
+  // the follow undoes a row click — killed by "the clicked call stays marked
+  // at the stop the jump lands on" (codetracer a3986b0de1). Journey 25 reads
+  // the clicked row back on the live page.
   // `CT1/two-frames-answer-to-one-identity` MOVED TO CODETRACER, 2026-10-31.
   // It mutated `session_project.withCallAnchors`, the served projection's
   // anchors, and SURVIVED: the live rows are the shared Call Trace's, and

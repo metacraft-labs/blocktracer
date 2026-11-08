@@ -142,16 +142,6 @@ proc closestFrom(ev: Event; selector: cstring): Element {.importjs: """
 proc documentIsLoading(): bool {.importjs:
   "(document.readyState === 'loading')".}
 
-proc rowLinkParam(row: Element; name: cstring): cstring {.importjs: """
-(function(r, n){
-  // One parameter of the §6.0a URL a shared-view row links to (`rowLinksFor`
-  // builds it). `URLSearchParams` decodes it, so an anchor comes back as the
-  // `call:0.0.3` the row was built from rather than as `call%3A0.0.3`.
-  var a = r.querySelector('a[href]');
-  if (!a) return '';
-  return new URL(a.getAttribute('href'), document.baseURI).searchParams.get(n) || '';
-})(#, #)""".}
-
 proc isPlainActivation(ev: Event): bool {.importjs: """
 (function(e){
   // A left-button click with no modifier. Everything else is the visitor
@@ -1500,12 +1490,17 @@ type
     ## right mark. For the two choices this page makes BY FRAME it is the
     ## wrong one, because both move the session by COORDINATE and several
     ## frames share one: on the deep capture six frames are open at step 59.
-    ## A §6.0a link names one of them and seeks to its step; a row click
-    ## selects its frame and seeks to its step. Either way the engine then
+    ## A §6.0a link names one of them and seeks to its step; a click on a
+    ## SERVED row (`rowHandler`) selects its frame and seeks to its step.
+    ## Either way the engine then
     ## reports the innermost frame at that step as current, the follow marks
     ## it, and the frame that was asked for is lost. Measured before this
-    ## existed: journey 26's six links all arrived at `enqueued-call-0`, and
-    ## journey 25's six clicks marked the clicked frame 5 times of 6.
+    ## existed: journey 26's six links all arrived at `enqueued-call-0`.
+    ##
+    ## A click on a row of the SHARED view is not pinned here: the view
+    ## selects the row's call with `selectCallForMove`, which the SDK's
+    ## follow leaves alone at the stop the click's jump lands on (codetracer
+    ## `a3986b0de1`).
     ##
     ## ## Held at ONE coordinate, then given back
     ##
@@ -3190,23 +3185,6 @@ proc bindGestures(h: Hydration) =
     h.scrubSeek(want))
 
   rowHandler(h.ui.calltrace, ".ctrow")
-  # A click on a row of the SHARED Call Trace view, which `rowHandler` does
-  # not see: those rows carry no `data-step`, and the view handles the click
-  # itself (it selects the row's call and sends `ct/calltrace-jump`). The
-  # engine then reports the INNERMOST frame at the call's first step as
-  # current, and the SDK's follow marks that instead: measured over the 31
-  # rows of the deep capture, 6 clicks marked a deeper frame (`Map::at` ->
-  # `Poseidon2::hash_internal`). So the clicked frame is pinned (`FramePin`)
-  # at the coordinate its own link names. Registered on the pane, so it runs
-  # after the view's row handler: the view's selection is already in place
-  # and counts as this page's own write.
-  h.ui.calltrace.addEventListener("click", proc(ev: Event) =
-    let row = closestFrom(ev, ".calltrace-call-line")
-    if row == nil or not isPlainActivation(ev): return
-    let anchor = $rowLinkParam(row, "a")
-    if not anchor.startsWith("call:"): return
-    try: h.pinFrame(anchor, parseInt($rowLinkParam(row, "t")))
-    except ValueError: discard)
   rowHandler(h.ui.eventLog, ".evrow")
   # The loop rail's segments, through the SAME primitive. A segment's
   # `data-step` is its pass's loop-header tick, so "show me pass 6" is
