@@ -65,7 +65,7 @@ import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
 import {
   CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
-  parseProducerArgs, readJsonOrRefuse as readJson, recorderProvenance,
+  parseProducerArgs, pictureControlChars, readJsonOrRefuse as readJson, recorderProvenance,
   refuseOperation as refuse,
 } from './lib/producer-runtime.mjs';
 import {
@@ -302,7 +302,8 @@ async function main(argv) {
           throw refuse(SOURCE_REFUSAL, `version ${rec.version}: '${p}' has no bytecode beside it `
             + `(${basename(mv)}), so the code it disassembles cannot be identified.`);
         }
-        return { path: p, address: p.split('/')[0], text: readFileSync(abs, 'utf8'),
+        return { path: p, address: p.split('/')[0],
+                 text: pictureControlChars(readFileSync(abs, 'utf8')),
                  codeHash: moduleCodeHash(readFileSync(mv)),
                  module: basename(p).replace(/\.mv\.masm$/, '') };
       }
