@@ -65,7 +65,7 @@
 // implementation would fail.
 
 import { visit, readFacts } from "../lib/probe.mjs";
-import { transactions, landingOf } from "../lib/corpus.mjs";
+import { transactions, landingOf, publishedFacts } from "../lib/corpus.mjs";
 
 export const id = "a-stepped-session-shows-the-values-recorded-on-its-lines";
 export const claim =
@@ -287,8 +287,26 @@ export async function run({ browser, site, j }) {
   // them is what keeps the rung-2 capture ASSERTED. Selecting the source arm on
   // `hasRecordedValues` moved it out of that arm, and a category that leaves one
   // arm and joins no other is a subject the suite has silently stopped judging.
+  //
+  // AND THE RECORDING'S OWN COUNT HAS TO AGREE. `hasRecordedValues` reads the
+  // overlay the EXPORTER drew, and the exporter draws one only for the fixture
+  // program it can replay at build time — for a real capture it draws none
+  // whatever the recording holds. That was harmless while no real capture that
+  // carries values had source to show values against. An Aptos recording does:
+  // `native.replay.varnames` is 174–288 on the published window, its source
+  // resolved (a7c5fc5), and the live session rightly draws the engine's values on
+  // it — which this arm would have called a defect. So a session whose published
+  // replay record counts interned variable names is not a "recorded no values"
+  // subject. An ABSENT count (every Aztec capture predates the member) keeps the
+  // session in: absent is not a number of values.
+  const internsNames = new Set();
+  for (const t of sessions) {
+    const n = (await publishedFacts(site.root, t.chain, t.hash))?.native?.replay?.varnames;
+    if (Number.isInteger(n) && n > 0) internsNames.add(t.debugPath);
+  }
+  const recordedNone = (t) => !t.hasRecordedValues && !internsNames.has(t.debugPath);
   const noValues = j.subjects(
-    sessions.filter((t) => !t.hasRecordedValues),
+    sessions.filter(recordedNone),
     1,
     "the tree holds a session whose recording placed NO values on its rows",
   );
@@ -392,7 +410,7 @@ export async function run({ browser, site, j }) {
   await absenceArm(browser, site, j, noValues[0], "REAL");
 
   const sourceShownNoValues = j.subjects(
-    sessions.filter((t) => t.hasSource && !t.hasRecordedValues),
+    sessions.filter((t) => t.hasSource && recordedNone(t)),
     1,
     "the tree holds a session that DISPLAYS SOURCE and recorded no values on it",
   );

@@ -17,7 +17,7 @@
 ## | `BlockVM` | `block_vm` | built |
 ## | `TransactionVM` | `transaction_vm` | built |
 ## | `AddressVM` | `address_vm` | history and verified-source status built; **account state and code blocked** — no account object class exists in the tree (M6) |
-## | `SearchVM` | `search_vm` | shape detection, local inference and direct-path resolution built; **hash index and name shards blocked** at the Client SDK facade (Client-SDK.md §5's open question) |
+## | `SearchVM` | `search_vm` | shape detection, local inference, direct-path resolution and the ledger-version index (globalVersion chains) built; **hash index and name shards blocked** at the Client SDK facade (Client-SDK.md §5's open question) |
 ## | `SourceBundleVM` | `source_bundle_vm` | built |
 ## | `TraceStatusVM` | `trace_status_vm` | built |
 ## | `GenerationJobVM` | `generation_job_vm` | the §14.1 state machine built in full; **the transport is blocked** — there is no `/enqueue` service |

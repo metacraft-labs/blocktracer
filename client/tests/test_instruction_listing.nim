@@ -1497,3 +1497,223 @@ suite "7 — a recording at TWO fidelities says where it is at both of them":
     #
     # 131 + 12 + 32 + 50 = 225.
     expectCount(223)
+
+suite "8 — a transaction's every bundle is on the page, and a Move stream is read":
+  ## THE DEFECT. An Aptos transaction enters many modules — the transfer 16, a
+  ## Decibel order 45 — and the producer publishes a bundle per module: Move
+  ## source for each module proved against its bytes, the `.masm` disassembly for
+  ## each one that was not. The debug page read the FIRST code hash's bundle
+  ## only, and read per-step positions only for the AVM and CASM schemas. So the
+  ## transfer (`sourceLevel: true`) served one module's files and no position,
+  ## and the three Decibel transactions served "No source resolved".
+  ##
+  ## The subjects are synthetic and shaped like the published window: two Move
+  ## source bundles that share `error.move`, one disassembly bundle, and a
+  ## stream that walks source, then disassembly, then source again. The shipped
+  ## tree carries no Move recording (Aptos is not in `produced-captures`), so the
+  ## real pages are graded by `just journeys-aptos` and the site diff.
+  asserted = 0
+  const
+    CoinMove = "0x1/source/coin.move"
+    ErrorMove = "0x1/source/error.move"
+    VectorMove = "0x1/source/vector.move"
+    DexMasm = "0x50ea/bytecode/decibel_perp_dex.mv.masm"
+    BcsMove = "0x1/source/bcs.move"     # interned by the stream, stepped by nothing
+  proc numbered(prefix: string; n: int): string =
+    for i in 1 .. n: result.add prefix & " line " & $i & "\n"
+  let coinBundle = %*{"language": "move", "sources": {
+    CoinMove: {"content": numbered("coin", 12)},
+    ErrorMove: {"content": numbered("error", 3)}}}
+  let vectorBundle = %*{"language": "move", "sources": {
+    ErrorMove: {"content": "a different error.move\n"},
+    VectorMove: {"content": numbered("vector", 4)}}}
+  let dexBundle = %*{"language": "move-disassembly", "sources": {
+    DexMasm: {"content": numbered("instr", 9)}}}
+  proc stream(schema: string): JsonNode =
+    %*{"schema": schema, "paths": [CoinMove, DexMasm, BcsMove],
+       "pathId": [0, 0, 1, 1, 1, 0], "line": [3, 4, 2, 3, 7, 5],
+       "column": [1, 1, 1, 1, 1, 1], "measuredPostHoc": false}
+  proc instructionLevel(): DebugSessionView =
+    ## What `demoSession` builds for a `sourceLevel: false` chain recording.
+    DebugSessionView(hasFrame: true, containerPath: "t/aa/bb/x/trace.ct",
+      editor: EditorPane(availability: srcUnverified,
+                         reason: "No source resolved for the code this transaction ran"),
+      controls: DebugControlsPane(positioned: true, step: 0, totalSteps: 6,
+                                  statusText: "Engine loading"))
+  proc unplacedSource(merged: JsonNode): DebugSessionView =
+    ## What `withPublishedSources` leaves for a `sourceLevel: true` recording whose
+    ## bundle is not the fixture's program: source, and no position.
+    result = DebugSessionView(hasFrame: true, containerPath: "t/aa/bb/x/trace.ct",
+      editor: EditorPane(availability: srcSourceLevel),
+      controls: DebugControlsPane(positioned: false, step: 0, totalSteps: 6,
+                                  statusText: "No position yet"),
+      timeCoordinate: 128)
+    result.editor.documents = sourceDocumentsFromBundle(merged)
+
+  test "the union of a transaction's bundles holds every file, the first bundle's on a collision":
+    let merged = mergeSourceBundles([coinBundle, vectorBundle, dexBundle])
+    let docs = sourceDocumentsFromBundle(merged)
+    var paths: seq[string]
+    for d in docs: paths.add d.path
+    ck paths == @[CoinMove, ErrorMove, VectorMove, DexMasm]   # path order
+    # Each document keeps its OWN bundle's language: two kinds in one pane.
+    for d in docs:
+      if d.path == DexMasm: ck d.language == "move-disassembly"
+      else: ck d.language == "move"
+    # `error.move` is in both source bundles with different text; the first
+    # bundle — the row's first code hash, the only one the page used to read —
+    # keeps it, so no document the page showed before changes under it.
+    for d in docs:
+      if d.path == ErrorMove: ck d.lines[0].text == "error line 1"
+    # CONTROL: one bundle is passed through as itself, so a one-contract
+    # transaction renders from exactly the node it always did.
+    ck mergeSourceBundles([coinBundle]) == coinBundle
+    ck mergeSourceBundles([nil, coinBundle]) == coinBundle
+    ck mergeSourceBundles(newSeq[JsonNode]()).isNil
+
+  test "the Move streams are read, and an unknown token still is not":
+    for schema in ["move-positions/1", "move-disassembly-positions/1"]:
+      let pos = decodeStepPositions(stream(schema))
+      ck pos.has
+      ck pos.steps == 6
+      ck pos.positioned == 6
+    # CONTROL: the schema gate is still a gate.
+    ck not decodeStepPositions(stream("move-positions/2")).has
+
+  test "a mixed transaction: a step on source shows its line, a step on disassembly its instruction":
+    let merged = mergeSourceBundles([coinBundle, vectorBundle, dexBundle])
+    # Landing: tick 0 is on `coin.move:3`.
+    var s = instructionLevel()
+    withSourcePositions(s, merged, stream("move-positions/1"), 6, 6)
+    ck s.editor.availability == srcSourceLevel
+    ck s.controls.positioned
+    ck s.controls.step == 0
+    ck activeDocument(s.editor).path == CoinMove
+    ck s.editor.currentLine == 3
+    ck s.editor.positionedSteps == 6 and s.editor.positionedOf == 6
+    # A session standing on tick 3 is on the disassembly of `decibel_perp_dex`.
+    var d = instructionLevel()
+    d.controls.step = 3
+    withSourcePositions(d, merged, stream("move-positions/1"), 6, 6)
+    ck d.controls.step == 3
+    ck activeDocument(d.editor).path == DexMasm
+    ck activeDocument(d.editor).language == "move-disassembly"
+    ck d.editor.currentLine == 3
+    # The gutter is the stream's own visited set, in both kinds of document.
+    for doc in d.editor.documents:
+      if doc.path == DexMasm:
+        ck doc.lines[1].executed and doc.lines[2].executed and doc.lines[6].executed
+        ck not doc.lines[0].executed
+    # The AVM prose is not written over a Move page.
+    ck "Aztec" notin d.state.note
+    ck "replay engine" in d.state.note
+    # …and the boundary between the two kinds is stated, with the module named.
+    let note = disassemblyCoverageNote(d, stream("move-positions/1"))
+    ck "3 of this recording's 6 steps are on source" in note
+    ck "The other 3 are on the bytecode disassembly of 1 module(s)" in note
+    ck "decibel_perp_dex" in note
+    # CONTROL: the same stream relabelled as an AVM stream is not refused by the
+    # pane, so the Move tokens above are what admitted it — and the Aztec prose
+    # is what that schema still gets.
+    var avm = instructionLevel()
+    withSourcePositions(avm, merged, stream("avm-source-positions/1"), 6, 6)
+    ck avm.editor.availability == srcSourceLevel
+    ck "Aztec" in avm.state.note
+
+  test "every step on disassembly says so, and a source-only page says nothing":
+    let merged = mergeSourceBundles([dexBundle])
+    let allDis = %*{"schema": "move-disassembly-positions/1", "paths": [DexMasm],
+                    "pathId": [0, 0, 0], "line": [1, 2, 3], "column": [1, 1, 1]}
+    var s = instructionLevel()
+    withSourcePositions(s, merged, allDis, 3, 3)
+    ck s.editor.availability == srcSourceLevel
+    ck activeDocument(s.editor).path == DexMasm
+    ck "Every step of this recording is on the bytecode disassembly" in
+       disassemblyCoverageNote(s, allDis)
+    # CONTROL: all on source — no note.
+    let allSrc = %*{"schema": "move-positions/1", "paths": [CoinMove],
+                    "pathId": [0, 0], "line": [1, 2], "column": [1, 1]}
+    var src = instructionLevel()
+    withSourcePositions(src, mergeSourceBundles([coinBundle]), allSrc, 2, 2)
+    ck src.editor.availability == srcSourceLevel
+    ck disassemblyCoverageNote(src, allSrc) == ""
+
+  test "a source-level recording the fixture does not describe gets its position from the stream":
+    let merged = mergeSourceBundles([coinBundle, vectorBundle, dexBundle])
+    var s = unplacedSource(merged)
+    let before = s.editor.documents.len
+    withSourcePositions(s, merged, stream("move-positions/1"), 6, 6)
+    ck s.controls.positioned
+    ck s.controls.step == 0
+    ck s.timeCoordinate == 0              # not the fixture's 128
+    ck s.controls.statusText != "No position yet"
+    ck activeDocument(s.editor).path == CoinMove
+    ck s.editor.currentLine == 3
+    ck s.editor.documents.len == before
+    # CONTROL: a source-level pane that IS positioned — the fixture's own program —
+    # is left exactly as it was: the manifest's claim and its position outrank this.
+    var placed = unplacedSource(merged)
+    placed.controls.positioned = true
+    placed.controls.step = 2
+    placed.editor.currentLine = 7
+    withSourcePositions(placed, merged, stream("move-positions/1"), 6, 6)
+    ck placed.controls.step == 2
+    ck placed.editor.currentLine == 7
+    ck placed.editor.positionedOf == 0
+
+  test "the compiler-attribution marks stay on the streams they were measured on":
+    # Two lines of one file whose runs are out of order inside one frame — rule 2's
+    # shape. Marked on an AVM stream; not on a Move one.
+    let bundle = %*{"language": "move", "sources": {CoinMove: {"content": numbered("coin", 12)}}}
+    let frames = %*{"frame": [{"path": CoinMove, "line": 1, "step": 0, "endStep": 1}]}
+    proc pair(schema: string): JsonNode =
+      %*{"schema": schema, "paths": [CoinMove], "pathId": [0, 0],
+         "line": [10, 5], "column": [1, 1]}
+    var avm = instructionLevel()
+    withSourcePositions(avm, bundle, pair("avm-source-positions/1"), 2, 2)
+    ck markCompilerAttributed(avm, pair("avm-source-positions/1"), frames) == 2
+    var mv = instructionLevel()
+    withSourcePositions(mv, bundle, pair("move-positions/1"), 2, 2)
+    ck mv.editor.availability == srcSourceLevel
+    ck markCompilerAttributed(mv, pair("move-positions/1"), frames) == 0
+
+  test "both kinds of document survive hydration, with the boundary note":
+    let merged = mergeSourceBundles([coinBundle, vectorBundle, dexBundle])
+    var s = instructionLevel()
+    withSourcePositions(s, merged, stream("move-positions/1"), 6, 6)
+    s.editor.coverageNote = disassemblyCoverageNote(s, stream("move-positions/1"))
+    let island = encodeSourceIsland(s.editor)
+    ck islandAvailability(island) == srcSourceLevel
+    # The engine reports the interned path; the hydrated pane resolves it to the
+    # disassembly document and marks the instruction's row.
+    let onDis = decodeSourceIslandAt(island, DexMasm, 7)
+    ck activeDocument(onDis).path == DexMasm
+    ck activeDocument(onDis).language == "move-disassembly"
+    ck onDis.coverageNote == s.editor.coverageNote
+    let onSrc = decodeSourceIslandAt(island, VectorMove, 2)
+    ck activeDocument(onSrc).path == VectorMove
+
+  test "a module name two packages share is labelled by a shortened address":
+    # Sui publishes `price_feed` at two addresses. The shortest unique tail is the
+    # whole path, ~90 characters, which is wider than the strip at desktop widths.
+    let a = "0x04e20ddf36af412a4096f9014f4a565af9e812db9a05cc40254846cf6ed0ad91/bytecode/price_feed.mvb"
+    let b = "0xa5b1b7a4cc8a765b422f41b8cfbc43553574f5731abdfa038df8d3cce09efec9/bytecode/price_feed.mvb"
+    let twin = %*{"language": "move-disassembly", "sources": {
+      a: {"content": numbered("a", 3)}, b: {"content": numbered("b", 3)},
+      "0x1/bytecode/vector.mvb": {"content": numbered("v", 3)}}}
+    var s = instructionLevel()
+    let allDis = %*{"schema": "move-disassembly-positions/1", "paths": [b],
+                    "pathId": [0], "line": [1], "column": [1]}
+    withSourcePositions(s, twin, allDis, 1, 1)
+    let html = dbgc.renderSource(s.editor)
+    ck ">0xa5b1…fec9/bytecode/price_feed.mvb<" in html
+    ck ">0x04e2…ad91/bytecode/price_feed.mvb<" in html
+    ck ("title=\"" & b & "\"") in html          # the full path stays on the title
+    # CONTROL: a label already unique by its file name is untouched.
+    ck ">vector.mvb<" in html
+
+  test "assertion count":
+    # 9 (the union) + 7 (the schemas) + 19 (the mixed transaction) + 5 (all
+    # disassembly) + 10 (the unplaced source-level pane) + 3 (attribution) + 5
+    # (the island) + 4 (the shortened label) = 62.
+    expectCount(62)

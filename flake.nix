@@ -18,7 +18,7 @@
     # got sha256-L+Cy…; the CI runners got sha256-qNVe…). GitHub archive tarball unpacks the same
     # under every Nix version measured, to sha256-qNVe….
     isonim = {
-      url = "https://github.com/metacraft-labs/isonim/archive/6927da97dfd0ff92b24662d54f6d261528811632.tar.gz";
+      url = "https://github.com/metacraft-labs/isonim/archive/196dfe18a3a3480c80a54f8bd60f371f601940e0.tar.gz";
       flake = false;
     };
     nim-everywhere = {
@@ -31,7 +31,7 @@
     # names at `ci/embed-sdk-pin.env`'s CODETRACER_REF — the same three values
     # that file records, so the bundle nix builds is the one the pin names.
     isonim-tui = {
-      url = "github:metacraft-labs/isonim-tui/1d123c35bd241a4af853b2df6b21c973fba9e6b7";
+      url = "github:metacraft-labs/isonim-tui/ff295f7be6d7efc095ef4d249b1df0577d969c89";
       flake = false;
     };
 
@@ -130,7 +130,7 @@
     codetracer = {
       # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
       # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=1ab428f2947803864f615066cc90ec74c5b8ace7&submodules=0";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=a3986b0de1c215bcc9bd2bfa5c9619f0fa6bc5f3&submodules=0";
       flake = false;
     };
 
@@ -290,7 +290,7 @@
     # The Move recorder at a revision with `aptos-replay`. A separate input from
     # Sui's above, so moving it does not move Sui's produced tree.
     codetracer-move-recorder-aptos = {
-      url = "github:metacraft-labs/codetracer-move-recorder/e01dab4f3ff9f074e27c2d7262bd177fc26bb617";
+      url = "github:metacraft-labs/codetracer-move-recorder/fed70f3decfec450efee9a42a970fb1e7ac78f1e";
       flake = false;
     };
     # Its Cargo path dependencies, at the revision that recorder revision's
@@ -303,7 +303,7 @@
     # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chains two and three.
     codetracer-cairo-recorder = {
-      url = "github:metacraft-labs/codetracer-cairo-recorder/1b780d7e9ac40a7749ce1c30c3733f0b79e6e60a";
+      url = "github:metacraft-labs/codetracer-cairo-recorder/9f6838695be7eb4359ef23b5679ccaed7279f843";
       flake = false;
     };
     cairo-trace-format = {

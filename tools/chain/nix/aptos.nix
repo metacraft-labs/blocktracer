@@ -17,6 +17,13 @@
 # so the tree is byte-identical build to build. It is the same invocation as
 # `just aptos-capture`, with every tool taken from the store.
 #
+# THE SOURCE IS RESOLVED IN THE SANDBOX TOO. For every module a transaction entered, the
+# capture reads the package registry its account published at the version before the
+# transaction (`0x1::code::PackageRegistry`, from the same transcript) and compiles the
+# published source with the same `aptos` CLI (`tools/chain/lib/aptos-source.mjs`); a module
+# whose compiled bytes equal the chain's is recorded on that source. Compiling needs no
+# network: every dependency is another package of the same registries, laid out locally.
+#
 # THE PINS (flake.nix states the revisions):
 #
 #   * `aptos-core`: metacraft-labs/aptos-core, branch
@@ -25,7 +32,8 @@
 #   * the Rust toolchain: 1.94.1, the one the fork's `rust-toolchain.toml` names, from
 #     rust-overlay. nixpkgs' rustc is newer, and the window was recorded with 1.94.1.
 #   * `codetracer-move-recorder-aptos`: the recorder at a revision with the Aptos path
-#     (`aptos-replay`). It is a separate input from Sui's `codetracer-move-recorder`, so
+#     (`aptos-replay`) that steps a module on its published source when it is proved against
+#     its bytes (`fed70f3`). It is a separate input from Sui's `codetracer-move-recorder`, so
 #     Sui's produced tree does not move.
 #   * `aptos-trace-format`: the recorder's Cargo path dependencies, at the revision that
 #     recorder revision's own `repro.lock` names.

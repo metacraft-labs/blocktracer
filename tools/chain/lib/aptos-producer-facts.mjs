@@ -54,6 +54,18 @@ export const POSITION_LANGUAGE = 'move-disassembly';
 /** A position stream's own `schema` token, republished verbatim by the reader. */
 export const POSITION_STREAM_SCHEMA = 'move-disassembly-positions/1';
 
+/**
+ * A VERIFIED module's bundle `language`: its positions are lines of the Move source its
+ * account published, proved against its bytes by `lib/aptos-source.mjs`.
+ */
+export const SOURCE_LANGUAGE = 'move';
+
+/**
+ * The `schema` of a position stream in which some step is on published Move source (the
+ * same columns; the paths name `.move` files as well as disassemblies).
+ */
+export const SOURCE_POSITION_STREAM_SCHEMA = 'move-positions/1';
+
 /** The call-trace stream's own `schema` token. */
 export const CALLTRACE_STREAM_SCHEMA = 'move-call-frames/1';
 

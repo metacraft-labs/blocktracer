@@ -24,6 +24,7 @@ that BlockTracer *serves CodeTracer's sheets* rather than paraphrasing them.
 | `src/public/resources/calltrace/end-of-program-dark.svg`, `end-of-program-error-dark.svg` | `calltrace/…` |
 | `src/public/resources/shared/filesystem/filesystem_{open,close}_toggle_dark.svg` | `shared/filesystem/…` |
 | `src/public/resources/shared/highlight_line_arrow.svg` | `shared/highlight_line_arrow.svg` |
+| `src/public/resources/shared/build_play.svg`, `build_chevron_down.svg`, `arrows_expand_vertical_diamond_dark.svg` | `shared/…` (three files; copied from CodeTracer `f288cfadc391ba2d889243a71b3861cf8423c13f`, byte-identical by `git show f288cfadc3:<path> \| sha256sum`) |
 
 The last eleven are the live panes' icons (Shared-DOM-Front-Ends Q6): the call
 trace's toggles and markers and the State pane's toggles and current-line

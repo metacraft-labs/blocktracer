@@ -16,7 +16,9 @@
 // lives only in the staged bucket, a hash whose last byte is zero, and a stale neighbour
 // that sits OUTSIDE the `--routes` set. The last two are the false positives that would
 // have got this switched off — the zero one bit the real tree during development, where a
-// naive reading reported 13 stale neighbours over 288 clean entries.
+// naive reading reported 13 stale neighbours over 288 clean entries. (Nine require a PASS
+// now: the identifier-shape arms added on 2026-11-07, and the ledger-version index's
+// control, joined those four.)
 
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { encodeHashShard, FMT_HEX_BYTES, FMT_KEY_FORM, LEGACY_ENCODING } from "./lib/hash-shard.mjs";
+import { encodeVersionShard, versionBucket } from "./lib/version-shard.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CHECKER = join(HERE, "check-no-stale-neighbours.mjs");
@@ -91,6 +94,50 @@ function build(root, {
   if (declared !== "omit") write(root, "idx/hash/meta.json", JSON.stringify(declared));
   for (const h of paged) write(pagesIn, `${chain}/tx/0x${h}/index.html`, "<html>tx</html>");
   write(root, `${chain}/txs/index.html`, listPage(chain, drawn));
+}
+
+// ── THE LEDGER-VERSION INDEX, ONE FIXTURE PER SHAPE A VERSION ACTUALLY TAKES ───────────
+//
+// The campaign session's lesson, applied before the bug rather than after it: both
+// hash-index defects of 2026-11-07 shipped because every fixture was a full-width hash. A
+// version's shapes are its LENGTH and where it sits against a bucket edge, so the corpus is
+// one of each: a one-digit version (bucket `0`), the two sides of the first bucket edge
+// (9999 | 10000), two neighbours sharing a bucket (the published Aptos window's first two),
+// two versions above 2^53 that a Number would read as ONE, and the u64 maximum.
+const APT = "aptos-mainnet";
+const DIGITS = 4;
+const VERSIONS = ["7", "9999", "10000", "7881330395", "7881330396",
+                  "9007199254740992", "9007199254740993", "18446744073709551615"];
+/** A distinct full-width Aptos hash per version, as the route names it. */
+const hashOf = (v) => `0x${[...v.padStart(64, "0")].map((c) => "abcdef0123"[Number(c)]).join("")}`;
+
+/**
+ * Add `idx/aptos-mainnet/version/` to a tree `build` made. `entries` defaults to every
+ * shape above, each in the bucket `versionBucket` names, unless an entry says `bucket`.
+ * `paged` is which versions get a transaction page; `meta` replaces the descriptor the
+ * writer would publish (or `"omit"`); `digitsIn` is the bucket width written INTO shards.
+ */
+function versionIndex(root, {
+  entries = VERSIONS.map((v) => ({ version: v, identifier: hashOf(v) })),
+  paged = VERSIONS, meta = null, digitsIn = DIGITS, truncate = "",
+} = {}) {
+  const byBucket = new Map();
+  for (const e of entries) {
+    const b = e.bucket ?? versionBucket(e.version, DIGITS);
+    if (!byBucket.has(b)) byBucket.set(b, []);
+    byBucket.get(b).push({ version: e.version, identifier: e.identifier });
+  }
+  for (const [b, es] of byBucket) {
+    let bytes = encodeVersionShard(es, digitsIn);
+    if (b === truncate) bytes = bytes.subarray(0, bytes.length - 5);
+    write(root, `idx/${APT}/version/1/${b}.bin`, Buffer.from(bytes));
+  }
+  const declared = meta ?? {
+    indexVersion: "1", format: 1, ordering: "globalVersion", bucketDigits: DIGITS,
+    shardCount: byBucket.size, entryCount: entries.length, shards: [...byBucket.keys()],
+  };
+  if (declared !== "omit") write(root, `idx/${APT}/version/meta.json`, JSON.stringify(declared));
+  for (const v of paged) write(root, `${APT}/tx/${hashOf(v)}/index.html`, "<html>tx</html>");
 }
 
 const arms = [
@@ -275,6 +322,104 @@ const arms = [
     setup: (r) => { build(r); write(r, "routes.txt", "\n\n"); },
     args: (r) => ["--routes", join(r, "routes.txt")],
     says: /names no routes, so rule B would scan nothing/ },
+
+  // ── the ledger-version index (rule A and rule C over `idx/{chain}/version/`) ─────────
+  { name: "a-version-index-of-every-shape-resolves", pass: true,
+    // Five buckets, eight versions, and NO duplicate reported for the two above 2^53 —
+    // which a reader comparing Numbers would have merged.
+    setup: (r) => { build(r); versionIndex(r); },
+    says: /version index aptos-mainnet 1: 5 bucket\(s\), 8 version\(s\), 7\.\.18446744073709551615[\s\S]*8 ledger version\(s\) over 5 bucket\(s\) of 1 chain\(s\) resolve/ },
+
+  { name: "a-version-whose-transaction-page-is-missing",
+    setup: (r) => { build(r); versionIndex(r, { paged: VERSIONS.filter((v) => v !== "7881330396") }); },
+    says: /version index resolves aptos-mainnet 7881330396 to 0x\w+ and no root holds a page/ },
+
+  { name: "a-version-above-2^53-is-named-exactly-when-its-page-is-missing",
+    // Named by its own digits: a reader that went through a Number would report
+    // 9007199254740992 here, which IS paged, and send the operator to the wrong row.
+    setup: (r) => { build(r); versionIndex(r, { paged: VERSIONS.filter((v) => v !== "9007199254740993") }); },
+    says: /version index resolves aptos-mainnet 9007199254740993 to 0x\w+ and no root/ },
+
+  { name: "a-one-digit-version-whose-page-is-missing",
+    setup: (r) => { build(r); versionIndex(r, { paged: VERSIONS.filter((v) => v !== "7") }); },
+    says: /version index resolves aptos-mainnet 7 to 0x\w+ and no root holds a page/ },
+
+  { name: "a-version-filed-on-the-wrong-side-of-a-bucket-edge",
+    // 10000 is the first version of bucket 1. Written into bucket 0's file, a query for
+    // it reads 1.bin and never finds it.
+    setup: (r) => {
+      build(r);
+      versionIndex(r, { entries: VERSIONS.map((v) => ({ version: v, identifier: hashOf(v),
+        ...(v === "10000" ? { bucket: "0" } : {}) })) });
+    },
+    says: /0\.bin holds version 10000, which falls in bucket 1/ },
+
+  { name: "a-version-twice-in-one-bucket-is-a-duplicate",
+    // The control for the 2^53 arm above: the duplicate check is live, so that arm's
+    // silence is a measurement and not an absence.
+    setup: (r) => {
+      build(r);
+      versionIndex(r, { entries: [...VERSIONS, "7881330395"].map((v, i) => ({ version: v,
+        identifier: i === VERSIONS.length ? hashOf("1") : hashOf(v) })) });
+    },
+    says: /version 7881330395 of aptos-mainnet is in the index twice/ },
+
+  { name: "version-metajson-entryCount-disagreeing-with-the-shards-is-a-failure",
+    setup: (r) => {
+      build(r);
+      versionIndex(r, { meta: { indexVersion: "1", bucketDigits: DIGITS, shardCount: 5,
+        entryCount: 99, shards: ["0", "1", "788133", "900719925474", "1844674407370955"] } });
+    },
+    says: /version\/meta\.json declares entryCount 99 and the shards under 1\/ decode to 8/ },
+
+  { name: "version-metajson-listing-a-bucket-that-is-not-on-disk",
+    setup: (r) => {
+      build(r);
+      versionIndex(r, { meta: { indexVersion: "1", bucketDigits: DIGITS, shardCount: 5,
+        entryCount: 8,
+        shards: ["0", "1", "42", "788133", "900719925474", "1844674407370955"] } });
+    },
+    says: /lists bucket 42 and idx\/aptos-mainnet\/version\/1\/ holds no 42\.bin/ },
+
+  { name: "a-version-bucket-on-disk-that-metajson-does-not-list",
+    setup: (r) => {
+      build(r);
+      versionIndex(r, { meta: { indexVersion: "1", bucketDigits: DIGITS, shardCount: 5,
+        entryCount: 8, shards: ["0", "788133", "900719925474", "1844674407370955"] } });
+    },
+    says: /1\/1\.bin is served and idx\/aptos-mainnet\/version\/meta\.json does not list bucket 1/ },
+
+  { name: "a-version-shard-written-at-another-bucket-width",
+    setup: (r) => { build(r); versionIndex(r, { digitsIn: 3 }); },
+    says: /was written with bucketDigits 3 and idx\/aptos-mainnet\/version\/meta\.json declares 4/ },
+
+  { name: "a-non-canonical-version-is-unreachable",
+    setup: (r) => {
+      build(r);
+      versionIndex(r, { entries: VERSIONS.map((v) => ({ version: v === "7" ? "007" : v,
+        identifier: hashOf(v), bucket: versionBucket(v, DIGITS) })) });
+    },
+    says: /holds version "007", which is not a canonical u64 decimal/ },
+
+  { name: "a-truncated-version-shard-is-reported-as-truncated",
+    setup: (r) => { build(r); versionIndex(r, { truncate: "788133" }); },
+    says: /788133\.bin: truncated — entry 1 of 2 runs past the end/ },
+
+  { name: "a-version-index-with-no-metajson-cannot-be-checked",
+    setup: (r) => { build(r); versionIndex(r, { meta: "omit" }); },
+    says: /version\/meta\.json is missing or unreadable, so the version index of aptos-mainnet/ },
+
+  { name: "a-second-version-index-directory-metajson-does-not-describe",
+    setup: (r) => {
+      build(r); versionIndex(r);
+      write(r, `idx/${APT}/version/2/0.bin`,
+        Buffer.from(encodeVersionShard([{ version: "7", identifier: hashOf("7") }], DIGITS)));
+    },
+    says: /idx\/aptos-mainnet\/version\/2\/ is served and .* declares indexVersion 1/ },
+
+  { name: "a-version-index-of-zero-entries-measured-nothing",
+    setup: (r) => { build(r); versionIndex(r, { entries: [], paged: [] }); },
+    says: /version index of aptos-mainnet decoded to zero entries/ },
 ];
 
 let failures = 0;
@@ -310,8 +455,8 @@ for (const arm of arms) {
   }
 }
 const asserted = arms.length;
-if (asserted !== 22) {
-  console.log(`  FAIL  this suite declares 22 arms and ran ${asserted}`);
+if (asserted !== 37) {
+  console.log(`  FAIL  this suite declares 37 arms and ran ${asserted}`);
   failures += 1;
 }
 console.log(failures === 0

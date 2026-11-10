@@ -259,16 +259,18 @@ LIVE class event-rr-ticks-line bundle
 LIVE class active bundle
 LIVE class hidden bundle
 LIVE class ct-button-no-border bundle
-LIVE classpart ct-button-sm-secondary bundle
     WERE INERT, AND THE MOUNTED VIEWS WRITE THEM NOW. Each row stood under a
     reason that said no markup here carries it, which stopped being true when
     the live build began mounting the shared views: the Event Log writes its
     rows' `past` / `active` / `future` and its `rr-ticks-*` tick column and
-    marker empty state, `#category-image` and the small secondary buttons;
+    marker empty state and `#category-image`;
     the Call Trace writes its search input (`ct-input-*`), hides its search
     results with `hidden` and draws its guides as SVG `line`s; the State pane
     writes `custom-tooltip`. Moved rather than left, because an INERT row
-    whose subject is on screen is the lie this register exists to stop.
+    whose subject is on screen is the lie this register exists to stop. The
+    small secondary buttons (`ct-button-sm-secondary`) had a row here too
+    until the Embed SDK pin at f288cfadc3, where upstream's `button.styl`
+    names that class only in a comment, so the port emits no rule for it.
 
 LIVE element label
     A bare `label` rule (`event_log.styl`'s column options). The exported
@@ -343,22 +345,21 @@ LIVE class history-location bundle
 LIVE class history-value bundle
 LIVE class value-changed bundle
 LIVE class border-value-* bundle
-LIVE class state-tabs bundle
+LIVE class variables-toolbar bundle
 LIVE class watch-invalid bundle
 LIVE class watch-pending bundle
     THE SHARED STATE VIEW, MOUNTED BY THE LIVE BUILD, for the reason the call
     trace rows above give: `renderStatePanel` from `views/isonim_state_view.
     nim`, in `hydrate.js` only. `border-value-*` is a pattern because the view
     writes `"border-value-" & depth`; the bundle carries the prefix, and the
-    port emits the depths `state.styl` draws. The three rows after
-    `border-value-*` came with the Embed SDK pin at c0408ecad: the view's
-    toolbar and a watch's invalid and pending states, which that `state.styl`
-    styles and the view writes. With the pin at 1ab428f29 (codetracer
-    66bd1d60b, which restored the view's tab strip) the toolbar's class went
-    back to `state-tabs`, which `isonim_state_view.nim` writes and
-    `state.styl` styles; neither names `variables-toolbar` any more. The
-    "hide other processes' watches" toggle that came with c0408ecad is INERT
-    below since the same pin.
+    port emits the depths `state.styl` draws. `variables-toolbar` is the
+    view's toolbar: it came with the Embed SDK pin at c0408ecad, became
+    `state-tabs` at 1ab428f29 (codetracer 66bd1d60b), and is
+    `variables-toolbar` again at f288cfadc3, where `isonim_state_view.nim`
+    writes it and `state.styl` styles it and neither names `state-tabs`. The
+    two rows after it, a watch's invalid and pending states, came with
+    c0408ecad too. The "hide other processes' watches" toggle that came with
+    c0408ecad is INERT below since 1ab428f29.
 
 LIVE class eventLog bundle
 LIVE class ct-flex bundle
@@ -384,11 +385,19 @@ LIVE class eventLog-columns-menu bundle
 LIVE class eventLog-column-option bundle
 LIVE class eventLog-column-check bundle
 LIVE class eventLog-column-title bundle
-LIVE class eventLog-column-left bundle
-LIVE class eventLog-column-right bundle
+LIVE class eventLog-column-handle bundle
+LIVE class dragging bundle
+LIVE class drop-before bundle
+LIVE class drop-after bundle
     THE SHARED EVENT LOG VIEW, MOUNTED BY THE LIVE BUILD, for the same
     reason: `renderEventLogPanel` from `views/isonim_event_log_view.nim`, in
-    `hydrate.js` only.
+    `hydrate.js` only. The last four rows came with the Embed SDK pin at
+    f288cfadc3, where the column options became draggable: a handle on each,
+    the option being dragged, and a drop marker before or after it. Its
+    column options' `eventLog-column-left` and
+    `eventLog-column-right` had rows here until the Embed SDK pin at
+    f288cfadc3, where the view stopped writing them and no stylesheet names
+    them, so the port emits no rule for either.
 
 LIVE class ct-scrubbed bundle
 LIVE class ct-list-scrubber bundle
@@ -667,6 +676,28 @@ INERT class hide-other-process-watches
     `hideToggleClass` survives with no caller, so the class string is dead
     code and the hydration bundle carries no token for it. It comes back LIVE
     when the shared view renders the toggle again.
+
+INERT class command-view
+INERT class command-input-row
+INERT class ct-menu-item--chosen
+    The command palette's surface, its input row, and its chosen entry.
+    `menu_item.styl` and `shared_widgets.styl` style them since the Embed SDK
+    pin at f288cfadc3, and `isonim_command_palette_view.nim` writes them, but
+    BlockTracer mounts no command palette. They come back LIVE if the debugger
+    gains one.
+
+INERT class edit-toolbar-mark
+    A mark inside an edit-mode toolbar button (`button.styl` since the Embed
+    SDK pin at f288cfadc3; written by `edit_toolbar_marks.nim`). A recorded
+    transaction has no edit mode, so BlockTracer renders no edit toolbar.
+
+INERT element select
+INERT element textarea
+    The keyboard-focus outline for form controls, which the sheets share
+    since the Embed SDK pin at f288cfadc3 (`[data-focus-mode="keyboard"]
+    select:focus`, `… textarea:focus`). No BlockTracer page renders a
+    `<select>` or a `<textarea>`; `styles.nim` only resets them. They come back
+    LIVE when a page does.
 
 INERT class value-expanded-compound
 INERT class value-load-more-button

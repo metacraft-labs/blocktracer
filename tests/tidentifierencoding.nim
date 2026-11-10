@@ -2461,7 +2461,10 @@ suite "the boundary: who knows about each half of the seam":
     # verifier — it derives sampled object keys from identifiers, so it reads
     # the chain's encoding from the registry row instead of assuming hex.
     ck expectedLen("declaration", "src") == 10
-    ck expectedLen("declaration", "client") == 7
+    # 9 AND NOT 7 (2026-11-07): `search_vm.nim` reads the session's declaration to try
+    # each spelling of a query only where a chain writes identifiers that way, and
+    # `test_chain_viewmodels.nim` writes Sui's base58 declaration into its test tree.
+    ck expectedLen("declaration", "client") == 9
     # 3 AND NOT 2: `tools/chain/snapshot-contract-selftest.mjs` joined when §5.6's
     # declaration became reachable. The member is in §5.2b's census now, so the
     # census check names it — and its §15 asserts the SHAPE of the reader's one
@@ -2754,4 +2757,6 @@ suite "the boundary: who knows about each half of the seam":
 # sweep arm — the arithmetic the 894 -> 899 note above records.
 # 922 -> 923: `produce-aptos-snapshot.mjs` joined the same census (2026-11-03,
 # Recorder-Move CXP-MOVE-7), one more `ck fileExists(...)` by the same arithmetic.
-expectCount(923)
+# 923 -> 925: `search_vm.nim` and `test_chain_viewmodels.nim` joined the
+# `declaration`/`client` census (2026-11-07), one `ck fileExists(...)` each.
+expectCount(925)

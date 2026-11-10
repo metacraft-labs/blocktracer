@@ -339,7 +339,9 @@ jobs:
         run: node tools/deploy/check-publish-flags.mjs
 
       - name: Does the stale-neighbour gate bite? (nothing the site points at is missing)
-        # Sixteen arms over synthetic published trees. The gate guards a publish
+        # Thirty-seven arms over synthetic published trees, fifteen of them over a
+        # chain's ledger-version index with one fixture per shape a version takes
+        # (one digit, a bucket edge, a shared bucket, above 2^53, u64 max). The gate guards a publish
         # mode this repository has not run yet — INCREMENTAL-PUBLISH.md §5 says
         # it must exist before the first incremental publish, "not after" — so it
         # has no incident to point at and these arms are the only evidence it
@@ -1164,7 +1166,7 @@ jobs:
         run: node tools/chain/classification-selftest.mjs
 
       - name: Does the Aptos producer state its chain's facts and refuse a broken window?
-        # 44 assertions, host-independent: every arm is offline and needs only node.
+        # 56 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Aptos producer's identity, ordering and prestate declarations, its fee as
         # gas used × unit price in octas with the storage refund as its own signed entry,
@@ -1173,8 +1175,11 @@ jobs:
         # producer over a container-free window: rows carry their ledger version, the
         # protocol's transactions are system transactions, and a skipped block, torn
         # versions, a pruned window and a foreign recording are refused; and the REST
-        # transcript's keys and its replay misses. Recorded rows need a container and are
-        # run by `just aptos-capture` from the committed transcript.
+        # transcript's keys and its replay misses; and the source provider's offline parts
+        # (the package registry and source map read from BCS, the specification syntax it may
+        # change, and what a row says for a verified and an unverified module). Recorded rows,
+        # and compiling published source, need a container or the aptos CLI and are run by
+        # `just aptos-capture` from the committed transcript.
         run: node tools/chain/aptos-producer-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?

@@ -224,6 +224,14 @@
           {
             "path": "client/src/viewmodel/search_shapes.nim",
             "why": "reads the ENCODING SET rather than a chain's row, and that is the point: §5's index path has no chain segment, so the browser derives an index key from the query's SHAPE — `identifierEncodingsMatching` over the shared file's `shapes` rule — with no registry in hand at all"
+          },
+          {
+            "path": "client/src/viewmodel/search_vm.nim",
+            "why": "the in-app search's direct path tries each spelling of a query only on the chains whose session declares that encoding for the kind — the filter `/search` applies to its index hits. Before it read the declaration it asked every chain for `canonicalHash`, which is hex-only, and a published Sui digest was not on any chain. Joined 2026-11-07."
+          },
+          {
+            "path": "client/tests/test_chain_viewmodels.nim",
+            "why": "WRITES a declaration into a test tree — Sui's, base58 for transactions and checkpoints — and files a transaction at the path it derives, so the search view model is graded against the shape the ingest publishes rather than the legacy hex reading. Derives nothing for the product. Joined 2026-11-07."
           }
         ],
         "tools": [

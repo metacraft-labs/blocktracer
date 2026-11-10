@@ -20,7 +20,19 @@
 //     `capture/` (exactly one `.ct` when traced or divergent) and the run's log.
 //   * `--replay-root DIR` — the recorder's replay artifacts, `<DIR>/<version>/`: each
 //     entered module's `.mv` (the bytecode at the version before the transaction) and its
-//     `.mv.masm` disassembly, which is the text the container's positions point into.
+//     `.mv.masm` disassembly, which is the text the container's positions point into —
+//     and, where `lib/aptos-source.mjs` proved a module's published source against those
+//     bytes, `source/<m>.move` (the text its steps are positioned in instead) and the
+//     resolution report `sources.json`, which names every entered module's outcome.
+//
+// ── SOURCE ────────────────────────────────────────────────────────────────────────────
+//
+// A module is `resolved` exactly when the report says `verified`: its published source,
+// read from `0x1::code::PackageRegistry` at V−1, compiled to the very bytes the chain held
+// (Source-Resolution.md §4, a full match). Its bundle carries that source and every other
+// published file the compiler positioned its code in (inlined code); every other module
+// keeps its disassembly bundle, and its artifact states why (§4's "not found" and "no
+// match" rows, in the report's own words).
 //
 // ── THE ORDERING ──────────────────────────────────────────────────────────────────────
 //
@@ -58,10 +70,12 @@ import {
 } from './lib/producer-runtime.mjs';
 import {
   CALLTRACE_STREAM_SCHEMA, CHAIN_SLUG, IDENTIFIER_ENCODING, IDENTITY, INSTRUCTION_SET, ORDERING,
-  POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY, RECORDER, VERIFICATION,
+  POSITION_LANGUAGE, POSITION_STREAM_SCHEMA, PRESTATE_STRATEGY, RECORDER, SOURCE_LANGUAGE,
+  SOURCE_POSITION_STREAM_SCHEMA, VERIFICATION,
   costVectorForRow, effectsFromReplay, executionsForRow, isUserTransaction, payloadForRow,
   reachReasonFor, rolesForRow,
 } from './lib/aptos-producer-facts.mjs';
+import { SOURCE_RESOLUTION_FORMAT, artifactFromResolution } from './lib/aptos-source.mjs';
 
 const run = promisify(execFile);
 const HERE = 'tools/chain/produce-aptos-snapshot.mjs';
@@ -253,12 +267,35 @@ async function main(argv) {
   for (const rec of withContainer) {
     const c = await readContainer(ctPrint, positionsReader, rec.container);
     const replayDir = join(replayRoot, rec.version);
+    // The resolution report, when the capture asked for source. A report that names a module
+    // the replay did not enter, or misses one it did, is refused: the artifacts are built
+    // from it.
+    const reportPath = join(replayDir, 'sources.json');
+    const report = existsSync(reportPath) ? readJson(reportPath, 'a source resolution') : null;
+    if (report !== null && report.format !== SOURCE_RESOLUTION_FORMAT) {
+      throw refuse(SOURCE_REFUSAL, `${reportPath} is format '${report.format}'; this producer `
+        + `reads ${SOURCE_RESOLUTION_FORMAT}.`);
+    }
+    const verified = new Map((report?.modules ?? []).filter((m) => m.outcome === 'verified')
+      .map((m) => [`${m.address}/source/${m.module}.move`, m]));
     // Every interned path is a module disassembly the recorder wrote, relative to the
-    // replay directory (`0x<address>/bytecode/<module>.mv.masm`) — except its FALLBACK
-    // primary path, `transaction.masm`, interned when the first frame has no loaded module.
-    // That path has no text; every other missing path is refused.
+    // replay directory (`0x<address>/bytecode/<module>.mv.masm`), or a published source a
+    // verified module is positioned in (`0x<address>/source/<module>.move`) — except its
+    // FALLBACK primary path, `transaction.masm`, interned when the first frame has no
+    // loaded module. That path has no text; every other missing path is refused.
     const files = c.paths.map((p) => {
       const abs = join(replayDir, p);
+      if (!p.startsWith('/') && !p.includes('..') && existsSync(abs) && p.endsWith('.move')
+          && p.split('/')[1] === 'source') {
+        // A published source is shown only as part of a verified module's bundle.
+        const owners = [...verified.values()].filter((m) => (m.files ?? []).includes(p));
+        if (owners.length === 0) {
+          throw refuse(SOURCE_REFUSAL, `version ${rec.version}: the container interns '${p}', `
+            + 'and no module the resolution report verified names it.');
+        }
+        return { path: p, address: p.split('/')[0], text: readFileSync(abs, 'utf8'),
+                 codeHash: null, module: basename(p).replace(/\.move$/, ''), source: true };
+      }
       if (!p.startsWith('/') && !p.includes('..') && existsSync(abs)) {
         const mv = abs.replace(/\.masm$/, '');
         if (!existsSync(mv)) {
@@ -285,7 +322,19 @@ async function main(argv) {
           + `${s.path_id} line ${s.line}, outside the disassembly it names.`);
       }
     }
-    traced.set(rec.version, { rec, c, files, positionable,
+    if (report !== null) {
+      const named = new Set(report.modules.map((m) => `${m.address}::${m.module}`));
+      const entered = readdirSync(replayDir).filter((d) => d.startsWith('0x')
+        && existsSync(join(replayDir, d, 'bytecode'))).flatMap((d) =>
+        readdirSync(join(replayDir, d, 'bytecode')).filter((f) => f.endsWith('.mv'))
+          .map((f) => `${d}::${f.slice(0, -3)}`));
+      if (entered.length !== named.size || entered.some((x) => !named.has(x))) {
+        throw refuse(SOURCE_REFUSAL, `version ${rec.version}: ${reportPath} names `
+          + `${named.size} module(s) and the replay entered ${entered.length}; a resolution `
+          + 'answers for every module the transaction entered.');
+      }
+    }
+    traced.set(rec.version, { rec, c, files, positionable, report, verified,
                               containerBytes: statSync(rec.container).size });
   }
 
@@ -347,10 +396,12 @@ async function main(argv) {
                     refusalReason: 'runtime-refused', refusal: rec.refusal });
         return;
       }
-      const { c, files, containerBytes, positionable } = t;
+      const { c, files, containerBytes, positionable, report } = t;
       const effects = effectsFromReplay(tx, rec.outcome === 'divergent' ? rec.mismatch : null);
       const steps = c.counts.steps;
       const positioned = c.steps.filter((s) => files[s.path_id]?.text != null && s.line > 0).length;
+      const onSource = c.steps.filter((s) => files[s.path_id]?.source === true && s.line > 0)
+        .length;
       const ran = new Map();
       for (const f of files) if (f.codeHash) ran.set(f.codeHash, f);
       rows.push({
@@ -361,7 +412,10 @@ async function main(argv) {
         container: `ct/${tx.hash}.ct`,
         containerBytes,
         recordedBy: recorderCommit,
-        instructionsExecuted: steps,
+        // A step is a source LINE where the module is on its source, so the instruction
+        // count is the trace's own, which the capture counted; a recording made before it
+        // did is all on disassembly, one step per instruction.
+        instructionsExecuted: rec.instructions ?? steps,
         preStateReadAt: String(BigInt(version) - 1n),
         effects,
         recording: {
@@ -369,7 +423,9 @@ async function main(argv) {
           steps,
           callsOpened: c.counts.calls,
           logEvents: c.counts.io_events,
-          sourceLevel: false,
+          // TRUE ONLY WHEN EVERY STEP IS ON VERIFIED SOURCE — the AND over every module the
+          // transaction executed; one module on its disassembly keeps it false.
+          sourceLevel: steps > 0 && onSource === steps,
           stepsPositioned: positioned,
           stepsUnpositioned: steps - positioned,
           contexts: files.length,
@@ -378,16 +434,19 @@ async function main(argv) {
         ...(positionable ? { sourceBundles: `sources/${tx.hash}.json`,
                              positions: `positions/${tx.hash}.json` } : {}),
         callTrace: `calltrace/${tx.hash}.json`,
-        artifacts: [...ran.values()].map((f) => ({
-          address: f.address,
-          contractClassId: f.codeHash,
-          resolved: false,
-          origin: null,
-          corroboration: null,
-          reason: `No verified source was resolved for module ${f.address}::${f.module}, so its `
-            + 'steps are positioned against the disassembly of its bytecode as the chain held '
-            + `it at version ${BigInt(version) - 1n}, identified by the SHA-256 of that bytecode.`,
-        })),
+        artifacts: report !== null
+          ? report.modules.map((m) => artifactFromResolution(m, report.ledgerVersion))
+          : [...ran.values()].map((f) => ({
+            address: f.address,
+            contractClassId: f.codeHash,
+            resolved: false,
+            origin: null,
+            corroboration: null,
+            reason: `No verified source was resolved for module ${f.address}::${f.module}, so `
+              + 'its steps are positioned against the disassembly of its bytecode as the chain '
+              + `held it at version ${BigInt(version) - 1n}, identified by the SHA-256 of that `
+              + 'bytecode.',
+          })),
       });
     });
   }
@@ -482,7 +541,7 @@ async function main(argv) {
     renameSync(`${p}.tmp`, p);
   };
 
-  for (const [version, { rec, c, files, positionable }] of traced) {
+  for (const [version, { rec, c, files, positionable, report, verified }] of traced) {
     const row = rows.find((r) => r.version === version);
     const hash = row.txHash;
     copyFileSync(rec.container, join(out, 'ct', `${hash}.ct`));
@@ -496,9 +555,31 @@ async function main(argv) {
         if (!byCode.has(f.codeHash)) byCode.set(f.codeHash, { f, files: {} });
         byCode.get(f.codeHash).files[f.path] = f.text;
       }
+      // A VERIFIED module's bundle is its published source and every other published file
+      // its source map positions code in — the same set for the same code hash in every
+      // transaction, so the content-addressed bundle never forks. It is published when a
+      // step of the transaction landed in any of those files.
+      const steppedPaths = new Set([...stepped].map((id) => files[id]?.path));
+      const sourceBundles = [];
+      for (const m of [...verified.values()].sort((x, y) => (x.codeHash < y.codeHash ? -1 : 1))) {
+        if (!(m.files ?? []).some((p) => steppedPaths.has(p))) continue;
+        sourceBundles.push({
+          address: m.address,
+          codeHash: m.codeHash,
+          files: Object.fromEntries(m.files.map((p) => [p, readFileSync(join(replayRoot, version,
+                                                                             p), 'utf8')])),
+          origin: `the published source of ${m.package} (upgrade ${m.upgradeNumber}) from `
+            + `0x1::code::PackageRegistry at ${m.address}, ledger version `
+            + `${report.ledgerVersion}, compiled to the module's bytes exactly`,
+          shape: 'source',
+          corroboration: 'single-distributor',
+          agreeingDistributors: ['the chain itself'],
+          language: SOURCE_LANGUAGE,
+        });
+      }
       writeJson(`sources/${hash}.json`, {
         txHash: hash,
-        sourceLevel: false,
+        sourceLevel: row.recording.sourceLevel,
         // A bundle is keyed by code identity (S5-BUNDLE-KEYED). An Aptos module is
         // upgradable in place at its address, so the address does not name the code; the
         // SHA-256 of the bytecode the chain held at V−1 does.
@@ -513,10 +594,12 @@ async function main(argv) {
           corroboration: 'single-distributor',
           agreeingDistributors: ['the chain itself'],
           language: POSITION_LANGUAGE,
-        })),
+        })).concat(sourceBundles),
       });
       writeJson(`positions/${hash}.json`, {
-        schema: POSITION_STREAM_SCHEMA,
+        // A stream with any step on a published source is no longer a disassembly stream.
+        schema: files.some((f, id) => f.source && stepped.has(id))
+          ? SOURCE_POSITION_STREAM_SCHEMA : POSITION_STREAM_SCHEMA,
         tx: hash,
         steps: row.recording.steps,
         positioned: row.recording.stepsPositioned,

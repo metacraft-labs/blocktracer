@@ -43,6 +43,8 @@ import isonim/core/[signals, computation]
 import viewmodel
 import blocktracer/contract/model as contractModel
 import blocktracer/contract/ids as contractIds
+# The ledger-version index's codec, so an Aptos index is written as the exporter writes it.
+import blocktracer/contract/versionidx
 
 const
   # The REAL `noir_space_ship` CTFS container recorded by `nargo trace`.
@@ -637,6 +639,336 @@ suite "M12 — §14 row 2: object not found, with the chains checked":
     check l.tx.presence.val == opMalformed
     check l.tx.degradation.val == cdObjectNotFound   # one page row
     check l.tx.reason.val.len > 0                    # with the parse error
+
+# ===========================================================================
+# A ledger version is a second way in, on the chains ordered by one.
+#
+# Recorder-Move CXP-MOVE-7, `test_aptos_identity_is_a_version_not_a_hash`, as
+# `client/tests/test_searchboot.nim` drives it for `/search`: the four versions
+# and hashes are the published `aptos-mainnet` window (blocks
+# 1,158,421,321–323), and the index is written with the exporter's own codec
+# (`contract/versionidx.nim`) and descriptor shape, so the VM reads the bytes
+# `static_export` publishes. The tree is the undegraded EVM chain plus an Aptos
+# row ordered by `globalVersion` and a Sui row ordered by `checkpoint`.
+# ===========================================================================
+
+const
+  AptosWindow = [
+    ("7881330395", "0x9ba8f77debcb43ccdf32e004000507da7f9c120564b16697155ea7573fcdb7ce"),
+    ("7881330396", "0x6566c3187e0812dd681d9bbe29e206a9beb0911ce01ebbc22068e487d5850896"),
+    ("7881330401", "0xc624364728ff3c79bef99f9ddbabb95604fc72b37cfc6d48e9b7f805afc1f070"),
+    ("7881330402", "0xc3298a6295d136937dce0e798189aba7b138e554de177faccf05061f63c4305d")]
+  SuiDigest = "2i4AH86yJfp8RG22ud1ARBptsoTTkgEYQfT4redtmc89"
+
+proc buildVersionTree(dir: string; aptosOrdering = "globalVersion";
+                      publishIndex = true): Tree =
+  ## `buildTree`'s EVM chain, with `aptos-mainnet` and `sui-mainnet` added to its
+  ## registry and Aptos's version index published beside it. Sui is a chain
+  ## the VM can open, so the hash branch really reads it.
+  var sui = defaultOpts()
+  sui.chain = "sui-mainnet"
+  discard buildTree(dir, sui)
+  result = buildTree(dir, defaultOpts())
+  let regPath = dir / "registry" / ("chains.v" & $ContractVersion & ".json")
+  let reg = parseFile(regPath)
+  reg["chains"]["aptos-mainnet"] = %*{"ordering": {"kind": aptosOrdering}}
+  reg["chains"]["sui-mainnet"] = %*{"ordering": {"kind": "checkpoint"}}
+  writeJsonNl(regPath, reg)
+  if publishIndex:
+    var es: seq[VersionEntry]
+    for (v, h) in AptosWindow: es.add VersionEntry(version: v, identifier: h)
+    let bucket = versionBucket(AptosWindow[0][0], VersionBucketDigits)
+    let rel = versionShardPath("aptos-mainnet", VersionIndexVersion, bucket)
+    createDir parentDir(dir / rel)
+    writeFile(dir / rel, encodeVersionShard(es, VersionBucketDigits))
+    # The descriptor in `static_export.buildVersionIndexes`' shape.
+    writeJsonNl(dir / versionMetaPath("aptos-mainnet"), %*{
+      "indexVersion": VersionIndexVersion, "format": VersionIndexFormat,
+      "ordering": GlobalVersionOrdering, "bucketDigits": VersionBucketDigits,
+      "shardCount": 1, "entryCount": es.len, "shards": [bucket]})
+
+proc openLogged(t: Tree; log: RequestLog): Layer =
+  ## `openTree`, with every request after it recorded.
+  let m = newDeliveryMonitor()
+  let inner = deliveryStore("t:" & t.dir, m, proc(path: string): TransportResult =
+    let full = t.dir / path
+    if fileExists(full): TransportResult(outcome: toOk, body: readFile(full))
+    else: TransportResult(outcome: toMissing))
+  result = newLayer(recordingStore(inner, log), m)
+  result.registry.loadRegistry()
+  result.registry.selectChain(t.chain)
+  result.chain.loadBlocks()
+
+proc searchFrom(l: Layer; log: RequestLog; q: string): seq[string] =
+  ## Resolve `q`; the requests the resolve alone made.
+  let before = log.paths.len
+  l.search.setQuery(q)
+  l.search.resolve()
+  log.paths[before .. ^1]
+
+proc versionReads(paths: seq[string]): seq[string] =
+  for p in paths:
+    if "/version/" in p: result.add p
+
+suite "SearchVM — an Aptos ledger version resolves to its transaction":
+  test "the registry's ordering reaches the VM, read from the one registry read":
+    let t = buildVersionTree(tmpDir("version-registry"))
+    let log = newRequestLog()
+    let m = newDeliveryMonitor()
+    let inner = deliveryStore("t", m, proc(path: string): TransportResult =
+      let full = t.dir / path
+      if fileExists(full): TransportResult(outcome: toOk, body: readFile(full))
+      else: TransportResult(outcome: toMissing))
+    let registry = createChainRegistryVM(recordingStore(inner, log))
+    registry.loadRegistry()
+    check registry.chains.val == @["aptos-mainnet", "eth", "sui-mainnet"]
+    # CONTROL: Sui's checkpoint and Ethereum's block height are numbers too, and
+    # neither chain is a version-ordered one.
+    check registry.versionOrderedChains.val == @["aptos-mainnet"]
+    # Loading the registry still costs exactly one request.
+    check log.paths.len == 1
+
+  test "AN APTOS VERSION RESOLVES TO ITS TRANSACTION — each of the window's four":
+    let t = buildVersionTree(tmpDir("version-hit"))
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    for (v, h) in AptosWindow:
+      let reads = l.searchFrom(log, v)
+      check l.search.results.val.len == 1
+      check l.search.results.val[0].kind == rkTransaction
+      check l.search.results.val[0].chain == "aptos-mainnet"
+      check l.search.results.val[0].id == h
+      # The transaction's own page, which is named by its HASH.
+      check l.search.results.val[0].path == "/aptos-mainnet/tx/" & h
+      check l.search.chainsChecked.val == @["aptos-mainnet"]
+      check l.search.versionUnchecked.val.len == 0
+      check l.search.presence.val == opPresent
+      check l.search.degradation.val == cdNone
+      # Two requests, descriptor then bucket, at the paths the exporter writes —
+      # and nothing on any other chain.
+      check reads == @[versionMetaPath("aptos-mainnet"),
+                       versionShardPath("aptos-mainnet", VersionIndexVersion, "788133")]
+    # Leading zeros name the same number (`canonicalVersion`).
+    discard l.searchFrom(log, "00" & AptosWindow[0][0])
+    check l.search.results.val.len == 1
+    check l.search.results.val[0].id == AptosWindow[0][1]
+
+  test "a version between two published ones, or a prefix of one, is no transaction":
+    let t = buildVersionTree(tmpDir("version-miss"))
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    for q in ["7881330397", "7881330400"]:
+      let reads = l.searchFrom(log, q)
+      check l.search.results.val.len == 0
+      # A real miss: the index is exact, it was read, and the chain is named.
+      check l.search.chainsChecked.val == @["aptos-mainnet"]
+      check l.search.versionUnchecked.val.len == 0
+      check l.search.presence.val == opNotOnThisChain
+      check l.search.degradation.val == cdObjectNotFound
+      check reads.len == 2
+    # Exact, not a prefix scan: `788133039` begins two published versions and
+    # names neither. Its bucket (`78813`) was never written, so the descriptor
+    # alone answers it — one request, and still a checked miss.
+    let reads = l.searchFrom(log, "788133039")
+    check l.search.results.val.len == 0
+    check l.search.chainsChecked.val == @["aptos-mainnet"]
+    check reads == @[versionMetaPath("aptos-mainnet")]
+    check l.search.presence.val == opNotOnThisChain
+
+  test "a descriptor that did not load is NOT a miss, and the chain is not checked":
+    let t = buildVersionTree(tmpDir("version-unreadable"), publishIndex = false)
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    let reads = l.searchFrom(log, AptosWindow[0][0])
+    check reads == @[versionMetaPath("aptos-mainnet")]
+    check l.search.results.val.len == 0
+    check l.search.chainsChecked.val.len == 0
+    check l.search.versionUnchecked.val == @["aptos-mainnet"]
+    check l.search.presence.val == opPresent       # not "not on this chain"
+    check l.search.degradation.val == cdNone
+
+  test "a bucket that does not decode is not checked either":
+    let t = buildVersionTree(tmpDir("version-badshard"))
+    let rel = versionShardPath("aptos-mainnet", VersionIndexVersion, "788133")
+    var bytes = readFile(t.dir / rel)
+    bytes[4] = chr(VersionIndexFormat + 1)        # a format this build cannot read
+    writeFile(t.dir / rel, bytes)
+    let l = openTree(t)
+    l.search.setQuery(AptosWindow[0][0])
+    l.search.resolve()
+    check l.search.results.val.len == 0
+    check l.search.versionUnchecked.val == @["aptos-mainnet"]
+    check l.search.presence.val == opPresent
+
+  test "CONTROL: an EVM block height is untouched where no chain is version-ordered":
+    # The same tree with Aptos declared `blockIndex`: no chain asks for a
+    # version, so a height costs the zero requests §3 promises and answers what
+    # it always answered.
+    let t = buildVersionTree(tmpDir("version-control-evm"),
+                             aptosOrdering = "blockIndex")
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    check l.registry.versionOrderedChains.val.len == 0
+    let reads = l.searchFrom(log, $t.height)
+    check reads.len == 0
+    check l.search.results.val.len == 1
+    check l.search.results.val[0].kind == rkBlock
+    check l.search.results.val[0].chain == t.chain
+    check l.search.chainsChecked.val.len == 0
+    check l.search.versionUnchecked.val.len == 0
+    check l.search.mechanism.val == smLocalInference
+    # …and an Aptos version on it is a number nobody indexes: no request, and
+    # the same not-found the VM always gave a height above the head.
+    discard l.searchFrom(log, AptosWindow[0][0])
+    check log.paths.versionReads.len == 0
+    check l.search.results.val.len == 0
+    check l.search.presence.val == opNotOnThisChain
+
+  test "CONTROL: beside a version-ordered chain, the EVM height still resolves":
+    # Both readings are carried (§2): the height from the head this VM holds,
+    # which costs nothing, and the version, which is looked up on Aptos alone.
+    let t = buildVersionTree(tmpDir("version-control-mixed"))
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    let reads = l.searchFrom(log, $t.height)
+    check l.search.results.val.len == 1
+    check l.search.results.val[0].kind == rkBlock
+    check l.search.results.val[0].chain == t.chain
+    check l.search.results.val[0].id == t.blk
+    check reads == @[versionMetaPath("aptos-mainnet")]   # its bucket is unwritten
+
+  test "CONTROL: a Sui digest takes the hash branch, exactly as without the index":
+    # A digest is not a number: it never reaches the version lookup, and what
+    # the VM answers for it does not depend on whether Aptos is version-ordered.
+    # (This tree's Sui row declares no identifier encoding, so it is read as the
+    # legacy hex declaration and no chain here can spell a base58 digest; the
+    # suite below declares Sui's base58 and finds one.)
+    let withIdx = buildVersionTree(tmpDir("version-control-sui"))
+    let without = buildVersionTree(tmpDir("version-control-sui-none"),
+                                   aptosOrdering = "blockIndex",
+                                   publishIndex = false)
+    check canonicalVersion(SuiDigest) == ""
+    let logA = newRequestLog()
+    let a = openLogged(withIdx, logA)
+    let readsA = a.searchFrom(logA, SuiDigest)
+    let logB = newRequestLog()
+    let b = openLogged(without, logB)
+    let readsB = b.searchFrom(logB, SuiDigest)
+    check readsA.versionReads.len == 0
+    check readsA == readsB
+    check a.search.results.val == b.search.results.val
+    check a.search.chainsChecked.val == b.search.chainsChecked.val
+    check a.search.presence.val == b.search.presence.val
+    check a.search.versionUnchecked.val.len == 0
+    check "sui-mainnet" in a.search.chainsChecked.val
+
+  test "CONTROL: a 32-byte hash still takes the direct path, never the version index":
+    let t = buildVersionTree(tmpDir("version-control-hash"))
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    let reads = l.searchFrom(log, t.tx)
+    check reads.versionReads.len == 0
+    # The fixture's EVM and Sui trees publish the same transaction hash, so the
+    # direct path may answer on both; what this control measures is that the
+    # hash is never read as a version: no index request, and no Aptos result.
+    var onChain, onAptos = 0
+    for r in l.search.results.val:
+      if r.path == "/" & t.chain & "/tx/" & t.tx: inc onChain
+      if r.chain == "aptos-mainnet": inc onAptos
+    check onChain == 1
+    check onAptos == 0
+
+proc publishSuiDigest(t: Tree; digest: string) =
+  ## Declare Sui's identifier encoding as the published registry does —
+  ## transaction and checkpoint digests in base58 — and file a transaction under
+  ## `digest` at the path that declaration derives, as the ingest does.
+  let regPath = t.dir / "registry" / ("chains.v" & $ContractVersion & ".json")
+  let reg = parseFile(regPath)
+  reg["chains"]["sui-mainnet"]["identifierEncoding"] =
+    %*{"address": "hex", "block": "base58", "transaction": "base58"}
+  writeJsonNl(regPath, reg)
+  let enc = parseChainIdentifierEncoding(reg["chains"]["sui-mainnet"])
+  var facts = parseFile(t.dir / "d" / t.chain / "tx" / shardKeyFor("hex", t.tx) /
+                        (t.tx & ".json"))
+  facts["chain"] = %"sui-mainnet"
+  facts["id"]["hash"] = %digest
+  writeJsonNl(t.dir / txFactsPath("sui-mainnet", digest, enc), facts)
+
+proc readsOn(paths: seq[string]; chain, kind: string): int =
+  ## How many of `paths` read a `kind` object (`tx`, `block`) of `chain`.
+  for p in paths:
+    if ("/" & p).contains("/d/" & chain & "/" & kind & "/"): inc result
+
+suite "SearchVM — a number above int64, and a Sui digest, resolve as /search does":
+  test "A 20-DIGIT NUMBER IS A CLEAN MISS — it used to raise out of `parseInt`":
+    let t = buildTree(tmpDir("int64-overflow"), defaultOpts())
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    # Above int64, above u64, and the u64 maximum — all three raised before.
+    for q in ["9223372036854775808", "99999999999999999999", "18446744073709551615"]:
+      let reads = l.searchFrom(log, q)
+      check reads.len == 0                      # §3: a number costs no request
+      check l.search.results.val.len == 0
+      check l.search.mechanism.val == smLocalInference
+      check l.search.presence.val == opNotOnThisChain
+      check l.search.degradation.val == cdObjectNotFound
+    # CONTROL: the largest int64 was always a height (above the head: a miss),
+    # and a height at the head still resolves to its block.
+    discard l.searchFrom(log, "9223372036854775807")
+    check l.search.results.val.len == 0
+    check l.search.presence.val == opNotOnThisChain
+    discard l.searchFrom(log, $t.height)
+    check l.search.results.val.len == 1
+    check l.search.results.val[0].kind == rkBlock
+
+  test "a u64 version above int64 is still looked up as a version":
+    # The height reading is dropped, the version reading is a string and is not.
+    let t = buildVersionTree(tmpDir("int64-version"))
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    let reads = l.searchFrom(log, "18446744073709551615")
+    check reads == @[versionMetaPath("aptos-mainnet")]   # its bucket is unwritten
+    check l.search.chainsChecked.val == @["aptos-mainnet"]
+    check l.search.results.val.len == 0
+    check l.search.presence.val == opNotOnThisChain
+
+  test "A SUI DIGEST RESOLVES TO ITS TRANSACTION, as it does on /search":
+    let t = buildVersionTree(tmpDir("sui-digest"))
+    publishSuiDigest(t, SuiDigest)
+    let log = newRequestLog()
+    let l = openLogged(t, log)
+    let reads = l.searchFrom(log, SuiDigest)
+    check l.search.results.val.len == 1
+    check l.search.results.val[0].kind == rkTransaction
+    check l.search.results.val[0].chain == "sui-mainnet"
+    check l.search.results.val[0].id == SuiDigest
+    check l.search.results.val[0].path == "/sui-mainnet/tx/" & SuiDigest
+    check l.search.mechanism.val == smDirectPath
+    check l.search.presence.val == opPresent
+    check "sui-mainnet" in l.search.chainsChecked.val
+    # Asked of the chain that writes identifiers that way, as a transaction and as
+    # a checkpoint — and of no hex chain, which has no spelling for it.
+    check reads.readsOn("sui-mainnet", "tx") == 1
+    check reads.readsOn(t.chain, "tx") == 0
+    check reads.readsOn(t.chain, "block") == 0
+    check reads.versionReads.len == 0
+
+  test "a digest nobody published is not on any chain, and the chains are named":
+    let t = buildVersionTree(tmpDir("sui-digest-miss"))
+    publishSuiDigest(t, SuiDigest)
+    let l = openTree(t)
+    l.search.setQuery("3kksHv67Hcx8sJsdMRRXUCT6B7m3wg4ELS7dWbbi5LA6")
+    l.search.resolve()
+    check l.search.results.val.len == 0
+    check l.search.presence.val == opNotOnThisChain
+    check "sui-mainnet" in l.search.chainsChecked.val
+    # CONTROL: the hex hash on the hex chain still resolves on the direct path.
+    l.search.setQuery(t.tx)
+    l.search.resolve()
+    var onChain = 0
+    for r in l.search.results.val:
+      if r.path == "/" & t.chain & "/tx/" & t.tx: inc onChain
+    check onChain == 1
 
 suite "M12 — §14 row 3: trace awaiting generation":
   test "an on-demand overlay with no published artifact awaits generation":

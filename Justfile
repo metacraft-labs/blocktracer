@@ -161,7 +161,7 @@ test: recordings-test prepare-recordings
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-FIVE suites — 105 + 18 + 19 + 24 + 24 + 57 + 245 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 35 + 24 + 44 = 1447 counted assertions —
+# TWENTY-FIVE suites — 105 + 18 + 19 + 24 + 24 + 57 + 245 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 35 + 24 + 56 = 1459 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -443,8 +443,9 @@ check-publish-flags *ARGS:
 #
 # The mirror of `check-recordings-named`: that one asks whether every recording is OFFERED
 # by a page, this one asks whether everything a page or the index POINTS AT exists. Three
-# rules: every hash the index resolves has a page; every entity link any page draws has a
-# page; and the index agrees with its own `meta.json`, which is the comparison that catches
+# rules: every hash the index resolves has a page, and so does every version a chain's
+# ledger-version index resolves; every entity link any page draws has a page; and each
+# index agrees with its own `meta.json`, which is the comparison that catches
 # a half-uploaded index — the one state in which the first rule passes over a subject set
 # the publish silently shrank.
 #
@@ -465,17 +466,21 @@ check-publish-flags *ARGS:
 check-no-stale-neighbours DIR="client/dist" *ARGS:
     node tools/deploy/check-no-stale-neighbours.mjs --dir {{DIR}} {{ARGS}}
 
-# Twenty-two arms; eight require a PASS, including a hash whose last nibble is a real zero —
-# the false positive that reported 13 stale neighbours over 288 clean entries during
-# development — and a stale neighbour that sits OUTSIDE the `--routes` set.
+# Thirty-seven arms; nine require a PASS, including a hash whose last nibble is a real
+# zero — the false positive that reported 13 stale neighbours over 288 clean entries during
+# development — and a stale neighbour that sits OUTSIDE the `--routes` set. Fifteen are
+# the ledger-version index (`idx/{chain}/version/`), one fixture per shape a version takes:
+# one digit, both sides of a bucket edge, neighbours sharing a bucket, two versions above
+# 2^53 that a Number would merge, and the u64 maximum.
 #
 # FOUR OF THE PASSING ARMS ARE IDENTIFIER SHAPES RATHER THAN HASHES: a zero-padded
 # address, a 63-digit Starknet felt, a one-digit Aptos address, and a two-version index.
-# Every fixture here was a full-width 32-byte hash until 2026-11-07, and two separate
-# format-1 defects shipped green behind that — a shape with no fixture cannot fail. The
-# two-version arms exist because `meta.json` describes v1 at its top level and later
-# versions in a `versions` array, so a per-version figure read from the top level
-# compares v1's count against v2's shards.
+# Every HASH-index fixture here was a full-width 32-byte hash until 2026-11-07, and two
+# separate format-1 defects shipped green behind that — a shape with no fixture cannot
+# fail, which is also why the version arms above are one per shape. The two-version arms
+# exist because `meta.json` describes v1 at its top level and later versions in a
+# `versions` array, so a per-version figure read from the top level compares v1's count
+# against v2's shards.
 check-no-stale-neighbours-selftest:
     node tools/deploy/check-no-stale-neighbours-selftest.mjs
 
@@ -1976,8 +1981,11 @@ aptos-range RECORDER COMMIT APTOS *ARGS:
 # 1,158,421,321..1,158,421,323 (fixtures/chain-inputs/aptos-mainnet/), served on loopback:
 # a request it does not hold fails the run. Recording ids are derived from each
 # transaction and the clock pinned, so the tree is byte-identical run to run. Needs the
-# recorder, the fork's `aptos` CLI and `ct-print`; it is not yet a Nix derivation (the
-# fork's CLI is not packaged), so it is run by hand.
+# recorder, the fork's `aptos` CLI and `ct-print`, given by path. The same tree is also
+# a Nix derivation, `nix build .#aptos-capture-tree` (tools/chain/nix/aptos.nix), which
+# packages all three and builds byte-identical to this recipe's output. It is not in
+# `produced-captures` or any CI job, because the fork's CLI takes about an hour to build
+# cold (flake.nix says why); this recipe is for a machine that already has the tools.
 aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
     node tools/chain/capture-aptos-range.mjs \
       --transcript fixtures/chain-inputs/aptos-mainnet/1158421321-1158421323 \
@@ -1988,7 +1996,9 @@ aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
 
 # The Aptos journey set (tools/journeys/aptos/) over a site that publishes Aptos and Sui:
 # a ledger version typed into search reaches its transaction, and the Sui rows beside it
-# are the hash-identity control. Aptos is not in `produced-captures` (flake.nix says why),
+# are the hash-identity control; and every step of an Aptos recording is on a document of
+# its debug page, Move source or disassembly, served and hydrated, with Sui's all-
+# disassembly recording as the control. Aptos is not in `produced-captures` (flake.nix says why),
 # so its tree is the producer's own output, given by local path — `just aptos-capture`
 # writes .aptos-capture/tree — and placed into `default` with Sui's produced tree.
 # NOT in any CI job, for the same reason.

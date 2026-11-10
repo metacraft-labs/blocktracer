@@ -452,7 +452,11 @@ suite "url() — the nine icons that shipped as 404s":
     check published.len == CtVendoredIcons.len
     for url in published:
       check url.startsWith("data:image/svg+xml;base64,")
-      check ("url(\"" & url & "\")") in debugRouteCss
+      # The rewrite keeps the source's quotes, and upstream writes both:
+      # `button.styl`'s trace toolbar icons (`build_play.svg`,
+      # `build_chevron_down.svg`) are `url('…')`, the rest `url("…")`.
+      check ("url(\"" & url & "\")") in debugRouteCss or
+            ("url('" & url & "')") in debugRouteCss
 
   test "a vendored relative url is rewritten to the published copy":
     var assets = initOrderedTable[string, string]()
