@@ -465,9 +465,17 @@ check-publish-flags *ARGS:
 check-no-stale-neighbours DIR="client/dist" *ARGS:
     node tools/deploy/check-no-stale-neighbours.mjs --dir {{DIR}} {{ARGS}}
 
-# Sixteen arms; four require a PASS, including a hash whose last nibble is a real zero —
+# Twenty-two arms; eight require a PASS, including a hash whose last nibble is a real zero —
 # the false positive that reported 13 stale neighbours over 288 clean entries during
 # development — and a stale neighbour that sits OUTSIDE the `--routes` set.
+#
+# FOUR OF THE PASSING ARMS ARE IDENTIFIER SHAPES RATHER THAN HASHES: a zero-padded
+# address, a 63-digit Starknet felt, a one-digit Aptos address, and a two-version index.
+# Every fixture here was a full-width 32-byte hash until 2026-11-07, and two separate
+# format-1 defects shipped green behind that — a shape with no fixture cannot fail. The
+# two-version arms exist because `meta.json` describes v1 at its top level and later
+# versions in a `versions` array, so a per-version figure read from the top level
+# compares v1's count against v2's shards.
 check-no-stale-neighbours-selftest:
     node tools/deploy/check-no-stale-neighbours-selftest.mjs
 
@@ -480,8 +488,16 @@ check-no-stale-neighbours-selftest:
 # replaced by the invariant they protected: nothing outside this module and the Nim
 # producer names the format's magic, which a new hand-rolled decoder cannot avoid doing.
 #
-# Ten arms, every shard built byte by byte from the layout rather than read out of
+# Fifteen arms, every shard built byte by byte from the layout rather than read out of
 # `client/dist`, which is a build output and not committed.
+#
+# Five of them are the identifier shapes this suite had no fixture for, and they are here
+# because format 1 does NOT store whole bytes only: `hexUnits` appends a trailing `0`
+# NIBBLE to an odd identifier before whole zero BYTES pad it to width, so the identifier
+# is any prefix whose remainder is all `0` characters. Starknet publishes 63-digit felts
+# and Aptos publishes `0x1`. One arm keeps BOTH readings of a full-width hash ending in a
+# zero nibble, because it is byte-identical to a padded 63-digit identifier and that
+# ambiguity is real rather than a defect to assert away.
 hash-shard-selftest:
     node tools/deploy/lib/hash-shard-selftest.mjs
 
