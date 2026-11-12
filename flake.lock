@@ -1,5 +1,39 @@
 {
   "nodes": {
+    "aptos-core": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793951915,
+        "narHash": "sha256-lm+DMh5Pu7h9CloMbdi1+q/8PAi9YcwnbZxSvgHB1qg=",
+        "owner": "metacraft-labs",
+        "repo": "aptos-core",
+        "rev": "988a7e9288ca4f3b445e3c281872b03877f45485",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "aptos-core",
+        "rev": "988a7e9288ca4f3b445e3c281872b03877f45485",
+        "type": "github"
+      }
+    },
+    "aptos-trace-format": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792931802,
+        "narHash": "sha256-sbqeo+2kO2FLUoGz1QbWwM6vu7+ZQCV06+5VSLQ3PQk=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "327d41aaa69520ce5a1ccc5daea6e73397757dfa",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-trace-format",
+        "rev": "327d41aaa69520ce5a1ccc5daea6e73397757dfa",
+        "type": "github"
+      }
+    },
     "aztec-avm-runtime": {
       "flake": false,
       "locked": {
@@ -54,18 +88,18 @@
     "codetracer": {
       "flake": false,
       "locked": {
-        "lastModified": 1793436011,
-        "narHash": "sha256-Jo2budRLuFfHSU6tnDHRCVwwXSXjr2GSzDw4v7Ns5tI=",
+        "lastModified": 1794149993,
+        "narHash": "sha256-wfUp4CJy10yYbkiK+BNDBKe21+dQ2aFEBLkGq/Vishc=",
         "ref": "refs/heads/dev",
-        "rev": "1ab428f2947803864f615066cc90ec74c5b8ace7",
-        "revCount": 6066,
+        "rev": "a3986b0de1c215bcc9bd2bfa5c9619f0fa6bc5f3",
+        "revCount": 6233,
         "submodules": false,
         "type": "git",
         "url": "https://github.com/metacraft-labs/codetracer"
       },
       "original": {
         "ref": "refs/heads/dev",
-        "rev": "1ab428f2947803864f615066cc90ec74c5b8ace7",
+        "rev": "a3986b0de1c215bcc9bd2bfa5c9619f0fa6bc5f3",
         "submodules": false,
         "type": "git",
         "url": "https://github.com/metacraft-labs/codetracer"
@@ -74,17 +108,17 @@
     "codetracer-cairo-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1793194514,
-        "narHash": "sha256-+oDjo1OSAsWrf8RLh4FkQcVsrmbw53DLWskesd1qOck=",
+        "lastModified": 1793597777,
+        "narHash": "sha256-JIyGPrx5EOFUNUpR7sTN4bj8k0nte0v3+i1fEikd2f8=",
         "owner": "metacraft-labs",
         "repo": "codetracer-cairo-recorder",
-        "rev": "1b780d7e9ac40a7749ce1c30c3733f0b79e6e60a",
+        "rev": "9f6838695be7eb4359ef23b5679ccaed7279f843",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-cairo-recorder",
-        "rev": "1b780d7e9ac40a7749ce1c30c3733f0b79e6e60a",
+        "rev": "9f6838695be7eb4359ef23b5679ccaed7279f843",
         "type": "github"
       }
     },
@@ -153,6 +187,23 @@
         "owner": "metacraft-labs",
         "repo": "codetracer-move-recorder",
         "rev": "6f27c33004012eb9d57bfa9f649a0486697ccf83",
+        "type": "github"
+      }
+    },
+    "codetracer-move-recorder-aptos": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1794072037,
+        "narHash": "sha256-JXR2JgmCvfkhJWQ09aV+bOAk5L9fKcLwXgPZSpPFGMk=",
+        "owner": "metacraft-labs",
+        "repo": "codetracer-move-recorder",
+        "rev": "fed70f3decfec450efee9a42a970fb1e7ac78f1e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "codetracer-move-recorder",
+        "rev": "fed70f3decfec450efee9a42a970fb1e7ac78f1e",
         "type": "github"
       }
     },
@@ -262,30 +313,30 @@
     "isonim": {
       "flake": false,
       "locked": {
-        "lastModified": 1793296756,
-        "narHash": "sha256-zGtsR1JpkgUONQaWkBydkjQfwVKJFRo9uBS9Wx7wC7c=",
+        "lastModified": 1793654200,
+        "narHash": "sha256-UeULv9DjbnvKagPLI/7rmAtjBz7mMaxL4JDswVhWKyU=",
         "type": "tarball",
-        "url": "https://github.com/metacraft-labs/isonim/archive/6927da97dfd0ff92b24662d54f6d261528811632.tar.gz"
+        "url": "https://github.com/metacraft-labs/isonim/archive/196dfe18a3a3480c80a54f8bd60f371f601940e0.tar.gz"
       },
       "original": {
         "type": "tarball",
-        "url": "https://github.com/metacraft-labs/isonim/archive/6927da97dfd0ff92b24662d54f6d261528811632.tar.gz"
+        "url": "https://github.com/metacraft-labs/isonim/archive/196dfe18a3a3480c80a54f8bd60f371f601940e0.tar.gz"
       }
     },
     "isonim-tui": {
       "flake": false,
       "locked": {
-        "lastModified": 1793239327,
-        "narHash": "sha256-DHxt4kjzbvUcPFXg69Xq30+Ot1RpZK7RoD6og5HmO1E=",
+        "lastModified": 1793336115,
+        "narHash": "sha256-EOLvw3/bJI1z60NFHAh0ZEe/5kRbrwnZ6yVVUJ/fH7Y=",
         "owner": "metacraft-labs",
         "repo": "isonim-tui",
-        "rev": "1d123c35bd241a4af853b2df6b21c973fba9e6b7",
+        "rev": "ff295f7be6d7efc095ef4d249b1df0577d969c89",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "isonim-tui",
-        "rev": "1d123c35bd241a4af853b2df6b21c973fba9e6b7",
+        "rev": "ff295f7be6d7efc095ef4d249b1df0577d969c89",
         "type": "github"
       }
     },
@@ -392,6 +443,8 @@
     },
     "root": {
       "inputs": {
+        "aptos-core": "aptos-core",
+        "aptos-trace-format": "aptos-trace-format",
         "aztec-avm-runtime": "aztec-avm-runtime",
         "aztec-trace-format-nim": "aztec-trace-format-nim",
         "cairo-trace-format": "cairo-trace-format",
@@ -401,6 +454,7 @@
         "codetracer-evm-recorder": "codetracer-evm-recorder",
         "codetracer-flow-recorder": "codetracer-flow-recorder",
         "codetracer-move-recorder": "codetracer-move-recorder",
+        "codetracer-move-recorder-aptos": "codetracer-move-recorder-aptos",
         "codetracer-solana-recorder": "codetracer-solana-recorder",
         "codetracer-trace-format": "codetracer-trace-format",
         "codetracer-trace-format-nim": "codetracer-trace-format-nim",
@@ -415,7 +469,29 @@
         "nim-unittest2": "nim-unittest2",
         "nixpkgs": "nixpkgs",
         "noir-fixture-recorder": "noir-fixture-recorder",
+        "rust-overlay": "rust-overlay",
         "sol-trace-format": "sol-trace-format"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793697474,
+        "narHash": "sha256-KgJnMIR0ltd7pMcpDWn5q40bzmC7xtlb71clPFNUu+Y=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "fb3eee9d296214ebbcc53921f34e80bb4166e859",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "fb3eee9d296214ebbcc53921f34e80bb4166e859",
+        "type": "github"
       }
     },
     "sol-trace-format": {

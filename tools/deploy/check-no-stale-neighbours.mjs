@@ -18,9 +18,11 @@
 // is OFFERED by a page; this one asks whether everything a page or an index POINTS AT
 // exists. The two together are the §5 rule:
 //
-//   A  INDEX   every hash the index resolves has a page in this tree or in the bucket
+//   A  INDEX   every hash the index resolves has a page in this tree or in the bucket —
+//              and every entry of a chain's LEDGER-VERSION index (`idx/{chain}/version/`)
+//              resolves to a transaction page the same way
 //   B  DRAWN   every entity link any page draws has a page in this tree or in the bucket
-//   C  WHOLE   the index's own `meta.json` agrees with the shards actually present
+//   C  WHOLE   each index's own `meta.json` agrees with the shards actually present
 //
 // C is not decoration. A half-uploaded index is the one state in which A passes
 // vacuously — fewer entries to check, every one of them fine — so the gate compares the
@@ -36,6 +38,8 @@
 import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parseHashShard, routeFor } from "./lib/hash-shard.mjs";
+import { parseVersionShard, canonicalVersion, versionBucket, cmpVersion }
+  from "./lib/version-shard.mjs";
 
 // `href="/{chain}/{tx|block|address}/{id}"` — the three hash-addressable classes, which is
 // `kindOfRouteSegment`'s own closed set. A fourth segment appearing here should FAIL to
@@ -80,6 +84,142 @@ const indexVersions = (dir) => {
   } catch { return []; }
 };
 
+/** The chains that publish a ledger-version index: `idx/{chain}/version/`. Read from the
+ *  tree, as the hash index's versions are, so the gate checks what the site serves. */
+const versionIndexChains = (dir) => {
+  try {
+    return readdirSync(join(dir, "idx"), { withFileTypes: true })
+      .filter((e) => e.isDirectory() && e.name !== "hash")
+      .map((e) => e.name)
+      .filter((c) => existsSync(join(dir, "idx", c, "version")))
+      .sort();
+  } catch { return []; }
+};
+
+/**
+ * Rules A and C over one chain's ledger-version index (`contract/versionidx.nim`).
+ *
+ * ── WHY IT IS CHECKED, AND WHY EVERY CHECK IS STRING WORK ─────────────────────────────
+ *
+ * A version hit navigates straight to `/{chain}/tx/{hash}/` (`/search` and the in-app
+ * search both do), so an entry whose page is missing is a stale neighbour exactly as a
+ * hash-index entry is, reached by typing a number instead of a hash. And the index is
+ * bucketed: a client computes the file from the query's digits, so an entry filed in the
+ * wrong bucket is an entry no query reaches, and a descriptor listing a bucket that is not
+ * on disk is a search that fails to load. Each of those is a declaration disagreeing with
+ * its shards, which is rule C.
+ *
+ * The versions are compared as decimal strings. Both hash-index bugs of 2026-11-07 shipped
+ * because every fixture was a full-width hash; the version-index analogue is a reader that
+ * did its arithmetic in Numbers, which is exact only to 2^53 and would merge two published
+ * versions above it into one "duplicate".
+ */
+function checkVersionIndex(dir, chain, pageExists, add) {
+  const base = join(dir, "idx", chain, "version");
+  const rel = `idx/${chain}/version`;
+  const stats = { entries: 0, buckets: 0, resolved: 0 };
+  let meta = null;
+  try { meta = JSON.parse(readFileSync(join(base, "meta.json"), "utf8")); } catch { /* below */ }
+  const versionDirs = (() => {
+    try {
+      return readdirSync(base, { withFileTypes: true })
+        .filter((e) => e.isDirectory()).map((e) => e.name).sort();
+    } catch { return []; }
+  })();
+  if (!meta || typeof meta !== "object") {
+    add(`${rel}/meta.json is missing or unreadable, so the version index of ${chain} `
+      + `cannot be checked against its own declaration`);
+    return stats;
+  }
+  const iv = String(meta.indexVersion ?? "");
+  const digits = Number(meta.bucketDigits);
+  const listed = Array.isArray(meta.shards) ? meta.shards.map(String) : null;
+  if (!iv || !Number.isInteger(digits) || digits <= 0 || !listed) {
+    add(`${rel}/meta.json declares indexVersion ${JSON.stringify(meta.indexVersion)}, `
+      + `bucketDigits ${JSON.stringify(meta.bucketDigits)} and shards `
+      + `${Array.isArray(meta.shards) ? "[…]" : JSON.stringify(meta.shards)} — a client cannot `
+      + `compute a bucket path from that`);
+    return stats;
+  }
+  for (const v of versionDirs) {
+    if (v !== iv) {
+      add(`${rel}/${v}/ is served and ${rel}/meta.json declares indexVersion ${iv}, so that `
+        + `index is published with no declaration to check it against`);
+    }
+  }
+  const vdir = join(base, iv);
+  let names = [];
+  try { names = readdirSync(vdir).filter((n) => n.endsWith(".bin")).sort(); }
+  catch { /* an absent directory is every listed bucket missing, reported below */ }
+  const onDisk = new Set(names.map((n) => n.slice(0, -4)));
+  for (const b of listed) {
+    if (!onDisk.has(b)) {
+      add(`${rel}/meta.json lists bucket ${b} and ${rel}/${iv}/ holds no ${b}.bin, so a `
+        + `version in it fails to load rather than resolving`);
+    }
+  }
+  const listedSet = new Set(listed);
+  for (const b of onDisk) {
+    if (!listedSet.has(b)) {
+      add(`${rel}/${iv}/${b}.bin is served and ${rel}/meta.json does not list bucket ${b}, `
+        + `so a client answers "not published" for every version in it without asking`);
+    }
+  }
+  if (Number(meta.shardCount) !== names.length) {
+    add(`${rel}/meta.json declares shardCount ${meta.shardCount} and ${rel}/${iv}/ holds `
+      + `${names.length} shard file(s)`);
+  }
+  const seen = new Map();   // version -> the bucket file it was first read from
+  let decoded = 0;
+  for (const n of names) {
+    const bucket = n.slice(0, -4);
+    const parsed = parseVersionShard(readFileSync(join(vdir, n)));
+    if (parsed.error) {
+      add(`${rel}/${iv}/${n}: ${parsed.error} — ${parsed.detail}`);
+      continue;
+    }
+    stats.buckets += 1;
+    if (parsed.bucketDigits !== digits) {
+      add(`${rel}/${iv}/${n} was written with bucketDigits ${parsed.bucketDigits} and `
+        + `${rel}/meta.json declares ${digits}`);
+    }
+    for (const e of parsed.entries) {
+      decoded += 1;
+      if (canonicalVersion(e.version) !== e.version) {
+        add(`${rel}/${iv}/${n} holds version ${JSON.stringify(e.version)}, which is not a `
+          + `canonical u64 decimal, so no query spells it`);
+        continue;
+      }
+      const want = versionBucket(e.version, digits);
+      if (want !== bucket) {
+        add(`${rel}/${iv}/${n} holds version ${e.version}, which falls in bucket ${want} — `
+          + `a query for it reads ${want}.bin and never this file`);
+      }
+      if (seen.has(e.version)) {
+        add(`version ${e.version} of ${chain} is in the index twice (${seen.get(e.version)} `
+          + `and ${n}), so a query for it would answer with a guess`);
+      } else {
+        seen.set(e.version, n);
+      }
+      const route = `${chain}/tx/${e.identifier}`;
+      if (pageExists(route)) stats.resolved += 1;
+      else {
+        add(`version index resolves ${chain} ${e.version} to ${e.identifier} and no root `
+          + `holds a page for it (/${route}/)`);
+      }
+    }
+  }
+  if (Number(meta.entryCount) !== decoded) {
+    add(`${rel}/meta.json declares entryCount ${meta.entryCount} and the shards under `
+      + `${iv}/ decode to ${decoded}`);
+  }
+  stats.entries = decoded;
+  const span = [...seen.keys()].sort(cmpVersion);
+  console.log(`  version index ${chain} ${iv}: ${names.length} bucket(s), ${decoded} `
+    + `version(s)${span.length ? `, ${span[0]}..${span[span.length - 1]}` : ""}`);
+  return stats;
+}
+
 export function run({ dir, liveOrigin, routes, maxReport }) {
   const roots = [dir, ...(liveOrigin && existsSync(liveOrigin) ? [liveOrigin] : [])];
   // A PAGE IS A PAGE IN EITHER ROOT. On a render-over-live publish the neighbour a page
@@ -97,11 +237,34 @@ export function run({ dir, liveOrigin, routes, maxReport }) {
   }
   let indexEntries = [];
   let shardsRead = 0;
+
+  // ONE meta.json DESCRIBES EVERY VERSION, AND NOT WITH ONE SET OF NUMBERS.
+  // `client/src/static_export.nim` writes the top-level `shardCount`/`entryCount` for
+  // version 1 and adds a `versions` array ONLY when a second version exists, each member
+  // carrying its own counts. So a version's declaration has to be LOOKED UP. Reading the
+  // top-level fields for every version compared v1's counts against v2's shards, and
+  // since v2 is a SUPERSET of v1 (every encoding, not just hex) that comparison could
+  // never pass: the gate reddened on every tree publishing a second-format index.
+  // Reported by bt-move-f0 on 2026-11-07, reproduced here before it was changed.
+  const descriptorFor = (meta, v) => {
+    if (!meta) return null;
+    if (Array.isArray(meta.versions)) {
+      return meta.versions.find((d) => String(d.version) === String(v)) ?? null;
+    }
+    // No `versions` array is the writer saying there is exactly one version, described by
+    // the top-level fields. It still has to be the version actually on disk.
+    return String(v) === String(meta.indexVersion) ? meta : null;
+  };
+
+  const metaPath = join(dir, "idx", "hash", "meta.json");
+  let meta = null;
+  try { meta = JSON.parse(readFileSync(metaPath, "utf8")); } catch { /* reported below */ }
+
   for (const v of versions) {
     const vdir = join(dir, "idx", "hash", v);
-    const metaPath = join(dir, "idx", "hash", "meta.json");
-    let meta = null;
-    try { meta = JSON.parse(readFileSync(metaPath, "utf8")); } catch { /* reported below */ }
+    const desc = descriptorFor(meta, v);
+    const where = meta && Array.isArray(meta.versions)
+      ? `idx/hash/meta.json versions[${v}]` : "idx/hash/meta.json";
     const names = readdirSync(vdir).filter((n) => n.endsWith(".bin")).sort();
     const entries = [];
     for (const n of names) {
@@ -114,20 +277,26 @@ export function run({ dir, liveOrigin, routes, maxReport }) {
       entries.push(...parsed.entries);
     }
     indexEntries.push(...entries);
-    if (meta) {
+    if (desc) {
       // THE CROSS-CHECK. A short read here is the state in which rule A passes over a
       // subject set the publish silently shrank.
-      if (Number(meta.shardCount) !== names.length) {
-        add(`idx/hash/meta.json declares shardCount ${meta.shardCount} and `
+      if (Number(desc.shardCount) !== names.length) {
+        add(`${where} declares shardCount ${desc.shardCount} and `
           + `idx/hash/${v}/ holds ${names.length} shard file(s)`);
       }
-      if (Number(meta.entryCount) !== entries.length) {
-        add(`idx/hash/meta.json declares entryCount ${meta.entryCount} and the shards `
+      if (Number(desc.entryCount) !== entries.length) {
+        add(`${where} declares entryCount ${desc.entryCount} and the shards `
           + `under ${v}/ decode to ${entries.length}`);
       }
-    } else {
+    } else if (!meta) {
       add(`idx/hash/meta.json is missing or unreadable, so the index cannot be checked `
         + `against its own declaration — the one comparison that catches a partial index`);
+    } else {
+      // THE HOLE THE LOOKUP WOULD OTHERWISE OPEN. Skipping a version meta.json does not
+      // describe would serve an index with nothing checking it, which is the silent pass
+      // this rule exists to refuse. Name it instead.
+      add(`idx/hash/${v}/ is served and idx/hash/meta.json declares no version ${v}, `
+        + `so that index is published with no declaration to check it against`);
     }
     console.log(`  index ${v}: ${names.length} shard(s), ${entries.length} entry/entries`);
   }
@@ -151,6 +320,18 @@ export function run({ dir, liveOrigin, routes, maxReport }) {
       add(`index resolves ${e.chain} ${e.identifier} (kind ${e.kind}) and no root holds a `
         + `page for it (tried ${e.candidates.join(", ")} in ${roots.join(", ")})`);
     }
+  }
+
+  // ── A and C again, over each chain's ledger-version index ──────────────────────────
+  //
+  // Not every tree has one — only a chain whose registry declares `globalVersion`
+  // publishes it — so an absent version index is not a vacuity refusal. A PRESENT one is
+  // checked whole, and one that decodes to nothing is reported as such below.
+  let vEntries = 0, vResolved = 0, vBuckets = 0;
+  const vChains = versionIndexChains(dir);
+  for (const chain of vChains) {
+    const st = checkVersionIndex(dir, chain, pageExists, add);
+    vEntries += st.entries; vResolved += st.resolved; vBuckets += st.buckets;
   }
 
   // ── B: every entity link a page draws has a page ────────────────────────────────────
@@ -217,6 +398,12 @@ export function run({ dir, liveOrigin, routes, maxReport }) {
       + "A tree that publishes an index must have some.");
     return 1;
   }
+  if (vChains.length > 0 && vEntries === 0) {
+    console.log(`::error::the version index of ${vChains.join(", ")} decoded to zero `
+      + "entries, so rule A measured nothing over it. The exporter publishes one only for a "
+      + "chain with a versioned transaction.");
+    return 1;
+  }
   if (drawn.size === 0) {
     console.log(`::error::none of the ${pages.length} HTML page(s) scanned draws an entity `
       + "link, so rule B measured nothing. A site with transaction pages has pages that "
@@ -228,7 +415,11 @@ export function run({ dir, liveOrigin, routes, maxReport }) {
     `nothing the site points at is missing — ${aResolved} index entry/entries over `
     + `${shardsRead} shard(s) resolve, and ${drawn.size} distinct target(s) drawn by `
     + `${pages.length} page(s) over ${links} link(s) resolve; `
-    + `${bothWays} target(s) are named BOTH by the index and by a page`,
+    + `${bothWays} target(s) are named BOTH by the index and by a page`
+    + (vChains.length
+      ? `; ${vResolved} ledger version(s) over ${vBuckets} bucket(s) of `
+        + `${vChains.length} chain(s) resolve to transaction pages`
+      : ""),
   );
   return 0;
 }

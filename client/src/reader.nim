@@ -1073,6 +1073,17 @@ func headlineRefusal*(v: TxView): string =
     if s != seen[0]: return ""
   seen[0]
 
+proc txVersion*(r: DataRoot, info: ChainInfo, hash: string): string =
+  ## The ledger version a published transaction states as its identity
+  ## (`id: {kind: "version", version, hash}`, Static-Site-Architecture.md §2.3), or ""
+  ## when its identity is of another kind or the transaction cannot be read. The
+  ## exporter's version index is built from this, so it carries exactly what the
+  ## published row says.
+  let tr = transaction(info.store, info.session, hash)
+  if tr.outcome != roFound: return ""
+  let id = tr.view.facts.id
+  if id.kind == tikVersion: id.vVersion else: ""
+
 proc txRow*(r: DataRoot, info: ChainInfo, hash: string): TxRow =
   let v = txView(r, info, hash)
   result = TxRow(
@@ -1167,6 +1178,19 @@ type
       ## agree; both are true, and only one of them was reaching the page.
     sourceBundle*: JsonNode        ## the recommended bundle's raw node, or nil
     sourceBundleReason*: string    ## why there is none
+    sourceBundles*: seq[JsonNode]
+      ## EVERY bundle the transaction's row names, in the row's code-hash order,
+      ## each resolved and checked exactly as `sourceBundle` is. The first code
+      ## hash's bundle, when it loaded, is the first element, so a one-contract
+      ## transaction reads the same bundle through either field.
+      ##
+      ## `sourceBundle` alone was the first code hash's, and a transaction that
+      ## entered more than one module had a document on the page for that module
+      ## only: an Aptos transfer enters 16, a Decibel order 45. Its steps in the
+      ## other modules' files had no document to stand on. A bundle that does
+      ## not load, or is filed under another code hash, is left out and
+      ## does not stop the others (Source-Resolution.md §4, §7: the boundary
+      ## between what resolved and what did not is per contract).
     instructions*: JsonNode
       ## The recording's per-step program counters, or nil.
       ##
@@ -1283,32 +1307,49 @@ proc traceView*(r: DataRoot, info: ChainInfo, hash: string;
     result.ending = t.manifest.execution.ending
     result.languages = t.manifest.execution.languages
 
-  # The source bundle the manifest recommends, for the first code hash the
-  # transaction executed. One hash covers the demo's single-contract
-  # transactions; a multi-contract transaction resolves the rest the same way,
-  # and the pane shows whichever documents resolved.
+  # The source bundle the manifest recommends for EVERY code hash the
+  # transaction executed (Source-Resolution.md §6: "resolve sources for every
+  # code hash the execution actually entered"). Each is resolved through the
+  # same order — the manifest's recommendation, then the chain's pointer — and
+  # checked the same way. `sourceBundle` and its reason keep describing the
+  # FIRST code hash, as they always did; `sourceBundles` is the whole set.
   let hashes = codeHashes(tr.view.facts)
   if hashes.len == 0:
     result.sourceBundleReason = "this transaction executed no contract code"
     return
-  let reference = resolveSourceBundle(info.store, info.slug, t.manifest,
-                                      t.hasManifest, hashes[0])
-  if reference.origin == bsNone:
-    result.sourceBundleReason = reference.reason
-    return
-  let fetched = fetchSourceBundle(info.store, reference)
-  case fetched.outcome
-  of boLoaded:
-    let raw = info.store.getJson(reference.path)
-    if raw.found and raw.error.len == 0:
-      result.sourceBundle = raw.node
+  # EVERY BUNDLE ONLY WHERE THE POSITIONS CAN PLACE A STEP IN IT. A Move position
+  # stream (`move-positions/1`, `move-disassembly-positions/1`) names each step's
+  # module file, so a document for every module is what lets the pane follow the
+  # session across modules. Every other stream positions steps in the first code
+  # hash's document only, so further bundles would be pages of text no step can
+  # mark — and on Starknet they tripled two debug pages (24.9 and 32.7 MB to 86.1
+  # and 65.6 MB), past Cloudflare Pages' 25 MiB file limit and the journey visit
+  # budget (#102, #103). Those chains keep the one bundle they always had.
+  let everyBundle = result.positions != nil and
+    result.positions.kind == JObject and
+    result.positions{"schema"}.getStr in ["move-positions/1",
+                                          "move-disassembly-positions/1"]
+  for i, h in hashes:
+    if i > 0 and not everyBundle: break
+    let reference = resolveSourceBundle(info.store, info.slug, t.manifest,
+                                        t.hasManifest, h)
+    if reference.origin == bsNone:
+      if i == 0: result.sourceBundleReason = reference.reason
+      continue
+    let fetched = fetchSourceBundle(info.store, reference)
+    case fetched.outcome
+    of boLoaded:
+      let raw = info.store.getJson(reference.path)
+      if raw.found and raw.error.len == 0:
+        result.sourceBundles.add raw.node
+        if i == 0: result.sourceBundle = raw.node
+      elif i == 0:
+        result.sourceBundleReason = raw.error
     else:
-      result.sourceBundleReason = raw.error
-  else:
-    # `boMismatched` in particular is REFUSED, never displayed: a bundle filed
-    # under a different code hash would attribute source to code that never
-    # ran (Source-Resolution.md §4).
-    result.sourceBundleReason = fetched.reason
+      # `boMismatched` in particular is REFUSED, never displayed: a bundle filed
+      # under a different code hash would attribute source to code that never
+      # ran (Source-Resolution.md §4).
+      if i == 0: result.sourceBundleReason = fetched.reason
 
 # ── the chain registry, as the /chains capability inventory ────────────────
 #

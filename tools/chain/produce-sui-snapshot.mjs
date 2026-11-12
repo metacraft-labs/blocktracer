@@ -53,7 +53,7 @@ import { assertRefusalsAreClosed } from './lib/refusal.mjs';
 import { SNAPSHOT_FORMAT } from './lib/snapshot-format.mjs';
 import {
   CONFIG_REFUSAL, SOURCE_REFUSAL, containerReaderPath, containerVersion, dieOperational,
-  parseProducerArgs, readJsonOrRefuse as readJson, recorderProvenance,
+  parseProducerArgs, pictureControlChars, readJsonOrRefuse as readJson, recorderProvenance,
   refuseOperation as refuse,
 } from './lib/producer-runtime.mjs';
 import {
@@ -353,7 +353,8 @@ async function main(argv) {
     const files = c.paths.map((p) => {
       const abs = join(replayDir, p);
       if (!p.startsWith('/') && !p.includes('..') && existsSync(abs)) {
-        return { path: p, package: p.split('/')[0], text: readFileSync(abs, 'utf8') };
+        return { path: p, package: p.split('/')[0],
+                 text: pictureControlChars(readFileSync(abs, 'utf8')) };
       }
       if (isFallback(p)) return { path: 'transaction.mvb', package: null, text: null };
       throw refuse(SOURCE_REFUSAL, `${rec.digest}: the container interns '${p}', which is `

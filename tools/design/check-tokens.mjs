@@ -676,9 +676,25 @@ async function run(opts) {
       return String(v);
     };
     resolved = new Map();
+    // ONE BAD REFERENCE MUST NOT KILL EVERY OTHER CHECK, and it did for over two
+    // months. `client/src/design_system/web.tokens.json` referenced
+    // `{border.border width.deafult}` — a typo for `default` — from the day the file
+    // was added in 8ce2225 (2026-08-28), and `deref` threw, so this exited 2 with a
+    // stack trace and A0 through D2 produced NO VERDICT AT ALL. It stayed invisible
+    // because reaching this path needs a built `client/dist` and CI never builds one:
+    // a check that cannot run is not a check that passes.
+    //
+    // An unresolvable reference is now a FINDING, named with the token that holds it,
+    // and the run continues so the other checks still decide. The run still fails —
+    // this is not a softening — but it fails saying which reference is wrong rather
+    // than where the resolver gave up.
+    const unresolvable = [];
     for (const t of tokens) {
       let value = t.value;
-      if (t.kind === "bkToken") value = deref(t.counterpart);
+      if (t.kind === "bkToken") {
+        try { value = deref(t.counterpart); }
+        catch (e) { unresolvable.push(`${t.cssVar} -> {${t.counterpart}}: ${e.message}`); continue; }
+      }
       if (t.type === "dimension" && /^-?\d*\.?\d+$/.test(value)) value += "px";
       // Keyed BOTH ways. `--bt-density-cell-y` exists once per register with a
       // different value in each; a map keyed by name alone silently keeps
@@ -686,6 +702,33 @@ async function run(opts) {
       // ends up measuring one register twice.
       resolved.set(t.cssVar, value);
       resolved.set(`${t.group}|${t.cssVar}`, value);
+    }
+    if (unresolvable.length) {
+      // THE DIAGNOSIS TRAVELS WITH THE FINDING, and the cause is almost always not a
+      // typo in this repository. `dsDir` above falls back to a SIBLING
+      // `../codetracer-design-system` when `DESIGN_SYSTEM_SRC` is unset, and a sibling
+      // drifts from the flake pin. Measured 2026-11-04: the pinned design system spells
+      // the border width `deafult` and defines `colors.neutral.<level>` flat, while the
+      // sibling spells it `default` and has restructured the neutrals under
+      // `colors.neutral.cold|warm.<level>`. So a run with the env var unset reported 58
+      // unresolvable references against a tree whose references are all correct — the
+      // same run with DESIGN_SYSTEM_SRC pointed at the pin resolves every one.
+      //
+      // So this failure names the source it resolved against, because "your reference is
+      // wrong" and "you are resolving against the wrong design system" are different
+      // problems and only one of them is in this repository.
+      add("T0", "every token reference resolves", false,
+        `${unresolvable.length} reference(s) resolve to nothing: ${unresolvable.join("; ")}. `
+        + `Resolved against ${dsDir}${process.env.DESIGN_SYSTEM_SRC ? " (DESIGN_SYSTEM_SRC)" : " (SIBLING FALLBACK — DESIGN_SYSTEM_SRC is unset)"}. `
+        + (process.env.DESIGN_SYSTEM_SRC ? "" :
+            "A sibling checkout drifts from the flake pin, and that is the usual cause of "
+            + "every reference here: re-run inside `nix develop .#ci`, which sets "
+            + "DESIGN_SYSTEM_SRC to the pinned design system, before concluding anything "
+            + "about this repository's tokens. ")
+        + "Every check below still ran; this one is about the token layer itself.");
+    } else {
+      add("T0", "every token reference resolves", true,
+        `${tokens.length} token(s), every reference resolved`);
     }
   }
 

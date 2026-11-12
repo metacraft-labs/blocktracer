@@ -283,3 +283,26 @@ export function parseProducerArgs(argv, { usage, valueless = ['dry-run', 'help']
 export const oneExecutionPerTransaction = (reason) => (reason
   ? [{ selector: 'transaction', reason }]
   : [{ selector: 'transaction' }]);
+
+// ── disassembly text a page can carry ──────────────────────────────────────────────────
+
+/**
+ * A disassembly with every C0 control character other than tab and newline shown as its
+ * Unicode control picture (U+0000 → U+2400 `␀`, …, U+001F → U+241F, U+007F → U+2421).
+ *
+ * A Move disassembler prints a `vector<u8>` constant's bytes as they are, so a constant
+ * holding a zero byte puts a raw NUL into the text, and from there into the debug page,
+ * where HTML parsing replaces it and a validator refuses the file (measured: four Sui
+ * debug pages). The picture is one UTF-16 code unit for one, and neither is a line
+ * break, so every line number and column the container's positions name still points at
+ * the same instruction. `\r` is pictured too: a lone CR would be a line break to a
+ * browser and not to `split('\n')`, which is the count the producers check positions by.
+ *
+ * Consumers (2): `produce-sui-snapshot.mjs`, `produce-aptos-snapshot.mjs`.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export const pictureControlChars = (text) => text.replace(
+  /[\u0000-\u0008\u000b-\u001f\u007f]/g,
+  (c) => String.fromCharCode(c === '\u007f' ? 0x2421 : 0x2400 + c.charCodeAt(0)));

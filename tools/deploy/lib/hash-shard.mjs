@@ -137,15 +137,57 @@ export function parseHashShard(bytes) {
       // and a caller comparing SHORTER identifiers must know that.
       const hex = [...unit].map((b) => b.toString(16).padStart(2, "0")).join("");
       identifier = `0x${hex.replace(/0+$/, "")}`;
-      // BOTH READINGS ARE KEPT, because format 1 cannot tell them apart and a consumer
-      // that picks one is wrong for some fraction of any real index. MEASURED over the
-      // 288 entries this repository publishes: 275 resolve to a page under the stripped
-      // identifier and the other 13 ONLY under the unstripped hex, because their hash
-      // genuinely ends in zero and the writer's strip ate it. Nothing resolved under
-      // neither. A gate asserting page existence must accept either; a gate that took
-      // `identifier` alone would have reported 13 stale neighbours on a clean tree, which
-      // is the false-positive that gets a gate switched off.
-      candidates = [identifier, `0x${hex}`];
+      // A CONSUMER THAT PICKS ONE READING IS WRONG FOR SOME FRACTION OF ANY REAL INDEX.
+      // Over the 288 transaction entries this repository published, 275 resolved under
+      // the stripped identifier and 13 ONLY under the unstripped hex. Those 288 were all
+      // FULL-WIDTH hashes, where the only ambiguity is one trailing nibble; an index that
+      // also holds addresses and felts has a whole ladder of readings per entry.
+      // EVERY PREFIX WHOSE REMAINDER IS ALL `0` CHARACTERS, narrowest first so the LAST
+      // element is the full-width one (journey 22 takes `candidates.at(-1)` and must keep
+      // getting that).
+      //
+      // THIS IS THE WRITER'S RULE READ OFF THE WRITER, not a model of it.
+      // `hashshard.nim`'s `hexUnits` is two lines:
+      //
+      //     var s = identifierPayload(HashIndexLegacyEncoding, identifier)
+      //     if s.len mod 2 == 1: s = s & "0"
+      //
+      // an ODD identifier gains a trailing `0` NIBBLE, and `encodeHashShard` then
+      // zero-pads with whole BYTES to `unitLen`. Either way what is appended is `0`
+      // characters and nothing else, so the identifier is some prefix of the stored hex
+      // whose remainder is all zeros — and every such prefix could have produced these
+      // bytes. That is the set, and its length is not constrained to be even.
+      //
+      // TWO WRONGER SETS CAME FIRST, AND EACH WAS FALSIFIED BY A REAL TREE:
+      //
+      //  - `[nibble-stripped, full-width]` missed a 20-byte address ending `…40`
+      //    zero-padded into a 32-byte unit: the strip is a nibble short and the full width
+      //    carries 12 bytes of padding, so neither is the page. 22 such entries, measured
+      //    by bt-move-f0 2026-11-07 (16 Ethereum at 39 hex chars, 2 at 38, 1 demo, 3 Flow
+      //    at 15).
+      //  - whole-byte truncations only, which I wrote next on the premise that "an
+      //    identifier is a whole number of bytes". THAT PREMISE IS FALSE and the same
+      //    tree falsified it: Starknet writes felts without the leading zero nibble
+      //    (16 entries at 63 hex chars, pages on disk at 63) and Aptos writes its
+      //    framework address as `0x1`. Rounding those up to a byte appends a nibble the
+      //    page does not have, so that set REGRESSED 18 entries the first one resolved.
+      //
+      // The set is ambiguous BY CONSTRUCTION and that is format 1's cost, not a defect
+      // here: `0x1`, `0x10` and `0x100` store the same bytes, and so do a 20-byte address
+      // ending in a zero byte and a padded 19-byte one. Checked on the real tree for a
+      // mis-route — every page carries its chain's natural length (Ethereum and demo 42,
+      // Sui 66, Aptos 66 plus `0x1`, Flow 18, Starknet 65), so no shorter candidate has a
+      // page to match. Format 2 stores the key form and has exactly one reading.
+      //
+      // WHAT NO CANDIDATE CAN RECOVER: an identifier LONGER than `unitLen`, which the
+      // format truncates. Nothing stored says it happened, so this set cannot represent
+      // it — the entry will simply fail to resolve, which is the honest outcome.
+      let shortest = hex.length;
+      while (shortest > 1 && hex[shortest - 1] === "0") shortest -= 1;
+      candidates = [];
+      for (let end = shortest; end <= hex.length; end += 1) {
+        candidates.push(`0x${hex.slice(0, end)}`);
+      }
     }
     entries.push({
       identifier, hex: identifier.replace(/^0x/, ""),

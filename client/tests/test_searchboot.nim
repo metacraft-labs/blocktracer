@@ -46,6 +46,8 @@ import ../src/viewmodel/search_shapes
 # false-presence arm needs a real format-1 shard with a real hex entry in it, and
 # `searchboot` imports `hashshard` without re-exporting it.
 import blocktracer/contract/hashshard
+# The ledger-version index's codec, so an Aptos bucket can be built here the same way.
+import blocktracer/contract/versionidx
 
 const
   Hash = "0x2b0f32c62a6d5b0a4e6a0b3c1d8e9f70112233445566778899aabbccddeeff00"
@@ -627,6 +629,160 @@ suite "a Flow account address resolves through the index, on the one chain that 
     ck hits.len == 2
     ck "starknet-mainnet" in [hits[0].chain, hits[1].chain]
 
+suite "an Aptos ledger version resolves to its transaction; a Sui digest still resolves by hash":
+  # Recorder-Move CXP-MOVE-7, `test_aptos_identity_is_a_version_not_a_hash`: Aptos rows
+  # carry `id.kind: "version"` and resolve by version through search; a Sui row in the
+  # same run carries `id.kind: "hash"`. The four versions and hashes are the published
+  # `aptos-mainnet` window (blocks 1,158,421,321–323); the digest is a published Sui
+  # transaction. The shards are built with the real codecs, as the index arms above do.
+  const
+    AptosWindow = [
+      ("7881330395", "0x9ba8f77debcb43ccdf32e004000507da7f9c120564b16697155ea7573fcdb7ce"),
+      ("7881330396", "0x6566c3187e0812dd681d9bbe29e206a9beb0911ce01ebbc22068e487d5850896"),
+      ("7881330401", "0xc624364728ff3c79bef99f9ddbabb95604fc72b37cfc6d48e9b7f805afc1f070"),
+      ("7881330402", "0xc3298a6295d136937dce0e798189aba7b138e554de177faccf05061f63c4305d")]
+    SuiDigest = "2i4AH86yJfp8RG22ud1ARBptsoTTkgEYQfT4redtmc89"
+    # The rows `registryChains` packs for the two Move chains and one block-height chain.
+    Packed = "aptos-mainnet:hex:hex:globalVersion,sui-mainnet:base58:base58:checkpoint," &
+             "ethereum-mainnet:hex:hex:blockIndex"
+
+  proc aptosShard(): string =
+    var es: seq[VersionEntry]
+    for (v, h) in AptosWindow: es.add VersionEntry(version: v, identifier: h)
+    encodeVersionShard(es, VersionBucketDigits)
+
+  proc aptosMeta(): VersionMeta =
+    parseVersionMeta("aptos-mainnet", VersionIndexVersion & "|" & $VersionBucketDigits &
+                     "|" & versionBucket(AptosWindow[0][0], VersionBucketDigits))
+
+  test "the registry's ordering reaches the browser, and only globalVersion is asked":
+    let refs = parseChainRefs(Packed)
+    ck refs.len == 3
+    ck refs[0].ordering == "globalVersion"
+    ck refs[1].ordering == "checkpoint"
+    # CONTROL: Sui's checkpoint and Ethereum's block height are numbers too, and neither
+    # chain is asked about a version.
+    ck versionChainsOf(refs) == @["aptos-mainnet"]
+    # The fourth field is additive: a row that stops before it states no ordering, so a
+    # registry published before it sends no number anywhere.
+    ck versionChainsOf(parseChainRefs("aptos-mainnet:hex:hex")).len == 0
+    ck parseChainRefs("aptos-mainnet:hex:hex:globalVersion")[0].encoding.encodingFor(
+         KindBlock) == "hex"
+    ck GlobalVersionOrdering == "globalVersion"
+
+  test "a version is a number, read as text so it is exact past 2^53":
+    ck canonicalVersion(" 7881330395 ") == "7881330395"
+    ck canonicalVersion("0007881330395") == "7881330395"
+    ck canonicalVersion("0") == "0"
+    ck canonicalVersion("18446744073709551615") == "18446744073709551615"
+    ck canonicalVersion("18446744073709551616") == ""
+    ck canonicalVersion("123456789012345678901") == ""
+    ck canonicalVersion("78813303x5") == ""
+    ck canonicalVersion("") == ""
+    ck versionBucket("7881330395", 4) == "788133"
+    ck versionBucket("42", 4) == "0"
+    # Numeric order without parsing: a shorter spelling is a smaller number.
+    ck cmpVersion("9", "10") < 0
+    ck cmpVersion("7881330402", "7881330395") > 0
+
+  test "an Aptos version plans ONE bucket fetch, at the path the exporter writes":
+    let plan = versionPlanFor([aptosMeta()], "7881330395")
+    ck plan.requests.len == 1
+    ck plan.requests[0].chain == "aptos-mainnet"
+    ck plan.requests[0].path == "/idx/aptos-mainnet/version/1/788133.bin"
+    ck plan.requests[0].path == "/" & versionShardPath("aptos-mainnet",
+                                                       VersionIndexVersion, "788133")
+    ck plan.unpublished.len == 0 and plan.unreadable.len == 0
+
+  test "AN APTOS VERSION RESOLVES TO ITS TRANSACTION — each of the window's four":
+    let shard = aptosShard()
+    for (v, h) in AptosWindow:
+      let hits = versionHitsFor(shard, "aptos-mainnet", v)
+      ck hits.len == 1
+      ck hits[0].chain == "aptos-mainnet"
+      ck hits[0].kind == hkTx
+      ck hits[0].identifier == h
+      # The transaction's own page, which is named by its HASH: the version is how it
+      # was found, not where it lives.
+      ck hits[0].route == "/aptos-mainnet/tx/" & h & "/"
+
+  test "a version between two published ones is no transaction, and is not a prefix":
+    let shard = aptosShard()
+    ck versionHitsFor(shard, "aptos-mainnet", "7881330397").len == 0
+    # Exact, not a prefix scan: `788133039` begins two published versions and names
+    # neither.
+    ck versionHitsFor(shard, "aptos-mainnet", "788133039").len == 0
+    # A bucket the index never wrote is a definite miss at no request at all.
+    let far = versionPlanFor([aptosMeta()], "100")
+    ck far.requests.len == 0
+    ck far.unpublished == @["aptos-mainnet"]
+
+  test "a descriptor that did not load is NOT a miss, and the page says so":
+    let plan = versionPlanFor([parseVersionMeta("aptos-mainnet", "")], "7881330395")
+    ck plan.requests.len == 0
+    ck plan.unreadable == @["aptos-mainnet"]
+    let msg = versionMissMessage("7881330395", [], plan.unreadable)
+    ck "could not be read" in msg
+    ck "NOT checked" in msg
+    # …and a real miss names the chain it checked, and the reading it did not attempt.
+    let miss = versionMissMessage("7881330397", ["aptos-mainnet"], [])
+    ck "aptos-mainnet" in miss
+    ck "block number it was not looked up" in miss
+
+  test "the shard is a pure function of its entries, and refuses a format it cannot read":
+    var es: seq[VersionEntry]
+    for i in countdown(AptosWindow.high, 0):
+      es.add VersionEntry(version: AptosWindow[i][0], identifier: AptosWindow[i][1])
+    ck encodeVersionShard(es, VersionBucketDigits) == aptosShard()
+    let dec = decodeVersionShard(aptosShard())
+    ck dec.err.len == 0
+    ck dec.bucketDigits == VersionBucketDigits
+    ck dec.entries.len == 4
+    ck dec.entries[0].version == "7881330395"
+    var bumped = aptosShard()
+    bumped[4] = chr(VersionIndexFormat + 1)
+    ck decodeVersionShard(bumped).err.startsWith("unsupported version-index format")
+    ck versionHitsFor(bumped, "aptos-mainnet", "7881330395").len == 0
+
+  test "CONTROL: a Sui digest resolves by HASH, through §5's index, not by version":
+    # Sui's identity is `id.kind: "hash"`: its digest is base58, the §5 index keys it,
+    # and the scan lands on the transaction's page.
+    ck shapesOf(SuiDigest) * {qsEncodedId} == {qsEncodedId}
+    let probes = indexProbesOf(SuiDigest)
+    var p = probes[0]
+    for q in probes:
+      if "base58" in q.encodings: p = q
+    ck "base58" in p.encodings
+    let shard = encodeHashShard(@[
+      HashEntry(encoding: "base58", identifier: SuiDigest, chain: "sui-mainnet",
+                kind: hkTx),
+      HashEntry(encoding: "hex", identifier: AptosWindow[0][1], chain: "aptos-mainnet",
+                kind: hkTx)], 2)
+    let hits = hitsFor(shard, p.encodings, p.payload)
+    ck hits.len == 1
+    ck hits[0].chain == "sui-mainnet"
+    ck hits[0].route == "/sui-mainnet/tx/" & SuiDigest & "/"
+    # …and a digest is not a version: it never reaches the version lookup.
+    ck canonicalVersion(SuiDigest) == ""
+
+  test "an Aptos HASH still resolves by hash, so the version is a second way in":
+    let p = indexProbesOf(AptosWindow[0][1])[0]
+    let shard = encodeHashShard(@[
+      HashEntry(encoding: "hex", identifier: AptosWindow[0][1], chain: "aptos-mainnet",
+                kind: hkTx)], 2)
+    let hits = hitsFor(shard, p.encodings, p.payload)
+    ck hits.len == 1
+    ck hits[0].route == "/aptos-mainnet/tx/" & AptosWindow[0][1] & "/"
+
+  test "CONTROL: on a deployment with no version-ordered chain, a number asks nothing":
+    # A block height on Ethereum still means a block height: no chain is asked about a
+    # version, so the page renders the block-number answer it always rendered, at zero
+    # requests.
+    let refs = parseChainRefs("ethereum-mainnet:hex:hex:blockIndex,sui-mainnet:base58:base58:checkpoint")
+    ck versionChainsOf(refs).len == 0
+    ck shapesOf("18000000") == {qsDecimal}
+    ck not isHashLike(shapesOf("7881330395"))
+
 echo "assertion count: ", asserted
-doAssert asserted == 225,
-  "assertion count is " & $asserted & ", expected 225 — a case was added or removed."
+doAssert asserted == 297,
+  "assertion count is " & $asserted & ", expected 297 — a case was added or removed."

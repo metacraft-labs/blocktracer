@@ -168,10 +168,15 @@ export async function run({ browser, site, j }) {
   // index published today is format 1, so this file was right about what it reads and
   // wrong about what the writer can emit.
   //
-  // `hex` IS THE UNSTRIPPED READING, deliberately, which is what this block produced
+  // `hex` IS THE FULL-WIDTH READING, deliberately, which is what this block produced
   // before. Format 1 stores zero-padded bytes and the module's `identifier` strips
-  // trailing zeros to recover the key form — ambiguous by construction, so it carries
-  // both readings in `candidates` and the unstripped one is `candidates[1]`. The
+  // trailing zeros to recover the key form — ambiguous by construction, so `candidates`
+  // carries every reading the stored bytes permit — each prefix whose remainder is all
+  // `0` characters, of ANY length, since Starknet felts and short Aptos addresses are
+  // published odd — NARROWEST FIRST, so the full-width one is last. That is what
+  // `candidates.at(-1)` below takes, and the value it yields is unchanged by the
+  // 2026-11-07 widening: the old set was [stripped, unstripped] and its last element was
+  // the unstripped reading too, measured identical over 8 shapes. The
   // fragments below are DERIVED from these entries and asserted to match exactly one
   // entity, so the value has to be the same one the assertions were calibrated against.
   const indexedChains = new Set();

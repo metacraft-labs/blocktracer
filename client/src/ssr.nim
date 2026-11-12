@@ -151,7 +151,13 @@ proc debugSessionFor*(r: DataRoot, info: ChainInfo, hash: string): DebugSessionV
   # Trace-Artifacts.md §4: the manifest's recommendation is "the
   # interpretation the page should use", so a published bundle wins over the
   # client's fixture sources.
-  withPublishedSources(result, t.sourceBundle)
+  #
+  # EVERY BUNDLE THE ROW NAMES, as one union of files (`mergeSourceBundles`). A
+  # transaction that entered several modules positions its steps in all of their
+  # files, and a page holding only the first code hash's bundle had no document
+  # for the rest. One bundle is passed through as itself.
+  let bundle = mergeSourceBundles(t.sourceBundles)
+  withPublishedSources(result, bundle)
   # THE MIDDLE RUNG, between the manifest's whole-recording claim above and the
   # program counters below. A recording that positions SOME of its steps sets no
   # `sourceLevel` bit, so `withPublishedSources` declines it — and its bundle and
@@ -160,7 +166,7 @@ proc debugSessionFor*(r: DataRoot, info: ChainInfo, hash: string): DebugSessionV
   # reason the listing does: whatever won keeps the pane.
   # The capture's own two counts travel with the stream, so a derived one can be
   # checked against what the recording session measured rather than trusted.
-  withSourcePositions(result, t.sourceBundle, t.positions,
+  withSourcePositions(result, bundle, t.positions,
                       v.sources.positionedSteps, v.sources.totalSteps)
   # …and the floor, AFTER it and never over it. A pane that ended up with source
   # keeps source; one that did not gets the program counters the recording
@@ -268,6 +274,10 @@ proc debugSessionFor*(r: DataRoot, info: ChainInfo, hash: string): DebugSessionV
   # an empty paragraph, and the rule lives with the prose it gates.
   result.editor.coverageNote = unpositionedCauseNote(
     v.contracts, result.editor.positionedSteps, result.editor.positionedOf)
+  # A Move recording has no unpositioned steps for that note to explain; its
+  # boundary is between source and DISASSEMBLY, and it is stated the same way.
+  if result.editor.coverageNote.len == 0:
+    result.editor.coverageNote = disassemblyCoverageNote(result, t.positions)
   # THE CALL TRACE, AND IT IS NOT PART OF THAT CONTEST. The three calls above
   # compete for the CODE pane — a bundle beats positions beats a listing — and
   # this fills a different pane from a different object, so it runs outside the

@@ -17,10 +17,11 @@ import { join } from 'node:path';
 import {
   PRESTATE_STRATEGY, VERIFICATION, addressHistoryFor, costVectorForRow, executionsForRow, payloadForRow, reachReasonFor, rolesForRow,
 } from './lib/solana-producer-facts.mjs';
+import { REFUSAL_REASON_IDS } from './lib/refusal.mjs';
 
 // The assertion count this suite declares, which `refusal-selftest.mjs` cross-checks
 // against the `chain-selftest` header. No host configurations, so the base is the total.
-const BASE_ARMS = 8;
+const BASE_ARMS = 10;
 
 let passed = 0;
 const arm = (name, fn) => {
@@ -136,6 +137,83 @@ arm('address history is the committed answer below the window, refusing what wou
   assert.deepEqual(addressHistoryFor(one([e0]), rowHashes, new Set(), 459262601), []);
 });
 
+
+// ── the producer itself, over the committed window ──────────────────────────────────────
+//
+// Run with a STUB ct-print that fails loudly if invoked: the unpacked inputs carry replay
+// bundles and no container, so every row the recorder traced arrives as
+// `no-container-written` and the stub must never run. That keeps these two arms offline
+// and node-only, and a producer that started reading a container here would turn them red
+// rather than quietly needing a toolchain.
+function produce(mutateResults, mutateBlocks) {
+  const work = mkdtempSync(join(tmpdir(), 'sol-produce-'));
+  const tool = (name) => new URL(`./${name}`, import.meta.url).pathname;
+  execFileSync(process.execPath, [tool('sol-fixture.mjs'), 'unpack', '--fixture', FIXTURE, '--out', join(work, 'cap')]);
+  const stub = join(work, 'ct-print');
+  writeFileSync(stub, '#!/bin/sh\necho "ct-print stub invoked" >&2\nexit 99\n', { mode: 0o755 });
+  if (mutateResults) {
+    const p = join(work, 'cap', 'results.jsonl');
+    writeFileSync(p, mutateResults(readFileSync(p, 'utf8')));
+  }
+  if (mutateBlocks) {
+    const p = join(work, 'cap', 'blocks.jsonl');
+    writeFileSync(p, mutateBlocks(readFileSync(p, 'utf8')));
+  }
+  try {
+    execFileSync(process.execPath, [tool('produce-sol-snapshot.mjs'), '--capture', join(work, 'cap'),
+      '--ct-print', stub, '--recorder-commit', 'c3ca118c312661ae51a68afcccaa49376fdc91dd',
+      '--from', '459262600', '--to', '459262602', '--out', join(work, 'snap')], { stdio: 'pipe' });
+    return { ok: true, snapshot: JSON.parse(readFileSync(join(work, 'snap', 'snapshot.json'), 'utf8')) };
+  } catch (e) {
+    return { ok: false, stderr: String(e.stderr ?? '') + String(e.stdout ?? '') };
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+const produced = produce(null);
+
+arm('test_an_unchecked_trace_is_not_published: one `unchecked` verdict refuses the whole tree', () => {
+  // CXP-SOL-3. The check is mandatory on Solana and the contract has no `unchecked` value,
+  // so the producer refuses rather than publishing the trace or a reason it did not have.
+  let flipped = 0;
+  const refused = produce((text) => text.split('\n').map((l) => {
+    if (flipped === 0 && l.includes('"status":"match"')) { flipped++; return l.replace('"status":"match"', '"status":"unchecked"'); }
+    return l;
+  }).join('\n'));
+  assert.equal(flipped, 1);
+  assert.equal(refused.ok, false);
+  assert.match(refused.stderr, /unchecked/);
+  assert.doesNotMatch(refused.stderr, /ct-print stub invoked/);
+  // Control: the same capture with its `match` verdicts publishes, so the refusal is the verdict's.
+  assert.equal(produced.ok, true, produced.stderr);
+});
+
+arm('test_a_mostly_refused_window_still_enumerates_completely: a row per transaction the chain lists', () => {
+  // CXP-SOL-3. The window is mostly refused (no recorder here, no carried prestate for most),
+  // and still every transaction of every slot's getBlock is a row with a reason. The count
+  // is the CHAIN's — the committed block listings, votes included — never the tree's own.
+  const chainCount = rows.length;
+  const s = produced.snapshot;
+  assert.ok(chainCount > 0);
+  assert.equal(s.transactions.length, chainCount);
+  assert.equal(s.counts.accountedFor, chainCount);
+  const untraced = s.transactions.filter((t) => t.outcome !== 'replayed');
+  assert.ok(untraced.length / chainCount > 0.9, `${untraced.length} of ${chainCount} untraced`);
+  assert.ok(untraced.every((t) => REFUSAL_REASON_IDS.includes(t.refusalReason)),
+    'every untraced row carries a reason from the closed set');
+  assert.deepEqual(new Set(s.transactions.map((t) => t.txHash)), new Set(rows.map((t) => t.signature)));
+  // Control: a capture that lost one transaction still produces a self-consistent tree
+  // (its own tally closes), and the CHAIN's count is what exposes the shortfall.
+  const short = produce(null, (text) => text.split('\n').map((l, i) => {
+    if (i !== 0 || !l) return l;
+    const b = JSON.parse(l);
+    b.transactions = b.transactions.slice(1);
+    return JSON.stringify(b);
+  }).join('\n'));
+  assert.equal(short.ok, true, short.stderr);
+  assert.equal(short.snapshot.counts.accountedFor, short.snapshot.transactions.length);
+  assert.equal(short.snapshot.transactions.length, chainCount - 1);
+});
 if (passed !== BASE_ARMS) {
   console.error(`FAIL — ${passed} of ${BASE_ARMS} declared arm(s) ran`);
   process.exit(1);

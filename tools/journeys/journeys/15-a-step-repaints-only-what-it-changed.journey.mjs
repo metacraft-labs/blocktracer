@@ -105,9 +105,23 @@ const install = (page) =>
 
     const w = (window.__repaint = {
       bodies,
-      // One record per childList mutation: which pane, and the markup the pane
-      // held afterwards. "Redundant" is decided from these rather than inside
-      // the observer, so the raw readings stay raw.
+      // One record per observer DELIVERY that carried a childList mutation:
+      // which pane, the markup the pane held afterwards, and how many of its
+      // mutations swapped nodes out for identically serialised ones.
+      // "Redundant" is decided from these rather than inside the observer, so
+      // the raw readings stay raw.
+      //
+      // PER DELIVERY, NOT PER MUTATION. The hash is of the pane AFTER the whole
+      // batch, so pushing it once per mutation gave every mutation after the
+      // first the same hash as the one before it, and the verdict below read
+      // them as rewrites. An `innerHTML` assignment is one mutation, so this
+      // was invisible while every pane was written that way; the mounted shared
+      // State view updates in place, and on Aptos one step that removes 14 rows
+      // is 14 mutations in one delivery — 19 "redundant writes" across a walk
+      // in which no delivery left a pane as it found it. `swaps` keeps what the
+      // per-mutation reading did catch: two identical assignments in one task
+      // are one delivery, and each is a mutation whose removed and added nodes
+      // serialise the same.
       writes: [],
       held: {},
       frames: [],
@@ -115,11 +129,14 @@ const install = (page) =>
     });
 
     for (const [id, body] of Object.entries(bodies)) {
+      const ser = (nodes) => [...nodes].map((n) => n.outerHTML ?? n.textContent).join("");
       new MutationObserver((recs) => {
-        for (const r of recs) {
-          if (r.type !== "childList") continue;
-          w.writes.push({ pane: id, h: hash(body.innerHTML) });
-        }
+        const lists = recs.filter((r) => r.type === "childList");
+        if (lists.length === 0) return;
+        const swaps = lists.filter(
+          (r) => r.removedNodes.length > 0 && ser(r.removedNodes) === ser(r.addedNodes),
+        ).length;
+        w.writes.push({ pane: id, h: hash(body.innerHTML), swaps });
       }).observe(body, { childList: true, subtree: true });
     }
 
@@ -469,7 +486,7 @@ export async function run({ browser, site, j }) {
     const lastSeen = {};
     const redundant = [];
     for (const wr of walkWrites) {
-      if (lastSeen[wr.pane] === wr.h) redundant.push(wr);
+      if (lastSeen[wr.pane] === wr.h || wr.swaps > 0) redundant.push(wr);
       lastSeen[wr.pane] = wr.h;
     }
     j.countIs(

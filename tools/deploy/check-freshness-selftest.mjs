@@ -723,7 +723,8 @@ for (const arm of arms) {
 // web-codetracer published that morning, and the older build it replaced.
 //
 // The constant moved again on 2026-10-28, 17,821,148 -> 18,049,772 (the
-// `meta.dat` 7 engine), and the old figure stays below as its own row.
+// `meta.dat` 7 engine), and on 2026-11-07 to 18,446,061 (the engine codetracer
+// dev bc96593dd publishes, same gates); each old figure stays below as its own row.
 //
 // NOTE THE DIRECTION OF THE 2026-10-12 MOVE: the engine got SMALLER, 18,096,653
 // to 17,821,148. Every number here still renders "18 MB", so F5 is as blind to a
@@ -735,7 +736,8 @@ for (const arm of arms) {
 // could never have caught the constant being wrong by 163,703 bytes. That is a
 // different claim and it has its own gate now.
 const mirror = [
-  [18_049_772, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm (re-pinned 2026-10-28)"],
+  [18_446_061, "18 MB", "ReplayEngineWasmBytes, as committed — the PINNED wasm (re-pinned 2026-11-07)"],
+  [18_049_772, "18 MB", "the wasm pinned from the meta.dat 7 re-pin until 2026-11-07"],
   [17_821_148, "18 MB", "the wasm pinned from the CCP-5 re-pin until the meta.dat 7 re-pin"],
   [18_096_653, "18 MB", "the wasm pinned from 2026-09-16 until the CCP-5 re-pin"],
   [18_117_658, "18 MB", "the wasm pinned until CodeTracer published ed9aa650"],

@@ -1601,12 +1601,11 @@ const ARMS = [
       " the flag, so nothing looks missing; it only declines to write the" +
       " pointer, which is the shape the defect actually had.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    // RE-AIMED 2026-10-29: the landing is seeded by `selectCalltraceFrame`
-    // over the held rows, with `selectLandingFrame` only as the fallback,
-    // since the shared call trace landed on the frame a link names (3943455).
-    // Neither runs under this mutation, so no frame is selected.
-    find: "      let named = h.landingAnchor.len > 0 and\n        h.session.selectCalltraceFrame(h.landingAnchor)\n      if not named:\n        discard h.session.selectLandingFrame(\"\")",
-    replace: "      let named = true  # MUTATED: the landing selects no frame",
+    // RE-AIMED 2026-11-08: the landing becomes a `FramePin` (`pinFrame`),
+    // with `selectLandingFrame` only for a link that names no frame. Neither
+    // runs under this mutation. The assertion moved with it, below.
+    find: "    if h.landingAnchor.len > 0:\n      # The link's own coordinate, which `afterReady` seeks to; a link with\n      # none settles wherever the frame is first held.\n      h.pinFrame(h.landingAnchor,\n                 if h.landing.coordinate > 0: h.landing.coordinate else: -1)\n    else:\n      discard h.session.selectLandingFrame(\"\")",
+    replace: "    discard  # MUTATED: the landing selects no frame",
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     // RE-AIMED, and the move is the point rather than a detail. This arm used
     // to name the CONTROL assertion, which reads the pane before the engine —
@@ -1616,7 +1615,14 @@ const ARMS = [
     // it and this arm SURVIVED, measured. The mutation is unchanged; what it
     // needed was an assertion that looks where the defect is, which is the
     // hydrated pane, and journey 26 now makes one.
-    assertion: "§7.0: hydration renders no LESS — the repainted pane still marks exactly one row",
+    //
+    // AND RE-AIMED AGAIN 2026-11-08, to the IDENTITY. Since the SDK follows
+    // the debugger's call (codetracer `markReady`, `f288cfadc3`) a row is
+    // marked after every move whatever the landing does, so the §7.0 floor
+    // holds under this mutation and naming it would let the arm survive.
+    // What the landing alone contributes now is WHICH frame, and that is
+    // what goes red: all six links arrive at the follow's frame.
+    assertion: "and it is STILL the frame the link named, carried across by anchor",
   },
   {
     id: "FJ4/the-landing-forgets-its-anchor-across-hydration",
@@ -1635,13 +1641,39 @@ const ARMS = [
       " identity, not the index, is the thing that must survive the change of" +
       " numbering between 47 served rows and 48 live ones.",
     file: join(CLIENT, "hydrate", "hydrate.nim"),
-    // RE-AIMED 2026-10-29: the anchor is resolved by `selectCalltraceFrame`
-    // since 3943455; dropping it falls back to the landing frame.
-    find: "        h.session.selectCalltraceFrame(h.landingAnchor)",
-    replace: "        h.session.selectCalltraceFrame(\"\")  # MUTATED: the anchor is dropped",
+    // RE-AIMED 2026-11-08: the anchor is the landing's `FramePin` since the
+    // SDK started following the debugger's call; a pin with no anchor holds
+    // nothing, so the follow's frame stays marked.
+    find: "      h.pinFrame(h.landingAnchor,",
+    replace: "      h.pinFrame(\"\",  # MUTATED: the anchor is dropped",
     journey: "a-link-to-a-frame-arrives-at-that-frame",
     assertion: "and it is STILL the frame the link named, carried across by anchor",
   },
+  {
+    id: "FP1/the-follow-overrides-the-chosen-frame",
+    why:
+      "Never undo the SDK's follow. Since codetracer `f288cfadc3` the shared" +
+      " Call Trace marks the call the debugger is in after every move, and a" +
+      " move BY FRAME (a §6.0a link, a row click) lands on a step several" +
+      " frames share, where the engine reports the innermost one as current." +
+      " `FramePin` holds the chosen frame against that mark at its coordinate;" +
+      " with the hold gone, every link and click on the six frames open at" +
+      " step 59 marks the follow's frame instead. Measured before the pin" +
+      " existed: all six links of journey 26 arrived at `enqueued-call-0`.",
+    file: join(CLIENT, "hydrate", "hydrate.nim"),
+    find: "  if h.pin.anchor.len == 0 or h.pin.applying or h.session.calltrace.isNil:\n    return",
+    replace: "  return  # MUTATED: the SDK's follow is never undone",
+    journey: "a-link-to-a-frame-arrives-at-that-frame",
+    assertion: "and it is STILL the frame the link named, carried across by anchor",
+  },
+  // `FP2/a-shared-row-click-pins-nothing` MOVED TO CODETRACER, 2026-11-08.
+  // A click on a shared Call Trace row is the SDK's: it selects the row's
+  // call with `selectCallForMove`, and the follow leaves that selection alone
+  // at the stop the click's jump lands on. Graded there:
+  // `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py` arm CK —
+  // the follow undoes a row click — killed by "the clicked call stays marked
+  // at the stop the jump lands on" (codetracer a3986b0de1). Journey 25 reads
+  // the clicked row back on the live page.
   // `CT1/two-frames-answer-to-one-identity` MOVED TO CODETRACER, 2026-10-31.
   // It mutated `session_project.withCallAnchors`, the served projection's
   // anchors, and SURVIVED: the live rows are the shared Call Trace's, and
@@ -1650,6 +1682,16 @@ const ARMS = [
   // `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py` arm CT1 —
   // `replay_data_store` blanks every row's call key — killed by "every
   // call-trace row carries its own call key" (codetracer 52dc517ffc).
+  // `SE/a-failed-call-reads-as-returning-nothing` IS GRADED IN CODETRACER
+  // FROM THE START, 2026-11-02. Journey 01's failed-call verdicts read a
+  // Starknet entry point's Error return and Error event, and both are drawn
+  // by the SDK's shared views from the store's decode, none of it code in
+  // this repository. Arm SE in
+  // `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py` drops the
+  // return from the row in `replay_data_store.callReturnTextOf` and is killed
+  // by "a failed call's return is drawn as its error" (codetracer 324806f1ed).
+  // Journey 01's "jumping to an Error event marks a call whose return is an
+  // error" reads the same return on the live page.
   {
     id: "PP1/the-hydrated-pane-has-one-answer-again",
     why:
@@ -2610,6 +2652,14 @@ function logMissDiagnosis(miss, arm, phase) {
       log(`               of the assertion, or a guard above it stopped holding. Run`);
       log(`               \`node tools/journeys/run.mjs --only ${arm.journey}\` over the`);
       log(`               mutated tree and read where it stops.`);
+      const texts = miss.texts ?? [];
+      if (texts.length) {
+        log(`               WHAT IT DID ASSERT, so the two sets can be compared without`);
+        log(`               another run — a subject chosen differently shows up here as`);
+        log(`               several unfamiliar lines, not one missing one:`);
+        for (const w of texts.slice(0, 20)) log(`                 · ${w}`);
+        if (texts.length > 20) log(`                 … and ${texts.length - 20} more`);
+      }
     } else {
       log(`               THE JOURNEY RAN — ${miss.records} assertion(s) — and none of them`);
       log(`               contains that text. The assertion was reworded and this arm`);
@@ -2748,6 +2798,16 @@ async function verdictFor(journey, assertion) {
       ambiguous: hits.length,
       why: hits.length === 0 ? "no-record" : "ambiguous",
       records: j.records.length,
+      // THE TEXTS, NOT JUST THE COUNT. A `no-record` on a mutated run says the
+      // journey ran and emitted a DIFFERENT set of assertions from the unmutated
+      // one, and the count alone cannot say which set: "12 assertions" is equally
+      // consistent with one assertion missing and with the journey having chosen a
+      // different subject and produced twelve other things. Journey 12's subject is
+      // `sourceLevel[0]` out of a corpus-dependent filter, so that is not a remote
+      // possibility — and the difference reproduces on CI and never locally, where
+      // the corpus is staged differently. These are what make the comparison
+      // possible from a CI log alone, without another run.
+      texts: j.records.map((r) => String(r.what ?? "")),
     };
   }
   // `vacuous` is carried through because a red that is only a poisoned

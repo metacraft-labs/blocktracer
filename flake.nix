@@ -18,7 +18,7 @@
     # got sha256-L+Cy…; the CI runners got sha256-qNVe…). GitHub archive tarball unpacks the same
     # under every Nix version measured, to sha256-qNVe….
     isonim = {
-      url = "https://github.com/metacraft-labs/isonim/archive/6927da97dfd0ff92b24662d54f6d261528811632.tar.gz";
+      url = "https://github.com/metacraft-labs/isonim/archive/196dfe18a3a3480c80a54f8bd60f371f601940e0.tar.gz";
       flake = false;
     };
     nim-everywhere = {
@@ -31,7 +31,7 @@
     # names at `ci/embed-sdk-pin.env`'s CODETRACER_REF — the same three values
     # that file records, so the bundle nix builds is the one the pin names.
     isonim-tui = {
-      url = "github:metacraft-labs/isonim-tui/1d123c35bd241a4af853b2df6b21c973fba9e6b7";
+      url = "github:metacraft-labs/isonim-tui/ff295f7be6d7efc095ef4d249b1df0577d969c89";
       flake = false;
     };
 
@@ -130,7 +130,7 @@
     codetracer = {
       # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
       # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=1ab428f2947803864f615066cc90ec74c5b8ace7&submodules=0";
+      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=a3986b0de1c215bcc9bd2bfa5c9619f0fa6bc5f3&submodules=0";
       flake = false;
     };
 
@@ -271,11 +271,39 @@
       url = "github:metacraft-labs/codetracer-move-recorder/6f27c33004012eb9d57bfa9f649a0486697ccf83";
       flake = false;
     };
+    # ── Aptos: the fork's CLI, its toolchain, and the recorder's Aptos path ───
+    # tools/chain/nix/aptos.nix says why each pin is where it is. On x86_64-linux
+    # `produced-captures` and the `journeys-aptos` CI job reach them; see the note there.
+    #
+    # The value tracer on mainnet's aptos-node v1.49.8: metacraft-labs/aptos-core,
+    # branch `codetracer/value-tracing-aptos-node-v1.49.8`.
+    aptos-core = {
+      url = "github:metacraft-labs/aptos-core/988a7e9288ca4f3b445e3c281872b03877f45485";
+      flake = false;
+    };
+    # Rust 1.94.1, which the fork's `rust-toolchain.toml` names. Only the Aptos
+    # derivations use it.
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay/fb3eee9d296214ebbcc53921f34e80bb4166e859";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    # The Move recorder at a revision with `aptos-replay`. A separate input from
+    # Sui's above, so moving it does not move Sui's produced tree.
+    codetracer-move-recorder-aptos = {
+      url = "github:metacraft-labs/codetracer-move-recorder/fed70f3decfec450efee9a42a970fb1e7ac78f1e";
+      flake = false;
+    };
+    # Its Cargo path dependencies, at the revision that recorder revision's
+    # `repro.lock` names.
+    aptos-trace-format = {
+      url = "github:metacraft-labs/codetracer-trace-format/327d41aaa69520ce5a1ccc5daea6e73397757dfa";
+      flake = false;
+    };
     # ── Starknet: the Cairo recorder (and the transcript it commits) ──────────
     # tools/chain/nix/starknet.nix says why each pin is where it is. The writer is
     # the `codetracer-trace-format-nim` input above, shared with chains two and three.
     codetracer-cairo-recorder = {
-      url = "github:metacraft-labs/codetracer-cairo-recorder/1b780d7e9ac40a7749ce1c30c3733f0b79e6e60a";
+      url = "github:metacraft-labs/codetracer-cairo-recorder/9f6838695be7eb4359ef23b5679ccaed7279f843";
       flake = false;
     };
     cairo-trace-format = {
@@ -294,6 +322,7 @@
             , codetracer-flow-recorder, flow-trace-format
             , codetracer-solana-recorder, sol-trace-format
             , codetracer-move-recorder
+            , aptos-core, rust-overlay, codetracer-move-recorder-aptos, aptos-trace-format
             , codetracer-cairo-recorder, cairo-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
     flake-utils.lib.eachDefaultSystem (system:
@@ -564,6 +593,19 @@
           blocktracerRoot = ./.;
         };
 
+        aptos = pkgs.callPackage ./tools/chain/nix/aptos.nix {
+          nodejs = followerNodejs;
+          rustToolchain = (rust-overlay.lib.mkRustBin { } pkgs).stable."1.94.1".minimal;
+          aptosCoreSrc = aptos-core;
+          aptosCoreRev = aptos-core.rev;
+          recorderSrc = codetracer-move-recorder-aptos;
+          recorderRev = codetracer-move-recorder-aptos.rev;
+          aptosTraceFormatSrc = aptos-trace-format;
+          writerSrc = codetracer-trace-format-nim;
+          writerNimDeps = [ nim-stew nim-results nim-unittest2 ];
+          blocktracerRoot = ./.;
+        };
+
         starknet = pkgs.callPackage ./tools/chain/nix/starknet.nix {
           nodejs = followerNodejs;
           recorderSrc = codetracer-cairo-recorder;
@@ -629,13 +671,21 @@
         packages.sui-capture-tree = sui.suiCaptureTree;
         packages.sui-ct-print = sui.ctPrint;
 
+        # ── Aptos mainnet, produced the same way (Recorder-Move CXP-MOVE-7) ────────
+        # In produced-captures as `aptos-mainnet` on x86_64-linux, the only system it
+        # builds on (see the note there). The CLI is the fork's, built for generic
+        # x86-64; see tools/chain/nix/aptos.nix.
+        packages.aptos-cli = aptos.aptosCli;
+        packages.aptos-move-recorder = aptos.moveRecorder;
+        packages.aptos-capture-tree = aptos.aptosCaptureTree;
+
         # ── Starknet mainnet, produced the same way (Recorder-Cairo CXP-CAIRO-6) ──
         packages.cairo-onchain-recorder = starknet.onchainRecorder;
         packages.starknet-capture-tree = starknet.starknetCaptureTree;
         packages.starknet-ct-print = starknet.ctPrint;
 
         # The site with the STAGING-ONLY chains added: `default` plus the Ethereum,
-        # Flow, Solana, Starknet and Sui trees, placed where the exporter already looks for a live-chain capture.
+        # Flow, Solana, Starknet and Sui trees, and Aptos on x86_64-linux, placed where the exporter already looks for a live-chain capture.
         # deploy.yml builds this for every deploy except `live`, so `live` (the
         # production Pages project) keeps `default` and carries no chain the
         # operator has not cleared for production; Chain-Expansion's environment
@@ -661,20 +711,44 @@
           '';
         });
 
+        # The site with the Move captures and no other produced chain: Aptos and the
+        # Sui tree, the corpus the Aptos journeys drive (`--set aptos`). The CI job
+        # `journeys-aptos` builds it; `just journeys-aptos` is the same over a tree you
+        # name. x86_64-linux only, for `aptos-capture-tree`'s reason.
+        packages.site-aptos = self.packages.${system}.default.overrideAttrs (old: {
+          name = "blocktracer-site-aptos";
+          postPatch = (old.postPatch or "") + ''
+            cp -r ${aptos.aptosCaptureTree} client/fixtures/chain/aptos-mainnet
+            cp -r ${sui.suiCaptureTree} client/fixtures/chain/sui-mainnet
+            chmod -R u+w client/fixtures/chain
+          '';
+        });
+
         # Every chain capture the build PRODUCES rather than commits, one directory
         # per chain slug. site-staging copies it into the fixtures; the deploy hands
         # it to `check-freshness.mjs record --produced`, so F4 holds each published
         # container to this output. That is sound only because each producer here
         # is byte-reproducible. A real copy rather than a linkFarm, because the
         # checker's walk does not follow symlinks.
-        packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } ''
+        #
+        # APTOS IS HERE ON x86_64-linux ONLY, by the operator's decision of 2026-11-12.
+        # `packages.aptos-capture-tree` produces `aptos-mainnet` byte-reproducibly, but
+        # it needs the fork's `aptos` CLI, which builds only for x86-64 Linux and takes
+        # about an hour cold (58 and 64 minutes, measured on high-mem-server). That
+        # build now lands on every deploy and CI run with no cached copy, and Aptos is
+        # on every `site-staging` deploy; the operator accepted both. On any other
+        # system the set is the five chains it always was, so a local build there
+        # still evaluates.
+        packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } (''
           mkdir -p $out
           cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
           cp -r ${flow.flowCaptureTree} $out/flow-mainnet
           cp -r ${sol.solCaptureTree} $out/solana-mainnet
           cp -r ${starknet.starknetCaptureTree} $out/starknet-mainnet
           cp -r ${sui.suiCaptureTree} $out/sui-mainnet
-        '';
+        '' + pkgs.lib.optionalString (system == "x86_64-linux") ''
+          cp -r ${aptos.aptosCaptureTree} $out/aptos-mainnet
+        '');
 
         packages.fixture-recorder6 = fixtureRecorder;
         packages.fixture-container-tools = fixtureContainerTools;
