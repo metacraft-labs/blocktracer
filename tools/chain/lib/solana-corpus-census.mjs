@@ -26,6 +26,7 @@ const PRECOMPILES = new Set([
 export const CELLS = Object.freeze([
   ['4.2 type: legacy message', (f) => f.version === 'legacy'],
   ['4.2 type: v0 message', (f) => f.version === 'v0'],
+  ['4.2 type: v1 message (version byte first)', (f) => f.version === 'v1'],
   ['4.2 type: v0 with address lookup tables', (f) => f.lookupTables],
   ['4.3 system: vote transaction', (f) => f.vote],
   ['4.4 builtin: a native program invoked', (f) => f.nativeInvoked],
@@ -53,9 +54,17 @@ export function factsOf(bundle) {
   const tx = bundle.transactions[0];
   const m = tx.meta ?? {};
   const wire = Buffer.from(tx.wire, 'base64');
-  const sigs = wire[0]; // compact-u16; every committed transaction has fewer than 128
-  const msg = wire.subarray(1 + 64 * sigs);
-  const version = msg[0] & 0x80 ? `v${msg[0] & 0x7f}` : 'legacy';
+  // Two wire layouts. A version-1 transaction puts its version byte FIRST (0x81), ahead of
+  // the signatures. Reading that byte as a signature count put every one of them in the
+  // legacy cell until 2026-11-12. Legacy and v0 begin with the signature count (a
+  // compact-u16, under 128 here), and v0 marks the message's first byte.
+  let version;
+  if (wire[0] & 0x80) {
+    version = `v${wire[0] & 0x7f}`;
+  } else {
+    const msg = wire.subarray(1 + 64 * wire[0]);
+    version = msg[0] & 0x80 ? `v${msg[0] & 0x7f}` : 'legacy';
+  }
   const logs = m.logMessages ?? [];
   const stack = [];
   let depth = 0;

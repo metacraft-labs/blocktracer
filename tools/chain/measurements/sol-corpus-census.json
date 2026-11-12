@@ -8,7 +8,7 @@
   "activeFeatureCounts": [
     310
   ],
-  "covered": 4,
+  "covered": 5,
   "uncovered": 13,
   "cells": [
     {
@@ -23,13 +23,18 @@
     },
     {
       "cell": "4.2 type: legacy message",
-      "covered": 60,
+      "covered": 41,
       "example": "27dCDYY1JuVo1zn9FwD22aVUgQyAY78NNnzAnC3xBHUGQEFPRMNUrFG1idMp9G7zShk9gtYY6K4U7Z7Fr5zQoUa4"
     },
     {
       "cell": "4.2 type: v0 message",
       "covered": 0,
       "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.2 type: v1 message (version byte first)",
+      "covered": 19,
+      "example": "2e9E9xAkLVWGzpxdEAHDrZWhkNSicokGkqQd9w2AY3YyiqAzLVUze9PW2C4qoYrdod3mWbBYa9UXNj2hMf7Bee6H"
     },
     {
       "cell": "4.2 type: v0 with address lookup tables",
