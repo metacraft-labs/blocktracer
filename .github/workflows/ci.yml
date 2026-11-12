@@ -1125,7 +1125,7 @@ jobs:
         run: node tools/chain/starknet-producer-selftest.mjs
 
       - name: Does the Solana producer state its chain's facts, and do its committed inputs hold?
-        # 10 assertions, host-independent: every arm is offline and needs only node.
+        # 12 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Solana producer's fee / compute-unit / cost-unit vector, the fee payer as
         # sender, the first non-ComputeBudget program as target, and the committed window's
@@ -1136,7 +1136,9 @@ jobs:
         # passes and each of its refusals bites. Two run the producer itself over the window with a
         # ct-print stub that must never be invoked: one `unchecked` verdict refuses the whole
         # tree, and the mostly refused window still has a row with a reason for every
-        # transaction the chain lists. Traced rows need the recorder and are
+        # transaction the chain lists. Two place the pinned bundles in the divergence
+        # taxonomy's cells (Blockchain-Recorder-Test-Suites.md §4): the committed census
+        # matches a fresh one, and a cell whose bundles are removed reads uncovered. Traced rows need the recorder and are
         # built by `nix build .#sol-capture-tree`.
         run: node tools/chain/solana-producer-selftest.mjs
 

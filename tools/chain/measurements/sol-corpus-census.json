@@ -1,0 +1,105 @@
+{
+  "format": "blocktracer/sol-corpus-census@1",
+  "bundles": 60,
+  "slots": [
+    459262600,
+    459262602
+  ],
+  "activeFeatureCounts": [
+    310
+  ],
+  "covered": 4,
+  "uncovered": 13,
+  "cells": [
+    {
+      "cell": "4.1 era: the feature set active at the capture",
+      "covered": 1,
+      "example": "310 active features"
+    },
+    {
+      "cell": "4.1 era: a feature set earlier than the capture's",
+      "covered": 0,
+      "uncovered": "forward capture replays only the era current while it runs; no RPC serves the state an earlier era's transactions read"
+    },
+    {
+      "cell": "4.2 type: legacy message",
+      "covered": 60,
+      "example": "27dCDYY1JuVo1zn9FwD22aVUgQyAY78NNnzAnC3xBHUGQEFPRMNUrFG1idMp9G7zShk9gtYY6K4U7Z7Fr5zQoUa4"
+    },
+    {
+      "cell": "4.2 type: v0 message",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.2 type: v0 with address lookup tables",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.3 system: vote transaction",
+      "covered": 0,
+      "uncovered": "mainnet blocks carry no vote transactions (0 of 16,180 to 18,534 per 60-slot window, 2026-11-12)"
+    },
+    {
+      "cell": "4.4 builtin: a native program invoked",
+      "covered": 41,
+      "example": "27dCDYY1JuVo1zn9FwD22aVUgQyAY78NNnzAnC3xBHUGQEFPRMNUrFG1idMp9G7zShk9gtYY6K4U7Z7Fr5zQoUa4"
+    },
+    {
+      "cell": "4.4 precompile: a signature-verify precompile invoked",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.5 creation: a program deployed or upgraded",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.6 upgrade: an upgradeable-loader program executed",
+      "covered": 60,
+      "example": "27dCDYY1JuVo1zn9FwD22aVUgQyAY78NNnzAnC3xBHUGQEFPRMNUrFG1idMp9G7zShk9gtYY6K4U7Z7Fr5zQoUa4"
+    },
+    {
+      "cell": "4.7 nesting: a cross-program invocation (depth 2)",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.7 nesting: depth 3 or more",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.7 reentrancy: a program invoked while already on the stack",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.8 failure: a custom program error",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.8 failure: compute budget exhausted",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.8 failure: any other instruction error",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    },
+    {
+      "cell": "4.8 failure: a program panic",
+      "covered": 0,
+      "uncovered": "no pinned fixture reaches it yet"
+    }
+  ],
+  "_comment": [
+    "Recorder-Solana CXP-SOL-4: the divergence taxonomy (Blockchain-Recorder-Test-Suites.md §4) over the replay bundles pinned in fixtures/chain-inputs/solana-mainnet/, which nix build .#sol-capture-tree replays to match in every deploy build.",
+    "Computed by tools/chain/lib/solana-corpus-census.mjs; solana-producer-selftest.mjs recomputes it and fails on drift.",
+    "An uncovered cell is listed with its reason, never dropped."
+  ]
+}

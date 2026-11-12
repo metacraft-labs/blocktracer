@@ -18,10 +18,11 @@ import {
   PRESTATE_STRATEGY, VERIFICATION, addressHistoryFor, costVectorForRow, executionsForRow, payloadForRow, reachReasonFor, rolesForRow,
 } from './lib/solana-producer-facts.mjs';
 import { REFUSAL_REASON_IDS } from './lib/refusal.mjs';
+import { CELLS, census } from './lib/solana-corpus-census.mjs';
 
 // The assertion count this suite declares, which `refusal-selftest.mjs` cross-checks
 // against the `chain-selftest` header. No host configurations, so the base is the total.
-const BASE_ARMS = 10;
+const BASE_ARMS = 12;
 
 let passed = 0;
 const arm = (name, fn) => {
@@ -213,6 +214,47 @@ arm('test_a_mostly_refused_window_still_enumerates_completely: a row per transac
   assert.equal(short.ok, true, short.stderr);
   assert.equal(short.snapshot.counts.accountedFor, short.snapshot.transactions.length);
   assert.equal(short.snapshot.transactions.length, chainCount - 1);
+});
+
+// ── the divergence corpus, per cell (CXP-SOL-4) ─────────────────────────────────────────
+function pinnedBundles() {
+  const work = mkdtempSync(join(tmpdir(), 'sol-census-'));
+  try {
+    execFileSync(process.execPath, [new URL('./sol-fixture.mjs', import.meta.url).pathname,
+      'unpack', '--fixture', FIXTURE, '--out', join(work, 'cap')]);
+    const dir = join(work, 'cap', 'bundles');
+    return readdirSync(dir).map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')));
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+const bundles = pinnedBundles();
+
+arm('the committed corpus census is the census of the pinned bundles, every cell named', () => {
+  const committed = JSON.parse(readFileSync(new URL('./measurements/sol-corpus-census.json', import.meta.url), 'utf8'));
+  const fresh = census(bundles);
+  const { _comment, ...stated } = committed;
+  assert.deepEqual(stated, fresh, 'measurements/sol-corpus-census.json has drifted from the pinned bundles');
+  // Every cell is present — the two era cells plus one per CELLS row — and an
+  // uncovered one carries its reason rather than being dropped.
+  assert.equal(fresh.cells.length, CELLS.length + 2);
+  assert.equal(fresh.covered + fresh.uncovered, fresh.cells.length);
+  assert.ok(fresh.cells.every((c) => c.covered > 0 || (typeof c.uncovered === 'string' && c.uncovered.length > 0)));
+  assert.ok(fresh.uncovered > 0, 'the pinned corpus is known to leave cells uncovered; a census reporting none is wrong');
+});
+
+arm('a cell loses its coverage when the bundles that reach it are removed', () => {
+  // Control: the census is computed from the bundles, not stated. Remove every bundle
+  // that invokes a native program and that cell, covered above, reads uncovered.
+  const cell = '4.4 builtin: a native program invoked';
+  assert.ok(census(bundles).cells.find((c) => c.cell === cell).covered > 0);
+  const NATIVE = 'NativeLoader1111111111111111111111111111111';
+  const without = bundles.filter((b) => !b.accounts.some((a) => a.executable && a.owner === NATIVE
+    && (b.transactions[0].meta.logMessages ?? []).some((l) => l.startsWith(`Program ${a.pubkey} invoke`))));
+  assert.ok(without.length < bundles.length && without.length > 0);
+  const after = census(without).cells.find((c) => c.cell === cell);
+  assert.equal(after.covered, 0);
+  assert.match(after.uncovered, /no pinned fixture/);
 });
 if (passed !== BASE_ARMS) {
   console.error(`FAIL — ${passed} of ${BASE_ARMS} declared arm(s) ran`);
