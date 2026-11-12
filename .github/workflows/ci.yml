@@ -2295,9 +2295,15 @@ jobs:
       #
       # If this ever fires, measure the suite before raising it — a
       # provenance suite that has doubled is a finding.
+      #
+      # CT_PRINT: `test-solana-staging` drives the real Solana producer, which
+      # reads its containers with ct-print and finds none on a runner (no sibling
+      # trace-format checkout). Same remedy, same derivation, as the contract job.
       - name: Every suite in `just test`, including the five that ran nowhere
         timeout-minutes: 75
-        run: nix develop .#ci --command bash -c 'cd client && just test'
+        run: |
+          CT_PRINT="$(nix build --no-link --print-out-paths .#sol-ct-print)/bin/ct-print" \
+            nix develop .#ci --command bash -c 'cd client && just test'
 
       - name: The two vendored-layout gates no job named
         # `flow-layout-vendor.sh` and its self-test guard the Omniscience layout

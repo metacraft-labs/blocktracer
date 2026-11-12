@@ -122,7 +122,7 @@ preview-live: export-hydrated replay-engine
 
 # Run the client suites: the static-export round trip, BlockTracer's own
 # ViewModel layer (M12), and the debug route (M8a/M8b).
-test: prepare-recordings test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-chain-reach test-capability-tour test-instruction-listing test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-address-history test-searchboot
+test: prepare-recordings test-ct-components-css test-export test-viewmodels test-debug-route test-entry-state test-hydration-tag test-explorer-breadth test-chain-provenance test-chain-reach test-capability-tour test-instruction-listing test-selection-detail test-noir-frame-folding test-frame-identity-jump test-chain-origins test-address-history test-solana-staging test-searchboot
 
 # The browser's half of search, run without a browser: `nim js -r`, which is how
 # `searchboot.nim` can be tested at all. Its `importjs` boundary procs make the
@@ -358,6 +358,14 @@ test-chain-origins: prepare-recordings
 # complete history unless the chain said nothing older exists.
 test-address-history: prepare-recordings
     nim c -r --mm:orc --hints:off tests/test_address_history.nim
+
+# tests/test_solana_staging.nim — Recorder-Solana CXP-SOL-6 over the REAL Solana
+# tree, produced from the committed capture: base58 identifiers keep their case
+# through the shard path and the route; a transaction below the floor is listed
+# and offers no trace; and Solana is on staging's surfaces and none of
+# production's. Needs node, and `$CT_PRINT` where no sibling ct-print exists.
+test-solana-staging: prepare-recordings
+    nim c -r --mm:orc --hints:off tests/test_solana_staging.nim
 
 prepare-recordings:
     cd .. && just prepare-recordings
