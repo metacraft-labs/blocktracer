@@ -161,7 +161,7 @@ test: recordings-test prepare-recordings
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-FIVE suites — 105 + 18 + 19 + 24 + 24 + 57 + 245 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 36 + 24 + 56 = 1460 counted assertions —
+# TWENTY-SIX suites — 105 + 18 + 19 + 24 + 24 + 57 + 246 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 36 + 24 + 56 + 25 = 1486 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -634,6 +634,11 @@ chain-selftest:
     # transactions as system transactions, and the REST transcript. Rows with a
     # recording need a container and are exercised by `just aptos-capture`.
     node tools/chain/aptos-producer-selftest.mjs
+    # Offline and toolchain-free: Recorder-Solana CXP-SOL-5's accounting (four populations,
+    # divergent and unchecked counted against the yield, T2 read from the listings) and
+    # its prediction classifier, each driven with a control. The measurement it judges is
+    # `tools/chain/measurements/sol-depth-yield.json`, taken live by `capture-sol-window.mjs --depth`.
+    node tools/chain/sol-depth-yield-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #

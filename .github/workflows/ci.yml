@@ -652,7 +652,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 245 assertions, and the reason it is offline is the reason it
+        # ING-3, 246 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -1181,6 +1181,18 @@ jobs:
         # and compiling published source, need a container or the aptos CLI and are run by
         # `just aptos-capture` from the committed transcript.
         run: node tools/chain/aptos-producer-selftest.mjs
+
+      - name: Does Solana's depth-yield measurement count divergence against yield, and can its prediction fail?
+        # 25 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # Recorder-Solana CXP-SOL-5. Capture directories written in the shape
+        # `capture-sol-window.mjs` writes are read back by `sol-depth-yield.mjs` itself: the
+        # four populations sum to the in-scope count, an injected divergence lowers the yield
+        # by exactly one and raises the divergent count by one, and T2 is read from a trace's
+        # listings. Its prediction classifier confirms only a monotone decline to a zero
+        # floor; a flat set, a deeper window beating a shallower one, and a set without its
+        # zero windows each fail it, by name.
+        run: node tools/chain/sol-depth-yield-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this

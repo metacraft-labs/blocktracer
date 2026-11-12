@@ -5,7 +5,7 @@
 //
 //   node tools/chain/capture-sol-window.mjs \
 //     --recorder ../codetracer-solana-recorder/target/release/codetracer-solana-recorder \
-//     --slots 50 --out <capture dir>
+//     --slots 50 --out <capture dir> [--program <id>]... [--depth <slots below head>]
 //
 // ── WHY THE CAPTURE HAS TO BE LIVE ─────────────────────────────────────────────────────
 //
@@ -65,6 +65,7 @@ const opt = {
   keepDivergent: false,
   concurrency: 8,
   programs: new Set(),
+  depth: 0,
 };
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -77,7 +78,12 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--keep-divergent') opt.keepDivergent = true;
   else if (a === '--concurrency') opt.concurrency = Number(args[++i]);
   else if (a === '--program') opt.programs.add(args[++i]);
+  else if (a === '--depth') opt.depth = Number(args[++i]);
   else { console.error(`unknown argument ${a}`); process.exit(2); }
+}
+if (!Number.isInteger(opt.depth) || opt.depth < 0) {
+  console.error('--depth takes a whole number of slots, 0 or more');
+  process.exit(2);
 }
 if (!opt.recorder || !opt.out) {
   console.error('--recorder and --out are required');
@@ -285,7 +291,12 @@ if (opt.programs.size) {
 const head = staged.length
   ? Math.min(...staged.map((x) => x.readAt))
   : (await rpc(opt.blockRpc, 'getSlot', [{ commitment: 'confirmed' }])).result;
-const first = head + 1;
+// --depth D (CXP-SOL-5's depth curve) opens the window D slots BELOW that point. The
+// reads stay where they were taken: the release rule hands each one to the replay only
+// once it passes the read's slot, so every account the window needs before then has no
+// prestate, and its transactions are refused rather than replayed from a later state.
+// Nothing else changes, so a deeper window measures exactly what lag costs the route.
+const first = head + 1 - opt.depth;
 const counts = { slots: 0, skipped: 0, transactions: 0, votes: 0, sent: 0, notExecuted: 0, match: 0, divergent: 0, unchecked: 0, evictions: 0 };
 const BLOCK = (enc) => ({ maxSupportedTransactionVersion: 1, transactionDetails: 'full', rewards: false, encoding: enc, commitment: 'confirmed' });
 
@@ -442,6 +453,7 @@ writeFileSync(join(opt.out, 'capture.json'), JSON.stringify({
   capturedAt: new Date(t0).toISOString(),
   wallSeconds: Math.round((Date.now() - t0) / 1000),
   window: { firstSlot: first, lastSlot: first + opt.slots - 1, slots: opt.slots },
+  depth: { requested: opt.depth, headAtOpen: head },
   providers: { blocks: opt.blockRpc, features: opt.featureRpc,
     accounts: opt.accountRpcs.map(({ url, perCall, calls, failed }) => ({ url, perCall, calls, failed })) },
   prestateRoute: 'forward-chained-capture',
