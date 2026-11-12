@@ -210,17 +210,17 @@
     "codetracer-solana-recorder": {
       "flake": false,
       "locked": {
-        "lastModified": 1794508539,
-        "narHash": "sha256-68iKBf76Z+SGRpUQbX/1XDXbM06hnDSDbKFeRfrfQK4=",
+        "lastModified": 1794513487,
+        "narHash": "sha256-zQJTJs5NCn8NicVp0hvRBF6LmGfkyTM4B3Ob5YuNQRY=",
         "owner": "metacraft-labs",
         "repo": "codetracer-solana-recorder",
-        "rev": "273b2fb2fdac4b5212ccb822df28bdb9ae545ae0",
+        "rev": "5e09402fd8ffc6783062ab3a049f0b910abcaf29",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "codetracer-solana-recorder",
-        "rev": "273b2fb2fdac4b5212ccb822df28bdb9ae545ae0",
+        "rev": "5e09402fd8ffc6783062ab3a049f0b910abcaf29",
         "type": "github"
       }
     },

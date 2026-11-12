@@ -366,6 +366,18 @@ const fetcher = (async () => {
   }
 })();
 
+// The Clock's timestamp while a slot executes is its PARENT block's time: on mainnet in
+// November 2026 a transaction in slot S reads the parent's `blockTime` from the Clock, and
+// the Clock reaches S's own only when the block completes (measured from Phoenix Eternal's
+// self-CPI events, which record Clock.unix_timestamp and Clock.slot). Each transaction is
+// sent with it as `clockTime`. Blocks arrive in order, so the parent is usually the last one
+// fetched; otherwise, as for the window's first block, its time is asked for.
+let lastBlock = null;
+async function parentTime(parentSlot) {
+  if (lastBlock && lastBlock.slot === parentSlot) return lastBlock.blockTime;
+  const r = await rpc(opt.blockRpc, 'getBlockTime', [parentSlot]);
+  return typeof r.result === 'number' ? r.result : null;
+}
 for (let slot = first; slot < first + opt.slots; slot++) {
   // Wait for the slot to be confirmed, so the block is the cluster's.
   for (;;) {
@@ -381,6 +393,8 @@ for (let slot = first; slot < first + opt.slots; slot++) {
     appendFileSync(join(opt.out, 'blocks.jsonl'), JSON.stringify({ slot, skipped: true, error: bj.error ?? bb.error }) + '\n');
     continue;
   }
+  const clockTime = await parentTime(bj.result.parentSlot);
+  lastBlock = { slot, blockTime: bj.result.blockTime };
   await release(slot);
   const rows = [];
   for (let i = 0; i < bj.result.transactions.length; i++) {
@@ -410,6 +424,7 @@ for (let slot = first; slot < first + opt.slots; slot++) {
     counts.sent++;
     const res = await send({
       op: 'tx', signature: sig, slot, indexInBlock: i, blockTime: bj.result.blockTime,
+      ...(clockTime === null ? {} : { clockTime }),
       wire: bb.result.transactions[i].transaction[0], meta: t.meta, trace: true,
     });
     if (!res.executed && typeof res.reason === 'string') {
