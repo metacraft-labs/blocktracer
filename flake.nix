@@ -272,8 +272,8 @@
       flake = false;
     };
     # ── Aptos: the fork's CLI, its toolchain, and the recorder's Aptos path ───
-    # tools/chain/nix/aptos.nix says why each pin is where it is. None of these is
-    # reached by `produced-captures` or by any CI job; see the note there.
+    # tools/chain/nix/aptos.nix says why each pin is where it is. On x86_64-linux
+    # `produced-captures` and the `journeys-aptos` CI job reach them; see the note there.
     #
     # The value tracer on mainnet's aptos-node v1.49.8: metacraft-labs/aptos-core,
     # branch `codetracer/value-tracing-aptos-node-v1.49.8`.
@@ -672,8 +672,9 @@
         packages.sui-ct-print = sui.ctPrint;
 
         # ── Aptos mainnet, produced the same way (Recorder-Move CXP-MOVE-7) ────────
-        # NOT in produced-captures (see the note there). x86_64-linux only. The CLI is
-        # the fork's, built for generic x86-64; see tools/chain/nix/aptos.nix.
+        # In produced-captures as `aptos-mainnet` on x86_64-linux, the only system it
+        # builds on (see the note there). The CLI is the fork's, built for generic
+        # x86-64; see tools/chain/nix/aptos.nix.
         packages.aptos-cli = aptos.aptosCli;
         packages.aptos-move-recorder = aptos.moveRecorder;
         packages.aptos-capture-tree = aptos.aptosCaptureTree;
@@ -684,7 +685,7 @@
         packages.starknet-ct-print = starknet.ctPrint;
 
         # The site with the STAGING-ONLY chains added: `default` plus the Ethereum,
-        # Flow, Solana, Starknet and Sui trees, placed where the exporter already looks for a live-chain capture.
+        # Flow, Solana, Starknet and Sui trees, and Aptos on x86_64-linux, placed where the exporter already looks for a live-chain capture.
         # deploy.yml builds this for every deploy except `live`, so `live` (the
         # production Pages project) keeps `default` and carries no chain the
         # operator has not cleared for production; Chain-Expansion's environment
@@ -710,6 +711,19 @@
           '';
         });
 
+        # The site with the Move captures and no other produced chain: Aptos and the
+        # Sui tree, the corpus the Aptos journeys drive (`--set aptos`). The CI job
+        # `journeys-aptos` builds it; `just journeys-aptos` is the same over a tree you
+        # name. x86_64-linux only, for `aptos-capture-tree`'s reason.
+        packages.site-aptos = self.packages.${system}.default.overrideAttrs (old: {
+          name = "blocktracer-site-aptos";
+          postPatch = (old.postPatch or "") + ''
+            cp -r ${aptos.aptosCaptureTree} client/fixtures/chain/aptos-mainnet
+            cp -r ${sui.suiCaptureTree} client/fixtures/chain/sui-mainnet
+            chmod -R u+w client/fixtures/chain
+          '';
+        });
+
         # Every chain capture the build PRODUCES rather than commits, one directory
         # per chain slug. site-staging copies it into the fixtures; the deploy hands
         # it to `check-freshness.mjs record --produced`, so F4 holds each published
@@ -717,20 +731,24 @@
         # is byte-reproducible. A real copy rather than a linkFarm, because the
         # checker's walk does not follow symlinks.
         #
-        # APTOS IS DELIBERATELY NOT HERE. `packages.aptos-capture-tree` produces
-        # `aptos-mainnet` the same way, byte-reproducibly, but it needs the fork's
-        # `aptos` CLI, which takes about an hour to build cold (58 and 64 minutes, measured on
-        # high-mem-server).
-        # Adding it here puts that build on every deploy that has no cached copy, and
-        # it puts Aptos on staging. Both are the operator's decision.
-        packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } ''
+        # APTOS IS HERE ON x86_64-linux ONLY, by the operator's decision of 2026-11-12.
+        # `packages.aptos-capture-tree` produces `aptos-mainnet` byte-reproducibly, but
+        # it needs the fork's `aptos` CLI, which builds only for x86-64 Linux and takes
+        # about an hour cold (58 and 64 minutes, measured on high-mem-server). That
+        # build now lands on every deploy and CI run with no cached copy, and Aptos is
+        # on every `site-staging` deploy; the operator accepted both. On any other
+        # system the set is the five chains it always was, so a local build there
+        # still evaluates.
+        packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } (''
           mkdir -p $out
           cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
           cp -r ${flow.flowCaptureTree} $out/flow-mainnet
           cp -r ${sol.solCaptureTree} $out/solana-mainnet
           cp -r ${starknet.starknetCaptureTree} $out/starknet-mainnet
           cp -r ${sui.suiCaptureTree} $out/sui-mainnet
-        '';
+        '' + pkgs.lib.optionalString (system == "x86_64-linux") ''
+          cp -r ${aptos.aptosCaptureTree} $out/aptos-mainnet
+        '');
 
         packages.fixture-recorder6 = fixtureRecorder;
         packages.fixture-container-tools = fixtureContainerTools;

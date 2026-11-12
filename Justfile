@@ -1988,9 +1988,9 @@ aptos-range RECORDER COMMIT APTOS *ARGS:
 # transaction and the clock pinned, so the tree is byte-identical run to run. Needs the
 # recorder, the fork's `aptos` CLI and `ct-print`, given by path. The same tree is also
 # a Nix derivation, `nix build .#aptos-capture-tree` (tools/chain/nix/aptos.nix), which
-# packages all three and builds byte-identical to this recipe's output. It is not in
-# `produced-captures` or any CI job, because the fork's CLI takes about an hour to build
-# cold (flake.nix says why); this recipe is for a machine that already has the tools.
+# packages all three and builds byte-identical to this recipe's output. That derivation
+# is in `produced-captures` on x86_64-linux and in the `journeys-aptos` CI job (flake.nix
+# says why); this recipe is for a machine that already has the tools.
 aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
     node tools/chain/capture-aptos-range.mjs \
       --transcript fixtures/chain-inputs/aptos-mainnet/1158421321-1158421323 \
@@ -2003,9 +2003,12 @@ aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
 # a ledger version typed into search reaches its transaction, and the Sui rows beside it
 # are the hash-identity control; and every step of an Aptos recording is on a document of
 # its debug page, Move source or disassembly, served and hydrated, with Sui's all-
-# disassembly recording as the control. Aptos is not in `produced-captures` (flake.nix says why),
-# so its tree is the producer's own output, given by local path — `just aptos-capture`
-# writes .aptos-capture/tree — and placed into `default` with Sui's produced tree.
+# disassembly recording as the control. CI runs the same set over `nix build .#site-aptos`
+# (the `journeys-aptos` job). This recipe takes the Aptos tree by local path instead, so it
+# also runs where the fork's CLI does not build: `just aptos-capture` writes
+# .aptos-capture/tree, which goes stale silently, so on x86_64-linux prefer
+# `nix build .#aptos-capture-tree` and pass its result. It is placed into `default` with
+# Sui's produced tree.
 # NOT in any CI job, for the same reason.
 journeys-aptos APTOS_TREE=".aptos-capture/tree":
     #!/usr/bin/env bash

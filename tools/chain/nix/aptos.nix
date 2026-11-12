@@ -4,9 +4,10 @@
 # a seam only from producers that already worked without one). The writer and ct-print
 # derivations are the same expressions as sui.nix's, so they are the same store paths.
 #
-# NOT IN `produced-captures`, AND NOT IN ANY CI JOB. The fork's `aptos` CLI takes about an
-# hour to build cold, and putting that on every deploy is the operator's decision rather
-# than this file's. Build it by name: `nix build .#aptos-capture-tree`.
+# IN `produced-captures` ON x86_64-LINUX, AND IN THE `journeys-aptos` CI JOB, since the
+# operator decided so on 2026-11-12. The fork's `aptos` CLI takes about an hour to build
+# cold, and that cost is accepted on every deploy and CI run without a cached copy. Build
+# it by name: `nix build .#aptos-capture-tree`.
 #
 # WHAT RUNS IN THE SANDBOX. `tools/chain/capture-aptos-range.mjs --transcript` serves the
 # committed REST transcript (fixtures/chain-inputs/aptos-mainnet/1158421321-1158421323) on
