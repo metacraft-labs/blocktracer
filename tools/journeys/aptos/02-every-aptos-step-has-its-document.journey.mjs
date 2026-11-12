@@ -186,8 +186,20 @@ export async function run({ browser, site, j }) {
         const loc = live.page.locator(`.calltrace-call-line[data-rr-ticks="${frame.step}"]`).first();
         await loc.scrollIntoViewIfNeeded();
         const mark = consoleMark(live.page);
-        const link = loc.locator(".call-text");
-        await ((await link.count()) > 0 ? link.first() : loc).click();
+        // FOUND AND CLICKED IN ONE TASK. A pointer click lands on whatever is under
+        // the pointer when it arrives, and the window can re-render between the
+        // scroll above and that moment: measured, a click aimed at the row for tick
+        // 358 arrived on `0x1::cmp::compare` at tick 464, which then failed the
+        // assertion below as a wrong jump. Dispatching on the element just found,
+        // with no await in between, leaves no gap for a re-render to fill, and the
+        // event is the same click the pane's handlers take.
+        const clicked = await live.page.evaluate((step) => {
+          const r = document.querySelector(`.calltrace-call-line[data-rr-ticks="${step}"]`);
+          if (!r) return null;
+          (r.querySelector(".call-text") ?? r).click();
+          return r.getAttribute("data-rr-ticks");
+        }, frame.step);
+        j.note(`LIVE clicked the row for tick ${clicked}`);
         const answered = await waitForConsoleLine(live.page, POSITION_ANSWERED,
           { sinceIndex: mark, budgetMs: 20000 });
         const tick = tickOf(answered);
