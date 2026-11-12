@@ -76,7 +76,7 @@ export function factsOf(bundle) {
   const errText = m.err ? JSON.stringify(m.err) : '';
   const failure = !m.err ? null
     : /"Custom"/.test(errText) ? 'custom'
-      : /ComputationalBudgetExceeded|ProgramFailedToComplete/.test(errText)
+      : /ComputationalBudgetExceeded/.test(errText)
         || logs.some((l) => /exceeded CUs meter|consumed \d+ of \d+ compute units.*exceeded/.test(l)) ? 'compute'
         : 'other';
   return {
