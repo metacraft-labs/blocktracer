@@ -255,7 +255,16 @@ let
           cp ${avmRuntimeSrc}/replay/package.json ${avmRuntimeSrc}/replay/package-lock.json "$out/"
         '';
       };
-      hash = "sha256-LL2KQXpO0qBLiGK5yeiISoHyLdNJnANHFOYDwUf5I1A=";
+      # MOVED WITH THE RUNTIME PIN, because the v6 rename rewrote the very two
+      # files this fetcher hashes: `replay/package.json` and
+      # `replay/package-lock.json` went from `@aztec/*` to `@aztec-labs/*` and
+      # `@aztec-foundation/*`. CI named it exactly — "ERROR: npmDepsHash is out of
+      # date" building `aztec-avm-runtime-replay-9e9ba381fd.drv`.
+      #
+      # Computed with `prefetch-npm-deps` over the PINNED lock file rather than
+      # taken from a local `npm install`: the hash must describe the revision this
+      # flake pins, and a locally resolved tree can differ from it without saying so.
+      hash = "sha256-OAiJDT4DU4OqfHRHiSDUEXP2ZlMS0De+jk4XHQvsn0g=";
     };
     npmRoot = "replay";
 
