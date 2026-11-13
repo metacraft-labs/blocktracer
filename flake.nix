@@ -143,8 +143,34 @@
     # and verified by a full decode). The separate Nim input preserves that
     # producer's exact writer anchor, so the replays and their recorded figures
     # are unchanged; only the version field moves.
+    #
+    # ── THIS INPUT HAS TWO CONSUMERS, AND THEY PULL IN OPPOSITE DIRECTIONS ──
+    #
+    # It is the fixture producer ABOVE, and it is also `packages.chain-runtime`
+    # and `packages.aztec-ct-writer-wasm` — the replay driver and trace writer
+    # that infra's resident follower actually runs (`services/blocktracer-ingest`
+    # binds both). The fixtures want it frozen; the follower wants it current.
+    #
+    # MOVED 2026-11-13 TO 9e9ba381fd, AND THE HAZARD WAS MEASURED BEFORE MOVING.
+    # `238a3a5b` carries the ct-writer's `ct_source_step` but NOT
+    # `discoverContractsFromSeed`, so a follower on it aborts with
+    # `maybe_instance.has_value()` on any transaction that calls a contract it did
+    # not declare — 2 of the 8 first-in-block testnet transactions with retained
+    # bodies do exactly that.
+    #
+    # WHY MOVING IT IS SAFE FOR THE 42 COMMITTED AZTEC FIXTURES, which replay from
+    # committed RPC TRANSCRIPTS rather than from a chain: discovery issues
+    # `getContract` calls those transcripts do not contain, and until
+    # metacraft-labs/aztec-avm-runtime#22 that was a `FixtureMiss` — the exact
+    # invalidation `settled_transaction.ts` records for `pinToSettlingBlock`. #22
+    # makes a source that cannot answer discovery mean "nothing discovered", with
+    # the reason on the round, so an old recording stays playable. Verified on a
+    # fixture that reproduces: 14/14 matched, same rounds, same seed, same 58
+    # instructions, before and after.
+    #
+    # `238a3a5b` is an ANCESTOR of this revision, so the move is linear.
     aztec-avm-runtime = {
-      url = "github:metacraft-labs/aztec-avm-runtime/238a3a5b9fe9346868cc7fab84a8aa54513287dd";
+      url = "github:metacraft-labs/aztec-avm-runtime/9e9ba381fd85b65dcf048ba91a5dec6638ab2dd1";
       flake = false;
     };
     noir-fixture-recorder = {
