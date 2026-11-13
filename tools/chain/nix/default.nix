@@ -114,7 +114,7 @@
 #     is worth writing down, because the obvious check for it is wrong.
 #     `replay/node_modules` carries 19 native prebuilds and they are
 #     deliberately NOT all Linux: 8 ELF64-x86-64, 3 ELF64-aarch64, 3 ELF32-arm,
-#     3 Mach-O and 2 Windows PE. `@aztec/bb.js` ships four platforms inside one
+#     3 Mach-O and 2 Windows PE. `@aztec-foundation/bb.js` ships four platforms inside one
 #     package and `leveldown` ships nine; a Mach-O sitting beside an ELF is
 #     those packages working as designed, and a gate that refused on its
 #     presence — the first version of this one did, and failed — would be
@@ -221,15 +221,18 @@ let
   #
   # A FIFTH INPUT THE MODULE'S INTERFACE DOES NOT NAME, and it is the one that
   # would have turned "it builds" into "it crashes on first catch":
-  # `replay/tools/replay_settled_transaction.mjs` imports `@aztec/foundation`,
-  # `@aztec/stdlib` and `@aztec/protocol-contracts`, so a bare source export of
+  # `replay/tools/replay_settled_transaction.mjs` imports `@aztec-labs/foundation`,
+  # `@aztec-labs/stdlib`, `@aztec-labs/protocol-contracts` AND
+  # `@aztec-foundation/bb.js` — the v6 rename is a three-way split, with the
+  # cryptography and Noir bindings under `@aztec-foundation/*` — so a bare source
+  # export of
   # `aztec-avm-runtime` cannot replay anything. The live workstation follower has
   # 545 MB of `replay/node_modules` beside it, installed by hand and invisible in
   # the option that points at the checkout.
   #
   # So this derivation IS the checkout plus that install, done offline from the
   # committed `package-lock.json`. `--omit=dev` on purpose: the single devDep is
-  # `@aztec/noir-protocol-circuits-types` (92 MB), which exists for a pin
+  # `@aztec-labs/noir-protocol-circuits-types` (92 MB), which exists for a pin
   # re-derivation check and which nothing the follower runs imports.
   avmRuntime = stdenv.mkDerivation (finalAttrs: {
     pname = "aztec-avm-runtime-replay";
@@ -286,7 +289,15 @@ let
       test -f "$out/replay/tools/replay_settled_transaction.mjs"
       test -f "$out/node-host/src/loader.ts"          # preflightToolchain's probe
       test -f "$out/replay/src/artifact_resolution.ts" # resolverPresence's gate
-      test -d "$out/replay/node_modules/@aztec/stdlib"
+      # `@aztec-labs/`, NOT `@aztec/`. The v6 rename is a three-way scope split —
+      # protocol packages to `@aztec-labs/*`, cryptography and Noir bindings to
+      # `@aztec-foundation/*` — and this assertion is what caught the pin bump
+      # missing it: the build stopped here rather than the follower discovering it
+      # hours into a watch, which is what the comment above asks of it.
+      test -d "$out/replay/node_modules/@aztec-labs/stdlib"
+      # The other half of the split, asserted too: a rename that moved only ONE of
+      # the two scopes would otherwise pass this phase and fail at import.
+      test -d "$out/replay/node_modules/@aztec-foundation/bb.js"
 
       # ── PROVENANCE WITHOUT A .git ────────────────────────────────────────────
       #
@@ -300,7 +311,7 @@ let
 
       # ── BARRETENBERG RUNS AS WASM, SO THE REPLAY RUNS ON ANY x86-64 ──────────
       #
-      # `@aztec/bb.js` ships three prebuilt x86_64 binaries built with
+      # `@aztec-foundation/bb.js` ships three prebuilt x86_64 binaries built with
       # `-march=skylake` (barretenberg/cpp/cmake/arch.cmake: no cpuid, no IFUNC).
       # On a CPU without BMI2 they die of SIGILL. The addon is dlopen'd while the
       # module initialises, so nothing can catch it and no line is printed first.
@@ -316,10 +327,31 @@ let
       # 0x00689495… exits 0 in 29 s and writes a container byte-identical to the
       # native one in `.#fixture-recordings`, apart from the `meta.dat` version
       # byte that preparation rewrites afterwards.
-      for native in bb nodejs_module.node aztec-wsdb; do
-        rm "$out/replay/node_modules/@aztec/bb.js/build/amd64-linux/$native"
-      done
-      test -z "$(find "$out/replay/node_modules/@aztec/bb.js/build/amd64-linux" -type f)"
+      # THE SCOPE MOVED AND THIS REMOVAL HAD TO MOVE WITH IT. The v6 rename put
+      # bb.js under `@aztec-foundation/`, not `@aztec-labs/` — the split is
+      # three-way, with the cryptography and Noir bindings going to
+      # `@aztec-foundation/*`. A path left on `@aztec/bb.js` is the WORST of the
+      # three outcomes available here: `rm` fails loudly only because of `set -e`,
+      # and anyone "fixing" that by adding `-f` would get a silent no-op that
+      # leaves the skylake binaries in place and returns high-mem-server to the
+      # empty-stderr SIGILL above. The `test -z` below is the guard that makes a
+      # wrong path impossible to paper over, so it moves too.
+      # THE DIRECTORY IS ASSERTED, THEN EMPTIED — rather than three file names
+      # removed by hand. The hardcoded list was `bb nodejs_module.node
+      # aztec-wsdb`, and at `9e9ba381fd` the third one is simply not shipped, so
+      # the build failed on a file whose ABSENCE is harmless. A list of names is
+      # version-fragile in both directions: a binary that disappears breaks the
+      # build, and a binary that is ADDED is silently kept — and a kept skylake
+      # binary is the SIGILL above, with empty stderr, on first catch.
+      #
+      # What actually has to hold is "no native x86-64 object survives in this
+      # package", and that is what is written now. The `test -d` is what stops a
+      # future scope rename turning the whole block into a no-op: without it,
+      # emptying a directory that is not there succeeds.
+      bbNative="$out/replay/node_modules/@aztec-foundation/bb.js/build/amd64-linux"
+      test -d "$bbNative"
+      find "$bbNative" -type f -delete
+      test -z "$(find "$bbNative" -type f)"
       runHook postInstall
     '';
 
