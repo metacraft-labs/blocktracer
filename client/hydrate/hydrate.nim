@@ -69,6 +69,21 @@ import codetracer_ui_components
 import isonim/web/web_renderer
 from isonim/web/dom_api as idom import nil
 
+# A press on the shared views' rows is the pointer keymap's row, performed by
+# CodeTracer's DOM procedures (`input/dom_pane_presses`), from the CodeTracer
+# commit that moved the views' own click and menu handlers behind its router
+# on. The views then hold no handler, so a page that mounts them installs the
+# routing; an Embed SDK from before it has neither the module nor the need.
+import std/compilesettings
+const sharedViewsRoutePresses = block:
+  var found = false
+  for p in querySettingSeq(searchPaths):
+    if gorgeEx("test -f '" & p & "/input/dom_pane_presses.nim'").exitCode == 0:
+      found = true
+  found
+when sharedViewsRoutePresses:
+  import input/[dom_pane_presses, pane_presses]
+
 import ../src/debugger/replay_engine
 import ../src/debugger/session_view
 import ../src/debugger/keymap
@@ -1829,11 +1844,17 @@ proc measureMounted(h: Hydration; pane: Element; scrollerSel, rowSel: cstring;
     changed()
     paneSetTimeout(measure, 0)
 
-proc mountInto(pane: Element; slotSel: cstring; render: proc(): idom.Element) =
+proc mountInto(pane: Element; slotSel: cstring; paneKind: cstring;
+               render: proc(): idom.Element) =
   ## Render a shared view into the slot `slotSel` of `pane`, in a reactive root
-  ## of its own that lives as long as the page.
+  ## of its own that lives as long as the page. The slot is the view's PANE
+  ## scope (`data-scope-kind="pane"`, the pane's kind as `data-scope-id`), as a
+  ## desktop pane's host is: a press inside it names its pane to the pointer
+  ## rows.
   let slot = pane.querySelector(slotSel)
   if slot == nil: return
+  slot.setAttribute("data-scope-kind", "pane")
+  slot.setAttribute("data-scope-id", paneKind)
   createRoot proc(dispose: proc()) =
     discard idom.appendChild(idom.Node(toIsonim(slot)), idom.Node(render()))
 
@@ -1848,10 +1869,28 @@ proc ensureContextMenuHost() =
   host.setAttribute("style", "display: none;")
   document.body.appendChild(host)
 
+var sharedPanePressesRouted = false
+  ## Whether this page installed the shared views' press routing (once).
+
+proc routeSharedPanePresses(h: Hydration) =
+  ## A press, a double press and a right press on the shared views' elements:
+  ## the base keymap's pointer rows (`pointer_rows`), performed by
+  ## CodeTracer's procedures over this page's ViewModels — the call goes to,
+  ## the event jumps, the call's and the variable's menus open — exactly as on
+  ## the desktop.
+  when sharedViewsRoutePresses:
+    if sharedPanePressesRouted: return
+    sharedPanePressesRouted = true
+    let session = h.session
+    installPanePointerRoutingFor(proc(): PaneVMs =
+      PaneVMs(calltrace: session.calltrace, state: session.state,
+              eventLog: session.eventLog))
+
 proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
   ## Mount each of the three shared views the first time the projection has
   ## content for its pane — the condition `writePane` latches on.
   let r = WebRenderer()
+  h.routeSharedPanePresses()
   # Each row of the shared Call Trace and Event Log links to its §6.0a URL
   # (Shared-DOM-Front-Ends D10): the views draw the link, `rowLinksFor` builds
   # it from the row's address. Open in a new tab, copy link and the status bar
@@ -1863,7 +1902,7 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
       panes.renderCallTrace(view.calltrace, ctpLiveShell).cstring
     let vm = h.session.calltrace
     mountInto(h.ui.calltrace, ("." & panes.CallTraceMountClass).cstring,
-      proc(): idom.Element =
+      "calltrace", proc(): idom.Element =
         renderCalltracePanel[WebRenderer, idom.Element](r, vm, links))
     h.latch.calltrace.mounted = true
     h.latch.calltrace.latched = true
@@ -1883,7 +1922,7 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
     h.ui.state.innerHTML = panes.renderLiveShell().cstring
     let vm = h.session.state
     mountInto(h.ui.state, ("." & panes.LiveMountClass).cstring,
-      proc(): idom.Element =
+      "state", proc(): idom.Element =
         renderStatePanel[WebRenderer, idom.Element](r, vm))
     h.latch.state.mounted = true
     h.latch.state.latched = true
@@ -1941,7 +1980,7 @@ proc mountSharedPanes(h: Hydration; view: DebugSessionView) =
     h.ui.eventLog.innerHTML = panes.renderLiveShell().cstring
     let vm = h.session.eventLog
     mountInto(h.ui.eventLog, ("." & panes.LiveMountClass).cstring,
-      proc(): idom.Element =
+      "eventLog", proc(): idom.Element =
         renderEventLogPanel[WebRenderer, idom.Element](r, vm, links))
     h.latch.eventLog.mounted = true
     h.latch.eventLog.latched = true
