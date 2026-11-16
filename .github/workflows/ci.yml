@@ -3420,7 +3420,23 @@ jobs:
           need_file "${CHAIN_RUNTIME}/replay/tools/replay_settled_transaction.mjs"
           need_file "${CHAIN_RUNTIME}/node-host/src/loader.ts"
           need_file "${CHAIN_RUNTIME}/replay/src/artifact_resolution.ts"
-          need_dir  "${CHAIN_RUNTIME}/replay/node_modules/@aztec/stdlib"
+          # THE v6 RENAME IS A THREE-WAY SCOPE SPLIT, and this line was the last
+          # place still naming the old one. `@aztec/*` became `@aztec-labs/*`
+          # for the protocol packages and `@aztec-foundation/*` for the
+          # cryptography and Noir bindings, so the pre-rename path cannot
+          # exist in a v6 build and this step failed with
+          #   MISSING dir .../replay/node_modules/@aztec/stdlib
+          # while every build step above it passed. `tools/chain/nix/default.nix`
+          # already asserts BOTH of these at build time (grep `@aztec-labs/stdlib`
+          # and `@aztec-foundation/bb.js` there), so they are guaranteed present
+          # in the closure this step receives; naming them here is what makes a
+          # future rename fail on the path rather than later, inside a replay.
+          #
+          # bb.js is named alongside stdlib deliberately: the split is why this
+          # broke, so checking only the half that moved to `@aztec-labs` would
+          # leave the `@aztec-foundation` half unguarded against the same slip.
+          need_dir  "${CHAIN_RUNTIME}/replay/node_modules/@aztec-labs/stdlib"
+          need_dir  "${CHAIN_RUNTIME}/replay/node_modules/@aztec-foundation/bb.js"
           need_file "${CHAIN_RUNTIME}/.runtime-commit"
 
           echo "aztec-ct-writer-wasm — runtime.ctWriterWasm:"
