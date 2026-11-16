@@ -71,15 +71,16 @@
       "closed_by": "Whoever closes `ledger.json`'s `a-value-can-be-traced-to-its-origin` entry, in THIS repository — the two are one piece of work and this register should not imply otherwise. Then change this arm's `assertion` field to \"no hop reports 'source unavailable' on a recording that published source\", re-run `node tools/journeys/selftest.mjs --arm O1/the-engine-never-gets-the-source`, and delete this entry; the run will demand the deletion by name.",
       "evidence": "Measured 2026-10-22 in worktree `bt-ccp7` at f6a5e2a, over `client/dist` built by `just export-hydrated` against the three pinned sibling trees (codetracer af70456c, isonim 03f83497, nim-everywhere b2ce1c6b). Arm as written: SURVIVED in 142s, `counted 2, the claim needs at least 1`. Arm re-aimed at the third assertion: NEVER RAN — ALREADY RED, `4 of 6 did; 0 said 'unparseable source line'`, in 43s; the re-aim was then reverted. The arm SURVIVED in CI run 39400689697, `journeys-bite (3)`.",
       "recorded": "2026-10-22"
+    },
+    "O4/the-control-does-not-say-what-it-would-answer": {
+      "reason": "The arm drops the origin from the STATIC exporter's control title in `client/src/components/debugger.nim` (`title = \"Trace to origin: \" & v.origin` -> `title = \"Trace to origin: \"`), and its named assertion, journey 07's \"and each control names the origin it would trace to\", stays GREEN at `counted 1, the claim says 1`. The mutation is applied: `substituteInPlace --replace-fail` in a hermetic `.#default` build succeeded, so this is not an arm that failed to apply.",
+      "cause": "THE ASSERTION NO LONGER READS THE CONTROL THE ARM MUTATES. Journey 07 collects `originTitles` from `#pane-state .ct-origin-badge`'s `aria-label` (\"Value origin: ...\"), which is CodeTracer's shared State view, mounted by hydration. The exporter's `.storigin` title is replaced the moment that view mounts, so on the page the journey judges, the mutated string is not on screen. The arm was previously in `known_blocked` because the assertion was red on the engine of the time (a RecordingStart origin summary with an empty terminator); the engine re-pin `a9bc33db` made it green, so the arm now runs, and it survives for the reason above rather than for the one that entry gave.",
+      "subject": "None in this repository: the origin label a visitor reads on a hydrated page is drawn by the shared State view, so the claim that 'each control names the origin it would trace to' is that view's to grade. The static exporter's title is still served to a no-script reader, and a journey asserting on the SERVED page would kill this exact mutation; journey 07 judges the live page.",
+      "closed_by": "Either re-home the claim in codetracer's `src/frontend/viewmodel/tests/unit/run-hsf-sdk-mutations.py` against the shared view's badge label (the route FL2 and VD1 took), then delete this arm and this entry; or add a served-page assertion to journey 07 that reads the exporter's `.storigin` title, re-aim this arm at it, and delete this entry. Either way the run demands the deletion by name once the arm is killed.",
+      "evidence": "Measured 2026-11-13 on m4 by bt-move-75 over hermetic `nix build .#default` trees, the mutation planted with `substituteInPlace` in `postPatch`, journey 07 run with `--only a-value-can-be-traced-to-its-origin`. At blocktracer 338ece15 (PR #104): unmutated GREEN `counted 1, the claim says 1`; mutated GREEN `counted 1, the claim says 1`. At dev 3573f9b0: the same two readings. CI: `journeys-bite (2)` of run 43278582341 reported SURVIVED, and `journeys-combine` failed on it alone (the other four survivors are registered).",
+      "recorded": "2026-11-16"
     }
   },
   "_closed": {},
-  "known_blocked": {
-    "O4/the-control-does-not-say-what-it-would-answer": {
-      "reason": "The arm's assertion — journey 07's `and each control names the origin it would trace to` — is red on the unmutated tree, so the arm cannot be graded: a mutation demonstrates nothing about an assertion that is not green to begin with.",
-      "cause": "An engine defect that predates HSF: a RecordingStart origin summary carries an empty terminator expression, so the one badge that claims an origin names nothing (codetracer-pm issues/2026-10-30-a-recordingstart-origin-summary-carries-an-empty-terminator-expression.md).",
-      "closed_by": "The engine fix that issue asks for. Then the assertion goes green, this arm runs, and a kill fails the run until this entry is deleted.",
-      "recorded": "2026-10-30"
-    }
-  }
+  "known_blocked": {}
 }
