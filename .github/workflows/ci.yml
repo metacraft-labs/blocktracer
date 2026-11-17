@@ -3505,7 +3505,8 @@ jobs:
         # It refused on the presence of ANY Mach-O anywhere in the tree, and it
         # failed on its first run — 3 Mach-O objects out of 19 `.node` files.
         # That was a false positive and the census is the reason it is now
-        # printed rather than merely counted: `@aztec/bb.js` ships FOUR
+        # printed rather than merely counted: bb.js (`@aztec-foundation/bb.js`
+        # under the v6 pin, `@aztec/bb.js` under the historical one) ships FOUR
         # prebuilds in one package (amd64-linux, amd64-macos, arm64-linux,
         # arm64-macos) and `leveldown` ships NINE, two of them Windows PE. A
         # macOS object sitting beside a Linux one is those packages working as
@@ -3573,17 +3574,31 @@ jobs:
             // (high-mem-server: `mulx` in nodejs_module.node, from _dl_init).
             // tools/chain/nix/default.nix removes all three so bb.js takes its
             // WASM backend everywhere; one coming back is that defect returning.
-            const mustNot = [
-              "@aztec/bb.js/build/amd64-linux/nodejs_module.node",
-              "@aztec/bb.js/build/amd64-linux/bb",
-              "@aztec/bb.js/build/amd64-linux/aztec-wsdb",
-            ];
+            //
+            // The package moved scope in the v5 -> v6 rename (`@aztec/bb.js` ->
+            // `@aztec-foundation/bb.js`), and an absence check spelled for the
+            // scope this runtime does not use is not a check: every path is
+            // missing for the wrong reason and the step passes having measured
+            // nothing. So the package directory is RESOLVED first, and a
+            // runtime where neither spelling exists is a refusal, not a pass.
+            // `root` is already <runtime>/replay/node_modules, so these are
+            // package directories inside it.
+            const bbScopes = ["@aztec-foundation/bb.js", "@aztec/bb.js"];
+            const bbDir = bbScopes.find((d) => fs.existsSync(path.join(root, d)));
             let bad = 0;
-            for (const rel of mustNot) {
-              if (fs.existsSync(path.join(root, rel))) {
-                console.error(`  REFUSED: ${rel} is present; it needs x86-64-v3 and would SIGILL on v2 runners`);
-                bad++;
-              } else console.log(`  absent-on-purpose: ${rel}`);
+            if (!bbDir) {
+              console.error(`  REFUSED: none of ${bbScopes.join(", ")} is installed under replay/node_modules,`);
+              console.error(`           so the "no x86-64-v3 prebuild" check below would pass vacuously`);
+              bad++;
+            } else {
+              console.log(`  bb.js resolves to: replay/node_modules/${bbDir}`);
+              for (const leaf of ["nodejs_module.node", "bb", "aztec-wsdb"]) {
+                const rel = `${bbDir}/build/amd64-linux/${leaf}`;
+                if (fs.existsSync(path.join(root, rel))) {
+                  console.error(`  REFUSED: ${rel} is present; it needs x86-64-v3 and would SIGILL on v2 runners`);
+                  bad++;
+                } else console.log(`  absent-on-purpose: ${rel}`);
+              }
             }
             for (const rel of must) {
               const f = path.join(root, rel);
@@ -3592,47 +3607,66 @@ jobs:
               console.log(`  selected-on-linux-x64: ${kind}  <-  ${rel}`);
               if (kind !== "ELF64-x86-64") { console.error(`  REFUSED: ${rel} is ${kind}, not ELF64-x86-64`); bad++; }
             }
-            if (bad) { console.error(`REFUSED: ${bad} of ${must.length + mustNot.length} linux-x64 prebuild checks failed`); process.exit(1); }
+            if (bad) { console.error(`REFUSED: ${bad} of ${must.length + 3} linux-x64 prebuild checks failed`); process.exit(1); }
             fs.appendFileSync(process.argv[2],
               `native-prebuilds=${found.length}\nnative-prebuilds-by-format=${JSON.stringify(census)}\nnode-modules-dirs=${dirs}\n`);
           ' "${CHAIN_RUNTIME}" "${REPORT_DIR}/platform.txt"
 
-      - name: The replay driver's three @aztec dependencies load under this node, on Linux
+      - name: The replay driver's protocol dependencies load under this node, on Linux
         # THE CHECK THE STATIC CENSUS ABOVE CANNOT MAKE. `tools/chain/nix`'s
         # header records that a bare source export of `aztec-avm-runtime`
         # cannot replay anything — `replay/tools/replay_settled_transaction.mjs`
-        # imports `@aztec/foundation`, `@aztec/stdlib` and
-        # `@aztec/protocol-contracts`, and the live workstation follower had 545
-        # MB of hand-installed `replay/node_modules` beside it. The package
-        # replaces that with an offline `npm ci` from the committed lockfile,
-        # and until this step nothing had ever executed one line of the result
-        # ON LINUX.
+        # imports the Aztec foundation, stdlib and protocol-contracts packages,
+        # and the live workstation follower had 545 MB of hand-installed
+        # `replay/node_modules` beside it. The package replaces that with an
+        # offline `npm ci` from the committed lockfile, and until this step
+        # nothing had ever executed one line of the result ON LINUX.
         #
-        # The two subpaths are the exact specifiers the driver names (its lines
-        # 25-26); `@aztec/protocol-contracts` is its third declared dependency,
-        # reached through `replay/src/index.ts`. An import failure here is the
-        # difference between "the derivation built" and "the unit can replay".
+        # THE SCOPES ARE NOT `@aztec/*` ANY MORE. The v5 -> v6 rename split the
+        # packages three ways — protocol to `@aztec-labs/*`, cryptography and
+        # Noir bindings to `@aztec-foundation/*` — and a v6 runtime ships no
+        # `@aztec/` directory at all, so the v5 spelling of this step failed
+        # every import the moment `chain.avmRuntime` moved to v6. The names
+        # below are READ OFF the pinned driver's own `replay/package.json`
+        # (`@aztec-foundation/bb.js`, `@aztec-labs/foundation`,
+        # `@aztec-labs/protocol-contracts`, `@aztec-labs/stdlib`) and its import
+        # lines 47-51, with the v5 spelling kept as a fallback so this step
+        # still measures the `aztec-avm-runtime-historical` tree. A specifier
+        # that resolves under NEITHER scope is a refusal: an import failure here
+        # is the difference between "the derivation built" and "the unit can
+        # replay", and a step that skipped a missing package would be neither.
         run: |
           set -euo pipefail
           cd "${CHAIN_RUNTIME}/replay"
           "${FOLLOWER_NODE}/bin/node" --input-type=module -e '
+            // [v6, v5] for each of the three subpaths the driver names.
             const specs = [
-              "@aztec/foundation/json-rpc/client",
-              "@aztec/stdlib/tx/tx-hash",
-              "@aztec/protocol-contracts",
+              ["@aztec-labs/foundation/json-rpc/client", "@aztec/foundation/json-rpc/client"],
+              ["@aztec-labs/stdlib/tx/tx-hash", "@aztec/stdlib/tx/tx-hash"],
+              ["@aztec-labs/protocol-contracts", "@aztec/protocol-contracts"],
             ];
             let bad = 0;
-            for (const s of specs) {
+            for (const candidates of specs) {
               const t0 = Date.now();
-              try {
-                const m = await import(s);
-                console.log(`  ok  ${s}  (${Object.keys(m).length} exports, ${Date.now() - t0} ms)`);
-              } catch (e) {
-                console.error(`  FAILED  ${s}: ${e.message}`);
+              let loaded = false;
+              const why = [];
+              for (const s of candidates) {
+                try {
+                  const m = await import(s);
+                  console.log(`  ok  ${s}  (${Object.keys(m).length} exports, ${Date.now() - t0} ms)`);
+                  loaded = true;
+                  break;
+                } catch (e) {
+                  why.push(`${s}: ${e.message}`);
+                }
+              }
+              if (!loaded) {
+                console.error(`  FAILED  neither scope loads ${candidates[0]}`);
+                for (const line of why) console.error(`            ${line}`);
                 bad++;
               }
             }
-            console.log(`loaded ${specs.length - bad} of ${specs.length} (population: the replay driver’s declared @aztec dependencies)`);
+            console.log(`loaded ${specs.length - bad} of ${specs.length} (population: the replay driver’s declared protocol dependencies, either scope)`);
             if (bad) process.exit(1);
           '
 
