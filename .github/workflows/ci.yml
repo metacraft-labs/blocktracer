@@ -1144,6 +1144,37 @@ jobs:
         # built by `nix build .#sol-capture-tree`.
         run: node tools/chain/solana-producer-selftest.mjs
 
+      - name: Does a NEVER RAN say WHY the journey stopped, not only where?
+        # 15 assertions, host-independent: every arm drives `logMissDiagnosis`
+        # and `redRecords` over a synthetic miss, so it needs neither a browser
+        # nor a build nor a corpus — only node.
+        #
+        # IT LIVES HERE AND NOT IN `journeys`, AND THAT WAS A MEASURED MISTAKE.
+        # It was first written as a step of the self-hosted `journeys` job, in
+        # the bare-`node` style the suites above use. Those run on
+        # `ubuntu-latest`, where `setup-node` puts node on PATH; the `journeys`
+        # job runs self-hosted in a Nix dev env where it does not, so the step
+        # died with `node: command not found` (exit 127). Two consequences, and
+        # the second is the worse one: the step failed for a reason that had
+        # nothing to do with its subject, AND it sat above
+        # "The journeys, over the deployed artefact", which was SKIPPED as a
+        # result — a new check that silently disabled the gate it was added
+        # beside. A pure-node offline suite belongs with the other pure-node
+        # offline suites.
+        #
+        # WHAT IT PROTECTS. `selftest.mjs` scores an arm NEVER RAN when the
+        # mutated journey ran and never reached the arm's assertion, and that
+        # verdict has two causes with opposite remedies: the mutation reached
+        # further than its target (narrow the arm), or a gesture timed out in a
+        # phase the mutation's code path never executes (the arm is fine, the
+        # run is not). `run.mjs` records a thrown journey as the assertion
+        # "the journey threw" with the STACK as its detail, and
+        # `logMissDiagnosis` printed the names and dropped the details, so the
+        # two readings arrived identically. Probe 3 is the control: the section
+        # must be ABSENT when no record went red, or it would be a heading with
+        # no content on every miss.
+        run: node tools/journeys/selftest-diagnosis-test.mjs
+
       - name: Is every abstraction DEL-7 extracted reached by two chains?
         # 36 assertions, host-independent: every arm is offline and needs only node.
         #
@@ -2686,29 +2717,6 @@ jobs:
         run: |
           nix develop .#capture --command \
             vd0-capture-env bash tools/journeys/selftest-verdict-test.sh
-
-      - name: Does a NEVER RAN say WHY the journey stopped, not only where?
-        # 15 assertions, and it needs neither a browser nor a build: every arm
-        # drives `logMissDiagnosis` and `redRecords` over a synthetic miss, so
-        # it runs in milliseconds beside the step above that needs the capture
-        # environment.
-        #
-        # THE VERDICT IT PROTECTS HAS TWO CAUSES WITH OPPOSITE REMEDIES. An arm
-        # scores NEVER RAN when the mutated journey ran and never reached the
-        # assertion the arm names — which happens either because the mutation
-        # reached FURTHER than its target (narrow the arm) or because a gesture
-        # timed out in a phase the mutation's code path never executes (the arm
-        # is fine, the runner is not). `run.mjs` records a thrown journey as the
-        # assertion "the journey threw" with the STACK as its detail, so the
-        # deciding datum existed and was discarded one function before the log.
-        #
-        # MEASURED on PR #105, shard 4, arm
-        # `Y/reversing-rewinds-to-the-first-breakpoint`: separating the two
-        # readings took the shard journal, the arm's `find`/`replace` text, a
-        # forward-declaration check and the journey's statement order. Probe 3
-        # is the control — the section must be ABSENT when no record went red,
-        # or it would be a heading with no content on every miss.
-        run: node tools/journeys/selftest-diagnosis-test.mjs
 
       - name: Stage the deploy artefact, and copy the engine to its own origin
         # AFTER the selftest, and the step above it says why: the selftest writes
