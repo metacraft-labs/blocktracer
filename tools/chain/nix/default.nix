@@ -191,6 +191,17 @@
   # protocol version. Making it a required argument means a new pin cannot be
   # added without stating what it hashes to.
   avmRuntimeNpmDepsHash,
+
+  # WHICH `replay/node_modules` SCOPES THIS REVISION MUST CONTAIN, supplied by
+  # the caller for the same reason the hash above is: the two pinned revisions
+  # do not agree on the vocabulary. v6 split the packages three ways —
+  # protocol to `@aztec-labs/*`, cryptography and Noir bindings to
+  # `@aztec-foundation/*` — while the historical revision still installs
+  # `@aztec/*`. An assertion hard-coded to either one is a build failure for the
+  # other, which is exactly how it failed: the v6 spelling was asserted against
+  # the v5 tree and `installPhase` stopped on a tree that was perfectly correct
+  # for its own revision.
+  avmRuntimeRequiredPackages,
   traceFormatSrc,
   traceFormatRev,
   traceFormatNimSrc,
@@ -305,15 +316,20 @@ let
       test -f "$out/replay/tools/replay_settled_transaction.mjs"
       test -f "$out/node-host/src/loader.ts"          # preflightToolchain's probe
       test -f "$out/replay/src/artifact_resolution.ts" # resolverPresence's gate
-      # `@aztec-labs/`, NOT `@aztec/`. The v6 rename is a three-way scope split —
-      # protocol packages to `@aztec-labs/*`, cryptography and Noir bindings to
-      # `@aztec-foundation/*` — and this assertion is what caught the pin bump
-      # missing it: the build stopped here rather than the follower discovering it
-      # hours into a watch, which is what the comment above asks of it.
-      test -d "$out/replay/node_modules/@aztec-labs/stdlib"
-      # The other half of the split, asserted too: a rename that moved only ONE of
-      # the two scopes would otherwise pass this phase and fail at import.
-      test -d "$out/replay/node_modules/@aztec-foundation/bb.js"
+      # THE SCOPES THIS REVISION DECLARES, asserted by name. This is what caught
+      # the v6 pin bump installing `@aztec-labs/*` while `ci.yml` still looked
+      # for `@aztec/*`: the build stops here rather than the follower discovering
+      # it hours into a watch, which is what the comment above asks of it.
+      #
+      # BOTH halves of a split are named by the caller on purpose — a rename that
+      # moved only ONE scope would otherwise pass this phase and fail at import.
+      for pkg in ${lib.escapeShellArgs avmRuntimeRequiredPackages}; do
+        if [ ! -d "$out/replay/node_modules/$pkg" ]; then
+          echo "the runtime at ${avmRuntimeRev} installed no replay/node_modules/$pkg;" \
+               "either the pin moved scopes or the caller named the wrong set" >&2
+          exit 1
+        fi
+      done
 
       # ── PROVENANCE WITHOUT A .git ────────────────────────────────────────────
       #

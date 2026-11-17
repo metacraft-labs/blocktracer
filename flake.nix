@@ -617,8 +617,9 @@
           blocktracerSrc = ./.;
           avmRuntimeSrc = aztec-avm-runtime;
           avmRuntimeRev = aztec-avm-runtime.rev;
-          # `9e9ba381fd` — the v6 lock pair.
+          # `9e9ba381fd` — the v6 lock pair, and v6's three-way scope split.
           avmRuntimeNpmDepsHash = "sha256-OAiJDT4DU4OqfHRHiSDUEXP2ZlMS0De+jk4XHQvsn0g=";
+          avmRuntimeRequiredPackages = [ "@aztec-labs/stdlib" "@aztec-foundation/bb.js" ];
           traceFormatSrc = codetracer-trace-format;
           traceFormatRev = codetracer-trace-format.rev;
           traceFormatNimSrc = aztec-trace-format-nim;
@@ -642,6 +643,16 @@
           # `238a3a5b9f` — the v5 lock pair, which is a DIFFERENT tree of
           # tarballs from the v6 one above and so a different hash.
           avmRuntimeNpmDepsHash = "sha256-LL2KQXpO0qBLiGK5yeiISoHyLdNJnANHFOYDwUf5I1A=";
+          # AND A DIFFERENT VOCABULARY. This revision predates the v6 rename, so
+          # it installs `@aztec/*` and has no `@aztec-labs/*` or
+          # `@aztec-foundation/*` at all. Asserting the v6 spelling here is what
+          # broke `.#fixture-recordings` on this branch: the v5 tree was correct
+          # and the assertion was not.
+          # Both are DIRECT dependencies of `replay/package.json` at this
+          # revision. `@aztec/bb.js` is only transitive here and exists by
+          # hoisting, so asserting it would be asserting npm's layout rather
+          # than this revision's declared dependencies.
+          avmRuntimeRequiredPackages = [ "@aztec/stdlib" "@aztec/foundation" ];
           traceFormatSrc = codetracer-trace-format;
           traceFormatRev = codetracer-trace-format.rev;
           traceFormatNimSrc = aztec-trace-format-nim;
