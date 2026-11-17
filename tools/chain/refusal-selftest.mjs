@@ -648,6 +648,31 @@ test('the gate is in the write path, not beside it');
     ck('`follow-chain.mjs` takes the tally from there rather than spelling its own',
        /import \{ recountSnapshot \} from '\.\/lib\/recount\.mjs'/.test(followSrc)
          && !/function recount\s*\(/.test(followSrc));
+
+    // ── BOTH PRODUCERS MUST AGREE THAT PRIVATE-ONLY IS NOT A REFUSAL ──────────────────
+    //
+    // `lib/refusal.mjs` says the `looksLikePrivateOnlyCrash` signature lives there so
+    // "the producer side, this tool and the selftest share one spelling".
+    // `ingest-range.mjs` decides it from `publicCalls === 0`, which it knows before it
+    // replays; `follow-chain.mjs` replays first, so the crash IS its only discriminator
+    // and it filed these as `runtime-refused` — durability REPAIRABLE — until it adopted
+    // the predicate. Measured on a live aztec-mainnet arm, 2026-11-17: one node-served
+    // body in block 32671 filed exactly that way.
+    ck('`follow-chain.mjs` imports the private-only signature rather than re-spelling it',
+       /looksLikePrivateOnlyCrash/.test(followSrc)
+         && /chainPublishedNoPublicExecution/.test(followSrc));
+    const privOnlyArm = /if \(decided\.outcome === 'refused' && looksLikePrivateOnlyCrash\(decided\)\)[\s\S]{0,400}?\}/
+      .exec(followSrc)?.[0] ?? '';
+    ck('control: that producer-side reclassification is found',
+       /looksLikePrivateOnlyCrash\(decided\)/.test(privOnlyArm));
+    ck('…and it is GUARDED by `outcome === \'refused\'`, so a traced row cannot be relabelled',
+       /decided\.outcome === 'refused' &&/.test(privOnlyArm));
+    ck('…and it drops `refusalReason`, because the closed set is a set of things WE did',
+       /delete decided\.refusalReason/.test(privOnlyArm));
+    bite('mutation: the same arm without the `refused` guard is RED, which is what stops it '
+         + 'relabelling a replayed row',
+         !/decided\.outcome === 'refused' &&/
+            .test(privOnlyArm.replace(/decided\.outcome === 'refused' && /, '')));
     const captureSrc = readFileSync(new URL('./capture-chain.mjs', import.meta.url), 'utf8');
     ck('`capture-chain.mjs` calls the gate before it writes',
        /assertRefusalsAreClosed[\s\S]{0,200}?writeFile\(join\(outDir, 'snapshot\.json'\)/.test(captureSrc));
@@ -1831,7 +1856,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(246);
+expectCount(251);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

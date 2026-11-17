@@ -104,7 +104,8 @@ import { join, resolve } from 'node:path';
 import { replayTransaction, run, preflightToolchain, completeBlockCount, completeBlockNumbers }
   from './lib/replay.mjs';
 import { assertRefusalsAreClosed, refuseNotFirstInBlock,
-         refuseBodyNotSoughtFromStore } from './lib/refusal.mjs';
+         refuseBodyNotSoughtFromStore, looksLikePrivateOnlyCrash,
+         chainPublishedNoPublicExecution } from './lib/refusal.mjs';
 import { startBodyProxy } from './lib/body-proxy.mjs';
 import { storeBasePath } from './backfill-bodies.mjs';
 import { recountSnapshot } from './lib/recount.mjs';
@@ -571,6 +572,35 @@ async function main() {
         sourcesPath: join(snapDir, srcRel), sourcesRelative: srcRel,
         avm, ctWriter, compactThreshold,
       });
+
+      // ── A PRIVATE-ONLY TRANSACTION IS NOT A REFUSAL, AND THIS PRODUCER COULD NOT SAY SO ──
+      //
+      // `ingest-range.mjs` decides this from `publicCalls === 0`, which it knows BEFORE it
+      // replays. This producer does not decode the body first — it replays and reads the
+      // outcome — so the only discriminator it has is the crash, and that is exactly what
+      // `looksLikePrivateOnlyCrash` is for: upstream's
+      // `getPublicCallRequestsWithCalldata()` reads `data.forPublic.nonRevertibleAccumulatedData`
+      // and `forPublic` is `undefined` when there is no public half.
+      //
+      // `lib/refusal.mjs` says in its own header that the signature lives there so "the
+      // producer side, this tool and the selftest share one spelling". The producer side
+      // never adopted it, so this producer filed these as `runtime-refused` — durability
+      // REPAIRABLE — which tells a reader that a better runtime would trace a transaction
+      // that has no public execution at all and never will. That is the same defect
+      // `migrate-refusal-reasons.mjs` was written to correct on seven committed rows.
+      //
+      // MEASURED, not hypothesised: a 5-minute arm against live aztec-mainnet on
+      // 2026-11-17 caught `0x071fd9017ef499ae…` in block 32671 with a node-served body and
+      // filed it `refused` / `runtime-refused`, detail "Cannot read properties of undefined
+      // (reading 'nonRevertibleAccumulatedData')". The predicate matches that row exactly.
+      //
+      // `refusal` and `detail` STAY, for the reason the migration keeps them: they are the
+      // evidence for this decision, and every reader of the bare `refusal` field is guarded
+      // by `outcome === 'refused'` so nothing miscounts them.
+      if (decided.outcome === 'refused' && looksLikePrivateOnlyCrash(decided)) {
+        delete decided.refusalReason;
+        Object.assign(decided, chainPublishedNoPublicExecution({ blockNumber: c.blockNumber }));
+      }
 
       const row = {
         txHash: c.txHash,
