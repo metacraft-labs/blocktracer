@@ -2316,8 +2316,28 @@ jobs:
       # CT_PRINT: `test-solana-staging` drives the real Solana producer, which
       # reads its containers with ct-print and finds none on a runner (no sibling
       # trace-format checkout). Same remedy, same derivation, as the contract job.
+      # RAISED 75 -> 120 ON A MEASUREMENT, which is what the paragraph above asks
+      # for: "if this ever fires, measure the suite before raising it". It fired on
+      # #105 (job 133746457682), and the measurement says the suite has NOT doubled
+      # — the spread has.
+      #
+      # Same step, same suite list, two runners on 2026-11-17:
+      #   #108 job 133746032020   26.4 min   (of a 68.3 min job)
+      #   #105 job 133746457682  >75    min  TIMED OUT
+      #
+      # It died inside `nim c -r --mm:orc --hints:off tests/test_instruction_listing.nim`,
+      # still printing compiler warnings — a suite #105 does not touch, so this is
+      # not that branch's regression. The aggregate recompiles Nim per suite and the
+      # runners are ephemeral, so the cost swings with how much of that compile is
+      # already in a cache. 75 was sized as a stall detector for the warm case and
+      # happens to sit inside the cold one.
+      #
+      # It stays a stall detector, not a performance budget: 120 matches the longest
+      # non-journeys job in this file, and a suite that has genuinely doubled is
+      # still a finding. The real fix is caching the Nim compiles rather than paying
+      # for them per job, which is a larger change than this one.
       - name: Every suite in `just test`, including the five that ran nowhere
-        timeout-minutes: 75
+        timeout-minutes: 120
         run: |
           CT_PRINT="$(nix build --no-link --print-out-paths .#sol-ct-print)/bin/ct-print" \
             nix develop .#ci --command bash -c 'cd client && just test'
