@@ -3670,6 +3670,33 @@ jobs:
             if (bad) process.exit(1);
           '
 
+      - name: The historic-replay seam's own suite, against the runtime this job built
+        # 32 assertions, offline: the transaction file store and the node are two
+        # `http.Server`s the suite starts itself, and the subject body is built
+        # from the runtime's own committed fixture.
+        #
+        # IT RAN NOWHERE UNTIL NOW, and `Justfile`'s own header for it predicted
+        # exactly that: it is kept out of `chain-selftest` because that recipe is
+        # offline AND TOOLCHAIN-FREE while this suite needs `aztec-avm-runtime`'s
+        # `replay/node_modules` to decode Aztec's wire format — "putting it in the
+        # stock suite would make the stock suite need a checkout, which is how a
+        # suite starts getting skipped". It was kept out, and then nothing else
+        # named it: `just body-proxy-selftest <runtime>` was the only caller and no
+        # workflow invokes that recipe.
+        #
+        # THIS JOB IS THE ONE PLACE THE PREREQUISITE ALREADY EXISTS. It has just
+        # built `chain-runtime` and asserted `replay/node_modules/@aztec-labs/stdlib`
+        # and `@aztec-foundation/bb.js` into it, so the checkout the recipe asks a
+        # human for is `${CHAIN_RUNTIME}` here, for free.
+        #
+        # AND IT IS THE SUITE FOR THE FILE THIS BRANCH CHANGED. `lib/body-proxy.mjs`
+        # loads bb.js, stdlib and foundation v6-first with the v5 spelling as a
+        # fallback, which is this branch's work; the suite over it had never been
+        # exercised by CI in either scope. Measured locally against a v5-scope
+        # checkout (32 assertions, PASS), which covers the fallback arm only — the
+        # v6 arm is what this step adds, because `CHAIN_RUNTIME` is the v6 runtime.
+        run: node tools/chain/body-proxy-selftest.mjs --runtime "${CHAIN_RUNTIME}"
+
       - name: The Linux-built .ct writer is a wasm module this node can compile
         # `nix build` succeeding says the linker ran. It does not say the bytes
         # are a loadable module — and `lld` is the wasm32 linker that the
