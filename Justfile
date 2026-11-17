@@ -1,6 +1,10 @@
 # BlockTracer workspace commands.
 # `just` recipes wrap the nimble tasks so the workspace has one entry point.
 
+# `{{rq}}`: the RunQuota bridge (see runquota.just). Heavy test and build
+# commands carry it so concurrent sessions on one host share one budget.
+import 'runquota.just'
+
 # Run the conformance + publisher + Client SDK + chain-snapshot + registry
 # identifier-encoding test suites, and the SDK's bidirectional import lint.
 #
@@ -138,19 +142,19 @@ test: recordings-test prepare-recordings
     # suite added below must also be added to blocktracer.nimble's `test` task, or
     # it runs only here. `ci/test/ci-coverage.sh` step 1c fails by name on one
     # that is missing there; four were, and three of them went red unseen.
-    nim c -r --hints:off tests/tcontract.nim
-    nim c -r --hints:off tests/tpublish.nim
-    nim c -r --hints:off tests/tclientsdk.nim
-    nim c -r --hints:off tests/tchainsnapshot.nim
-    nim c -r --hints:off tests/tidentifierencoding.nim
-    nim c -r --hints:off tests/tchainprofile.nim
+    {{rq}} nim c -r --hints:off tests/tcontract.nim
+    {{rq}} nim c -r --hints:off tests/tpublish.nim
+    {{rq}} nim c -r --hints:off tests/tclientsdk.nim
+    {{rq}} nim c -r --hints:off tests/tchainsnapshot.nim
+    {{rq}} nim c -r --hints:off tests/tidentifierencoding.nim
+    {{rq}} nim c -r --hints:off tests/tchainprofile.nim
     # THE TRANSPORT ENCODING OF A PUBLISHED CONTAINER (CCP-6). Its own suite because
     # the property is a RELATION across five modules — the pure policy, the brotli
     # codec, the publication, the producer-side kit and the consumer-side kit — and a
     # per-module suite would have each half agreeing with its own idea of what the
     # other does. That is the shape the campaign behind it spent two weeks undoing,
     # with three byte figures that had become one.
-    nim c -r --hints:off tests/tcontainerencoding.nim
+    {{rq}} nim c -r --hints:off tests/tcontainerencoding.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
     # ALL FIFTEEN CLIENT SUITES, BY DELEGATION. See the block above this recipe
@@ -158,6 +162,15 @@ test: recordings-test prepare-recordings
     # files diverged three separate times, and the third time it cost the gate
     # the strongest landing assertions in the repository.
     cd client && just test
+
+# The gate for the `{{rq}}` bridge itself: three `just test` sessions on one
+# RunQuota budget never exceed it and the high-priority one is served first
+# (`ci/test/runquota-bridge-test.sh`), then the same run with the bridge
+# stripped from the Justfiles, which must fail. Needs a `runquota` with the
+# `run` verb and `runquotad` on PATH (or in RUNQUOTA_BIN_DIR).
+test-runquota-bridge:
+    bash ci/test/runquota-bridge-test.sh --require
+    bash ci/test/runquota-bridge-test.sh --require --mutate-drop-bridge
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
@@ -2015,7 +2028,7 @@ journeys-aptos APTOS_TREE=".aptos-capture/tree":
     set -euo pipefail
     tree="$(realpath {{APTOS_TREE}})"
     test -s "$tree/snapshot.json"
-    nix build --impure -o .journey-site-aptos-result --expr "
+    {{rq}} nix build --impure -o .journey-site-aptos-result --expr "
       let f = builtins.getFlake (toString ./.); s = builtins.currentSystem; in
       f.packages.\${s}.default.overrideAttrs (old: {
         name = \"blocktracer-site-aptos\";
@@ -2303,7 +2316,7 @@ journeys-build: journeys-engine
 journeys-deployed:
     #!/usr/bin/env bash
     set -euo pipefail
-    nix build .#default
+    {{rq}} nix build .#default
     rm -rf .journey-site && mkdir -p .journey-site
     cp -R result/. .journey-site/
     chmod -R u+w .journey-site
@@ -2642,9 +2655,9 @@ byte-identity-mutant REF:
 flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
     #!/usr/bin/env bash
     set -euo pipefail
-    recorder=$(nix build .#flow-recorder --no-link --print-out-paths)
-    helper=$(nix build .#cadence-replay-helper --no-link --print-out-paths)
-    ct_print=$(nix build .#flow-ct-print --no-link --print-out-paths)
+    recorder=$({{rq}} nix build .#flow-recorder --no-link --print-out-paths)
+    helper=$({{rq}} nix build .#cadence-replay-helper --no-link --print-out-paths)
+    ct_print=$({{rq}} nix build .#flow-ct-print --no-link --print-out-paths)
     commit=$(jq -r '.nodes["codetracer-flow-recorder"].locked.rev' flake.lock)
     CT_PRINT="$ct_print/bin/ct-print" bash tools/chain/flow-capture.sh \
       --recorder "$recorder/bin/codetracer-flow-recorder" \
@@ -2660,7 +2673,7 @@ flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
 # network. The trees land in OUT, one directory per block, for
 # `just conformance OUT/<height>`.
 flow-awkward-cases OUT=".flow-awkward-cases":
-    nix build .#flow-awkward-cases --out-link {{OUT}} -L
+    {{rq}} nix build .#flow-awkward-cases --out-link {{OUT}} -L
 
 # ── the RESIDENT follower: ING-1's deployed daemon, runnable locally over a range ──
 #
