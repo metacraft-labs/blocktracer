@@ -553,11 +553,11 @@
 # ── Provenance ─────────────────────────────────────────────────────────────
 #
 # origin       https://web-codetracer.pages.dev
-# measured     2026-11-07, against the production deployment of that day
+# measured     2026-11-15, against the production deployment of that day
 # descriptor   the hashed names are read from that deployment's own entry
 #              document, which is where `deploy-web-codetracer.yml` records
 #              them; they are not guessed from the hashes below.
 
 worker.js               worker.js                                   ad2e6ce0ac902ba18d0d208a56900f29f4c6c46986017d92d22ed2f42806e01d  12180     mutable
-pkg/db_backend.js       assets/db_backend.d7e166166c4d32d9.js       d7e166166c4d32d92105ea6380f520b60801e34a9cf0e8aac6a5e95f31acd8f1  19447     immutable
-pkg/db_backend_bg.wasm  assets/db_backend_bg.d0f745178f9658ec.wasm  d0f745178f9658ec98a78d6faf863e5dd9609cc5bc4504d69a157a27f37bbdd9  18446061  immutable
+pkg/db_backend.js       assets/db_backend.c461d0bd5e11ddda.js       c461d0bd5e11ddda166d14c682f6a4af8132c13e0bd8090dac20040902338413  19447     immutable
+pkg/db_backend_bg.wasm  assets/db_backend_bg.d696b18d6a833e78.wasm  d696b18d6a833e786eb70692f71769b7598d419037173b2da0457d0567c6ddd0  18445028  immutable
