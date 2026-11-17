@@ -22,7 +22,7 @@ import { CELLS, census } from './lib/solana-corpus-census.mjs';
 
 // The assertion count this suite declares, which `refusal-selftest.mjs` cross-checks
 // against the `chain-selftest` header. No host configurations, so the base is the total.
-const BASE_ARMS = 12;
+const BASE_ARMS = 13;
 
 let passed = 0;
 const arm = (name, fn) => {
@@ -255,6 +255,18 @@ arm('a cell loses its coverage when the bundles that reach it are removed', () =
   const after = census(without).cells.find((c) => c.cell === cell);
   assert.equal(after.covered, 0);
   assert.match(after.uncovered, /no pinned fixture/);
+});
+arm('a precompile is placed by the accounts the transaction carries, not by its logs', () => {
+  // A precompile runs without writing an `invoke` log. A census that looked only at the
+  // logs left a pinned Ed25519 transaction (recorder e97a9c8) out of this cell.
+  const cell = '4.4 precompile: a signature-verify precompile invoked';
+  const ED25519 = 'Ed25519SigVerify111111111111111111111111111';
+  const base = bundles[0];
+  assert.ok(!(base.transactions[0].meta.logMessages ?? []).some((l) => l.includes(ED25519)));
+  const withIt = { ...base, accounts: [...base.accounts, { pubkey: ED25519, owner: 'NativeLoader1111111111111111111111111111111', executable: true, lamports: 1, data: '' }] };
+  assert.equal(census([withIt]).cells.find((c) => c.cell === cell).covered, 1);
+  // Control: the same bundle without that account reads uncovered.
+  assert.equal(census([base]).cells.find((c) => c.cell === cell).covered, 0);
 });
 if (passed !== BASE_ARMS) {
   console.error(`FAIL — ${passed} of ${BASE_ARMS} declared arm(s) ran`);
