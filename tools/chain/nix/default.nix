@@ -202,6 +202,14 @@
   # the v5 tree and `installPhase` stopped on a tree that was perfectly correct
   # for its own revision.
   avmRuntimeRequiredPackages,
+
+  # WHERE THIS REVISION'S bb.js KEEPS ITS PREBUILT x86-64 BINARIES, relative to
+  # `replay/node_modules`, supplied by the caller for the same reason as the two
+  # arguments above. The strip below is SAFETY-CRITICAL and scope-dependent: v6
+  # puts bb.js under `@aztec-foundation/`, the historical pin under `@aztec/`,
+  # and a path that names the wrong one fails `test -d` SILENTLY — which is
+  # exactly how it failed when this file served one revision and was handed two.
+  avmRuntimeBbNativeDir,
   traceFormatSrc,
   traceFormatRev,
   traceFormatNimSrc,
@@ -380,8 +388,23 @@ let
       # package", and that is what is written now. The `test -d` is what stops a
       # future scope rename turning the whole block into a no-op: without it,
       # emptying a directory that is not there succeeds.
-      bbNative="$out/replay/node_modules/@aztec-foundation/bb.js/build/amd64-linux"
-      test -d "$bbNative"
+      # THE PATH IS THE CALLER'S, AND A MISS IS LOUD NOW. It used to be a literal
+      # on the v6 scope plus a bare `test -d`, which is the worst combination once
+      # two revisions are pinned: against the historical tree the test failed with
+      # NO MESSAGE, and `blocktracer-fixture-recordings` reported only that the
+      # runtime derivation had failed in `installPhase`. Verified against the
+      # published tarballs rather than assumed — `@aztec/bb.js@5.3.0-nightly.20260819`
+      # ships `build/amd64-linux/{bb,nodejs_module.node,aztec-wsdb}` and
+      # `@aztec-foundation/bb.js@6.0.0` ships the first two, which is why this
+      # empties the directory instead of naming files.
+      bbNative="$out/replay/node_modules/${avmRuntimeBbNativeDir}"
+      if [ ! -d "$bbNative" ]; then
+        echo "the runtime at ${avmRuntimeRev} has no replay/node_modules/${avmRuntimeBbNativeDir}," \
+             "so the prebuilt x86-64 barretenberg binaries were NOT stripped. Leaving them is the" \
+             "empty-stderr SIGILL on every x86-64-v2 runner, so this is a build failure rather" \
+             "than a skipped step. Either the pin moved scopes or the caller named the wrong path." >&2
+        exit 1
+      fi
       find "$bbNative" -type f -delete
       test -z "$(find "$bbNative" -type f)"
       runHook postInstall

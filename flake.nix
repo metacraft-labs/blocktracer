@@ -620,6 +620,9 @@
           # `9e9ba381fd` — the v6 lock pair, and v6's three-way scope split.
           avmRuntimeNpmDepsHash = "sha256-OAiJDT4DU4OqfHRHiSDUEXP2ZlMS0De+jk4XHQvsn0g=";
           avmRuntimeRequiredPackages = [ "@aztec-labs/stdlib" "@aztec-foundation/bb.js" ];
+          # v6 keeps bb.js under `@aztec-foundation/`; the strip in
+          # `tools/chain/nix` has to name the scope this revision installs.
+          avmRuntimeBbNativeDir = "@aztec-foundation/bb.js/build/amd64-linux";
           traceFormatSrc = codetracer-trace-format;
           traceFormatRev = codetracer-trace-format.rev;
           traceFormatNimSrc = aztec-trace-format-nim;
@@ -653,6 +656,12 @@
           # hoisting, so asserting it would be asserting npm's layout rather
           # than this revision's declared dependencies.
           avmRuntimeRequiredPackages = [ "@aztec/stdlib" "@aztec/foundation" ];
+          # The historical pin predates the rename, so bb.js is `@aztec/bb.js`.
+          # Verified against the published tarball:
+          # `@aztec/bb.js@5.3.0-nightly.20260819` ships
+          # `build/amd64-linux/{bb,nodejs_module.node,aztec-wsdb}` — three
+          # skylake binaries that SIGILL on an x86-64-v2 runner if they survive.
+          avmRuntimeBbNativeDir = "@aztec/bb.js/build/amd64-linux";
           traceFormatSrc = codetracer-trace-format;
           traceFormatRev = codetracer-trace-format.rev;
           traceFormatNimSrc = aztec-trace-format-nim;
