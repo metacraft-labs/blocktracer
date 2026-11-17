@@ -42,7 +42,7 @@ const HASH = '0x1159d7e7bd7e91c6c86c4329b35ba482a812a9c6918cad4038909e3e9383da5b
 // the two claims that say WHAT it assembled simply disappeared, which is the
 // `never ran` verdict wearing a pass's clothes. They are now always asserted
 // and carry their own "this was not measured" detail.
-const BASE_ARMS = 11;
+const BASE_ARMS = 15;
 
 let failures = 0;
 let asserted = 0;
@@ -136,6 +136,82 @@ for (const [name, mutate, needle] of refusals) {
   check(`refuses: ${name}`, !r.ok && r.stderr.includes(needle),
     r.ok ? 'it ASSEMBLED instead of refusing' : `message did not name it: ${r.stderr.slice(0, 160)}`);
   rmSync(r.out, { recursive: true, force: true });
+}
+
+// -- TWO ROLLUPS MUST NOT MERGE INTO ONE CHAIN DIRECTORY --------------------------
+//
+// `--out` is the caller's choice, and the natural choice for a slug is that slug's
+// existing corpus directory. Both Aztec networks restarted after their corpora were
+// captured, and the live block numbers are back INSIDE the published ranges, so the
+// natural choice would overwrite one rollup's blocks with another's under one name.
+//
+// THE CONTROL IS THE POINT. A guard that refused whenever `--out` already held a
+// snapshot would be indistinguishable from one that compares identities, and it would
+// break every legitimate re-run over the same chain. Arm 2 is that control.
+{
+  const sameRollup = {
+    l1ChainId: 11155111, rollupVersion: 679261766,
+    rollupAddress: '0x1f435a7f2da358caf887a470faeee7d5d5f4efba',
+  };
+  // What the bucket's observation record states, which `makeBucket` must carry for
+  // these arms to mean anything. Asserted, not assumed: with no identity in the
+  // bucket every comparison below would compare absence against absence.
+  const bucketRoot = makeBucket((st) => {
+    Object.assign(st.observation.provenance, sameRollup);
+  });
+
+  const plant = (ident) => {
+    const out = mkdtempSync(join(tmpdir(), 'snap-pre-'));
+    writeFileSync(join(out, 'snapshot.json'),
+      `${JSON.stringify({ format: 'blocktracer/chain-snapshot@2', provenance: ident }, null, 2)}\n`);
+    return out;
+  };
+  const runInto = (root, out) => {
+    try {
+      const stdout = execFileSync(process.execPath,
+        [TOOL, '--bucket-dir', root, '--chain', CHAIN, '--out', out, '--json'],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      return { ok: true, report: JSON.parse(stdout) };
+    } catch (err) {
+      return { ok: false, stderr: String(err.stderr ?? '') };
+    }
+  };
+
+  // ARM 1 -- a DIFFERENT rollup under the same slug is refused, and named.
+  const differentOut = plant({
+    l1ChainId: 11155111, rollupVersion: 1821665230,
+    rollupAddress: '0xd73a91bdcf6891c7642f3e460036e1ef2cc23178',
+  });
+  const r1 = runInto(bucketRoot, differentOut);
+  check('refuses: --out holds a DIFFERENT rollup under the same slug',
+    !r1.ok && r1.stderr.includes('DIFFERENT rollup'),
+    r1.ok ? 'it OVERWROTE a corpus from another rollup' : r1.stderr.slice(0, 200));
+  check('...and names the field that differs, with both values',
+    !r1.ok && r1.stderr.includes('rollupVersion') && r1.stderr.includes('1821665230'),
+    r1.stderr?.slice(0, 200));
+  rmSync(differentOut, { recursive: true, force: true });
+
+  // ARM 2 -- THE CONTROL. The SAME rollup must still be written, or this guard is
+  // just "refuse if the directory is occupied".
+  const sameOut = plant(sameRollup);
+  const r2 = runInto(bucketRoot, sameOut);
+  check('CONTROL: the SAME rollup is accepted, so the guard compares identity and not occupancy',
+    r2.ok, r2.ok ? '' : `refused its own chain: ${r2.stderr?.slice(0, 200)}`);
+  rmSync(sameOut, { recursive: true, force: true });
+
+  // ARM 3 -- A COMPARISON THAT DID NOT HAPPEN IS NOT AGREEMENT. An existing snapshot
+  // stating none of the three identity fields cannot be shown to be the same rollup,
+  // so it refuses rather than being waved through. Without this the guard would be
+  // bypassed by exactly the oldest corpora: the ones most likely to predate the fields
+  // and the most expensive to overwrite.
+  const blindOut = plant({ chain: CHAIN, ordering: 'blockIndex' });
+  const r3 = runInto(bucketRoot, blindOut);
+  check('refuses: --out holds a snapshot stating no rollup identity at all',
+    !r3.ok && r3.stderr.includes('is not agreement'),
+    r3.ok ? 'it overwrote a corpus it could not identify' : r3.stderr.slice(0, 200));
+  rmSync(blindOut, { recursive: true, force: true });
+
+  rmSync(bucketRoot, { recursive: true, force: true });
 }
 
 console.log(`\nassertion count: ${asserted} (declared ${BASE_ARMS})`);

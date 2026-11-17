@@ -147,6 +147,74 @@ for (const [member, where] of [
   void where;
 }
 
+// -- TWO ROLLUPS MUST NOT MERGE INTO ONE CHAIN DIRECTORY ------------------------------
+//
+// `--out` is chosen by the caller, and the obvious choice for a chain slug is the
+// directory that slug's EXISTING corpus lives in. That is safe exactly when the bucket
+// and that corpus are the same chain -- and both Aztec networks have been restarted
+// since their corpora were captured (`retired-networks.json`, measured 2026-10-28), so
+// the obvious choice is now the dangerous one.
+//
+// THE NUMBERS OVERLAP TODAY. blocktracer.org publishes blocks 1..99,092 under
+// `aztec-testnet` from the retired rollup; the live testnet was at 39,467 on 2026-11-17,
+// INSIDE that range. Writing a live snapshot over that corpus would not append -- it
+// would replace a block 39,467 belonging to one rollup with a different block 39,467
+// belonging to another, under one chain name, and every number in the overlap with it.
+//
+// THE IDENTITY IS RECORDED ON BOTH SIDES, so this needs no new data and no guess about
+// what the chain "is". `follow-chain.mjs` writes `l1ChainId`, `rollupVersion` and
+// `rollupAddress` into provenance, and the committed corpora carry the same three: the
+// frozen `aztec-testnet` snapshot reads rollupVersion 1821665230 / rollupAddress
+// 0xd73a91bd..., while the live chain answers 679261766 / 0x1f435a7f.... Differing on
+// any of the three means two rollups, whatever they are called.
+//
+// A COMPARISON THAT DID NOT HAPPEN IS NOT AGREEMENT. An existing snapshot carrying none
+// of the three cannot be shown to be the same chain, so it refuses too rather than being
+// waved through as probably fine -- the rule `put_block_row` follows in the publish unit,
+// for the same reason.
+//
+// This says nothing about WHICH slug a restarted chain should publish under. That is a
+// decision about what the site calls things; this only makes every answer to it safe.
+const ROLLUP_IDENTITY = ['l1ChainId', 'rollupVersion', 'rollupAddress'];
+const existingSnapshotPath = join(outDir, 'snapshot.json');
+if (existsSync(existingSnapshotPath)) {
+  let existing;
+  try {
+    existing = JSON.parse(readFileSync(existingSnapshotPath, 'utf8'));
+  } catch (err) {
+    throw new IngestBucketIncomplete(
+      `${existingSnapshotPath} exists and could not be parsed (${err.message}), so the `
+      + 'chain it holds cannot be compared with this bucket. Refusing rather than '
+      + 'overwriting it',
+      existingSnapshotPath, 'whatever wrote that file');
+  }
+  const theirs = existing.provenance ?? {};
+  const mine = observation.provenance ?? {};
+  const stated = ROLLUP_IDENTITY.filter(
+    (k) => theirs[k] !== undefined && theirs[k] !== null && theirs[k] !== '');
+  if (stated.length === 0) {
+    throw new IngestBucketIncomplete(
+      `${existingSnapshotPath} already holds a snapshot stating none of `
+      + `${ROLLUP_IDENTITY.join(', ')}, so it cannot be shown to be the same rollup as `
+      + 'this bucket. Refusing rather than overwriting it: a comparison that did not '
+      + 'happen is not agreement',
+      `${existingSnapshotPath} -> .provenance`, 'whatever wrote that file');
+  }
+  const differing = stated.filter((k) => String(theirs[k]) !== String(mine[k] ?? ''));
+  if (differing.length > 0) {
+    const lines = differing.map(
+      (k) => `${k}: published ${JSON.stringify(theirs[k])} vs bucket `
+        + `${JSON.stringify(mine[k] ?? '')}`);
+    throw new IngestBucketIncomplete(
+      `${existingSnapshotPath} holds a DIFFERENT rollup than this bucket, so writing here `
+      + `would merge two chains under the slug '${chain}' -- ${lines.join('; ')}. `
+      + 'Refusing. Publish the new rollup under a slug of its own, or point --out '
+      + 'somewhere else',
+      `${existingSnapshotPath} -> .provenance`,
+      'tools/chain/retired-networks.json records the restart');
+  }
+}
+
 const window = observation.tags;
 for (const member of ['tip', 'finalized', 'blocks']) {
   if (window?.[member] === undefined) {

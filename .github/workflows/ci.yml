@@ -1202,7 +1202,7 @@ jobs:
         run: node tools/chain/sol-depth-yield-selftest.mjs
 
       - name: Does the ingest-to-site join refuse a bucket that is missing a member?
-        # 11 assertions, host-independent: every arm is offline and needs only node.
+        # 15 assertions, host-independent: every arm is offline and needs only node.
         #
         # THE SUITE EXISTED AND NOTHING RAN IT. `snapshot-from-ingest-selftest.mjs`
         # shipped with no entry in `refusal-selftest.mjs`'s suite registry, no step
