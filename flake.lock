@@ -51,6 +51,23 @@
         "type": "github"
       }
     },
+    "aztec-avm-runtime-historical": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793196348,
+        "narHash": "sha256-8L1uF2fsHvqcSIVGV+DrYhZ8O3yfTfcfrrQgBEf7/o8=",
+        "owner": "metacraft-labs",
+        "repo": "aztec-avm-runtime",
+        "rev": "238a3a5b9fe9346868cc7fab84a8aa54513287dd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "repo": "aztec-avm-runtime",
+        "rev": "238a3a5b9fe9346868cc7fab84a8aa54513287dd",
+        "type": "github"
+      }
+    },
     "aztec-trace-format-nim": {
       "flake": false,
       "locked": {
@@ -446,6 +463,7 @@
         "aptos-core": "aptos-core",
         "aptos-trace-format": "aptos-trace-format",
         "aztec-avm-runtime": "aztec-avm-runtime",
+        "aztec-avm-runtime-historical": "aztec-avm-runtime-historical",
         "aztec-trace-format-nim": "aztec-trace-format-nim",
         "cairo-trace-format": "cairo-trace-format",
         "codetracer": "codetracer",

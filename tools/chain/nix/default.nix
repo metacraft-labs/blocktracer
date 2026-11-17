@@ -177,6 +177,20 @@
   blocktracerSrc,
   avmRuntimeSrc,
   avmRuntimeRev,
+
+  # The npm-deps hash for THIS revision's `replay/` lock pair, supplied by the
+  # caller and deliberately not defaulted.
+  #
+  # Two revisions of this runtime are pinned at once — see `flake.nix`. The v6
+  # rename rewrote the very two files the fetcher below hashes, so the two
+  # revisions have DIFFERENT npm-deps hashes, and a default here would let the
+  # second instantiation inherit the first one's. That failure is quiet in the
+  # worst way: a fixed-output derivation's path is a function of its hash, so a
+  # wrong-but-valid hash does not mismatch, it fetches the OTHER revision's
+  # tarballs and builds a tree whose `node_modules` belongs to a different
+  # protocol version. Making it a required argument means a new pin cannot be
+  # added without stating what it hashes to.
+  avmRuntimeNpmDepsHash,
   traceFormatSrc,
   traceFormatRev,
   traceFormatNimSrc,
@@ -258,16 +272,18 @@ let
           cp ${avmRuntimeSrc}/replay/package.json ${avmRuntimeSrc}/replay/package-lock.json "$out/"
         '';
       };
-      # MOVED WITH THE RUNTIME PIN, because the v6 rename rewrote the very two
+      # MOVES WITH THE RUNTIME PIN, because the v6 rename rewrote the very two
       # files this fetcher hashes: `replay/package.json` and
       # `replay/package-lock.json` went from `@aztec/*` to `@aztec-labs/*` and
       # `@aztec-foundation/*`. CI named it exactly — "ERROR: npmDepsHash is out of
       # date" building `aztec-avm-runtime-replay-9e9ba381fd.drv`.
       #
-      # Computed with `prefetch-npm-deps` over the PINNED lock file rather than
-      # taken from a local `npm install`: the hash must describe the revision this
-      # flake pins, and a locally resolved tree can differ from it without saying so.
-      hash = "sha256-OAiJDT4DU4OqfHRHiSDUEXP2ZlMS0De+jk4XHQvsn0g=";
+      # Each value is computed with `prefetch-npm-deps` over the PINNED lock file
+      # rather than taken from a local `npm install`: the hash must describe the
+      # revision the flake pins, and a locally resolved tree can differ from it
+      # without saying so. It comes from the caller because two revisions are
+      # pinned; `flake.nix` holds both values beside the revisions they describe.
+      hash = avmRuntimeNpmDepsHash;
     };
     npmRoot = "replay";
 
