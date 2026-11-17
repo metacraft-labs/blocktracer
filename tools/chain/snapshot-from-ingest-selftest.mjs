@@ -27,8 +27,27 @@ const TOOL = join(HERE, 'snapshot-from-ingest.mjs');
 const CHAIN = 'aztec-testnet';
 const HASH = '0x1159d7e7bd7e91c6c86c4329b35ba482a812a9c6918cad4038909e3e9383da5b';
 
+// THE SUITE'S OWN SIZE, AND WHY IT IS A CONSTANT RATHER THAN A TALLY.
+//
+// `refusal-selftest.mjs` cross-checks every suite under `tools/chain` against
+// three documents — this constant, the `Justfile` recipe header's arithmetic,
+// and the suite's own `ci.yml` step comment — so a suite that silently ran
+// fewer arms than it claims is a red rather than a quieter green. Spelled
+// `BASE_ARMS` because that is the spelling the cross-check reads; it is the
+// total here because every arm is offline and needs only node.
+//
+// AND THE COUNT USED TO BE CONDITIONAL, WHICH IS THE DEFECT THIS CLOSES. The
+// three green-path claims below sat inside `if (r.ok)`, so a bucket that failed
+// to assemble ran NINE arms instead of eleven and reported nothing missing:
+// the two claims that say WHAT it assembled simply disappeared, which is the
+// `never ran` verdict wearing a pass's clothes. They are now always asserted
+// and carry their own "this was not measured" detail.
+const BASE_ARMS = 11;
+
 let failures = 0;
+let asserted = 0;
 const check = (name, ok, detail) => {
+  asserted += 1;
   if (ok) console.log(`  ok   ${name}`);
   else { console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`); failures += 1; }
 };
@@ -91,12 +110,13 @@ console.log('snapshot-from-ingest-selftest');
 {
   const r = run(makeBucket());
   check('a complete bucket assembles', r.ok, r.stderr);
-  if (r.ok) {
-    check('…one transaction, one block, one container',
-      r.report.transactions === 1 && r.report.blocks === 1 && r.report.containers === 1,
-      JSON.stringify(r.report));
-    check('…accountedFor counts the captured row', r.report.accountedFor === 1);
-  }
+  const notMeasured = 'the complete bucket did not assemble, so this was not measured';
+  check('…one transaction, one block, one container',
+    r.ok && r.report.transactions === 1 && r.report.blocks === 1 && r.report.containers === 1,
+    r.ok ? JSON.stringify(r.report) : notMeasured);
+  check('…accountedFor counts the captured row',
+    r.ok && r.report.accountedFor === 1,
+    r.ok ? JSON.stringify(r.report) : notMeasured);
   rmSync(r.out, { recursive: true, force: true });
 }
 
@@ -118,5 +138,13 @@ for (const [name, mutate, needle] of refusals) {
   rmSync(r.out, { recursive: true, force: true });
 }
 
+console.log(`\nassertion count: ${asserted} (declared ${BASE_ARMS})`);
+if (asserted !== BASE_ARMS) {
+  // RECONCILED TO THE CODE, NOT THE OTHER WAY AROUND. A short tally means arms
+  // did not run; editing `BASE_ARMS` down to match would cement that silence.
+  console.log(`snapshot-from-ingest-selftest: REFUSED — it declares ${BASE_ARMS} assertion(s) `
+    + `and ran ${asserted}. An arm that did not run is not an arm that passed.`);
+  process.exit(1);
+}
 console.log(failures === 0 ? 'snapshot-from-ingest-selftest: PASS' : `snapshot-from-ingest-selftest: ${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
