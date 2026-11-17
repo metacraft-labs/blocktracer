@@ -3695,7 +3695,18 @@ jobs:
         # exercised by CI in either scope. Measured locally against a v5-scope
         # checkout (32 assertions, PASS), which covers the fallback arm only — the
         # v6 arm is what this step adds, because `CHAIN_RUNTIME` is the v6 runtime.
-        run: node tools/chain/body-proxy-selftest.mjs --runtime "${CHAIN_RUNTIME}"
+        #
+        # `${FOLLOWER_NODE}/bin/node`, NEVER a bare `node`. This job is
+        # self-hosted and has no node on PATH — every other node invocation in
+        # it names `${FOLLOWER_NODE}/bin/node` for that reason, and the first
+        # version of this step did not, so it died `node: command not found`
+        # (exit 127). The failure mode is worse than a red step: this step sits
+        # ABOVE the .ct-writer and packaged-follower steps, which were SKIPPED
+        # as a result — a new check that disables the checks beneath it.
+        run: |
+          set -euo pipefail
+          "${FOLLOWER_NODE}/bin/node" tools/chain/body-proxy-selftest.mjs \
+            --runtime "${CHAIN_RUNTIME}"
 
       - name: The Linux-built .ct writer is a wasm module this node can compile
         # `nix build` succeeding says the linker ran. It does not say the bytes
