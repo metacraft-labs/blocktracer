@@ -2620,7 +2620,21 @@ async function rebuild({ hydration = true } = {}) {
  * reaches this point because the baseline was found and green — so a missing
  * record means the mutated journey did not get as far as recording it.
  */
-function logMissDiagnosis(miss, arm, phase) {
+/**
+ * The red records of a run, as `{ what, detail }` — the detail included.
+ *
+ * Named and exported rather than inlined so `selftest-diagnosis-test.mjs` can
+ * drive it: a `no-record` miss carries these, and whether a THROWN journey's
+ * stack survives into the CI log is the whole difference between a readable
+ * NEVER RAN and an unreadable one.
+ */
+export function redRecords(records) {
+  return (records ?? [])
+    .filter((r) => !r.ok)
+    .map((r) => ({ what: String(r.what ?? ""), detail: String(r.detail ?? "") }));
+}
+
+export function logMissDiagnosis(miss, arm, phase) {
   const mutated = phase === "mutated";
   if (miss.why === "no-report") {
     if (mutated) {
@@ -2659,6 +2673,27 @@ function logMissDiagnosis(miss, arm, phase) {
         log(`               several unfamiliar lines, not one missing one:`);
         for (const w of texts.slice(0, 20)) log(`                 · ${w}`);
         if (texts.length > 20) log(`                 … and ${texts.length - 20} more`);
+      }
+      // AND WHY IT STOPPED THERE. The list above says WHICH assertion is the
+      // last one the journey reached; this says what happened at that point.
+      // The distinction it carries is the whole question a NEVER RAN raises:
+      // a mutation that reached further than its target leaves a red assertion
+      // ABOUT THE SUBJECT, while a gesture that timed out leaves a stack inside
+      // the harness, in a phase the mutation's own code path never executes.
+      // Those two are the readings an arm's verdict cannot separate, and a
+      // reader who has only the CI log cannot re-run the mutated tree.
+      const failures = miss.failures ?? [];
+      if (failures.length) {
+        log(`               AND WHY IT STOPPED THERE — every red record of the mutated run,`);
+        log(`               with its detail. A stack here, in a phase the mutation cannot`);
+        log(`               reach, is this runner and not this arm:`);
+        for (const f of failures.slice(0, 5)) {
+          log(`                 ✗ ${f.what}`);
+          for (const line of f.detail.split("\n").slice(0, 8)) {
+            if (line.trim()) log(`                     ${line}`);
+          }
+        }
+        if (failures.length > 5) log(`                 … and ${failures.length - 5} more red record(s)`);
       }
     } else {
       log(`               THE JOURNEY RAN — ${miss.records} assertion(s) — and none of them`);
@@ -2808,6 +2843,19 @@ async function verdictFor(journey, assertion) {
       // the corpus is staged differently. These are what make the comparison
       // possible from a CI log alone, without another run.
       texts: j.records.map((r) => String(r.what ?? "")),
+      // AND THE DETAIL OF WHATEVER WENT RED, which is the one datum that says
+      // WHY the journey stopped short. `run.mjs` records a thrown journey as
+      // the assertion "the journey threw" with the STACK as its detail
+      // (`run.mjs`, `j.expect(false, "the journey threw", String(err.stack))`),
+      // and until now `logMissDiagnosis` printed the names and dropped the
+      // details — so a NEVER RAN whose cause was a Playwright click timing out
+      // in a phase the mutation cannot even reach read exactly like a mutation
+      // that was too broad for its target. On #105 that cost a reconstruction
+      // from the journal, the arm's `find`/`replace` text, the enclosing proc's
+      // scope and the journey's statement order to establish something one
+      // stack line would have said. Capped per record where it is printed, not
+      // here, so the report stays complete.
+      failures: redRecords(j.records),
     };
   }
   // `vacuous` is carried through because a red that is only a poisoned

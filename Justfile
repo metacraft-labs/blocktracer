@@ -2367,6 +2367,18 @@ journeys-selftest-combine OF:
 journeys-selftest-verdict:
     bash tools/journeys/selftest-verdict-test.sh
 
+# Does a NEVER RAN say WHY the journey stopped, and not only WHERE? The verdict
+# has two causes with opposite remedies — a mutation that reached further than
+# its target, or a gesture that timed out in a phase the mutation cannot reach —
+# and `run.mjs` already records a thrown journey's STACK as that assertion's
+# detail. `logMissDiagnosis` printed the assertion NAMES and dropped the
+# details, so the two readings arrived identically and PR #105's shard 4 cost a
+# reconstruction from the journal, the arm's replacement text and the enclosing
+# proc's scope to establish what one stack line says. Pure node: no browser, no
+# build, no corpus.
+journeys-selftest-diagnosis:
+    node tools/journeys/selftest-diagnosis-test.mjs
+
 # All four VD.0 verifications, end to end.
 capture-selftest:
     node tools/capture/selftest.mjs

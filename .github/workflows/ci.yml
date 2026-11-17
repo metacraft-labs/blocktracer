@@ -2687,6 +2687,29 @@ jobs:
           nix develop .#capture --command \
             vd0-capture-env bash tools/journeys/selftest-verdict-test.sh
 
+      - name: Does a NEVER RAN say WHY the journey stopped, not only where?
+        # 15 assertions, and it needs neither a browser nor a build: every arm
+        # drives `logMissDiagnosis` and `redRecords` over a synthetic miss, so
+        # it runs in milliseconds beside the step above that needs the capture
+        # environment.
+        #
+        # THE VERDICT IT PROTECTS HAS TWO CAUSES WITH OPPOSITE REMEDIES. An arm
+        # scores NEVER RAN when the mutated journey ran and never reached the
+        # assertion the arm names — which happens either because the mutation
+        # reached FURTHER than its target (narrow the arm) or because a gesture
+        # timed out in a phase the mutation's code path never executes (the arm
+        # is fine, the runner is not). `run.mjs` records a thrown journey as the
+        # assertion "the journey threw" with the STACK as its detail, so the
+        # deciding datum existed and was discarded one function before the log.
+        #
+        # MEASURED on PR #105, shard 4, arm
+        # `Y/reversing-rewinds-to-the-first-breakpoint`: separating the two
+        # readings took the shard journal, the arm's `find`/`replace` text, a
+        # forward-declaration check and the journey's statement order. Probe 3
+        # is the control — the section must be ABSENT when no record went red,
+        # or it would be a heading with no content on every miss.
+        run: node tools/journeys/selftest-diagnosis-test.mjs
+
       - name: Stage the deploy artefact, and copy the engine to its own origin
         # AFTER the selftest, and the step above it says why: the selftest writes
         # to `client/src`, and `lib/site.mjs` refuses a staged tree older than
