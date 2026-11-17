@@ -673,6 +673,32 @@ test('the gate is in the write path, not beside it');
          + 'relabelling a replayed row',
          !/decided\.outcome === 'refused' &&/
             .test(privOnlyArm.replace(/decided\.outcome === 'refused' && /, '')));
+
+    // ── A DEAD ENDPOINT MUST NOT EXIT LIKE A QUIET CHAIN ─────────────────────────────
+    //
+    // `docs/BlockTracer-Chain-Ingestion.proposal.md` 6.1 records the risk ING-1 accepted
+    // and asks for exactly this. Both conditions used to return 1, and under the infra
+    // module the unit is `Restart = always`, so an unreachable endpoint was an endless
+    // restart cycle whose journal looked like a window with nothing in it. Verified by
+    // reproduction on 2026-11-17: a stub answering `node_getNodeInfo` and then 503-ing
+    // every poll gave 12 `poll-error` events and exit 69, while a live endpoint with an
+    // empty window still gave `reason: deadline` and exit 1.
+    ck('`follow-chain.mjs` counts CONSECUTIVE poll failures rather than only logging them',
+       /consecutivePollFailures\+\+/.test(followSrc)
+         && /POLL_FAILURES_BEFORE_GIVING_UP/.test(followSrc));
+    ck('…and a good poll resets the count, so an occasional 5xx does not fail a long arm',
+       /consecutivePollFailures = 0;/.test(followSrc));
+    ck('…and the `poll-error` event carries the count and the threshold, so the journal '
+       + 'shows the breaker approaching rather than only its verdict',
+       /event: 'poll-error'[\s\S]{0,200}?consecutive: consecutivePollFailures/.test(followSrc)
+         && /givingUpAt: POLL_FAILURES_BEFORE_GIVING_UP/.test(followSrc));
+    ck('…and it ends with its OWN reason and its own exit code, which is the whole point',
+       /reason: 'endpoint-unreachable'/.test(followSrc)
+         && /return 69;/.test(followSrc));
+    bite('mutation: with the threshold test removed the loop never breaks, which is the '
+         + 'arm-length `poll-error` loop 6.1 describes',
+         !/consecutivePollFailures >= POLL_FAILURES_BEFORE_GIVING_UP/
+            .test(followSrc.replace(/consecutivePollFailures >= POLL_FAILURES_BEFORE_GIVING_UP/g, 'false')));
     const captureSrc = readFileSync(new URL('./capture-chain.mjs', import.meta.url), 'utf8');
     ck('`capture-chain.mjs` calls the gate before it writes',
        /assertRefusalsAreClosed[\s\S]{0,200}?writeFile\(join\(outDir, 'snapshot\.json'\)/.test(captureSrc));
@@ -1856,7 +1882,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(251);
+expectCount(256);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

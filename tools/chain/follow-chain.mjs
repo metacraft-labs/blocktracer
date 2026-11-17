@@ -463,15 +463,49 @@ async function main() {
     return 0;
   }
 
+  // ── A DEAD ENDPOINT MUST NOT READ AS A QUIET CHAIN ──────────────────────────────
+  //
+  // `docs/BlockTracer-Chain-Ingestion.proposal.md` 6.1 states the risk ING-1 accepted
+  // when it chose a public endpoint over a self-hosted node: this arm "has no retry, no
+  // backoff and no circuit breaker" on its only source, so "a dead endpoint produces an
+  // arm-length loop of `poll-error` lines and exits 1, which a naive supervisor treats
+  // as 'this arm caught nothing'". Both conditions returned the SAME exit code and the
+  // same shape of journal, and under the infra module the unit is `Restart = always`, so
+  // an unreachable endpoint became an endless restart cycle whose logs look exactly like
+  // a chain with nothing replayable in its window.
+  //
+  // The threshold mirrors `backfill-bodies.mjs`'s `STOP_AFTER_CONSECUTIVE_UNAVAILABLE`,
+  // which is the same judgement about the same provider: a run of failures that does not
+  // clear is the endpoint asking us to stop, not a transient to grind through. It is
+  // CONSECUTIVE, and a single good poll resets it, because an arm that ran for hours over
+  // an endpoint with occasional 5xx did its job and must not be failed for it.
+  //
+  // What this does NOT do is change what a healthy empty window reports: `caught === 0`
+  // against a live endpoint still exits 1, which is what `BlockTracerIngestNotPolling`
+  // and the arm's own `done` reason are read against.
+  const POLL_FAILURES_BEFORE_GIVING_UP = 12;
+  let consecutivePollFailures = 0;
+  let unreachable = null;
+
   while (Date.now() < deadline) {
     polls++;
     const tip = await rpc('node_getBlockNumber');
     const finalized = await rpc('node_getBlockNumber', ['finalized']);
     if (tip?.__err || finalized?.__err) {
-      log({ event: 'poll-error', tip, finalized });
+      consecutivePollFailures++;
+      log({ event: 'poll-error', tip, finalized, consecutive: consecutivePollFailures,
+            givingUpAt: POLL_FAILURES_BEFORE_GIVING_UP });
+      if (consecutivePollFailures >= POLL_FAILURES_BEFORE_GIVING_UP) {
+        unreachable = `${consecutivePollFailures} consecutive polls of ${url} failed to `
+          + `return a tip. That is the endpoint being unreachable, not a window with `
+          + `nothing in it, and the two used to exit the same way.`;
+        break;
+      }
       await sleep(intervalS * 1000);
       continue;
     }
+    // A good poll clears it: the breaker is about a SUSTAINED outage.
+    consecutivePollFailures = 0;
 
     // ── 1. the replayable window, newest first ──────────────────────────────────────
     // Newest first because the oldest block in the window is the one about to finalize:
@@ -836,6 +870,21 @@ async function main() {
       return 0;
     }
     await sleep(intervalS * 1000);
+  }
+
+  // THE BREAKER GETS ITS OWN REASON AND ITS OWN EXIT CODE, which is the whole point:
+  // `deadline` means the arm watched a reachable chain and its time ran out, and
+  // `endpoint-unreachable` means it never got an answer. 69 is sysexits' EX_UNAVAILABLE,
+  // so a supervisor or a reader can separate the two without parsing the journal.
+  if (unreachable) {
+    log({ event: 'done', reason: 'endpoint-unreachable', detail: unreachable,
+          url, caught, polls, consecutivePollFailures,
+          bodiesFromStore, completeBlocks: completeBlockCount(snap),
+          completeBlockNumbers: completeBlockNumbers(snap),
+          ...bodyStoreStats(),
+          elapsedMin: Math.round((Date.now() - startedAt) / 60000) });
+    await proxy?.close();
+    return 69;
   }
 
   log({ event: 'done', reason: 'deadline', caught, polls,
