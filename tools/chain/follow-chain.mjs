@@ -689,12 +689,34 @@ async function main() {
       snap.window = { tip, finalized, replayableFrom: finalized + 1, replayableTo: tip,
                       blocks: tip - finalized };
 
+      // `detail` IS THE ONLY FIELD THAT SAYS WHY, AND IT USED TO BE DROPPED HERE.
+      //
+      // `decideOutcome` fills `detail` from the runtime's stderr (`refusalDetail`, bounded
+      // to three informative lines and 400 chars) precisely so a refusal can be read
+      // without the runtime in front of you. The row written to the snapshot got it via
+      // `...decided` below, but THIS LINE — the journal, and `follow.jsonl` — named only
+      // `refusal`, which is the runtime's class name.
+      //
+      // Measured on high-mem-server's aztec-testnet follower, 2026-11-16: of 2,553 refused
+      // rows, 2,533 were `refusal: "Error"` — a bare JS Error, the least informative name
+      // a class can have. `journalctl -u blocktracer-ingest` therefore said "Error" 2,533
+      // times and nothing else, and diagnosing it meant parsing a 13 MB snapshot off the
+      // host. The detail those rows carried names the fault in one line:
+      //
+      //   Error: Value 0x…1a19 is greater or equal to field modulus.
+      //
+      // A value a reader has to go somewhere else to reach is a value this log does not
+      // have. `?? null` is explicit because `JSON.stringify` drops `undefined`, so a
+      // reproduced replay would otherwise have no `detail` KEY at all and a consumer
+      // reading the field would not be able to tell that from a refusal that failed to
+      // explain itself.
       log({ event: 'replayed', tx: c.txHash, outcome: decided.outcome,
             completeBlocks: completeBlockCount(snap),
             effects: decided.effects
               ? `${decided.effects.matched}/${decided.effects.matched + decided.effects.mismatched}`
               : null,
-            steps: decided.recording?.steps, refusal: decided.refusal });
+            steps: decided.recording?.steps, refusal: decided.refusal,
+            detail: decided.detail ?? null });
 
       if (decided.replayed) caught++;
       recount(snap);
