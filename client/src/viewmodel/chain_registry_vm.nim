@@ -90,6 +90,12 @@ type
     chains*: Signal[seq[string]]
       ## Every chain the registry publishes, sorted. The list §14's "not on
       ## this chain" row must name.
+    versionOrderedChains*: Signal[seq[string]]
+      ## The chains whose registry row declares `ordering.kind: globalVersion`
+      ## (Aptos), in `chains`' order. On these, and on no other, a decimal search
+      ## query is also a ledger version, looked up in `/idx/{chain}/version/`
+      ## (`contract/versionidx.nim`). Read by `loadRegistry` from the same
+      ## registry read as `chains`, so knowing it costs no request.
     registryLoaded*: Signal[bool]
     activeChain*: Signal[string]
     floor*: Signal[HistoryFloor]
@@ -165,9 +171,37 @@ proc loadRegistry*(vm: ChainRegistryVM) =
   ## empty and `registryLoaded` false, which every caller must treat as "we do
   ## not know what we publish" rather than as "we publish nothing" — the
   ## difference `DeliveryMonitor` exists to preserve.
-  let cs = chains(vm.store)
+  ##
+  ## The same read also yields `versionOrderedChains`. ONE REQUEST, AS BEFORE:
+  ## the SDK's `chains` reads the registry through a store that keeps the bytes
+  ## it served, and the ordering kinds are read from those bytes, so a page that
+  ## loads the registry costs what it always cost. (When the process-wide JSON
+  ## cache already holds the registry, the fallback below is that cache hit.)
+  var served = ObjectResponse()
+  var tapped = false
+  let tap = newObjectStore(vm.store.name, proc(path: string): ObjectResponse =
+    result = vm.store.get(path)
+    served = result
+    tapped = true)
+  let cs = chains(tap)
   vm.chains.val = cs
   vm.registryLoaded.val = cs.len > 0
+
+  var node: JsonNode = nil
+  if tapped:
+    if served.found:
+      try: node = parseJson(served.body)
+      except CatchableError: node = nil
+  elif cs.len > 0:
+    node = vm.store.getJson(registryPath()).node
+  var versioned: seq[string]
+  for slug in cs:
+    # `contract/chain_profile`'s reading of the row, the one the exporter's
+    # version index is scoped by — so the client asks exactly the chains the
+    # exporter wrote an index for.
+    let o = readChainProfile(node, slug).ordering
+    if o.state == dsDeclared and o.kind == tokGlobalVersion: versioned.add slug
+  vm.versionOrderedChains.val = versioned
 
 proc selectChain*(vm: ChainRegistryVM; chain: string) =
   ## Make `chain` active and pin its generation. §3.3's session: `current.json`
@@ -236,6 +270,7 @@ proc createChainRegistryVM*(store: ObjectStore): ChainRegistryVM =
     let vm = ChainRegistryVM(
       store: store,
       chains: createSignal(newSeq[string]()),
+      versionOrderedChains: createSignal(newSeq[string]()),
       registryLoaded: createSignal(false),
       activeChain: createSignal(""),
       floor: createSignal(HistoryFloor()),

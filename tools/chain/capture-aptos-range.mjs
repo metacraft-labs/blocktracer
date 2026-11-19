@@ -15,7 +15,12 @@
 //      against the same node: the replay reads every state value at the version before the
 //      transaction (version-addressed prestate, Chain-Support-Matrix.md §1.4) and compares
 //      its output with the transaction info the chain committed;
-//   5. hands the acquisition and every recording to `produce-aptos-snapshot.mjs`.
+//   5. for every module a recorded transaction entered, resolves the source its account
+//      published (`lib/aptos-source.mjs`): `0x1::code::PackageRegistry` at V−1 over the same
+//      REST URL, compiled by the same `aptos` CLI and kept only where the compiled bytes
+//      equal the chain's; when any module verifies, the recorder converts the same trace
+//      again, so those modules' steps land on their source;
+//   6. hands the acquisition and every recording to `produce-aptos-snapshot.mjs`.
 //
 // A replay whose output does not match the chain's is an OUTCOME, `divergent`: the CLI
 // writes its trace before it compares, so the recorder converts that trace on a second
@@ -34,7 +39,10 @@
 // run.log, done.json}`.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync,
+} from 'node:fs';
+import { createInterface } from 'node:readline';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,6 +50,7 @@ import {
   blockHeader, blockWithTransactions, derivedRecordingId, ledgerInfo, restBaseFor,
 } from './lib/aptos-rest.mjs';
 import { isUserTransaction } from './lib/aptos-producer-facts.mjs';
+import { resolveSources } from './lib/aptos-source.mjs';
 import { pruneTranscript, startTranscriptServer } from './aptos-rest-transcript.mjs';
 import {
   ACQUISITION_FORMAT, NO_TRACE_EVENTS, REPLAY_MISMATCH, TRACE_TOO_LARGE,
@@ -88,6 +97,14 @@ function runLogged(cmd, args, logPath, env) {
       done(code);
     });
   });
+}
+
+/** How many instructions a trace executed: its `Instruction` events, one per line. */
+async function instructionsIn(trace) {
+  let n = 0;
+  const lines = createInterface({ input: createReadStream(trace), crlfDelay: Infinity });
+  for await (const line of lines) if (line.startsWith('{"Instruction"')) n++;
+  return n;
 }
 
 async function main(argv) {
@@ -192,6 +209,9 @@ async function main(argv) {
     }, null, 1)}\n`);
 
     const recDirs = [];
+    // Registries and builds, shared by every transaction of the run: the window's
+    // transactions mostly run on the same framework.
+    const sourceCache = new Map();
     for (const { tx, block } of planned) {
       const version = String(tx.version);
       const recDir = join(work, 'rec', version);
@@ -244,9 +264,37 @@ async function main(argv) {
         throw new Error(`version ${version}: state reads kept timing out; the replay was never `
           + 'judged. Rerun when the node\'s rate limit allows.');
       }
+      // THE SOURCE, for a replay that wrote a trace: resolved against the modules the replay
+      // fetched, then the trace is converted again when anything verified (the recorder
+      // converts an existing trace without replaying it).
+      let instructions = null;
+      const tracePath = join(replayDir, 'trace.json');
+      if (existsSync(tracePath)) {
+        instructions = await instructionsIn(tracePath);
+        rmSync(join(replayDir, 'sources.json'), { force: true });
+        for (const d of readdirSync(replayDir).filter((x) => x.startsWith('0x'))) {
+          rmSync(join(replayDir, d, 'source'), { recursive: true, force: true });
+        }
+        const report = await resolveSources({
+          replayDir, version, base, aptos: resolve(aptos), work: join(work, 'source-builds'),
+          cache: sourceCache, log: (m) => console.error(`version ${version}: ${m}`),
+        });
+        const count = (o) => report.modules.filter((m) => m.outcome === o).length;
+        console.error(`version ${version}: source verified for ${count('verified')} of `
+          + `${report.modules.length} module(s) entered; ${count('source-not-published')} `
+          + 'published without source');
+        if (code === 0 && cts.length === 1 && count('verified') > 0) {
+          ({ code, log, cts } = await runOnce('source.log'));
+          if (code !== 0 || cts.length !== 1) {
+            throw new Error(`version ${version}: converting with its verified source failed `
+              + `(exit ${code}). Log tail:\n${log.slice(-1500)}`);
+          }
+        }
+      }
       let done;
       if (code === 0 && cts.length === 1) {
-        done = { version, hash: tx.hash, outcome: 'traced', recorderCommit, recordingId };
+        done = { version, hash: tx.hash, outcome: 'traced', recorderCommit, recordingId,
+                 instructions };
       } else if (code !== 0 && log.includes(REPLAY_MISMATCH)
                  && existsSync(join(replayDir, 'trace.json'))) {
         // THE CLI WROTE ITS TRACE AND THEN REFUSED THE COMPARISON. The trace is a complete
@@ -260,7 +308,7 @@ async function main(argv) {
             + `(exit ${code}). Log tail:\n${log.slice(-1500)}`);
         }
         done = { version, hash: tx.hash, outcome: 'divergent', recorderCommit, recordingId,
-                 mismatch: mismatch.slice(0, 2000) };
+                 instructions, mismatch: mismatch.slice(0, 2000) };
       } else if (code !== 0 && log.includes(TRACE_TOO_LARGE)) {
         done = { version, hash: tx.hash, outcome: 'too-large', recorderCommit,
                  refusal: TRACE_TOO_LARGE,

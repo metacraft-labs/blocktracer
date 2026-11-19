@@ -666,8 +666,27 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
   # `avm.nr` where that is unambiguous and `field/mod.nr` where it is not. The
   # full path stays on `title`, and the anchor is unchanged: this renames the
   # LABEL and nothing about identity.
+  #
+  # A MOVE PATH'S DIRECTORY IS AN ACCOUNT ADDRESS, 66 characters of hex, and two
+  # packages publishing a module of one name (Sui's `price_feed` at two
+  # addresses) leave the address as the only segment that tells them apart. The
+  # whole label was then ~90 characters, wider than the strip at desktop widths,
+  # so the marked tab could not be on screen. Such a segment is shortened IN THE
+  # LABEL to its first and last four digits — `0xa5b1…fec9/bytecode/price_feed.mvb`
+  # — unless that would make two labels equal. Only a DIRECTORY segment of 16 or
+  # more hex digits is touched: no other chain's paths have one, and a file name
+  # that is a hash (a Starknet `<class hash>.casm`) is left whole.
+  func shortHexDirs(label: string): string =
+    var segs = label.split('/')
+    for i in 0 ..< segs.len - 1:
+      let s = segs[i]
+      if s.len >= 18 and s.startsWith("0x") and s[2 .. ^1].allCharsInSet(HexDigits):
+        segs[i] = s[0 .. 5] & "…" & s[^4 .. ^1]
+    segs.join("/")
+
   func tabLabel(path: string; all: seq[string]): string =
     let segs = path.split('/')
+    var full = path
     for take in 1 .. segs.len:
       let tail = segs[segs.len - take .. ^1].join("/")
       var shared = 0
@@ -675,8 +694,16 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
         let os = other.split('/')
         if take > os.len: continue
         if os[os.len - take .. ^1].join("/") == tail: inc shared
-      if shared == 1: return tail
-    path
+      if shared == 1:
+        full = tail
+        break
+    let short = shortHexDirs(full)
+    if short == full: return full
+    # The shortened label must still be unique, or it is a control a reader
+    # cannot use: compare it with every other path's shortened form.
+    for other in all:
+      if other != path and shortHexDirs(other).endsWith(short): return full
+    short
 
   proc tabStrip(activePath: string): string =
     ## The strip, rendered once PER PANEL with that panel's own tab marked.
@@ -2625,7 +2652,7 @@ proc paneBody(kind: PaneKind; s: DebugSessionView): string =
   of paneFlow, paneSearch, panePointList, paneScratchpad,
      paneShell, paneFileTree, paneBuildOutput, paneVcs, paneAgentActivity,
      paneTerminalOutput, paneTestResults, paneConstraints, paneProblems,
-     paneRequests:
+     paneRequests, paneLowLevelCode:
     # Not placed by `blockTracerReplayLayout`, so unreachable today. Rendered as
     # a named, empty pane rather than left to `else: discard`, because the point
     # of the model's closed enum is that an unplaced pane is visible.
@@ -2642,6 +2669,11 @@ proc paneBody(kind: PaneKind; s: DebugSessionView): string =
     # terminal output, test results, constraints, problems, requests) and
     # removed the Timeline (PLAT-51). All seven are desktop or live-session
     # surfaces a recorded transaction does not have, so none is placed.
+    #
+    # The re-vendor at codetracer f288cfadc3 brought `paneLowLevelCode`, the
+    # desktop's own pane for a native frame's disassembly listing. BlockTracer
+    # draws a VM's instruction listing inside the Code pane instead (see
+    # `editorKeepsStackHeader`), so the separate pane is not placed.
     paneNote("The " & $kind & " pane is not part of BlockTracer's session.")
 
 func editorKeepsStackHeader*(p: EditorPane): bool =

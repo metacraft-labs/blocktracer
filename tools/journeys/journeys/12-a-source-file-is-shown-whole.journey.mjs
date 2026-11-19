@@ -418,7 +418,24 @@ export async function run({ browser, site, j }) {
   // strip marking a different file from the one on screen — because a tail of
   // one path is not a tail of another. The boundary is checked on `/` rather
   // than by `endsWith` alone, so `shield.nr` does not satisfy `myshield.nr`.
-  const namesTheSame = (label, path) => label === path || path.endsWith("/" + label);
+  //
+  // AND A SEGMENT MAY BE A SHORTENED ACCOUNT ADDRESS. A Move path's directory is
+  // a 66-character address, and where it is the only segment that tells two
+  // modules apart `tabLabel` shows it as its first and last four digits,
+  // `0xa5b1…fec9`. Such a label segment names the path segment it abbreviates and
+  // no other, so the relation stays whole-segment and stays a suffix.
+  const segmentNames = (l, p) =>
+    l === p ||
+    (/^0x[0-9a-f]{4}…[0-9a-f]{4}$/.test(l) && p.length >= 18 &&
+     p.startsWith(l.slice(0, 6)) && p.endsWith(l.slice(-4)));
+  const namesTheSame = (label, path) => {
+    if (label === path) return true;
+    const ls = label.split("/");
+    const ps = path.split("/");
+    if (ls.length > ps.length) return false;
+    const tail = ps.slice(ps.length - ls.length);
+    return ls.every((seg, i) => segmentNames(seg, tail[i]));
+  };
   const withBoth = seen.filter((s) => s.m.tabLabel && s.m.activePath);
   const disagreeing = withBoth.filter((s) => !namesTheSame(s.m.tabLabel, s.m.activePath));
   for (const s of disagreeing) {

@@ -188,8 +188,14 @@ export async function run({ browser, site, j }) {
     });
     const read = await readRows(opened.page);
     reads.push({ what: `unlinked ${candidate.debugPath}`, read });
+    // THE ROW AN UNLINKED VISIT MARKS IS NOT A CANDIDATE. A link naming it
+    // leaves the mark where it was, which is correct and proves nothing, so a
+    // group holding it cannot carry "every link moved the mark" below. Sui
+    // made this real: its transaction frame and the first call both sit at
+    // step 0, and the transaction frame is the one the page marks unlinked.
     const byStep = new Map();
-    for (const r of read.rows) {
+    for (const [i, r] of read.rows.entries()) {
+      if (i === read.markedIndex) continue;
       if (!byStep.has(r.step)) byStep.set(r.step, []);
       byStep.get(r.step).push(r);
     }

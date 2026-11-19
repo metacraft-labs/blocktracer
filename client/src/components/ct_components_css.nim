@@ -195,7 +195,7 @@ const
     ## halves are checked against each other by `tools/deploy/check-assets.mjs`
     ## A6 over the published bytes, which is the only place that can.
 
-  CtVendoredIcons*: array[23, tuple[group, file: string]] = [
+  CtVendoredIcons*: array[26, tuple[group, file: string]] = [
     # `origin-icons/` — `button.styl`'s `.ct-origin-icon-*` badge masks.
     (group: "origin-icons", file: "clock-rewind.svg"),
     (group: "origin-icons", file: "door.svg"),
@@ -230,6 +230,13 @@ const
     (group: "shared/filesystem", file: "filesystem_open_toggle_dark.svg"),
     (group: "shared/filesystem", file: "filesystem_close_toggle_dark.svg"),
     (group: "shared", file: "highlight_line_arrow.svg"),
+    # `button.styl`'s trace toolbar (`#trace-run-button`, `#hamburger-dropdown`):
+    # the run triangle and the menu chevron, masked by `--trace-button-icon`.
+    # Arrived with the re-vendor at CodeTracer `f288cfadc3`.
+    (group: "shared", file: "build_play.svg"),
+    (group: "shared", file: "build_chevron_down.svg"),
+    # `event_log.styl`'s row expander mask, from the same re-vendor.
+    (group: "shared", file: "arrows_expand_vertical_diamond_dark.svg"),
   ]
     ## The TOTAL list. A fixed-length `array` rather than a seq so that adding a
     ## row without saying so is a compile error here too, and so the count is
@@ -448,6 +455,7 @@ const Bridge*: seq[(string, string)] = @[
   ("colors-ui-text-on-action-primary", "var(--bt-action-fg)"),            # role
   ("colors-ui-icon-primary-default", "var(--bt-text-default)"),           # neutral-100 = neutral-100
   ("colors-ui-text-error-primary", "var(--bt-status-danger-fg)"),
+  ("colors-ui-icon-error-primary", "var(--bt-status-danger-fg)"),        # role: an error icon (`checkmark.styl`'s error state since f288cfadc3); the error ink beside it
   ("colors-ui-text-warning-primary", "var(--bt-status-warning-fg)"),
   ("colors-ui-text-success-primary", "var(--bt-status-success-fg)"),
   ("colors-ui-text-information-primary", "var(--bt-status-info-fg)"),
@@ -484,6 +492,8 @@ const Bridge*: seq[(string, string)] = @[
   ("colors-ui-border-action", "var(--bt-border-accent)"),                 # brand-500 = brand-500
   ("colors-ui-border-disabled", "var(--bt-action-disabled-border)"),      # role
   ("colors-ui-border-focus", "var(--bt-focus-ring)"),                     # role: blue-500 -> information-400
+  ("colors-blue-500", "var(--bt-focus-ring)"),                           # `KEY_FOCUS_COLOR`, the keyboard-focus outline `button.styl` defines as by-mode(blue-500, blue-600) and the sheets share since codetracer f288cfadc3; the same focus blue as `colors-ui-border-focus`
+  ("colors-blue-600", "var(--bt-focus-ring)"),                           # `KEY_FOCUS_COLOR`'s light-mode half of the same by-mode; one focus ring here
   ("colors-ui-border-error", "var(--bt-status-danger-border)"),
   ("colors-ui-border-warning", "var(--bt-status-warning-border)"),
   ("colors-ui-border-success", "var(--bt-status-success-border)"),
@@ -511,6 +521,7 @@ const Bridge*: seq[(string, string)] = @[
   ("colors-editor-surface-select", "var(--bt-surface-selected)"),         # role: the selected row
   ("colors-editor-action-secondary", "var(--bt-status-warning-fg)"),      # role: yellow-400, the scrubber's current mark
   ("colors-editor-syntax-parameter", "var(--bt-syntax-string)"),          # role: dracula orange -> orange-300
+  ("colors-editor-syntax-plain", "var(--bt-syntax-plain)"),              # role: unhighlighted code text (`state.styl` since f288cfadc3)
   ("CALLTRACE_TRACE_LINE_COLOR", "var(--bt-text-default)"),               # the label colour, as the light theme names it
   ("CALLTRACE_ARGS_COLOR", "var(--bt-status-success-fg)"),                # role: green-200
   ("CALLTRACE_RETURN_COLOR", "var(--bt-status-info-fg)"),                 # role: blue-200

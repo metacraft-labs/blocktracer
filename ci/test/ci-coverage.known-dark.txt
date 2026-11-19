@@ -171,3 +171,23 @@ ci/test/noir-engine-dap-test.sh
 # Then wire it with the counted-skip shape above and delete this line; the
 # guard will demand it the moment the gate becomes reachable.
 fixtures/trace/tour/check-corpus.sh
+
+# ── the RunQuota bridge gate ────────────────────────────────────────────────
+#
+# Three `just test` sessions on one RunQuota budget: the real Justfiles, a real
+# private `runquotad` and the real `runquota run` bridge, with `nim` and `node`
+# stubbed (its header says why). It is the only thing that notices a recipe
+# losing its `{{rq}}` prefix, since every suite still passes without it.
+#
+# MISSING CAPABILITY: a `runquota` that has the `run` verb, with `runquotad`
+# beside it, in the `.#ci` dev shell. The flake carries no RunQuota input
+# today, so on a runner the script exits 3 ("not run"), and with `--require`
+# it fails, which is the right answer for a gate but would be a permanently
+# red job here.
+#
+# WHAT WOULD MAKE THIS ENTRY DELETABLE: a RunQuota flake input in `.#ci`. Then
+# wire `bash ci/test/runquota-bridge-test.sh --require` and its
+# `--mutate-drop-bridge` arm as one step and delete this line; the guard will
+# demand it the moment the gate becomes reachable. Run it today with
+# `just test-runquota-bridge`.
+ci/test/runquota-bridge-test.sh

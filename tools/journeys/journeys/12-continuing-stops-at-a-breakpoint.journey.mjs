@@ -147,10 +147,28 @@ async function position(page) {
  * or REPORTS that it had nowhere to go, and both are outcomes this journey
  * asserts on. Waiting only for movement would turn the second into a timeout.
  */
+// HOW LONG EACH GESTURE TOOK, reported even when the journey is green.
+//
+// This journey has gone non-green on CI runners twice, in two different phases, while
+// being green locally and on dev — once with the mutated run stopping before the target
+// assertion, once with the restored run not coming back green. Both are consistent with
+// a gesture occasionally exceeding the budget below, and NEITHER IS DISTINGUISHABLE FROM
+// IT by a verdict alone: a green run and a run that came within a second of red read
+// identically. So the elapsed time of every gesture is recorded and the maximum is noted,
+// which is what makes an all-green run informative — gestures at 2 s say the cliff is far
+// away and these failures are something else, gestures at 18 s say the journey is one bad
+// moment from red everywhere and this budget is the defect.
+//
+// It is a `j.note`, not an assertion: this journey declares its assertion count and the
+// count is itself checked, so a new assertion here would be a change to the subject.
+// Nothing below decides anything differently because of this.
+const GESTURE_BUDGET_MS = 20000;
+
 async function continueOnce(page, action) {
+  const startedAt = Date.now();
   const before = await position(page);
   await page.click(`[data-action="${action}"]`);
-  const deadline = Date.now() + 20000;
+  const deadline = startedAt + GESTURE_BUDGET_MS;
   for (;;) {
     const after = await position(page);
     const outcome = await readOutcome(page);
@@ -177,11 +195,14 @@ async function continueOnce(page, action) {
       // session that settles at 670. That is a real (and brief) excursion the
       // visitor can see, and it is recorded in the report as such; it is not
       // what this journey is asserting, which is where the session ENDS UP.
-      return { ...(await settle(page)), outcome, moved: true };
+      return { ...(await settle(page)), outcome, moved: true, elapsedMs: Date.now() - startedAt };
     }
-    if (after.step !== before.step) return { ...after, outcome, moved: true };
+    if (after.step !== before.step) {
+      return { ...after, outcome, moved: true, elapsedMs: Date.now() - startedAt };
+    }
     if (Date.now() > deadline)
-      return { ...after, outcome, moved: false, timedOut: true };
+      return { ...after, outcome, moved: false, timedOut: true,
+               elapsedMs: Date.now() - startedAt };
     await page.waitForTimeout(120);
   }
 }
@@ -209,14 +230,30 @@ async function settle(page, quietMs = 700, limitMs = 10000) {
  */
 async function walk(page, action, limit = 24) {
   const stops = [];
+  const gestures = [];
   let final = null;
   for (let i = 0; i < limit; i++) {
     const r = await continueOnce(page, action);
     final = r;
+    if (typeof r.elapsedMs === "number") gestures.push(r.elapsedMs);
     if (r.outcome || r.timedOut) break;
     stops.push({ step: r.step, line: Number(r.line) });
   }
-  return { stops, final };
+  return { stops, final, gestures };
+}
+
+/** The margin this walk had left, as a note rather than a verdict. */
+function noteGestures(j, action, gestures) {
+  if (!gestures.length) return;
+  const max = Math.max(...gestures);
+  const total = gestures.reduce((a, b) => a + b, 0);
+  const sorted = [...gestures].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  j.note(
+    `${action}: ${gestures.length} gesture(s), max ${(max / 1000).toFixed(1)}s of a ` +
+    `${GESTURE_BUDGET_MS / 1000}s budget (${Math.round((max / GESTURE_BUDGET_MS) * 100)}% of it), ` +
+    `median ${(median / 1000).toFixed(1)}s, total ${(total / 1000).toFixed(1)}s`,
+  );
 }
 
 export async function run({ browser, site, j }) {
@@ -354,6 +391,7 @@ export async function run({ browser, site, j }) {
       `line ${rewind.line} (step ${rewind.step}), first marked ${chosen[0]}`,
     );
     const forwardWalk = await walk(page, "continue");
+    noteGestures(j, "continue", forwardWalk.gestures);
     const forward = [{ step: rewind.step, line: Number(rewind.line) }, ...forwardWalk.stops];
     j.atLeast(forward.length, 3, "continuing forward stops at least three times");
     j.countIs(
@@ -408,7 +446,9 @@ export async function run({ browser, site, j }) {
         : "too few stops to say",
     );
 
-    const back = (await walk(page, "reverse-continue")).stops;
+    const reverseWalk = await walk(page, "reverse-continue");
+    noteGestures(j, "reverse-continue", reverseWalk.gestures);
+    const back = reverseWalk.stops;
     // Reversing from the last stop must retrace the forward stops in reverse,
     // minus the one it started on.
     const wanted = forward.slice(0, -1).reverse();

@@ -45,6 +45,39 @@ find_src() {
 	return 1
 }
 
+# WHAT THIS SCRIPT PASSES IS NOT WHAT NIM USES, and `describe_and_check` below
+# reports only the first. MEASURED 2026-11-04: a `--path` in a nim.cfg is searched
+# BEFORE a `--path` on the command line. Two directories each holding a
+# `probe.nim`, one named by a nim.cfg and one on the command line, and `import
+# probe` resolves to the nim.cfg one.
+#
+# `client/nim.cfg` declares `--path:"../../isonim/src"` and
+# `--path:"../../nim-everywhere/src"` as a LOCAL-DEV affordance. So on a machine
+# with those siblings present, nim reads the SIBLING even when this script resolved
+# $ISONIM_SRC to the flake pin and printed it as ok. That is how a failed build came
+# to report a type mismatch at a path in another repository with nothing on screen
+# to say two trees were in play, and the compile that failed named
+# `isonim/dsl/components.nim` and `isonim/core/reconcile.nim` out of the sibling
+# while this script had printed `/nix/store/…-source  ok`.
+#
+# It is a WARNING and not a refusal, deliberately: the sibling paths exist so a
+# developer can work across both repositories, and refusing would break the
+# workflow they are for. What was missing was any statement that the pin on screen
+# is not the one being compiled.
+shadow_warnings=""
+warn_if_shadowed() {
+	local label="$1" chosen="$2" sibling="$3" marker="$4" cfgpath="$5"
+	local sib="${repo_root}/../${sibling}"
+	[ -e "${sib}/${marker}" ] || return 0
+	local sibabs
+	sibabs="$(cd "${sib}" && pwd)"
+	[ "${chosen}" = "${sibabs}" ] && return 0   # already the sibling; nothing is hidden
+	shadow_warnings="${shadow_warnings}
+    ${label}: this script passes --path:${chosen}/src, and client/nim.cfg declares
+      ${cfgpath} which nim searches FIRST. The compile will read
+      ${sibabs}, not the path printed above."
+}
+
 ct="$(find_src CODETRACER_SRC codetracer src/frontend/viewmodel/codetracer_embed.nim)"
 if [ -z "${ct}" ]; then
 	echo "hydrate/build.sh: no CodeTracer Embed SDK found." >&2
@@ -221,9 +254,27 @@ describe_and_check() {
 
 echo "=== the hydration bundle ==="
 describe_and_check "Embed SDK" "${ct}" "${pin_ct}" CODETRACER_SRC
+warn_if_shadowed "IsoNim" "${isonim}" isonim src/isonim/core/signals.nim '--path:"../../isonim/src"'
+warn_if_shadowed "nim-everywhere" "${neverywhere}" nim-everywhere src '--path:"../../nim-everywhere/src"'
 describe_and_check "IsoNim" "${isonim}" "${pin_isonim}" ISONIM_SRC
 describe_and_check "nim-everywhere" "${neverywhere}" "${pin_ne}" NIM_EVERYWHERE_SRC
 describe_and_check "IsoNim-TUI" "${isonimtui}" "${pin_tui}" ISONIM_TUI_SRC
+
+# PRINTED BESIDE THE `ok` IT CONTRADICTS, which is the only place it is any use. The
+# lines above can say `/nix/store/…-source  ok` for a dependency whose sibling nim
+# will read instead; this is what says so. Computing it and not showing it would be
+# the same silence, one level in.
+if [ -n "${shadow_warnings}" ]; then
+	echo ""
+	echo "  !!! A SIBLING CHECKOUT SHADOWS THE PIN PRINTED ABOVE !!!${shadow_warnings}"
+	echo "  client/nim.cfg's --path entries are searched BEFORE this script's, measured"
+	echo "  2026-11-04. The pins above are what this script PASSES; the paths named here"
+	echo "  are what nim READS. A red below may be about the sibling and not about this"
+	echo "  repository, and a green says nothing about the pinned revision."
+	echo "  The sibling paths are a deliberate local-dev affordance, so this is a warning:"
+	echo "  to build what CI builds, point the siblings at ci/embed-sdk-pin.env's"
+	echo "  revisions or move them out of the way."
+fi
 
 if [ -n "${unpinned_reasons}" ]; then
 	if [ "${CODETRACER_ALLOW_UNPINNED:-0}" = "1" ]; then

@@ -3,12 +3,14 @@
 // that writes it.
 //
 // The Aptos twin of `sui-graphql-transcript.mjs` (a concrete duplicate, per ING-7), for the
-// same reason: an Aptos capture reads the network three times — `capture-aptos-range.mjs`
+// same reason: an Aptos capture reads the network four times — `capture-aptos-range.mjs`
 // reads blocks and their transactions, `aptos move replay --network <url>` reads the
-// transaction and every state value it touches at the version before it, and the recorder
-// reads each entered module's bytecode at that version — and a build that must reproduce
-// its output cannot depend on somebody else's uptime. What a committed version says cannot
-// change, so the whole REST conversation is committed as INPUT and served back.
+// transaction and every state value it touches at the version before it, the recorder reads
+// each entered module's bytecode at that version, and `lib/aptos-source.mjs` reads each
+// entered account's package registry (its published source) there too — and a build that
+// must reproduce its output cannot depend on somebody else's uptime. What a committed
+// version says cannot change, so the whole REST conversation is committed as INPUT and
+// served back.
 //
 //   record   proxy to `--upstream`, write one file per distinct request
 //   replay   serve the directory and nothing else; a request it does not hold is a MISS,
@@ -32,9 +34,11 @@
 // NAME of the body. Bodies live once each under `bodies/<sha256 of the body>`, gzipped and
 // base64-encoded: a block with its transactions is ~70–500 KB of JSON, a module is its
 // bytecode in hex beside its whole ABI, and the same module is answered at every version a
-// window's transactions read it at. Measured on the committed window: 541 calls, 265
-// distinct bodies, 2.6 MB inline and 1.3 MB content-addressed. Compression is deterministic
-// (no mtime), so a re-recorded identical answer is byte-identical.
+// window's transactions read it at. Measured on the committed window: 551 calls, 268
+// distinct bodies, 7.5 MB inline and 2.1 MB content-addressed — 0.77 MB of it the framework's
+// package registry (its published source, read at each transaction's V−1 and stored once,
+// in BCS). Compression is deterministic (no mtime), so a re-recorded identical answer is
+// byte-identical.
 //
 // ── WHAT IS KEPT ──────────────────────────────────────────────────────────────────────
 //

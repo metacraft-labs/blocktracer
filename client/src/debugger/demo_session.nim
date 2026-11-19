@@ -108,11 +108,71 @@ proc sourceDocumentsFromBundle*(bundle: JsonNode): seq[SourceDocument] =
     let entry = sources[path]
     if entry.kind != JObject or not entry.hasKey("content"): continue
     if entry["content"].kind != JString: continue
+    # A file's own `language` outranks the bundle's. Only `mergeSourceBundles`
+    # writes one, because only a union of bundles can hold files of two
+    # languages — Move source beside a module's `.masm` disassembly.
     let language =
-      if bundle.hasKey("language") and bundle["language"].kind == JString:
+      if entry.hasKey("language") and entry["language"].kind == JString:
+        entry["language"].getStr
+      elif bundle.hasKey("language") and bundle["language"].kind == JString:
         bundle["language"].getStr
       else: ""
     result.add newSourceDocument(path, language, entry["content"].getStr)
+
+proc mergeSourceBundles*(bundles: openArray[JsonNode]): JsonNode =
+  ## Every bundle a transaction's row names, as ONE bundle-shaped node whose
+  ## `sources` is the union of theirs — what the debug page's Code pane reads, so
+  ## a step in any module the execution entered has its document on the page.
+  ##
+  ## ## Why a union of files, and what a collision means
+  ##
+  ## The container interns a path per step, and the per-step positions name
+  ## those paths; a document is found by its path and by nothing else. So the
+  ## pane needs every file any bundle carries, under the path the bundle files it
+  ## by. A Move package's files recur from bundle to bundle (`error.move` is in
+  ## most of the framework's), and those are one file.
+  ##
+  ## A path two bundles carry with DIFFERENT text is two programs under one
+  ## name, and the position stream cannot say which a step meant. The FIRST
+  ## bundle keeps the path — the row's first code hash, whose bundle was the
+  ## only one this page used to read — so every document the page showed before
+  ## is still the document it shows, and a later bundle can only add files.
+  ##
+  ## One bundle is returned as itself, so a one-contract transaction renders
+  ## from exactly the node it always did. An empty list is nil, which every
+  ## reader of a bundle already reads as "none published".
+  ##
+  ## Each file carries its own bundle's `language`, because the union can hold
+  ## two: an Aptos transaction's verified modules are `move` and its unverified
+  ## ones `move-disassembly`.
+  var present: seq[JsonNode]
+  for b in bundles:
+    if not b.isNil and b.kind == JObject: present.add b
+  if present.len == 0: return nil
+  if present.len == 1: return present[0]
+  var sources = newJObject()
+  for b in present:
+    let src = b{"sources"}
+    if src.isNil or src.kind != JObject: continue
+    let language = b{"language"}.getStr("")
+    for path, entry in src:
+      if sources.hasKey(path): continue
+      if entry.kind != JObject: continue
+      var e = copy(entry)
+      if not e.hasKey("language") and language.len > 0:
+        e["language"] = %language
+      sources[path] = e
+  result = %*{"sources": sources}
+  # The first bundle's own language stays the union's default, so a reader that
+  # looks only at the top-level member reads what it read before.
+  let first = present[0]{"language"}
+  if not first.isNil and first.kind == JString: result["language"] = first
+
+func isDisassemblyLanguage*(language: string): bool =
+  ## A document whose lines are a module's bytecode disassembly, not its source:
+  ## the bundle language a Move producer writes for a module whose source did
+  ## not resolve (`move-disassembly`, Aptos's and Sui's alike).
+  language.endsWith("-disassembly")
 
 # ---------------------------------------------------------------------------
 # The fixture session's position, and the panes that follow from it
@@ -737,6 +797,20 @@ proc demoSession*(chain: string; v: TxView; info: ChainInfo;
       reason: availabilityNote(v.headline, absence, isRetiredNetwork(v.chain)))
     result.controls = fixtureControls(positioned = false, live = false, steps = 0)
 
+proc pendingNote(session: DebugSessionView;
+                 subject, verb, pronoun: string): string =
+  ## A pane whose rows are in the published recording and not on this page.
+  ## `containerPath` is the one fact that separates the two states — the engine
+  ## is coming, or no recording is published for it — and `withPublishedSources`
+  ## below says why a single sentence for both was wrong.
+  if session.containerPath.len > 0:
+    subject & " " & verb & " in the published recording, and the replay " &
+      "engine reads " & pronoun & " when this page loads it."
+  else:
+    subject & " " & verb & " in the published recording. Reading " &
+      pronoun & " needs the replay engine, and no recording is published " &
+      "here for it to read."
+
 proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
   ## Prefer a published source bundle over the fixture files.
   ##
@@ -872,22 +946,13 @@ proc withPublishedSources*(session: var DebugSessionView; bundle: JsonNode) =
     # `data-trace`, and therefore exactly the predicate that decides whether
     # hydration has anything to start. So the panes say which of the two
     # states they are in, rather than one sentence that is right about one.
-    let engineComing = session.containerPath.len > 0
-    proc pending(subject, verb, pronoun: string): string =
-      if engineComing:
-        subject & " " & verb & " in the published recording, and the replay " &
-          "engine reads " & pronoun & " when this page loads it."
-      else:
-        subject & " " & verb & " in the published recording. Reading " &
-          pronoun & " needs the replay engine, and no recording is published " &
-          "here for it to read."
+    let callsNote = pendingNote(session, "The call structure", "is", "it")
+    let valuesNote = pendingNote(session, "The recorded values", "are", "them")
+    let eventsNote = pendingNote(session, "The recorded event stream", "is", "it")
     session.calltrace = CallTracePane(
-      costLabel: "ACIR", costUnit: "opcodes", frames: @[],
-      note: pending("The call structure", "is", "it"))
-    session.state = StatePane(values: @[],
-      note: pending("The recorded values", "are", "them"))
-    session.eventLog = EventLogPane(rows: @[],
-      note: pending("The recorded event stream", "is", "it"))
+      costLabel: "ACIR", costUnit: "opcodes", frames: @[], note: callsNote)
+    session.state = StatePane(values: @[], note: valuesNote)
+    session.eventLog = EventLogPane(rows: @[], note: eventsNote)
   session.editor = pane
 
 type StepPositions* = object
@@ -905,9 +970,24 @@ type StepPositions* = object
   pathId*: seq[int]        ## -1 where the step carries no position
   line*, column*: seq[int]
 
-const PositionSchemas* = ["avm-source-positions/1", "cairo-casm-positions/1"]
+const PositionSchemas* = ["avm-source-positions/1", "cairo-casm-positions/1",
+                          "move-positions/1", "move-disassembly-positions/1"]
   ## The per-step position streams `decodeStepPositions` reads: Aztec's AVM
-  ## stream and Starknet's CASM stream, which share one shape.
+  ## stream, Starknet's CASM stream, and the Move streams, which all share one
+  ## shape. A Move stream positions every step in a file one of the
+  ## transaction's bundles carries: `move-disassembly-positions/1` (Sui, and an
+  ## Aptos transaction none of whose modules resolved) in each module's `.mvb`
+  ## or `.masm` disassembly, and `move-positions/1` (Aptos) in the published
+  ## Move source of the modules proved against their bytes as well.
+
+const CompilerAttributionSchemas* = ["avm-source-positions/1",
+                                     "cairo-casm-positions/1"]
+  ## The streams `markCompilerAttributed` was measured on. Its two rules —
+  ## `comptime quote` bodies, and a pair of runs one invocation cannot have
+  ## produced — were calibrated on Noir's debug map and are stated to the reader
+  ## in Noir's terms. A Move disassembly line is the program counter itself, and
+  ## a Move source map has not been measured for either rule, so a Move stream
+  ## is not marked: an unmeasured `?` is a claim like any other.
 
 proc decodeStepPositions*(node: JsonNode): StepPositions =
   ## Total, and refuses rather than repairs.
@@ -997,8 +1077,23 @@ proc withSourcePositions*(session: var DebugSessionView;
   ## positions no step at all, is left alone — and the listing below then serves
   ## the page it always served.
   if not session.hasFrame: return
-  if session.editor.availability != srcUnverified: return
-  if session.editor.documents.len > 0: return
+  # ── THE ONE SOURCE-LEVEL PANE THIS DOES TAKE: SOURCE WITH NO POSITION ON IT ──
+  #
+  # `withPublishedSources` swaps the fixture's documents for a real bundle's and,
+  # when the bundle is not the fixture's program, clears the position: the
+  # fixture's line belongs to another recording, and it has no other to give.
+  # That leaves a pane at source level with nothing marked — "No position yet" —
+  # beside a published stream that places every step. Aptos's transfer
+  # (`sourceLevel: true`, 383 of 383 steps on verified Move source) is exactly
+  # that page. The manifest's claim stands — the pane stays at source level and
+  # keeps its documents — and the stream supplies only what the claim lacked:
+  # where each step is.
+  let unplacedSource = session.editor.availability == srcSourceLevel and
+                       not session.controls.positioned and
+                       session.editor.currentLine == 0
+  if not unplacedSource:
+    if session.editor.availability != srcUnverified: return
+    if session.editor.documents.len > 0: return
   let pos = decodeStepPositions(positions)
   if not pos.has or pos.positioned <= 0: return
   # ── AND A FOURTH: POST-HOC POSITIONS MUST BE CORROBORATED BY THE CAPTURE ────
@@ -1043,7 +1138,9 @@ proc withSourcePositions*(session: var DebugSessionView;
   # is the second producer in a position to notice; correcting it here and in
   # `withInstructionListing` identically keeps the toolbar's step, the URL's
   # time coordinate and the marked row one derivation rather than three.
-  var step = (if session.controls.positioned: session.controls.step else: -1)
+  var step = (if session.controls.positioned and not unplacedSource:
+                 session.controls.step
+               else: -1)
   if step >= pos.steps: step = pos.steps - 1
   # …AND THEN MOVED TO A STEP THERE IS SOURCE FOR, which is a landing rule and
   # not a repair of the data. The 22 unpositioned steps of a FeeJuice execution
@@ -1064,9 +1161,15 @@ proc withSourcePositions*(session: var DebugSessionView;
       for i in countdown(min(step, pos.steps - 1), 0):
         if pos.pathId[i] >= 0: landed = i; break
   if landed < 0: return
-  if landed != session.controls.step:
+  if landed != session.controls.step or unplacedSource:
     session.controls.step = landed
     session.timeCoordinate = landed
+  if unplacedSource:
+    # The toolbar's own words for a positioned frame with no engine yet —
+    # `fixtureControls`' — in place of "No position yet", which has just
+    # stopped being true.
+    session.controls.statusText =
+      "Engine loading — " & approxMegabytes(ReplayEngineWasmBytes)
   session.controls.positioned = true
 
   var pane = session.editor
@@ -1099,6 +1202,25 @@ proc withSourcePositions*(session: var DebugSessionView;
     return
   focus(pane, path, pos.line[landed])
   session.editor = pane
+
+  # ── THE PROSE BELOW IS AZTEC'S, AND A MOVE STREAM GETS ITS OWN ──────────────
+  #
+  # The three notes that follow were written for the AVM stream and say so ("Aztec
+  # publishes these contracts compiled without variable debug information"). A
+  # Move recording names its locals wherever its source resolved, and its steps
+  # with no source line are on a module's disassembly rather than unpositioned,
+  # so none of the three is true of it. Its panes say what they say on a page the
+  # bundle took from the fixture: the rows are in the recording, and the engine
+  # reads them.
+  if positions{"schema"}.getStr notin CompilerAttributionSchemas:
+    session.calltrace.note =
+      "Frames are recorded and carry the names this recording gives them. " &
+      "They are listed once the session is live."
+    session.state.note = pendingNote(session, "The recorded values", "are",
+                                     "them")
+    session.eventLog.note = pendingNote(session, "The recorded event stream",
+                                        "is", "it")
+    return
 
   # ── AND THE PROSE THAT WAS WRITTEN FOR THE OTHER OUTCOME ────────────────────
   #
@@ -1137,6 +1259,66 @@ proc withSourcePositions*(session: var DebugSessionView;
     $pos.positioned & " of this recording's " & $pos.steps & " steps carry a " &
     "source position; the rest are compiler-generated code the artifact maps " &
     "no line for."
+
+func disassemblyModuleName(path: string): string =
+  ## `0x…/bytecode/decibel_perp_dex.mv.masm` → `decibel_perp_dex`: the module a
+  ## disassembly document is the listing of, as a reader would name it.
+  result = path
+  let slash = result.rfind('/')
+  if slash >= 0: result = result[slash + 1 .. ^1]
+  for ext in [".mv.masm", ".masm", ".mvb"]:
+    if result.endsWith(ext):
+      return result[0 ..< result.len - ext.len]
+
+proc disassemblyCoverageNote*(session: DebugSessionView;
+                              positions: JsonNode): string =
+  ## Which of the recording's steps the Code pane shows on SOURCE and which on a
+  ## module's bytecode DISASSEMBLY, when any are on disassembly.
+  ##
+  ## `Source-Resolution.md` §7's last row: "source-level stepping where sources
+  ## exist, instruction-level elsewhere, with the boundary visible in the source
+  ## pane rather than silent". A Move stream positions EVERY step — on a verified
+  ## module's source line, or on the disassembly line of the instruction — so the
+  ## pane's own coverage counts are full and `renderSource`'s rung header, which
+  ## exists for UNPOSITIONED steps, says nothing. Without this the boundary is
+  ## visible only as a tab whose file name ends `.masm`.
+  ##
+  ## Counted off the stream and the pane's own documents, so it states what the
+  ## page shows: a step whose file the page does not carry is in neither count.
+  ## "" when no step is on disassembly — every chain whose bundles are source,
+  ## which is every chain but the Move ones.
+  if not session.hasFrame: return ""
+  if session.editor.availability != srcSourceLevel: return ""
+  let pos = decodeStepPositions(positions)
+  if not pos.has or pos.positioned <= 0: return ""
+  var languageOf = initTable[string, string]()
+  for d in session.editor.documents: languageOf[d.path] = d.language
+  var onSource, onDisassembly = 0
+  var modules: seq[string]
+  for i in 0 ..< pos.steps:
+    if pos.pathId[i] < 0: continue
+    let path = pos.paths[pos.pathId[i]]
+    if not languageOf.hasKey(path): continue
+    if isDisassemblyLanguage(languageOf[path]):
+      inc onDisassembly
+      let m = disassemblyModuleName(path)
+      if m notin modules: modules.add m
+    else:
+      inc onSource
+  if onDisassembly == 0: return ""
+  modules.sort()
+  if onSource == 0:
+    return "Every step of this recording is on the bytecode disassembly of " &
+      "the module it ran in: no source was proved against " &
+      (if modules.len == 1: "that module's" else: "these modules'") &
+      " bytes, so each line in this pane is an instruction, not a line of " &
+      "source."
+  $onSource & " of this recording's " & $(onSource + onDisassembly) &
+    " steps are on source proved against the bytes of the module that ran. " &
+    "The other " & $onDisassembly & " are on the bytecode disassembly of " &
+    $modules.len & " module(s) no source was proved for — " &
+    modules.join(", ") & " — where each line is an instruction, not a line " &
+    "of source."
 
 proc withCallFrames*(session: var DebugSessionView; node: JsonNode) =
   ## Give the Call Trace pane the frames the recording opened.
@@ -1449,6 +1631,8 @@ proc markCompilerAttributed*(session: var DebugSessionView;
   if not session.hasFrame: return 0
   if session.editor.availability != srcSourceLevel: return 0
   if session.editor.documents.len == 0: return 0
+  if positions.isNil or positions.kind != JObject or
+     positions{"schema"}.getStr notin CompilerAttributionSchemas: return 0
   let pos = decodeStepPositions(positions)
   if not pos.has or pos.positioned <= 0: return 0
 

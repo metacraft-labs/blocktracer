@@ -1,6 +1,10 @@
 # BlockTracer workspace commands.
 # `just` recipes wrap the nimble tasks so the workspace has one entry point.
 
+# `{{rq}}`: the RunQuota bridge (see runquota.just). Heavy test and build
+# commands carry it so concurrent sessions on one host share one budget.
+import 'runquota.just'
+
 # Run the conformance + publisher + Client SDK + chain-snapshot + registry
 # identifier-encoding test suites, and the SDK's bidirectional import lint.
 #
@@ -138,19 +142,19 @@ test: recordings-test prepare-recordings
     # suite added below must also be added to blocktracer.nimble's `test` task, or
     # it runs only here. `ci/test/ci-coverage.sh` step 1c fails by name on one
     # that is missing there; four were, and three of them went red unseen.
-    nim c -r --hints:off tests/tcontract.nim
-    nim c -r --hints:off tests/tpublish.nim
-    nim c -r --hints:off tests/tclientsdk.nim
-    nim c -r --hints:off tests/tchainsnapshot.nim
-    nim c -r --hints:off tests/tidentifierencoding.nim
-    nim c -r --hints:off tests/tchainprofile.nim
+    {{rq}} nim c -r --hints:off tests/tcontract.nim
+    {{rq}} nim c -r --hints:off tests/tpublish.nim
+    {{rq}} nim c -r --hints:off tests/tclientsdk.nim
+    {{rq}} nim c -r --hints:off tests/tchainsnapshot.nim
+    {{rq}} nim c -r --hints:off tests/tidentifierencoding.nim
+    {{rq}} nim c -r --hints:off tests/tchainprofile.nim
     # THE TRANSPORT ENCODING OF A PUBLISHED CONTAINER (CCP-6). Its own suite because
     # the property is a RELATION across five modules — the pure policy, the brotli
     # codec, the publication, the producer-side kit and the consumer-side kit — and a
     # per-module suite would have each half agreeing with its own idea of what the
     # other does. That is the shape the campaign behind it spent two weeks undoing,
     # with three byte figures that had become one.
-    nim c -r --hints:off tests/tcontainerencoding.nim
+    {{rq}} nim c -r --hints:off tests/tcontainerencoding.nim
     ci/test/client-sdk-boundary.sh
     ci/test/client-sdk-boundary-test.sh
     # ALL FIFTEEN CLIENT SUITES, BY DELEGATION. See the block above this recipe
@@ -159,9 +163,18 @@ test: recordings-test prepare-recordings
     # the strongest landing assertions in the repository.
     cd client && just test
 
+# The gate for the `{{rq}}` bridge itself: three `just test` sessions on one
+# RunQuota budget never exceed it and the high-priority one is served first
+# (`ci/test/runquota-bridge-test.sh`), then the same run with the bridge
+# stripped from the Justfiles, which must fail. Needs a `runquota` with the
+# `run` verb and `runquotad` on PATH (or in RUNQUOTA_BIN_DIR).
+test-runquota-bridge:
+    bash ci/test/runquota-bridge-test.sh --require
+    bash ci/test/runquota-bridge-test.sh --require --mutate-drop-bridge
+
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-FIVE suites — 105 + 17 + 19 + 24 + 24 + 57 + 245 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 8 + 35 + 24 + 44 = 1446 counted assertions —
+# TWENTY-SIX suites — 105 + 18 + 19 + 24 + 24 + 57 + 246 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 12 + 36 + 24 + 56 + 25 = 1490 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -421,13 +434,31 @@ test: recordings-test prepare-recordings
 # on a stock runner and are wired into CI's `deploy-gates` job for exactly the
 # reason its header gives: a gate that needs the busy Nix runner to prove it
 # can fail is a gate that gets skipped.
+# Does publish-r2's publish step hand the publisher the flags the inputs asked for?
+#
+# The `chain` input shipped with its REFRESH/CHAIN_ARG assembly BELOW the dry-run branch,
+# so a dry run of a one-chain publish rehearsed the every-chain path and printed an object
+# count for a publish nobody had asked for. Nothing offline exercised either state.
+#
+# It EXECUTES the decision rather than reading it: the flag-assembly fragment is extracted
+# by anchors, the `${{ inputs.* }}` expressions are substituted the way GitHub would, and
+# the fragment runs under bash with `blocktracer-publish` stubbed to record its argv. What
+# is asserted is the argv the publisher would have received. A static check would assert a
+# line position, which a comment can satisfy.
+#
+# `--workflow <path>` aims it at a copy, which is how its redness was demonstrated: over a
+# workflow whose assembly is moved back below the branch it refuses by name.
+check-publish-flags *ARGS:
+    node tools/deploy/check-publish-flags.mjs {{ARGS}}
+
 # Nothing the site points at is missing — the gate INCREMENTAL-PUBLISH.md §5 names as
 # the prerequisite for the first incremental publish, "not after".
 #
 # The mirror of `check-recordings-named`: that one asks whether every recording is OFFERED
 # by a page, this one asks whether everything a page or the index POINTS AT exists. Three
-# rules: every hash the index resolves has a page; every entity link any page draws has a
-# page; and the index agrees with its own `meta.json`, which is the comparison that catches
+# rules: every hash the index resolves has a page, and so does every version a chain's
+# ledger-version index resolves; every entity link any page draws has a page; and each
+# index agrees with its own `meta.json`, which is the comparison that catches
 # a half-uploaded index — the one state in which the first rule passes over a subject set
 # the publish silently shrank.
 #
@@ -448,9 +479,21 @@ test: recordings-test prepare-recordings
 check-no-stale-neighbours DIR="client/dist" *ARGS:
     node tools/deploy/check-no-stale-neighbours.mjs --dir {{DIR}} {{ARGS}}
 
-# Sixteen arms; four require a PASS, including a hash whose last nibble is a real zero —
-# the false positive that reported 13 stale neighbours over 288 clean entries during
-# development — and a stale neighbour that sits OUTSIDE the `--routes` set.
+# Thirty-seven arms; nine require a PASS, including a hash whose last nibble is a real
+# zero — the false positive that reported 13 stale neighbours over 288 clean entries during
+# development — and a stale neighbour that sits OUTSIDE the `--routes` set. Fifteen are
+# the ledger-version index (`idx/{chain}/version/`), one fixture per shape a version takes:
+# one digit, both sides of a bucket edge, neighbours sharing a bucket, two versions above
+# 2^53 that a Number would merge, and the u64 maximum.
+#
+# FOUR OF THE PASSING ARMS ARE IDENTIFIER SHAPES RATHER THAN HASHES: a zero-padded
+# address, a 63-digit Starknet felt, a one-digit Aptos address, and a two-version index.
+# Every HASH-index fixture here was a full-width 32-byte hash until 2026-11-07, and two
+# separate format-1 defects shipped green behind that — a shape with no fixture cannot
+# fail, which is also why the version arms above are one per shape. The two-version arms
+# exist because `meta.json` describes v1 at its top level and later versions in a
+# `versions` array, so a per-version figure read from the top level compares v1's count
+# against v2's shards.
 check-no-stale-neighbours-selftest:
     node tools/deploy/check-no-stale-neighbours-selftest.mjs
 
@@ -463,8 +506,16 @@ check-no-stale-neighbours-selftest:
 # replaced by the invariant they protected: nothing outside this module and the Nim
 # producer names the format's magic, which a new hand-rolled decoder cannot avoid doing.
 #
-# Ten arms, every shard built byte by byte from the layout rather than read out of
+# Fifteen arms, every shard built byte by byte from the layout rather than read out of
 # `client/dist`, which is a build output and not committed.
+#
+# Five of them are the identifier shapes this suite had no fixture for, and they are here
+# because format 1 does NOT store whole bytes only: `hexUnits` appends a trailing `0`
+# NIBBLE to an odd identifier before whole zero BYTES pad it to width, so the identifier
+# is any prefix whose remainder is all `0` characters. Starknet publishes 63-digit felts
+# and Aptos publishes `0x1`. One arm keeps BOTH readings of a full-width hash ending in a
+# zero nibble, because it is byte-identical to a padded 63-digit identifier and that
+# ambiguity is real rather than a defect to assert away.
 hash-shard-selftest:
     node tools/deploy/lib/hash-shard-selftest.mjs
 
@@ -512,7 +563,7 @@ check-recordings-named-selftest:
 check-chain-compat *ARGS:
     node tools/chain/check-chain-compat.mjs {{ARGS}}
 
-# Seventeen arms over a fake node, a fake file store and injected decoders -- no chain, no
+# Eighteen arms over a fake node, a fake file store and injected decoders -- no chain, no
 # AVM, no network. Five of them require a PASS, because a probe that reddened on a healthy
 # chain would be switched off and then the silence returns with it nominally in place.
 check-chain-compat-selftest:
@@ -596,6 +647,11 @@ chain-selftest:
     # transactions as system transactions, and the REST transcript. Rows with a
     # recording need a container and are exercised by `just aptos-capture`.
     node tools/chain/aptos-producer-selftest.mjs
+    # Offline and toolchain-free: Recorder-Solana CXP-SOL-5's accounting (four populations,
+    # divergent and unchecked counted against the yield, T2 read from the listings) and
+    # its prediction classifier, each driven with a control. The measurement it judges is
+    # `tools/chain/measurements/sol-depth-yield.json`, taken live by `capture-sol-window.mjs --depth`.
+    node tools/chain/sol-depth-yield-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1924,7 +1980,8 @@ sui-capture RECORDER COMMIT OUT=".sui-capture/tree" *ARGS:
 # The twin of `sui-range`: tools/chain/capture-aptos-range.mjs reads the window over
 # the Aptos REST API, records each user transaction through `codetracer-move-recorder
 # aptos-replay` — which runs `aptos move replay --trace` from the CodeTracer fork
-# (metacraft-labs/aptos-core, branch codetracer/value-tracing), reading every state
+# (metacraft-labs/aptos-core, branch codetracer/value-tracing-aptos-node-v1.49.8, the
+# value tracer on mainnet's aptos-node v1.49.8), reading every state
 # value at the version before the transaction — and runs
 # tools/chain/produce-aptos-snapshot.mjs over the lot. `--record DIR` writes the REST
 # conversation as a transcript, waiting out the public node's rate limit.
@@ -1942,8 +1999,11 @@ aptos-range RECORDER COMMIT APTOS *ARGS:
 # 1,158,421,321..1,158,421,323 (fixtures/chain-inputs/aptos-mainnet/), served on loopback:
 # a request it does not hold fails the run. Recording ids are derived from each
 # transaction and the clock pinned, so the tree is byte-identical run to run. Needs the
-# recorder, the fork's `aptos` CLI and `ct-print`; it is not yet a Nix derivation (the
-# fork's CLI is not packaged), so it is run by hand.
+# recorder, the fork's `aptos` CLI and `ct-print`, given by path. The same tree is also
+# a Nix derivation, `nix build .#aptos-capture-tree` (tools/chain/nix/aptos.nix), which
+# packages all three and builds byte-identical to this recipe's output. That derivation
+# is in `produced-captures` on x86_64-linux and in the `journeys-aptos` CI job (flake.nix
+# says why); this recipe is for a machine that already has the tools.
 aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
     node tools/chain/capture-aptos-range.mjs \
       --transcript fixtures/chain-inputs/aptos-mainnet/1158421321-1158421323 \
@@ -1951,6 +2011,38 @@ aptos-capture RECORDER COMMIT APTOS OUT=".aptos-capture/tree" *ARGS:
       --work .aptos-capture/work --out {{OUT}} \
       --recorder {{RECORDER}} --recorder-commit {{COMMIT}} --positions-reader {{RECORDER}} \
       --aptos {{APTOS}} {{ARGS}}
+
+# The Aptos journey set (tools/journeys/aptos/) over a site that publishes Aptos and Sui:
+# a ledger version typed into search reaches its transaction, and the Sui rows beside it
+# are the hash-identity control; and every step of an Aptos recording is on a document of
+# its debug page, Move source or disassembly, served and hydrated, with Sui's all-
+# disassembly recording as the control. CI runs the same set over `nix build .#site-aptos`
+# (the `journeys-aptos` job). This recipe takes the Aptos tree by local path instead, so it
+# also runs where the fork's CLI does not build: `just aptos-capture` writes
+# .aptos-capture/tree, which goes stale silently, so on x86_64-linux prefer
+# `nix build .#aptos-capture-tree` and pass its result. It is placed into `default` with
+# Sui's produced tree.
+# NOT in any CI job, for the same reason.
+journeys-aptos APTOS_TREE=".aptos-capture/tree":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tree="$(realpath {{APTOS_TREE}})"
+    test -s "$tree/snapshot.json"
+    {{rq}} nix build --impure -o .journey-site-aptos-result --expr "
+      let f = builtins.getFlake (toString ./.); s = builtins.currentSystem; in
+      f.packages.\${s}.default.overrideAttrs (old: {
+        name = \"blocktracer-site-aptos\";
+        postPatch = (old.postPatch or \"\") + ''
+          cp -r \${builtins.path { path = $tree; name = \"aptos-mainnet-capture\"; }} client/fixtures/chain/aptos-mainnet
+          cp -r \${f.packages.\${s}.sui-capture-tree} client/fixtures/chain/sui-mainnet
+          chmod -R u+w client/fixtures/chain
+        '';
+      })"
+    rm -rf .journey-site-aptos && mkdir -p .journey-site-aptos
+    cp -R .journey-site-aptos-result/. .journey-site-aptos/
+    chmod -R u+w .journey-site-aptos
+    ./client/hydrate/fetch-engine.sh client/.replay-engine-cache
+    nix run .#capture-env -- node tools/journeys/run.mjs --set aptos --dist .journey-site-aptos
 
 # Is the Sui endpoint still serving the object versions it served when the
 # committed reading was taken? tools/chain/sui-horizon-probe.mjs asks, on a fixed
@@ -2224,7 +2316,7 @@ journeys-build: journeys-engine
 journeys-deployed:
     #!/usr/bin/env bash
     set -euo pipefail
-    nix build .#default
+    {{rq}} nix build .#default
     rm -rf .journey-site && mkdir -p .journey-site
     cp -R result/. .journey-site/
     chmod -R u+w .journey-site
@@ -2563,9 +2655,9 @@ byte-identity-mutant REF:
 flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
     #!/usr/bin/env bash
     set -euo pipefail
-    recorder=$(nix build .#flow-recorder --no-link --print-out-paths)
-    helper=$(nix build .#cadence-replay-helper --no-link --print-out-paths)
-    ct_print=$(nix build .#flow-ct-print --no-link --print-out-paths)
+    recorder=$({{rq}} nix build .#flow-recorder --no-link --print-out-paths)
+    helper=$({{rq}} nix build .#cadence-replay-helper --no-link --print-out-paths)
+    ct_print=$({{rq}} nix build .#flow-ct-print --no-link --print-out-paths)
     commit=$(jq -r '.nodes["codetracer-flow-recorder"].locked.rev' flake.lock)
     CT_PRINT="$ct_print/bin/ct-print" bash tools/chain/flow-capture.sh \
       --recorder "$recorder/bin/codetracer-flow-recorder" \
@@ -2581,7 +2673,7 @@ flow-capture BLOCK="168391034" OUT=".flow-capture/tree":
 # network. The trees land in OUT, one directory per block, for
 # `just conformance OUT/<height>`.
 flow-awkward-cases OUT=".flow-awkward-cases":
-    nix build .#flow-awkward-cases --out-link {{OUT}} -L
+    {{rq}} nix build .#flow-awkward-cases --out-link {{OUT}} -L
 
 # ── the RESIDENT follower: ING-1's deployed daemon, runnable locally over a range ──
 #

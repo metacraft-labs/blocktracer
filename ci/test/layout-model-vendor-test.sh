@@ -180,7 +180,13 @@ rm -rf "${work}/fake-a"
 # This is the divergence class that was invisible for as long as part B could
 # not compile the upstream file: the probe reported "the conformance probe
 # failed", which reads like a broken script rather than like a moved schema.
-sed 's/^  LayoutSchemaVersion\* = 6/  LayoutSchemaVersion* = 7/' \
+#
+# The probe bumps WHATEVER the pinned upstream declares by one, rather than a
+# literal: it was written as `= 6` -> `= 7`, and from the SDK pin that carried
+# schema 7 upward the sed matched nothing and this case reported a broken probe
+# instead of judging anything.
+schema_now="$(sed -n 's/^  LayoutSchemaVersion\* = \([0-9][0-9]*\)$/\1/p' "${ct}/${model_up}" | head -1)"
+sed "s/^  LayoutSchemaVersion\* = ${schema_now:-x}\$/  LayoutSchemaVersion* = $((${schema_now:-0} + 1))/" \
 	"${ct}/${model_up}" >"${work}/versioned.nim"
 if cmp -s "${ct}/${model_up}" "${work}/versioned.nim"; then
 	echo "  [FAILED] the version probe changed nothing — the sed no longer matches" >&2

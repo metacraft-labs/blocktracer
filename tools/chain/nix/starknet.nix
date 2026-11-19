@@ -139,6 +139,11 @@ let
   # ~250 MB of per-transaction listings to staging for no further case.
   transcriptUpgrade = recorderSrc + "/onchain/tests/fixtures/mainnet-16625884";
   transcriptInHole = recorderSrc + "/onchain/tests/fixtures/mainnet-1948151";
+  # A failed call in a SUCCEEDING transaction: block 17,261,713's only transaction calls a
+  # selector its target does not have, at call depth 3, and carries on. Its recording is the
+  # corpus's one entry-point `Error` return and `Error` event on a transaction that did not
+  # revert (HSF-B2's fourth shape).
+  transcriptFailedCall = recorderSrc + "/onchain/tests/fixtures/mainnet-17261713";
   # The class-source bindings that recorder revision proved (`bind-class`), from the same
   # pin for the same reason: a binding is checked against the class the transcript serves.
   classSources = recorderSrc + "/onchain/tests/fixtures/class-sources";
@@ -171,6 +176,7 @@ let
         --transcript ${transcriptL1} \
         --transcript ${transcriptUpgrade}@0x440ba8db1f529a7d4b9154aaa558b47fc7dc80a55a4671e92e8c2f5a7b6145e \
         --transcript ${transcriptInHole}@0x215e5604a76b89781d79795ef94d6aa97ec2fb13d486a64517f09a064ae32c \
+        --transcript ${transcriptFailedCall} \
         --class-sources ${classSources} \
         --ct-print ${ctPrint}/bin/ct-print \
         --out $TMPDIR/tree --work $TMPDIR/work

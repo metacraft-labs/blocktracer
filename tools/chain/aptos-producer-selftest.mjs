@@ -24,6 +24,10 @@
 //       holds and misses — loudly — what it does not
 //   §6  the floor's reason names the node's pruning, and the verification sentence names
 //       what a mismatch becomes
+//   §7  the source provider's offline parts: the package registry and source map read
+//       from BCS, the compiler versions read from a module, the specification syntax it
+//       may change and how, and what a row says for a verified and an unverified module.
+//       Compiling and comparing need the aptos CLI and run in `just aptos-capture`
 //
 // Every arm that asserts a refusal or a distinction has a control beside it that takes
 // the other branch, so the arm measures the rule and not the fixture
@@ -43,6 +47,11 @@ import { ACQUISITION_FORMAT, REPLAY_MISMATCH, main as produce } from './produce-
 import {
   decodeBody, encodeBody, isTipDependent, requestKey, startTranscriptServer,
 } from './aptos-rest-transcript.mjs';
+import {
+  artifactFromResolution, compilationMetadata, compilerErrorLocations, decodePackageRegistry,
+  decodeSourceMap, rewriteSpecStatement, inlineSpecStatements, specRegions,
+} from './lib/aptos-source.mjs';
+import { gzipSync } from 'node:zlib';
 
 let asserted = 0;
 let failed = 0;
@@ -292,10 +301,112 @@ test('§6 the sentences the chain page quotes');
      VERIFICATION.includes('aptos move replay') && VERIFICATION.includes('divergent'));
 }
 
+test('§7 the source provider, offline');
+{
+  // BCS, written by hand: what the REST API answers for `0x1::code::PackageRegistry`.
+  const uleb = (n) => { const o = []; do { let b = n & 0x7f; n >>>= 7; if (n) b |= 0x80; o.push(b); } while (n); return Buffer.from(o); };
+  const str = (t) => Buffer.concat([uleb(Buffer.byteLength(t)), Buffer.from(t)]);
+  const bytes = (b) => Buffer.concat([uleb(b.length), b]);
+  const vec = (xs) => Buffer.concat([uleb(xs.length), ...xs]);
+  const u64 = (n) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(n)); return b; };
+  const u32 = (n) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
+  const u16 = (n) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
+  const source = gzipSync(Buffer.from('module 0x5::m { }\n'));
+  const registry = Buffer.concat([vec([Buffer.concat([
+    str('AptosTrading'), Buffer.from([1]), u64(9), str('1388A0EB'), bytes(gzipSync(Buffer.from('[package]'))),
+    vec([Buffer.concat([str('m'), bytes(source), bytes(Buffer.alloc(0)), vec([])]),
+         Buffer.concat([str('n'), bytes(Buffer.alloc(0)), bytes(Buffer.alloc(0)), vec([])])]),
+    vec([Buffer.concat([Buffer.alloc(31), Buffer.from([1]), str('AptosFramework')])]),
+    vec([]),
+  ])])]);
+  const reg = decodePackageRegistry(registry);
+  const pkg = reg.packages[0];
+  ck('a package registry reads back: name, upgrade, a module\'s source, an empty one, its deps',
+     pkg.name === 'AptosTrading' && pkg.upgradeNumber === '9' && pkg.modules[0].source.equals(source)
+     && pkg.modules[1].source.length === 0 && pkg.deps[0].account === `${'0'.repeat(63)}1`
+     && pkg.deps[0].packageName === 'AptosFramework');
+  let refused = null;
+  try { decodePackageRegistry(Buffer.concat([registry, Buffer.from([0])])); } catch (e) { refused = e.message; }
+  ck('CONTROL: a registry with a byte left over is refused, not read', /trailing/.test(refused ?? ''));
+
+  // A source map: one function, two pcs, the second in another file (inlined code).
+  const loc = (fill, a, b) => Buffer.concat([Buffer.alloc(32, fill), u32(a), u32(b)]);
+  const sm = Buffer.concat([loc(1, 0, 40), Buffer.from([1]), Buffer.alloc(32), str('m'), vec([]),
+    vec([Buffer.concat([u16(0), loc(1, 20, 23), vec([]), vec([Buffer.concat([str('x'), loc(1, 24, 25)])]),
+      vec([]), vec([]), vec([Buffer.concat([u16(0), loc(1, 30, 35)]), Buffer.concat([u16(3), loc(2, 4, 6)])]),
+      Buffer.from([0])])]), vec([])]);
+  const map = decodeSourceMap(sm);
+  const fn = map.functionMap[0][1];
+  ck('a source map reads back: the function, its parameter, and each pc\'s file and range',
+     map.moduleName[1] === 'm' && fn.parameters[0][0] === 'x' && fn.codeMap.length === 2
+     && fn.codeMap[1][0] === 3 && fn.codeMap[1][1].fileHash === '02'.repeat(32)
+     && fn.codeMap[0][1].start === 30);
+
+  // A module header carries the Aptos format flag in its version word's top byte.
+  const meta = Buffer.concat([str('compilation_metadata'), bytes(Buffer.concat([Buffer.from([0]), str('2.0'), str('2.4')]))]);
+  const mv = Buffer.concat([Buffer.from([0xa1, 0x1c, 0xeb, 0x0b]), u32(0x0a00000a), Buffer.alloc(9), meta]);
+  const cm = compilationMetadata(mv);
+  ck('a module names the compiler and language versions it was built with, and bytecode v10',
+     cm.compilerVersion === '2.0' && cm.languageVersion === '2.4' && cm.bytecodeVersion === 10);
+  ck('CONTROL: bytes that are not a module name nothing',
+     compilationMetadata(Buffer.from('not a module')).bytecodeVersion === null);
+
+  // Specifications: what may be changed, measured on text shaped like the framework's.
+  const text = Buffer.from([
+    'module 0x1::m {',
+    '    fun f(x: u64, v: vector<u64>): u64 {',
+    '        let s = b"spec {";            // spec { in a comment',
+    '        while (x > 0) { x = x - 1 } spec {',
+    '            invariant spec_ok(x, v) && forall i in 0..x: v[i] > 0;',
+    '        };',
+    '        x',
+    '    }',
+    '    spec f { pragma opaque; } proof { split x == 0; }',
+    '    spec native fun spec_ok(x: u64, v: vector<u64>): bool;',
+    '}', ''].join('\n'));
+  const regions = specRegions(text);
+  ck('three spec constructs: an inline block (interior only), an item with its proof, a native spec fun',
+     regions.length === 3 && regions[0].kind === 'inline' && regions[1].kind === 'item'
+     && text.subarray(regions[1].start, regions[1].end).toString().endsWith('split x == 0; }')
+     && text.subarray(regions[2].start, regions[2].end).toString().endsWith(': bool;'));
+  const stmt = inlineSpecStatements(text, regions[0])[0];
+  const rewritten = rewriteSpecStatement(text, stmt);
+  const after = rewritten.subarray(stmt.start, stmt.end).toString();
+  ck('a rejected inline statement is rewritten over the locals it names, at its own length',
+     rewritten.length === text.length && /^invariant x==x && v==v *;$/.test(after.replace(/ +;$/, ' ;').replace(/\s+$/, ''))
+     && !after.includes('i==i') && rewritten.toString().split('\n').length === text.toString().split('\n').length);
+  ck('CONTROL: a statement with no room for its locals is not rewritten',
+     rewriteSpecStatement(Buffer.from('invariant f(abc, defg);'), { start: 0, end: 23 }) === null);
+  const out = ['warning: unused', '   ┌─ a/sources/w.move:1:1', 'error: no function named `spec_ok`',
+    '   ┌─ /x/a/sources/m.move:5:23', 'error[E01]: unexpected', '   ┌─ b.move:7:2'].join('\n');
+  const errs = compilerErrorLocations(out);
+  ck('the compiler\'s ERRORS are located, and its warnings are not',
+     errs.length === 2 && errs[0].file === '/x/a/sources/m.move' && errs[0].line === 5
+     && errs[0].column === 23 && errs[1].file === 'b.move');
+
+  // What a row says.
+  const ok = artifactFromResolution({ address: h('1'), module: 'coin', codeHash: h('c'),
+    outcome: 'verified', package: 'AptosFramework', upgradeNumber: '57',
+    build: { compiler: 'aptos', compilerVersion: '2.0', languageVersion: '2.4',
+             bytecodeVersion: 10, profile: 'framework-release', specificationsChanged: 3 } }, '99');
+  ck('a verified module is resolved, by the chain itself, as an exact match',
+     ok.resolved === true && ok.corroboration === 'the chain itself' && ok.contractClassId === h('c')
+     && ok.reason.startsWith('Verified, exact match') && ok.reason.includes('ledger version 99'));
+  const bad = artifactFromResolution({ address: h('1'), module: 'coin', codeHash: h('c'),
+    outcome: 'bytecode-mismatch', reason: 'no build profile reproduces the bytes' }, '99');
+  ck('CONTROL: a module whose source compiles to other bytes is not resolved, and says so',
+     bad.resolved === false && bad.origin === null && bad.reason.includes('discarded')
+     && bad.reason.includes('disassembly'));
+  const none = artifactFromResolution({ address: h('2'), module: 'perp', codeHash: h('d'),
+    outcome: 'source-not-published', reason: 'published without source' }, '99');
+  ck('…and one published without source says no source was published',
+     none.resolved === false && none.reason.includes('no source was published'));
+}
+
 // The count is a LITERAL because `refusal-selftest.mjs` reads it out of this line and
 // cross-checks it against the Justfile header and ci.yml.
-if (asserted !== 44) {
-  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 44 — a case was added, removed or skipped.`);
+if (asserted !== 56) {
+  console.error(`ASSERTION COUNT IS ${asserted}, EXPECTED 56 — a case was added, removed or skipped.`);
   failed++;
 } else {
   console.error(`assertion count: ${asserted} (as declared)`);

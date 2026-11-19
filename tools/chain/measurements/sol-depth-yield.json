@@ -1,0 +1,170 @@
+{
+  "format": "blocktracer/sol-depth-yield@1",
+  "tool": "tools/chain/sol-depth-yield.mjs",
+  "windows": [
+    {
+      "depth": 0,
+      "window": {
+        "firstSlot": 468422507,
+        "lastSlot": 468422566,
+        "slots": 60
+      },
+      "headAtOpen": 468422506,
+      "capturedAt": "2026-11-12T06:20:09.681Z",
+      "wallSeconds": 155,
+      "scope": [
+        "Tri3NG4HkZ6DddYPKoX2ehgkqFtDuej9Aspw5BmvSo4",
+        "tickUcsEQegChaAuo9VYQQztB4ZGApY6ZT4FkULWY6N",
+        "dijkbkCAKfFTCxQg3u1pg82gVU1jJGHBBRcteD11mBu"
+      ],
+      "skippedSlots": 0,
+      "transactions": 16875,
+      "votes": 0,
+      "outOfScope": 15420,
+      "inScope": 1455,
+      "match": 350,
+      "divergent": 0,
+      "unchecked": 0,
+      "refused": {
+        "prestate-unavailable": 1105
+      },
+      "absent": 0,
+      "t2": 0,
+      "refusedTotal": 1105,
+      "yield": 0.24054982817869416,
+      "t2Fraction": 0
+    },
+    {
+      "depth": 15,
+      "window": {
+        "firstSlot": 468423274,
+        "lastSlot": 468423333,
+        "slots": 60
+      },
+      "headAtOpen": 468423288,
+      "capturedAt": "2026-11-12T06:22:45.096Z",
+      "wallSeconds": 294,
+      "scope": [
+        "Tri3NG4HkZ6DddYPKoX2ehgkqFtDuej9Aspw5BmvSo4",
+        "tickUcsEQegChaAuo9VYQQztB4ZGApY6ZT4FkULWY6N",
+        "dijkbkCAKfFTCxQg3u1pg82gVU1jJGHBBRcteD11mBu"
+      ],
+      "skippedSlots": 0,
+      "transactions": 15605,
+      "votes": 0,
+      "outOfScope": 14164,
+      "inScope": 1441,
+      "match": 245,
+      "divergent": 0,
+      "unchecked": 0,
+      "refused": {
+        "prestate-unavailable": 1196
+      },
+      "absent": 0,
+      "t2": 0,
+      "refusedTotal": 1196,
+      "yield": 0.17002081887578072,
+      "t2Fraction": 0
+    },
+    {
+      "depth": 30,
+      "window": {
+        "firstSlot": 468424598,
+        "lastSlot": 468424657,
+        "slots": 60
+      },
+      "headAtOpen": 468424627,
+      "capturedAt": "2026-11-12T06:27:39.243Z",
+      "wallSeconds": 236,
+      "scope": [
+        "Tri3NG4HkZ6DddYPKoX2ehgkqFtDuej9Aspw5BmvSo4",
+        "tickUcsEQegChaAuo9VYQQztB4ZGApY6ZT4FkULWY6N",
+        "dijkbkCAKfFTCxQg3u1pg82gVU1jJGHBBRcteD11mBu"
+      ],
+      "skippedSlots": 0,
+      "transactions": 17850,
+      "votes": 0,
+      "outOfScope": 16483,
+      "inScope": 1367,
+      "match": 420,
+      "divergent": 0,
+      "unchecked": 0,
+      "refused": {
+        "prestate-unavailable": 947
+      },
+      "absent": 0,
+      "t2": 0,
+      "refusedTotal": 947,
+      "yield": 0.30724213606437456,
+      "t2Fraction": 0
+    },
+    {
+      "depth": 60,
+      "window": {
+        "firstSlot": 468425682,
+        "lastSlot": 468425741,
+        "slots": 60
+      },
+      "headAtOpen": 468425741,
+      "capturedAt": "2026-11-12T06:31:35.204Z",
+      "wallSeconds": 135,
+      "scope": [
+        "Tri3NG4HkZ6DddYPKoX2ehgkqFtDuej9Aspw5BmvSo4",
+        "tickUcsEQegChaAuo9VYQQztB4ZGApY6ZT4FkULWY6N",
+        "dijkbkCAKfFTCxQg3u1pg82gVU1jJGHBBRcteD11mBu"
+      ],
+      "skippedSlots": 0,
+      "transactions": 18534,
+      "votes": 0,
+      "outOfScope": 17241,
+      "inScope": 1293,
+      "match": 0,
+      "divergent": 0,
+      "unchecked": 0,
+      "refused": {
+        "prestate-unavailable": 1293
+      },
+      "absent": 0,
+      "t2": 0,
+      "refusedTotal": 1293,
+      "yield": 0,
+      "t2Fraction": null
+    },
+    {
+      "depth": 1000,
+      "window": {
+        "firstSlot": 468425374,
+        "lastSlot": 468425433,
+        "slots": 60
+      },
+      "headAtOpen": 468426373,
+      "capturedAt": "2026-11-12T06:33:50.255Z",
+      "wallSeconds": 198,
+      "scope": [
+        "Tri3NG4HkZ6DddYPKoX2ehgkqFtDuej9Aspw5BmvSo4",
+        "tickUcsEQegChaAuo9VYQQztB4ZGApY6ZT4FkULWY6N",
+        "dijkbkCAKfFTCxQg3u1pg82gVU1jJGHBBRcteD11mBu"
+      ],
+      "skippedSlots": 0,
+      "transactions": 16180,
+      "votes": 0,
+      "outOfScope": 14930,
+      "inScope": 1250,
+      "match": 0,
+      "divergent": 0,
+      "unchecked": 0,
+      "refused": {
+        "prestate-unavailable": 1250
+      },
+      "absent": 0,
+      "t2": 0,
+      "refusedTotal": 1250,
+      "yield": 0,
+      "t2Fraction": null
+    }
+  ],
+  "prediction": {
+    "verdict": "refuted",
+    "why": "not monotone in depth: a deeper window yields more at 30 > 15"
+  }
+}

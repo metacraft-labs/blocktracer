@@ -22,7 +22,7 @@
 // than letting a reader infer a restart from a matching identity.
 
 import { createServer } from 'node:http';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +30,10 @@ import { spawn } from 'node:child_process';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CHECKER = join(HERE, 'check-chain-compat.mjs');
+// The checker's own closed set, imported rather than retyped: a copy here would agree
+// with itself while the checker drifted.
+const { OUTCOMES } = await import(`file://${CHECKER}`);
+let failuresAtStart = 0;
 
 const TX = '0x284813bc0b7ecd556ab91ce564c5865cdd81f9e0a51bc28baa488f72a271c380';
 const IDENTITY = {
@@ -190,7 +194,31 @@ const arms = [
     expect: 'decode-not-attempted', says: /neither source could supply a transaction/ },
 ];
 
-let failures = 0;
+// ── the closed set, checked against the code that answers with it ─────────────────────
+//
+// `finish()` now throws on an outcome outside `OUTCOMES`, which is a runtime guard an arm
+// can only reach by mutating the checker. This asserts the invariant directly instead:
+// every outcome LITERAL in the source is a declared member. It bites when someone adds a
+// verdict and forgets to declare it, which is the mistake the guard exists for — and it
+// refuses to pass over an empty match, because a regex that stopped matching would make
+// the whole thing green over anything.
+{
+  const src = readFileSync(CHECKER, "utf8");
+  const used = [...src.matchAll(/finish\(\s*'([a-z-]+)'/g)].map((m) => m[1]);
+  const undeclared = [...new Set(used)].filter((u) => !OUTCOMES.includes(u));
+  const problems = [];
+  if (used.length < 5) problems.push(`only ${used.length} outcome literal(s) found; the regex has stopped matching`);
+  if (undeclared.length) problems.push(`answered with undeclared outcome(s): ${undeclared.join(", ")}`);
+  if (problems.length) {
+    failuresAtStart += 1;
+    console.log("  FAIL  every outcome the checker answers with is a declared one");
+    for (const p of problems) console.log(`        ${p}`);
+  } else {
+    console.log(`  ok    every outcome the checker answers with is a declared one (${new Set(used).size} of ${OUTCOMES.length} used)`);
+  }
+}
+
+let failures = failuresAtStart;
 for (const arm of arms) {
   const problems = [];
   let n = null;
@@ -244,9 +272,10 @@ rmSync(DIR, { recursive: true, force: true });
 // cross-check reads out of this file. Its header records why: every term of
 // `chain-selftest`'s total has gone stale silently at least once, so a suite states its
 // own number here and the aggregate's copy is compared against it rather than retyped.
-const asserted = arms.length;
-if (asserted !== 17) {
-  console.log(`  FAIL  this suite declares 17 arms and ran ${asserted}`);
+// The static cross-check above is an arm too: it can fail on its own.
+const asserted = arms.length + 1;
+if (asserted !== 18) {
+  console.log(`  FAIL  this suite declares 18 arms and ran ${asserted}`);
   failures += 1;
 }
 console.log(failures === 0

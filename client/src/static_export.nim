@@ -24,6 +24,8 @@
 import std/[os, strutils, times, algorithm, sets, tables, json, sha1]
 import blocktracer/contract/hashshard   # §5's shard codec + its published depth
 import blocktracer/contract/identifier_encoding  # each chain's declared encoding — the index keys with it
+import blocktracer/contract/chain_profile  # `dsDeclared`: whether a registry row states its ordering
+import blocktracer/contract/versionidx  # the per-chain ledger-version index (globalVersion chains)
 import blocktracer/demo/generator
 import blocktracer/chain/ingest
 import blocktracer/contract/container_encoding
@@ -512,6 +514,85 @@ proc buildGlobalHashIndex(root: DataRoot, routes: seq[string]) =
       "largest " & $v2largest & " B) — published alongside v" & HashIndexVersion &
       " per Publishing-And-Caching §6.1"
 
+proc buildVersionIndexes(root: DataRoot, routes: seq[string]) =
+  ## The ledger-version index (`contract/versionidx.nim`), one per chain whose registry
+  ## row declares `ordering.kind: globalVersion`: an exact map from each published
+  ## transaction's version to the hash its page is named by.
+  ##
+  ## From the same route enumeration as §5's index, for §5's reason: what got a page is
+  ## what the index claims, so a version the index answers is a page that exists.
+  ##
+  ## SCOPED BY THE REGISTRY'S DECLARATION, NOT BY A CHAIN NAME. A chain ordered by block
+  ## height or checkpoint publishes nothing here, so a number typed for it keeps meaning
+  ## what it meant. And a row on a version-ordered chain that carries no version is
+  ## REFUSED and counted, like a route §5's index cannot key: an index that silently
+  ## omitted it would answer "no transaction at this version" about one that is published.
+  var hashesOf = initOrderedTable[string, seq[string]]()
+  var seen = initHashSet[string]()
+  for route in routes:
+    # `/{chain}/tx/{hash}` and nothing longer, as §5's builder reads it.
+    let parts = route.strip(chars = {'/'}).split('/')
+    if parts.len != 3 or parts[1] != "tx": continue
+    if not seen.containsOrIncl(parts[0] & "/" & parts[2]):
+      hashesOf.mgetOrPut(parts[0], @[]).add parts[2]
+
+  for chain, hashes in hashesOf:
+    let info = chainInfo(root, chain)
+    let ordering = info.chainProfile.ordering
+    if ordering.state != dsDeclared or $ordering.kind != GlobalVersionOrdering: continue
+
+    var entries: seq[VersionEntry]
+    var refused: seq[string]
+    var hashAt = initTable[string, string]()
+    for h in hashes:
+      let v = txVersion(root, info, h)
+      if v.len == 0 or canonicalVersion(v) != v:
+        refused.add "/" & chain & "/tx/" & h & "/: the published row states no canonical " &
+          "`id.version`, on a chain whose registry declares " & GlobalVersionOrdering
+        continue
+      # One version, one transaction. Two rows claiming one version is a producer
+      # defect, and indexing either would answer the query with a guess.
+      if v in hashAt:
+        refused.add "/" & chain & "/tx/" & h & "/: version " & v & " is also claimed by " &
+          hashAt[v]
+        continue
+      hashAt[v] = h
+      entries.add VersionEntry(version: v, identifier: h)
+
+    if refused.len > 0:
+      stderr.writeLine "  ! version index (" & chain & "): " & $refused.len &
+        " transaction(s) could not be keyed and are NOT in the index:"
+      for r in refused: stderr.writeLine "      " & r
+    if entries.len == 0:
+      echo "  ! version index (" & chain & "): no transaction carries a version; not published"
+      continue
+
+    var byBucket = initTable[string, seq[VersionEntry]]()
+    for e in entries:
+      byBucket.mgetOrPut(versionBucket(e.version, VersionBucketDigits), @[]).add e
+    var buckets: seq[string]
+    for b in byBucket.keys: buckets.add b
+    buckets.sort(cmpVersion)
+    var largest = 0
+    for b in buckets:
+      let bytes = encodeVersionShard(byBucket[b], VersionBucketDigits)
+      if bytes.len > largest: largest = bytes.len
+      let rel = versionShardPath(chain, VersionIndexVersion, b)
+      ensureDir(parentDir(OutputDir / rel))
+      writeFile(OutputDir / rel, bytes)
+    var shards = newJArray()
+    for b in buckets: shards.add %b
+    # The descriptor a client reads before it computes a path: the bucket width is
+    # PUBLISHED rather than compiled into the client, as §5's shard depth is.
+    writeFile(OutputDir / versionMetaPath(chain), pretty(%*{
+      "indexVersion": VersionIndexVersion, "format": VersionIndexFormat,
+      "ordering": GlobalVersionOrdering, "bucketDigits": VersionBucketDigits,
+      "shardCount": buckets.len, "entryCount": entries.len,
+      "largestShardBytes": largest, "shards": shards}))
+    echo "  + version index (" & chain & "): " & $entries.len & " versions over " &
+      $buckets.len & " bucket(s) of 10^" & $VersionBucketDigits & " (largest " &
+      $largest & " B)"
+
 proc installSearchBundle() =
   ## Put the built search bundle where `/search` says it is — or fail.
   ##
@@ -942,6 +1023,9 @@ proc exportSite() =
   # loop because it is built from the same enumeration: whatever got a page is
   # what the index claims to cover, and neither can drift from the other.
   buildGlobalHashIndex(root, routes)
+  # …and the per-chain ledger-version index, from the same enumeration, for the chains
+  # whose registry row declares `globalVersion` and for no other.
+  buildVersionIndexes(root, routes)
 
   # The not-found body, at the file a static host serves for an unmatched path.
   #

@@ -171,6 +171,9 @@ nimcache/
 # the store path is read-only and the engine has to be copied in beside it.
 /.journey-site/
 /journey-report.json
+# `just journeys-aptos` stages its site here, from the build linked beside it.
+/.journey-site-aptos/
+/.journey-site-aptos-result
 
 # The escaping gate's staged hostile corpus (ci/test/untrusted-text.sh). It is
 # DERIVED from a real capture on every run — see tools/ci/hostile-chain-corpus.mjs

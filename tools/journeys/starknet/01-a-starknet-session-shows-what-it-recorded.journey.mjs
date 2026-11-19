@@ -23,12 +23,16 @@
 //      (`core::array::deserialize_array_helper::<…>`) — the call trace must
 //      hold them inside the pane.
 //
-// The fourth shape the issue names — `ValueRecord::Error` returns and
-// `EventLogKind::Error` events on a frame whose entry point failed — has NO
-// SUBJECT in this corpus: none of the five published Starknet traces carries
-// either (measured with the pinned `ct-print --full` over every container on
-// 2026-10-30). A claim with no subject is not asserted here; it would be a
-// pass about nothing.
+//   4. A CALL CAN FAIL INSIDE A TRANSACTION THAT SUCCEEDS. The entry point's
+//      frame returns `ValueRecord::Error` and the recording carries an
+//      `EventLogKind::Error` event at the failure. The event must read as the
+//      error and not as program output — the engine marked every non-write
+//      event `stdout`, so it read "stdout: Entry point … not found in
+//      contract." — and jumping to it must mark the call that failed, whose
+//      return names the same error. Until 2026-11-01 this shape had no subject
+//      in the corpus; block 17,261,713's only transaction (a call to a selector
+//      its target does not have, at call depth 3) is it. Its SUBJECTS are read
+//      from the engine's event kind, never from the text the verdicts judge.
 //
 // This set runs over `packages.site-starknet`, not the Aztec-only `default`
 // site the main suite judges: `node tools/journeys/run.mjs --set starknet`.
@@ -47,7 +51,7 @@ import { transactions, landingOf } from "../lib/corpus.mjs";
 export const id = "a-starknet-session-shows-what-it-recorded";
 export const claim = "A Starknet session shows what its recording carries, in the shared panes.";
 export const spec = "codetracer-pm issue 2026-10-20 (HSF-B2, Starknet) — BlockTracer";
-export const assertions = 13;
+export const assertions = 18;
 export const needsEngine = true;
 
 /** How many steps each session is walked, reading the mark at every stop. */
@@ -74,6 +78,62 @@ const readCalltrace = (page) =>
       longestName: Math.max(0, ...rows.map((r) => (r.getAttribute("data-function") ?? "").length)),
     };
   });
+
+/** The live Event Log's rows, and the pane they are in, found by PROPERTY. */
+const EV_LIVE = "tr.eventLog-row";
+
+/**
+ * Show the Event Log. The shared view mounts when its tab is shown and draws
+ * rows only once it has measured its viewport, so its rows are not there
+ * before. The tab is found the way journey 09 finds it: the pane that holds
+ * the event rows, and the control whose fragment points at that pane.
+ */
+async function showEventLog(page) {
+  const opened = await page.evaluate(() => {
+    const pane = document.querySelector(".evrow,.eventLog-row")?.closest(".lm_content");
+    if (!pane || !pane.id) return false;
+    const tab = document.querySelector(`a[href="#${CSS.escape(pane.id)}"]`);
+    if (!tab) return false;
+    tab.click();
+    return true;
+  });
+  if (opened) {
+    await page
+      .waitForFunction((ev) => document.querySelectorAll(ev).length > 0, EV_LIVE, { timeout: 15000 })
+      .catch(() => {});
+  }
+  return opened;
+}
+
+/**
+ * The Event Log's Error rows. THE KIND IS THE ENGINE'S (`data-event-kind`,
+ * the recorded `EventLogKind`), NOT THE TEXT: the text is what the verdicts
+ * judge, and a subject taken from it would vanish under the very defect it
+ * exists to catch.
+ */
+const errorRows = (page) =>
+  page.evaluate((ev) =>
+    [...document.querySelectorAll(ev)]
+      .map((r, i) => ({
+        i,
+        kind: r.getAttribute("data-event-kind"),
+        text: (r.querySelector(".eventLog-text")?.textContent ?? "").trim(),
+      }))
+      .filter((r) => r.kind === "Error"), EV_LIVE);
+
+/** The call-trace row marked current, and the return it draws. */
+const currentCall = (page) =>
+  page.evaluate(() => {
+    const row = document.querySelector(".call-current")?.closest(".calltrace-call-line");
+    if (!row) return null;
+    return {
+      fn: row.getAttribute("data-function") ?? "",
+      ret: (row.querySelector(".return-text")?.textContent ?? "").trim(),
+    };
+  });
+
+/** An Error value as the shared presenter draws one. */
+const ERROR_RETURN = /^<error: (.+)>$/;
 
 /** One step forward, waiting for the engine's answer rather than for a change. */
 async function stepForward(page) {
@@ -112,7 +172,23 @@ export async function run({ browser, site, j }) {
   const offInstruction = [];
   let sameDocSteps = 0;
   const rewrites = [];
-  let deepest = { steps: 0, path: "", ct: { shown: 0, overflowing: 0, longestName: 0 } };
+  let deepest = { steps: 0, path: "" };
+  // EVERY JUDGED SESSION'S CALL TRACE, read before the failed-call jump moves
+  // it. Until 2026-11-02 these claims were taken from the session with the
+  // most steps, and the long-path CONTROL held only because that session's
+  // classes happen to be bound to a proved build of their source (their
+  // frames are named by Cairo path). The failed-call transaction has more
+  // steps and unbound classes, whose frames are `fn@0x…` labels; picking a
+  // subject by name length instead would be choosing it by the CONTROL. So
+  // every session is read, the CONTROL asks that SOME frame carries a long
+  // Cairo path, and no row of any session may overflow.
+  const calltraces = [];
+  let errorSessions = 0;
+  let errorEvents = 0;
+  const errorsAsStdout = [];
+  let errorsNamed = 0;
+  const errorJumps = [];
+  let errorReturnsMatch = 0;
 
   for (const t of sessions) {
     const live = await visit(browser, site.origin, t.debugPath, {
@@ -163,10 +239,44 @@ export async function run({ browser, site, j }) {
         }
       }
 
-      // 3. The call tree of the deepest session.
+      // 3. The call tree, and the session with the longest execution.
       const steps = Number(facts.totalSteps ?? 0);
-      if (steps > deepest.steps) {
-        deepest = { steps, path: t.debugPath, ct: await readCalltrace(page) };
+      if (steps > deepest.steps) deepest = { steps, path: t.debugPath };
+      calltraces.push({ at: t.hash.slice(0, 10), ...(await readCalltrace(page)) });
+
+      // 4. A failed call. A Starknet entry point that fails inside a
+      //    transaction that does not revert is recorded with an Error event
+      //    and an Error return (HSF-B2's fourth shape). The event reads as
+      //    the error, and jumping to it marks the call that failed, whose
+      //    return names the same error.
+      if (await showEventLog(page)) {
+        const errs = await errorRows(page);
+        if (errs.length > 0) errorSessions += 1;
+        for (const e of errs) {
+          errorEvents += 1;
+          if (/^stdout:/.test(e.text)) errorsAsStdout.push(`${t.hash.slice(0, 10)}: ${e.text.slice(0, 60)}`);
+          if (e.text.length > 0) errorsNamed += 1;
+          const mark = consoleMark(page);
+          await page.locator(EV_LIVE).nth(e.i).click();
+          await waitForConsoleLine(page, POSITION_ANSWERED, { sinceIndex: mark, budgetMs: 15000 });
+          // Waited for BY ITS CONTENT, bounded: the mark is first still on
+          // the frame the session was on, and a read taken then would judge
+          // the move rather than where it ends.
+          await page
+            .waitForFunction(
+              (re) => {
+                const row = document.querySelector(".call-current")?.closest(".calltrace-call-line");
+                return !!row && new RegExp(re).test((row.querySelector(".return-text")?.textContent ?? "").trim());
+              },
+              ERROR_RETURN.source,
+              { timeout: 15000, polling: 250 },
+            )
+            .catch(() => {});
+          const cur = await currentCall(page);
+          const m = cur ? ERROR_RETURN.exec(cur.ret) : null;
+          errorJumps.push({ at: t.hash.slice(0, 10), fn: cur?.fn ?? "(none)", ret: cur?.ret ?? "", ok: !!m });
+          if (m && e.text.replace(/^stdout:\s*/, "").includes(m[1])) errorReturnsMatch += 1;
+        }
       }
     } finally {
       await page.close();
@@ -193,7 +303,34 @@ export async function run({ browser, site, j }) {
       (rewrites.length ? ` (rewritten at ${rewrites.slice(0, 3).join("; ")})` : ""),
   );
   j.atLeast(deepest.steps, 5000, `CONTROL: the deepest session judged here is a long execution (${deepest.path})`);
-  j.atLeast(deepest.ct.shown, 1, "the deepest session's call trace has rows on screen");
-  j.atLeast(deepest.ct.longestName, 60, "CONTROL: its frames carry long Cairo paths");
-  j.countIs(deepest.ct.overflowing, 0, "no call-trace row, and not the pane, overflows sideways");
+  const bare = calltraces.filter((c) => c.shown < 1).map((c) => c.at);
+  j.countIs(
+    calltraces.length - bare.length,
+    ready,
+    "every Starknet session's call trace has rows on screen" + (bare.length ? ` (none at ${bare.join(", ")})` : ""),
+  );
+  j.atLeast(
+    Math.max(0, ...calltraces.map((c) => c.longestName)),
+    60,
+    "CONTROL: the call traces judged carry long Cairo paths",
+  );
+  const overflowing = calltraces.reduce((n, c) => n + c.overflowing, 0);
+  j.countIs(overflowing, 0, "no call-trace row, and not the pane, overflows sideways, in any session");
+
+  j.atLeast(errorSessions, 1, "SUBJECTS: Starknet sessions whose Event Log carries an Error event");
+  j.countIs(
+    errorsAsStdout.length,
+    0,
+    "no Error event reads as standard output" +
+      (errorsAsStdout.length ? ` (${errorsAsStdout.slice(0, 2).join("; ")})` : ""),
+  );
+  j.countIs(errorsNamed, errorEvents, "every Error event names the error it recorded");
+  const missed = errorJumps.filter((x) => !x.ok);
+  j.countIs(
+    errorJumps.length - missed.length,
+    errorEvents,
+    "jumping to an Error event marks a call whose return is an error" +
+      (missed.length ? ` (marked ${missed.slice(0, 2).map((x) => `${x.fn.slice(0, 24)} => ${x.ret.slice(0, 40) || "(no return)"}`).join("; ")})` : ""),
+  );
+  j.countIs(errorReturnsMatch, errorEvents, "and that return names the same error as the event");
 }

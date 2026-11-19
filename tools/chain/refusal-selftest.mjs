@@ -1501,6 +1501,9 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     ['classification-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
     // The Aptos producer's offline suite, in the commonest pattern.
     ['aptos-producer-selftest.mjs', /asserted !== (\d+)\) \{/],
+    // Recorder-Solana CXP-SOL-5's depth-yield accounting and classifier, offline, so its
+    // `BASE_ARMS` is its total.
+    ['sol-depth-yield-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1528,7 +1531,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     const WORDS = ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT',
                    'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN',
                    'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN', 'TWENTY', 'TWENTY-ONE',
-                   'TWENTY-TWO', 'TWENTY-THREE', 'TWENTY-FOUR', 'TWENTY-FIVE'];
+                   'TWENTY-TWO', 'TWENTY-THREE', 'TWENTY-FOUR', 'TWENTY-FIVE', 'TWENTY-SIX'];
     const statedWord = m[1];
     const stated = m[2].split(' + ').map(Number);
     const statedTotal = Number(m[3]);
@@ -1828,7 +1831,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(245);
+expectCount(246);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

@@ -560,6 +560,30 @@ proc projectCalltrace*(vm: CalltraceVM; contentHash = ""): CallTracePane =
     result.frames[i].href = positionQuery(
       contentHash, result.frames[i].step, result.frames[i].anchor)
 
+proc calltraceEntryOf*(s: LiveSession; anchor: string): Option[int64] =
+  ## The live call-trace entry whose §6.0a call path is `anchor`, or `none`
+  ## when the held rows do not include it. Only a lookup: it selects nothing,
+  ## so a caller can ask whether a frame is held without the miss clearing the
+  ## mark the way `selectCalltraceFrame` deliberately does.
+  ##
+  ## The anchor is resolved over the held rows by each row's logical address
+  ## (`CalltraceVM.rowAddress`, codetracer Shared-DOM-Front-Ends D10), the
+  ## same call path this page's row links are built from (`rowLinksFor`) and
+  ## the static export numbers its rows by. See `selectCalltraceFrame` for why
+  ## the paths come from `callPathsOf` over the held rows, once.
+  let held = s.store.calltrace.lines.val
+  let paths = callPathsOf(held)
+  for row in 0 ..< held.len:
+    var segs: seq[string]
+    for seg in paths[row]: segs.add $seg
+    if segs.len > 0 and "call:" & segs.join(".") == anchor:
+      # The index is read off the held line rather than carried on the frame
+      # because `CallFrame` has no entry index and must not grow one: it is the
+      # live ViewModel's private numbering, and putting it on the shared pane
+      # type would hand the static producer a field it can only fill with a lie.
+      return some(held[row].index)
+  none(int64)
+
 proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
   ## Make the frame `anchor` names the selected one, so the next projection
   ## marks THAT row and no other.
@@ -638,23 +662,10 @@ proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
   # to its row on every call, so asking it row by row made this quadratic in
   # the rows held, on a proc the landing calls on every render until its frame
   # is found.
-  let held = s.store.calltrace.lines.val
-  let paths = callPathsOf(held)
-  var i = -1
-  for row in 0 ..< held.len:
-    var segs: seq[string]
-    for seg in paths[row]: segs.add $seg
-    if segs.len > 0 and "call:" & segs.join(".") == anchor:
-      i = row
-      break
-  if i < 0:
+  let entry = s.calltraceEntryOf(anchor)
+  if entry.isNone:
     s.calltrace.selectEntry(none(int64))
     return false
-  # The index is read off the held line rather than carried on the frame
-  # because `CallFrame` has no entry index and must not grow one: it is the
-  # live ViewModel's private numbering, and putting it on the shared pane type
-  # would hand the static producer a field it can only fill with a lie.
-  let lines = held
   # THE SDK'S SETTER, AND IT COSTS 140,588 BYTES OF BUNDLE — 8% — WHICH IS
   # ACCEPTED RATHER THAN UNNOTICED.
   #
@@ -677,7 +688,7 @@ proc selectCalltraceFrame*(s: LiveSession; anchor: string): bool =
   # the same page pulls an 18 MB replay engine. If it ever matters, the fix
   # belongs in the SDK — a `selectEntry` whose collab branch is behind a
   # compile-time switch — and not in a local bypass here.
-  s.calltrace.selectEntry(some(lines[i].index))
+  s.calltrace.selectEntry(entry)
   true
 
 proc selectLandingFrame*(s: LiveSession; anchor: string): bool =

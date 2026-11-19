@@ -533,6 +533,14 @@
         "sui",
         "aptos"
       ]
+    },
+    {
+      "export": "pictureControlChars",
+      "module": "tools/chain/lib/producer-runtime.mjs",
+      "consumers": [
+        "sui",
+        "aptos"
+      ]
     }
   ],
   "refused": [
