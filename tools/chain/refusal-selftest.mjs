@@ -649,6 +649,57 @@ test('the gate is in the write path, not beside it');
        /import \{ recountSnapshot \} from '\.\/lib\/recount\.mjs'/.test(followSrc)
          && !/function recount\s*\(/.test(followSrc));
 
+    // ── BOTH PRODUCERS MUST AGREE THAT PRIVATE-ONLY IS NOT A REFUSAL ──────────────────
+    //
+    // `lib/refusal.mjs` says the `looksLikePrivateOnlyCrash` signature lives there so
+    // "the producer side, this tool and the selftest share one spelling".
+    // `ingest-range.mjs` decides it from `publicCalls === 0`, which it knows before it
+    // replays; `follow-chain.mjs` replays first, so the crash IS its only discriminator
+    // and it filed these as `runtime-refused` — durability REPAIRABLE — until it adopted
+    // the predicate. Measured on a live aztec-mainnet arm, 2026-11-17: one node-served
+    // body in block 32671 filed exactly that way.
+    ck('`follow-chain.mjs` imports the private-only signature rather than re-spelling it',
+       /looksLikePrivateOnlyCrash/.test(followSrc)
+         && /chainPublishedNoPublicExecution/.test(followSrc));
+    const privOnlyArm = /if \(decided\.outcome === 'refused' && looksLikePrivateOnlyCrash\(decided\)\)[\s\S]{0,400}?\}/
+      .exec(followSrc)?.[0] ?? '';
+    ck('control: that producer-side reclassification is found',
+       /looksLikePrivateOnlyCrash\(decided\)/.test(privOnlyArm));
+    ck('…and it is GUARDED by `outcome === \'refused\'`, so a traced row cannot be relabelled',
+       /decided\.outcome === 'refused' &&/.test(privOnlyArm));
+    ck('…and it drops `refusalReason`, because the closed set is a set of things WE did',
+       /delete decided\.refusalReason/.test(privOnlyArm));
+    bite('mutation: the same arm without the `refused` guard is RED, which is what stops it '
+         + 'relabelling a replayed row',
+         !/decided\.outcome === 'refused' &&/
+            .test(privOnlyArm.replace(/decided\.outcome === 'refused' && /, '')));
+
+    // ── A DEAD ENDPOINT MUST NOT EXIT LIKE A QUIET CHAIN ─────────────────────────────
+    //
+    // `docs/BlockTracer-Chain-Ingestion.proposal.md` 6.1 records the risk ING-1 accepted
+    // and asks for exactly this. Both conditions used to return 1, and under the infra
+    // module the unit is `Restart = always`, so an unreachable endpoint was an endless
+    // restart cycle whose journal looked like a window with nothing in it. Verified by
+    // reproduction on 2026-11-17: a stub answering `node_getNodeInfo` and then 503-ing
+    // every poll gave 12 `poll-error` events and exit 69, while a live endpoint with an
+    // empty window still gave `reason: deadline` and exit 1.
+    ck('`follow-chain.mjs` counts CONSECUTIVE poll failures rather than only logging them',
+       /consecutivePollFailures\+\+/.test(followSrc)
+         && /POLL_FAILURES_BEFORE_GIVING_UP/.test(followSrc));
+    ck('…and a good poll resets the count, so an occasional 5xx does not fail a long arm',
+       /consecutivePollFailures = 0;/.test(followSrc));
+    ck('…and the `poll-error` event carries the count and the threshold, so the journal '
+       + 'shows the breaker approaching rather than only its verdict',
+       /event: 'poll-error'[\s\S]{0,200}?consecutive: consecutivePollFailures/.test(followSrc)
+         && /givingUpAt: POLL_FAILURES_BEFORE_GIVING_UP/.test(followSrc));
+    ck('…and it ends with its OWN reason and its own exit code, which is the whole point',
+       /reason: 'endpoint-unreachable'/.test(followSrc)
+         && /return 69;/.test(followSrc));
+    bite('mutation: with the threshold test removed the loop never breaks, which is the '
+         + 'arm-length `poll-error` loop 6.1 describes',
+         !/consecutivePollFailures >= POLL_FAILURES_BEFORE_GIVING_UP/
+            .test(followSrc.replace(/consecutivePollFailures >= POLL_FAILURES_BEFORE_GIVING_UP/g, 'false')));
+
     // ── THE JOURNAL HAS TO SAY WHY, NOT ONLY THAT ───────────────────────────────────
     //
     // `decideOutcome` fills `detail` from the runtime's stderr for the express purpose of
@@ -1871,7 +1922,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(251);
+expectCount(261);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

@@ -104,7 +104,8 @@ import { join, resolve } from 'node:path';
 import { replayTransaction, run, preflightToolchain, completeBlockCount, completeBlockNumbers }
   from './lib/replay.mjs';
 import { assertRefusalsAreClosed, refuseNotFirstInBlock,
-         refuseBodyNotSoughtFromStore } from './lib/refusal.mjs';
+         refuseBodyNotSoughtFromStore, looksLikePrivateOnlyCrash,
+         chainPublishedNoPublicExecution } from './lib/refusal.mjs';
 import { startBodyProxy } from './lib/body-proxy.mjs';
 import { storeBasePath } from './backfill-bodies.mjs';
 import { recountSnapshot } from './lib/recount.mjs';
@@ -462,15 +463,49 @@ async function main() {
     return 0;
   }
 
+  // ── A DEAD ENDPOINT MUST NOT READ AS A QUIET CHAIN ──────────────────────────────
+  //
+  // `docs/BlockTracer-Chain-Ingestion.proposal.md` 6.1 states the risk ING-1 accepted
+  // when it chose a public endpoint over a self-hosted node: this arm "has no retry, no
+  // backoff and no circuit breaker" on its only source, so "a dead endpoint produces an
+  // arm-length loop of `poll-error` lines and exits 1, which a naive supervisor treats
+  // as 'this arm caught nothing'". Both conditions returned the SAME exit code and the
+  // same shape of journal, and under the infra module the unit is `Restart = always`, so
+  // an unreachable endpoint became an endless restart cycle whose logs look exactly like
+  // a chain with nothing replayable in its window.
+  //
+  // The threshold mirrors `backfill-bodies.mjs`'s `STOP_AFTER_CONSECUTIVE_UNAVAILABLE`,
+  // which is the same judgement about the same provider: a run of failures that does not
+  // clear is the endpoint asking us to stop, not a transient to grind through. It is
+  // CONSECUTIVE, and a single good poll resets it, because an arm that ran for hours over
+  // an endpoint with occasional 5xx did its job and must not be failed for it.
+  //
+  // What this does NOT do is change what a healthy empty window reports: `caught === 0`
+  // against a live endpoint still exits 1, which is what `BlockTracerIngestNotPolling`
+  // and the arm's own `done` reason are read against.
+  const POLL_FAILURES_BEFORE_GIVING_UP = 12;
+  let consecutivePollFailures = 0;
+  let unreachable = null;
+
   while (Date.now() < deadline) {
     polls++;
     const tip = await rpc('node_getBlockNumber');
     const finalized = await rpc('node_getBlockNumber', ['finalized']);
     if (tip?.__err || finalized?.__err) {
-      log({ event: 'poll-error', tip, finalized });
+      consecutivePollFailures++;
+      log({ event: 'poll-error', tip, finalized, consecutive: consecutivePollFailures,
+            givingUpAt: POLL_FAILURES_BEFORE_GIVING_UP });
+      if (consecutivePollFailures >= POLL_FAILURES_BEFORE_GIVING_UP) {
+        unreachable = `${consecutivePollFailures} consecutive polls of ${url} failed to `
+          + `return a tip. That is the endpoint being unreachable, not a window with `
+          + `nothing in it, and the two used to exit the same way.`;
+        break;
+      }
       await sleep(intervalS * 1000);
       continue;
     }
+    // A good poll clears it: the breaker is about a SUSTAINED outage.
+    consecutivePollFailures = 0;
 
     // ── 1. the replayable window, newest first ──────────────────────────────────────
     // Newest first because the oldest block in the window is the one about to finalize:
@@ -571,6 +606,35 @@ async function main() {
         sourcesPath: join(snapDir, srcRel), sourcesRelative: srcRel,
         avm, ctWriter, compactThreshold,
       });
+
+      // ── A PRIVATE-ONLY TRANSACTION IS NOT A REFUSAL, AND THIS PRODUCER COULD NOT SAY SO ──
+      //
+      // `ingest-range.mjs` decides this from `publicCalls === 0`, which it knows BEFORE it
+      // replays. This producer does not decode the body first — it replays and reads the
+      // outcome — so the only discriminator it has is the crash, and that is exactly what
+      // `looksLikePrivateOnlyCrash` is for: upstream's
+      // `getPublicCallRequestsWithCalldata()` reads `data.forPublic.nonRevertibleAccumulatedData`
+      // and `forPublic` is `undefined` when there is no public half.
+      //
+      // `lib/refusal.mjs` says in its own header that the signature lives there so "the
+      // producer side, this tool and the selftest share one spelling". The producer side
+      // never adopted it, so this producer filed these as `runtime-refused` — durability
+      // REPAIRABLE — which tells a reader that a better runtime would trace a transaction
+      // that has no public execution at all and never will. That is the same defect
+      // `migrate-refusal-reasons.mjs` was written to correct on seven committed rows.
+      //
+      // MEASURED, not hypothesised: a 5-minute arm against live aztec-mainnet on
+      // 2026-11-17 caught `0x071fd9017ef499ae…` in block 32671 with a node-served body and
+      // filed it `refused` / `runtime-refused`, detail "Cannot read properties of undefined
+      // (reading 'nonRevertibleAccumulatedData')". The predicate matches that row exactly.
+      //
+      // `refusal` and `detail` STAY, for the reason the migration keeps them: they are the
+      // evidence for this decision, and every reader of the bare `refusal` field is guarded
+      // by `outcome === 'refused'` so nothing miscounts them.
+      if (decided.outcome === 'refused' && looksLikePrivateOnlyCrash(decided)) {
+        delete decided.refusalReason;
+        Object.assign(decided, chainPublishedNoPublicExecution({ blockNumber: c.blockNumber }));
+      }
 
       const row = {
         txHash: c.txHash,
@@ -828,6 +892,21 @@ async function main() {
       return 0;
     }
     await sleep(intervalS * 1000);
+  }
+
+  // THE BREAKER GETS ITS OWN REASON AND ITS OWN EXIT CODE, which is the whole point:
+  // `deadline` means the arm watched a reachable chain and its time ran out, and
+  // `endpoint-unreachable` means it never got an answer. 69 is sysexits' EX_UNAVAILABLE,
+  // so a supervisor or a reader can separate the two without parsing the journal.
+  if (unreachable) {
+    log({ event: 'done', reason: 'endpoint-unreachable', detail: unreachable,
+          url, caught, polls, consecutivePollFailures,
+          bodiesFromStore, completeBlocks: completeBlockCount(snap),
+          completeBlockNumbers: completeBlockNumbers(snap),
+          ...bodyStoreStats(),
+          elapsedMin: Math.round((Date.now() - startedAt) / 60000) });
+    await proxy?.close();
+    return 69;
   }
 
   log({ event: 'done', reason: 'deadline', caught, polls,

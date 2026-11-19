@@ -174,7 +174,7 @@ test-runquota-bridge:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-SEVEN suites — 105 + 18 + 19 + 24 + 24 + 57 + 251 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 13 + 36 + 24 + 56 + 25 + 15 = 1511 counted assertions —
+# TWENTY-SEVEN suites — 105 + 18 + 19 + 24 + 24 + 57 + 261 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 13 + 36 + 24 + 56 + 25 + 15 = 1521 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
