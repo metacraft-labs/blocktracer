@@ -174,7 +174,7 @@ test-runquota-bridge:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-SIX suites — 105 + 18 + 19 + 24 + 24 + 57 + 250 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 13 + 36 + 24 + 56 + 25 = 1495 counted assertions —
+# TWENTY-SEVEN suites — 105 + 18 + 19 + 24 + 24 + 57 + 251 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 13 + 36 + 24 + 56 + 25 + 15 = 1511 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -652,6 +652,11 @@ chain-selftest:
     # its prediction classifier, each driven with a control. The measurement it judges is
     # `tools/chain/measurements/sol-depth-yield.json`, taken live by `capture-sol-window.mjs --depth`.
     node tools/chain/sol-depth-yield-selftest.mjs
+    # Offline and toolchain-free: the ingest-to-site join's REFUSALS. Every arm
+    # removes exactly one published member from a complete bucket mirror and
+    # asserts the tool refuses by name, because a bucket missing a member must
+    # not yield a snapshot with a plausible value invented in its place.
+    node tools/chain/snapshot-from-ingest-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #

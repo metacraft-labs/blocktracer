@@ -1535,6 +1535,14 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // Recorder-Solana CXP-SOL-5's depth-yield accounting and classifier, offline, so its
     // `BASE_ARMS` is its total.
     ['sol-depth-yield-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // THE INGEST-TO-SITE JOIN'S REFUSALS, offline, so its `BASE_ARMS` is its total.
+    // Listed here because it was not listed anywhere: the suite shipped with no entry
+    // in this registry, no `ci.yml` step and no line in the recipe body, so it never
+    // ran — and this list is a hard-coded set rather than a directory sweep, which is
+    // exactly why nothing went red. A converter whose refusals are untested publishes a
+    // snapshot with an invented `tip` or a `prestateStrategy` of "unknown", which
+    // ingests, publishes, and is wrong in a way no reader of the site can detect.
+    ['snapshot-from-ingest-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1562,7 +1570,8 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     const WORDS = ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT',
                    'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN',
                    'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN', 'TWENTY', 'TWENTY-ONE',
-                   'TWENTY-TWO', 'TWENTY-THREE', 'TWENTY-FOUR', 'TWENTY-FIVE', 'TWENTY-SIX'];
+                   'TWENTY-TWO', 'TWENTY-THREE', 'TWENTY-FOUR', 'TWENTY-FIVE', 'TWENTY-SIX',
+                   'TWENTY-SEVEN'];
     const statedWord = m[1];
     const stated = m[2].split(' + ').map(Number);
     const statedTotal = Number(m[3]);
@@ -1862,7 +1871,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(250);
+expectCount(251);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

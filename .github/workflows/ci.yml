@@ -652,7 +652,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 250 assertions, and the reason it is offline is the reason it
+        # ING-3, 251 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -1231,6 +1231,29 @@ jobs:
         # floor; a flat set, a deeper window beating a shallower one, and a set without its
         # zero windows each fail it, by name.
         run: node tools/chain/sol-depth-yield-selftest.mjs
+
+      - name: Does the ingest-to-site join refuse a bucket that is missing a member?
+        # 15 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # THE SUITE EXISTED AND NOTHING RAN IT. `snapshot-from-ingest-selftest.mjs`
+        # shipped with no entry in `refusal-selftest.mjs`'s suite registry, no step
+        # here and no line in `just chain-selftest`'s body — and that registry is a
+        # hard-coded list rather than a directory sweep, so no gate could notice.
+        #
+        # WHAT IS WORTH TESTING IS THE REFUSALS, not the happy path: the happy path is
+        # assembly, and `blocktracer-chain-ingest` validates every assembled member
+        # against `snapshot-contract.json` immediately afterwards. The refusals are the
+        # opposite — nothing downstream can catch a snapshot with an invented `tip` or a
+        # `prestateStrategy` of "unknown", which ingests, publishes, and is wrong in a
+        # way no reader of the site can detect. So eight arms each remove exactly one
+        # published member from a complete bucket mirror and require the tool to refuse
+        # BY NAME, with three green-path arms first so that a tool which refused
+        # everything could not pass them all.
+        #
+        # Those three used to sit inside `if (r.ok)`, so a bucket that failed to
+        # assemble ran nine arms and said nothing was missing. They are unconditional
+        # now and the suite reconciles its tally against `BASE_ARMS`.
+        run: node tools/chain/snapshot-from-ingest-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this
