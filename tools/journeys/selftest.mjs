@@ -2666,39 +2666,63 @@ export function logMissDiagnosis(miss, arm, phase) {
       log(`               of the assertion, or a guard above it stopped holding. Run`);
       log(`               \`node tools/journeys/run.mjs --only ${arm.journey}\` over the`);
       log(`               mutated tree and read where it stops.`);
-      const texts = miss.texts ?? [];
-      if (texts.length) {
-        log(`               WHAT IT DID ASSERT, so the two sets can be compared without`);
-        log(`               another run — a subject chosen differently shows up here as`);
-        log(`               several unfamiliar lines, not one missing one:`);
-        for (const w of texts.slice(0, 20)) log(`                 · ${w}`);
-        if (texts.length > 20) log(`                 … and ${texts.length - 20} more`);
-      }
-      // AND WHY IT STOPPED THERE. The list above says WHICH assertion is the
-      // last one the journey reached; this says what happened at that point.
-      // The distinction it carries is the whole question a NEVER RAN raises:
-      // a mutation that reached further than its target leaves a red assertion
-      // ABOUT THE SUBJECT, while a gesture that timed out leaves a stack inside
-      // the harness, in a phase the mutation's own code path never executes.
-      // Those two are the readings an arm's verdict cannot separate, and a
-      // reader who has only the CI log cannot re-run the mutated tree.
-      const failures = miss.failures ?? [];
-      if (failures.length) {
-        log(`               AND WHY IT STOPPED THERE — every red record of the mutated run,`);
-        log(`               with its detail. A stack here, in a phase the mutation cannot`);
-        log(`               reach, is this runner and not this arm:`);
-        for (const f of failures.slice(0, 5)) {
-          log(`                 ✗ ${f.what}`);
-          for (const line of f.detail.split("\n").slice(0, 8)) {
-            if (line.trim()) log(`                     ${line}`);
-          }
-        }
-        if (failures.length > 5) log(`                 … and ${failures.length - 5} more red record(s)`);
-      }
     } else {
-      log(`               THE JOURNEY RAN — ${miss.records} assertion(s) — and none of them`);
-      log(`               contains that text. The assertion was reworded and this arm`);
-      log(`               still names the old wording.`);
+      // TWO CAUSES, OPPOSITE REMEDIES — AND THIS BRANCH USED TO ASSERT ONE OF
+      // THEM OUTRIGHT. It said "The assertion was reworded and this arm still
+      // names the old wording", which is a claim about the ARM. On blocktracer
+      // #108 that claim was false and cost a diagnosis: journey 12 names
+      // "continuing forward stops at least three times" VERBATIM in its source
+      // and records 30 assertions in a full `journeys` run, but only 12 under a
+      // single-journey bite run — so it never reached the assertion and the arm
+      // was correct all along. The count cannot separate the two causes, so
+      // this names both and prints the evidence instead of choosing one.
+      log(`               THE UNMUTATED JOURNEY RAN — ${miss.records} assertion(s) — and none`);
+      log(`               of them contains that text. TWO CAUSES, OPPOSITE REMEDIES, and the`);
+      log(`               count alone does not separate them:`);
+      log(`                 · the assertion was REWORDED — then fix the ARM to name the new`);
+      log(`                   text, and the journey is fine;`);
+      log(`                 · or the journey STOPPED EARLY and never reached it — then fix`);
+      log(`                   the JOURNEY or its subject, and the ARM is already correct.`);
+      log(`               A journey that makes FEWER records here than in a full \`journeys\``);
+      log(`               run is the second, whatever the wording looks like. Run`);
+      log(`               \`node tools/journeys/run.mjs --only ${arm.journey}\` over the`);
+      log(`               UNMUTATED tree: if it reaches the assertion there, the cause is`);
+      log(`               this run's subject or a gesture, not the wording.`);
+    }
+    // THE EVIDENCE, FOR BOTH PHASES. These two lists used to print on the
+    // mutated branch only, so an unmutated miss — the one that fails a whole
+    // SHARD, because every arm behind it reads the same refusal — arrived with
+    // three lines of prose and no data at all. The lists are what separate the
+    // two causes above without another run, and a CI reader cannot re-run
+    // either tree.
+    const texts = miss.texts ?? [];
+    if (texts.length) {
+      log(`               WHAT IT DID ASSERT, so the two sets can be compared without`);
+      log(`               another run — a subject chosen differently shows up here as`);
+      log(`               several unfamiliar lines, not one missing one:`);
+      for (const w of texts.slice(0, 20)) log(`                 · ${w}`);
+      if (texts.length > 20) log(`                 … and ${texts.length - 20} more`);
+    }
+    // AND WHY IT STOPPED THERE. The list above says WHICH assertion is the
+    // last one the journey reached; this says what happened at that point.
+    // The distinction it carries is the whole question a NEVER RAN raises:
+    // a run that reached further than its target leaves a red assertion
+    // ABOUT THE SUBJECT, while a gesture that timed out leaves a stack inside
+    // the harness, in a phase the mutation's own code path never executes.
+    // Those two are the readings an arm's verdict cannot separate, and a
+    // reader who has only the CI log cannot re-run either tree.
+    const failures = miss.failures ?? [];
+    if (failures.length) {
+      log(`               AND WHY IT STOPPED THERE — every red record of this run, with`);
+      log(`               its detail. A stack here, in a phase the mutation cannot reach,`);
+      log(`               is this runner and not this arm:`);
+      for (const f of failures.slice(0, 5)) {
+        log(`                 ✗ ${f.what}`);
+        for (const line of f.detail.split("\n").slice(0, 8)) {
+          if (line.trim()) log(`                     ${line}`);
+        }
+      }
+      if (failures.length > 5) log(`                 … and ${failures.length - 5} more red record(s)`);
     }
   }
   // AND WHICH OF THE TWO WAYS IT MISSED. `verdictFor` matches with

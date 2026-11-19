@@ -162,10 +162,70 @@ console.log("selftest-diagnosis-test — does a NEVER RAN name its cause?\n");
   ck("redRecords([]) is [], and an absent list does not throw", redRecords().length === 0);
 }
 
+// ── 6. THE UNMUTATED PHASE, WHICH IS THE ONE THAT FAILS A WHOLE SHARD ──────
+// A miss on the UNMUTATED tree used to print three lines of prose and NO data,
+// and those lines asserted a cause it cannot know: "The assertion was reworded
+// and this arm still names the old wording". On blocktracer #108 that was
+// false — journey 12 names the assertion verbatim in its source and makes 30
+// records in a full `journeys` run against 12 under a single-journey bite run,
+// so it never reached the assertion and the arm was right. Every arm behind an
+// unmutated miss reads the same refusal, so this is the branch whose silence
+// costs the most.
+{
+  const out = captured(
+    missWith([{ ok: true, what: "three lines were chosen" }, THREW]),
+    { journey: "j12", file: "x.nim" },
+    "unmutated",
+  );
+  ck(
+    "an UNMUTATED miss now reaches the stack too, not only a mutated one",
+    out.includes("TimeoutError") && out.includes("clickGutter"),
+  );
+  ck(
+    "and it prints what the run DID assert, so the stop is located",
+    out.includes("three lines were chosen") && out.includes("WHAT IT DID ASSERT"),
+  );
+  ck(
+    "it no longer asserts the arm is at fault",
+    !/The assertion was reworded and this arm/.test(out),
+    out.slice(0, 120),
+  );
+  ck(
+    "it names BOTH causes, because the count cannot separate them",
+    /REWORDED/.test(out) && /STOPPED EARLY/.test(out),
+  );
+  ck(
+    "and says which reading a short record count supports",
+    /FEWER records/.test(out),
+  );
+}
+
+// ── 7. CONTROL: THE MUTATED PHASE STILL SAYS ITS OWN THING ─────────────────
+// Sharing the evidence between the phases could have flattened them into one
+// message. The two prose headers are what tell a reader WHICH tree stopped, so
+// an arm that passes only because both branches now print the same text would
+// be a regression wearing a green tick.
+{
+  const mutated = captured(missWith([THREW]));
+  const unmutated = captured(missWith([THREW]), { journey: "j12", file: "x.nim" }, "unmutated");
+  ck(
+    "CONTROL: the mutated header still says the unmutated run recorded it GREEN",
+    /though the unmutated run recorded it and/.test(mutated),
+  );
+  ck(
+    "CONTROL: and the unmutated header does not claim that",
+    !/though the unmutated run recorded it and/.test(unmutated),
+  );
+  ck(
+    "CONTROL: the two phases do not print identical text",
+    mutated !== unmutated,
+  );
+}
+
 const total = pass + fail;
 console.log(`\nassertion count: ${total} (as declared)`);
-if (total !== 15) {
-  console.log(`REFUSED: this suite declares 15 assertions and ran ${total}`);
+if (total !== 23) {
+  console.log(`REFUSED: this suite declares 23 assertions and ran ${total}`);
   process.exit(1);
 }
 if (fail) {
