@@ -73,9 +73,24 @@ if (!runtime || !existsSync(join(runtime, 'replay/node_modules'))) {
 // ── the subject body, built from the runtime's own fixture ──────────────────────────────
 
 const at = (p) => pathToFileURL(resolve(runtime, 'replay/node_modules', p)).href;
-const { BarretenbergSync } = await import(at('@aztec/bb.js/dest/node/index.js'));
+// BOTH SCOPES, v6 FIRST, for the reason `lib/body-proxy.mjs` records at its own
+// loader: a v6 runtime carries no `@aztec/` directory, `--runtime` may name either
+// pin, and this selftest exercises the subject the proxy decodes — so it has to
+// resolve the packages the same way or it tests a loader nobody runs.
+const load = async (candidates, what) => {
+  let last;
+  for (const c of candidates) {
+    try { return await import(at(c)); } catch (err) { last = err; }
+  }
+  console.error(`body-proxy-selftest: no ${what} in ${runtime}/replay/node_modules — tried `
+    + `${candidates.join(', ')}. Last error: ${last?.message ?? last}`);
+  process.exit(2);
+};
+const { BarretenbergSync } = await load(
+  ['@aztec-foundation/bb.js/dest/node/index.js', '@aztec/bb.js/dest/node/index.js'], 'bb.js');
 await BarretenbergSync.initSingleton();
-const { Tx } = await import(at('@aztec/stdlib/dest/tx/index.js'));
+const { Tx } = await load(
+  ['@aztec-labs/stdlib/dest/tx/index.js', '@aztec/stdlib/dest/tx/index.js'], 'stdlib');
 
 const fixturePath = join(runtime, 'replay/fixtures/testnet_replay_tx.json');
 const fixture = JSON.parse(await readFile(fixturePath, 'utf8'));

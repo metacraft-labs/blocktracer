@@ -143,7 +143,69 @@
     # and verified by a full decode). The separate Nim input preserves that
     # producer's exact writer anchor, so the replays and their recorded figures
     # are unchanged; only the version field moves.
+    #
+    # ── THIS INPUT HAS TWO CONSUMERS, AND THEY PULL IN OPPOSITE DIRECTIONS ──
+    #
+    # It is the fixture producer ABOVE, and it is also `packages.chain-runtime`
+    # and `packages.aztec-ct-writer-wasm` — the replay driver and trace writer
+    # that infra's resident follower actually runs (`services/blocktracer-ingest`
+    # binds both). The fixtures want it frozen; the follower wants it current.
+    #
+    # MOVED 2026-11-13 TO 9e9ba381fd, AND THE HAZARD WAS MEASURED BEFORE MOVING.
+    # `238a3a5b` carries the ct-writer's `ct_source_step` but NOT
+    # `discoverContractsFromSeed`, so a follower on it aborts with
+    # `maybe_instance.has_value()` on any transaction that calls a contract it did
+    # not declare — 2 of the 8 first-in-block testnet transactions with retained
+    # bodies do exactly that.
+    #
+    # WHY MOVING IT IS SAFE FOR THE 42 COMMITTED AZTEC FIXTURES, which replay from
+    # committed RPC TRANSCRIPTS rather than from a chain: discovery issues
+    # `getContract` calls those transcripts do not contain, and until
+    # metacraft-labs/aztec-avm-runtime#22 that was a `FixtureMiss` — the exact
+    # invalidation `settled_transaction.ts` records for `pinToSettlingBlock`. #22
+    # makes a source that cannot answer discovery mean "nothing discovered", with
+    # the reason on the round, so an old recording stays playable. Verified on a
+    # fixture that reproduces: 14/14 matched, same rounds, same seed, same 58
+    # instructions, before and after.
+    #
+    # `238a3a5b` is an ANCESTOR of this revision, so the move is linear.
     aztec-avm-runtime = {
+      url = "github:metacraft-labs/aztec-avm-runtime/9e9ba381fd85b65dcf048ba91a5dec6638ab2dd1";
+      flake = false;
+    };
+    # THE HISTORICAL RUNTIME, AND IT IS PINNED SEPARATELY BECAUSE THE WIRE FORMAT
+    # CHANGED UNDER THE FIXTURES RATHER THAN BECAUSE ANYONE WANTS TWO PINS.
+    #
+    # `fixtures/chain-inputs/aztec/` holds 41 immutable JSON-RPC transcripts of
+    # transactions on rollups `1821665230` and `4248422647`, captured from node
+    # 5.2.0 archive nodes (its README records the restoration settings). They are
+    # inputs to execution, replayed offline through the runtime's own upstream
+    # response schemas — so the schemas have to be the ones that WROTE them.
+    #
+    # v6's `BlockHeader` consumes four bytes fewer than v5's before
+    # `state.l1ToL2MessageTree`, which is provable from a transcript without
+    # running anything: the recorded v5 `l1ToL2MessageTree.root` is
+    # `0x28f3d860438bb323…ce3a938` with `nextAvailableLeafIndex` 64733184 =
+    # `0x03DBB800`, and the value v6 dies on is `0x438bb323…ce3a938` + `03dbb800`
+    # — v5's root shifted left four bytes with v5's own leaf index dragged in as
+    # the tail, landing above the BN254 modulus. Every replay reads a prestate
+    # header, so under v6 ALL 41 transcripts are unreplayable, and no choice of
+    # single pin fixes that.
+    #
+    # Retiring them was considered and rejected on a measurement, not a
+    # preference. Of 962 transactions across the three Aztec fixture chains,
+    # exactly TWO carry source bundles, and the live chains cannot replace them:
+    # of 23 contract classes the testnet explorer knows, ZERO publish a
+    # `sourceCodeUrl`, only three are even named, and all three of those are
+    # protocol contracts that `@aztec-labs/protocol-contracts` already ships
+    # offline. Deleting the corpus would cost the only two Aztec source-level
+    # subjects that exist and gain nothing.
+    #
+    # This pin is therefore load-bearing for the HISTORICAL corpus only. It is
+    # the same shape as `fixtureAvm` below, which already pins the v5-era
+    # `avm.wasm` for exactly this reason; the follower's own runtime is the one
+    # above and must stay on v6, because both live networks are node 6.0.0.
+    aztec-avm-runtime-historical = {
       url = "github:metacraft-labs/aztec-avm-runtime/238a3a5b9fe9346868cc7fab84a8aa54513287dd";
       flake = false;
     };
@@ -317,7 +379,8 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, isonim-tui, codetracer-design-system, codetracer
-            , aztec-avm-runtime, codetracer-trace-format, aztec-trace-format-nim, noir-fixture-recorder
+            , aztec-avm-runtime, aztec-avm-runtime-historical
+            , codetracer-trace-format, aztec-trace-format-nim, noir-fixture-recorder
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
             , codetracer-flow-recorder, flow-trace-format
             , codetracer-solana-recorder, sol-trace-format
@@ -343,7 +406,15 @@
         fixtureEnv = {
           NARGO = "${fixtureRecorder}/bin/nargo";
           CT_AZTEC_NODE = "${pkgs.nodejs_24}/bin/node";
-          CT_AZTEC_RUNTIME = chain.avmRuntime;
+          # THE HISTORICAL RUNTIME, NOT `chain.avmRuntime`. Preparation replays
+          # the 41 v5-era transcripts offline through the runtime's upstream
+          # response schemas, and v6's schemas cannot read what v5 wrote — the
+          # four-byte `BlockHeader` shift is spelled out at the
+          # `aztec-avm-runtime-historical` input. The follower stays on v6.
+          #
+          # This is the same reasoning as `CT_AZTEC_AVM_WASM` below, which has
+          # pinned the v5-era module all along.
+          CT_AZTEC_RUNTIME = chainHistorical.avmRuntime;
           CT_AZTEC_WRITER_WASM = "${chain.ctWriterWasm}/lib/aztec_ct_writer.wasm";
           CT_AZTEC_AVM_WASM = fixtureAvm;
           CT_COMPACT_CONTAINER = "${fixtureContainerTools}/bin/compact-container";
@@ -546,6 +617,51 @@
           blocktracerSrc = ./.;
           avmRuntimeSrc = aztec-avm-runtime;
           avmRuntimeRev = aztec-avm-runtime.rev;
+          # `9e9ba381fd` — the v6 lock pair, and v6's three-way scope split.
+          avmRuntimeNpmDepsHash = "sha256-OAiJDT4DU4OqfHRHiSDUEXP2ZlMS0De+jk4XHQvsn0g=";
+          avmRuntimeRequiredPackages = [ "@aztec-labs/stdlib" "@aztec-foundation/bb.js" ];
+          # v6 keeps bb.js under `@aztec-foundation/`; the strip in
+          # `tools/chain/nix` has to name the scope this revision installs.
+          avmRuntimeBbNativeDir = "@aztec-foundation/bb.js/build/amd64-linux";
+          traceFormatSrc = codetracer-trace-format;
+          traceFormatRev = codetracer-trace-format.rev;
+          traceFormatNimSrc = aztec-trace-format-nim;
+          traceFormatNimRev = aztec-trace-format-nim.rev;
+          traceFormatNimDeps = [ nim-stew nim-results nim-unittest2 ];
+        };
+
+        # The same tooling built against the HISTORICAL runtime pin. Only
+        # `.avmRuntime` is ever used from it — by `fixtureEnv` above, to replay
+        # the v5-era transcripts in `fixtures/chain-inputs/aztec/`. Everything
+        # the follower and the published packages use comes from `chain`, so
+        # nothing in this attrset reaches a deployed host or a release.
+        #
+        # Instantiating the file twice is cheap: Nix only forces the attributes
+        # someone demands, and the single demanded one is a source + npm install.
+        chainHistorical = pkgs.callPackage ./tools/chain/nix {
+          nodejs = followerNodejs;
+          blocktracerSrc = ./.;
+          avmRuntimeSrc = aztec-avm-runtime-historical;
+          avmRuntimeRev = aztec-avm-runtime-historical.rev;
+          # `238a3a5b9f` — the v5 lock pair, which is a DIFFERENT tree of
+          # tarballs from the v6 one above and so a different hash.
+          avmRuntimeNpmDepsHash = "sha256-LL2KQXpO0qBLiGK5yeiISoHyLdNJnANHFOYDwUf5I1A=";
+          # AND A DIFFERENT VOCABULARY. This revision predates the v6 rename, so
+          # it installs `@aztec/*` and has no `@aztec-labs/*` or
+          # `@aztec-foundation/*` at all. Asserting the v6 spelling here is what
+          # broke `.#fixture-recordings` on this branch: the v5 tree was correct
+          # and the assertion was not.
+          # Both are DIRECT dependencies of `replay/package.json` at this
+          # revision. `@aztec/bb.js` is only transitive here and exists by
+          # hoisting, so asserting it would be asserting npm's layout rather
+          # than this revision's declared dependencies.
+          avmRuntimeRequiredPackages = [ "@aztec/stdlib" "@aztec/foundation" ];
+          # The historical pin predates the rename, so bb.js is `@aztec/bb.js`.
+          # Verified against the published tarball:
+          # `@aztec/bb.js@5.3.0-nightly.20260819` ships
+          # `build/amd64-linux/{bb,nodejs_module.node,aztec-wsdb}` — three
+          # skylake binaries that SIGILL on an x86-64-v2 runner if they survive.
+          avmRuntimeBbNativeDir = "@aztec/bb.js/build/amd64-linux";
           traceFormatSrc = codetracer-trace-format;
           traceFormatRev = codetracer-trace-format.rev;
           traceFormatNimSrc = aztec-trace-format-nim;
@@ -761,6 +877,20 @@
 
         packages.chain-tools = chain.chainTools;
         packages.chain-runtime = chain.avmRuntime;
+        # The v5-era runtime, exposed as a path because one SUITE needs a parser
+        # of the fixture's own era. `tools/chain/body-proxy-selftest.mjs` builds
+        # its subject by parsing the `aztec_getTxByHash` answer committed inside
+        # the runtime at `replay/fixtures/testnet_replay_tx.json`, and that
+        # recording is `nodeVersion 5.2.0` on rollup `0xd73a91bd…` — a retired
+        # chain. v6's `Tx.schema` reaches `BlockHeader.fromBuffer` on it and
+        # throws `greater or equal to field modulus`, which is the 4-byte header
+        # shift between the two eras, NOT a defect in the seam under test.
+        #
+        # So the suite runs against THIS runtime, for the same reason
+        # `fixtureEnv` above uses `chainHistorical.avmRuntime`: the transcripts
+        # are v5. Nothing deployed resolves through it — the follower, the
+        # published packages and every release come from `chain`.
+        packages.chain-runtime-historical = chainHistorical.avmRuntime;
         packages.aztec-ct-writer-wasm = chain.ctWriterWasm;
         packages.chain-follower = chain.follower;
         packages.chain-follower-nodejs = chain.nodePackage;
