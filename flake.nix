@@ -877,6 +877,20 @@
 
         packages.chain-tools = chain.chainTools;
         packages.chain-runtime = chain.avmRuntime;
+        # The v5-era runtime, exposed as a path because one SUITE needs a parser
+        # of the fixture's own era. `tools/chain/body-proxy-selftest.mjs` builds
+        # its subject by parsing the `aztec_getTxByHash` answer committed inside
+        # the runtime at `replay/fixtures/testnet_replay_tx.json`, and that
+        # recording is `nodeVersion 5.2.0` on rollup `0xd73a91bd…` — a retired
+        # chain. v6's `Tx.schema` reaches `BlockHeader.fromBuffer` on it and
+        # throws `greater or equal to field modulus`, which is the 4-byte header
+        # shift between the two eras, NOT a defect in the seam under test.
+        #
+        # So the suite runs against THIS runtime, for the same reason
+        # `fixtureEnv` above uses `chainHistorical.avmRuntime`: the transcripts
+        # are v5. Nothing deployed resolves through it — the follower, the
+        # published packages and every release come from `chain`.
+        packages.chain-runtime-historical = chainHistorical.avmRuntime;
         packages.aztec-ct-writer-wasm = chain.ctWriterWasm;
         packages.chain-follower = chain.follower;
         packages.chain-follower-nodejs = chain.nodePackage;

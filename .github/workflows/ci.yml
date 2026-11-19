@@ -3692,9 +3692,30 @@ jobs:
         # AND IT IS THE SUITE FOR THE FILE THIS BRANCH CHANGED. `lib/body-proxy.mjs`
         # loads bb.js, stdlib and foundation v6-first with the v5 spelling as a
         # fallback, which is this branch's work; the suite over it had never been
-        # exercised by CI in either scope. Measured locally against a v5-scope
-        # checkout (32 assertions, PASS), which covers the fallback arm only — the
-        # v6 arm is what this step adds, because `CHAIN_RUNTIME` is the v6 runtime.
+        # exercised by CI in either scope.
+        #
+        # IT RUNS AGAINST THE HISTORICAL RUNTIME, AND THE FIRST VERSION OF THIS
+        # STEP WAS WRONG TO USE `CHAIN_RUNTIME`. The suite builds its subject by
+        # parsing the `aztec_getTxByHash` answer committed INSIDE the runtime at
+        # `replay/fixtures/testnet_replay_tx.json`. That recording is
+        # `nodeVersion 5.2.0` on rollup `0xd73a91bd…`, a retired chain, so v6's
+        # `Tx.schema` reaches `BlockHeader.fromBuffer` and throws
+        # `Value 0x… is greater or equal to field modulus` — the 4-byte header
+        # shift between the eras, not a fault in the seam. Pointing it at v6
+        # therefore could not pass for any state of the code under test.
+        #
+        # SO THE v6 ARM OF THE LOADER IS NOT COVERED HERE, and I am not claiming
+        # it is: covering it needs a v6-era recording, which no pin ships today
+        # (filed separately). What this step does add is that the suite runs in
+        # CI AT ALL — it never had — over the v5 spelling the fallback resolves.
+        # The v6 scopes are proven to resolve by the step above, which imports
+        # all three under `CHAIN_RUNTIME` and refuses if neither scope loads.
+        #
+        # The build is INSIDE this step rather than a step of its own, because a
+        # failing step skips every step below it: as a separate step a broken
+        # historical build would silently disable the .ct-writer and
+        # packaged-follower gates underneath, which is the exact failure this
+        # step already caused once (see below).
         #
         # `${FOLLOWER_NODE}/bin/node`, NEVER a bare `node`. This job is
         # self-hosted and has no node on PATH — every other node invocation in
@@ -3705,8 +3726,32 @@ jobs:
         # as a result — a new check that disables the checks beneath it.
         run: |
           set -euo pipefail
+          histo="$(nix build .#chain-runtime-historical -L --no-link --print-out-paths)"
+          echo "historical runtime: ${histo}"
+          # The fixture this suite parses must be the one the runtime ships, and
+          # it must be the v5-era recording. Assert both rather than discover a
+          # vacuous pass later: no fixture, or a fixture whose recorded
+          # nodeVersion is not 5.x, means this step is measuring something other
+          # than what its comment claims.
+          fx="${histo}/replay/fixtures/testnet_replay_tx.json"
+          test -f "${fx}" \
+            || { echo "REFUSED: ${fx} does not exist, so the suite below would have no subject"; exit 1; }
+          ver="$("${FOLLOWER_NODE}/bin/node" -e '
+            const fs = require("fs");
+            const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const c = (d.calls ?? []).find((c) => /NodeInfo/i.test(String(c.method ?? "")));
+            process.stdout.write(String(c?.result?.nodeVersion ?? ""));
+          ' "${fx}")"
+          echo "fixture nodeVersion: ${ver:-<none>}"
+          case "${ver}" in
+            5.*) ;;
+            *) echo "::error::the historical fixture records nodeVersion '${ver:-<none>}', not 5.x."
+               echo "::error::This step exists because the subject is a v5 transcript; if that"
+               echo "::error::changed, run it against CHAIN_RUNTIME instead and re-read the comment."
+               exit 1 ;;
+          esac
           "${FOLLOWER_NODE}/bin/node" tools/chain/body-proxy-selftest.mjs \
-            --runtime "${CHAIN_RUNTIME}"
+            --runtime "${histo}"
 
       - name: The Linux-built .ct writer is a wasm module this node can compile
         # `nix build` succeeding says the linker ran. It does not say the bytes
