@@ -648,6 +648,37 @@ test('the gate is in the write path, not beside it');
     ck('`follow-chain.mjs` takes the tally from there rather than spelling its own',
        /import \{ recountSnapshot \} from '\.\/lib\/recount\.mjs'/.test(followSrc)
          && !/function recount\s*\(/.test(followSrc));
+
+    // ── THE JOURNAL HAS TO SAY WHY, NOT ONLY THAT ───────────────────────────────────
+    //
+    // `decideOutcome` fills `detail` from the runtime's stderr for the express purpose of
+    // explaining a refusal, and the snapshot row gets it through `...decided`. The LOG
+    // line did not name it, and that is not a cosmetic gap: on high-mem-server's
+    // aztec-testnet follower, 2026-11-16, 2,533 of 2,553 refused rows carried
+    // `refusal: "Error"` — a bare JS Error, the least informative class name there is —
+    // so `journalctl -u blocktracer-ingest` and `follow.jsonl` said "Error" 2,533 times
+    // and nothing else, while the detail those same rows carried named the fault in one
+    // line (`Value 0x… is greater or equal to field modulus.`). Diagnosing it meant
+    // pulling a 13 MB snapshot off the host to read a field the follower had already
+    // computed.
+    //
+    // A value only one of two readers can reach is the defect, so this is asserted and
+    // not left to review. The mutation arm below is the point: the regex must be able to
+    // go red, or it is a sentence about the source rather than a check on it.
+    const replayedLogCall = /log\(\{ event: 'replayed'[\s\S]{0,600}?\}\)/.exec(followSrc)?.[0] ?? '';
+    ck('control: the `replayed` log call is found, so the two arms below are not about an '
+       + 'empty string', /outcome: decided\.outcome/.test(replayedLogCall));
+    ck('the `replayed` log event names `detail`, so the journal explains a refusal and not '
+       + 'only its class name',
+       /\bdetail: decided\.detail\b/.test(replayedLogCall));
+    ck('…and it defaults explicitly, because `JSON.stringify` DROPS an `undefined` value and '
+       + 'a reproduced replay would otherwise have no `detail` key to tell from a refusal '
+       + 'that failed to explain itself',
+       /\bdetail: decided\.detail \?\? null\b/.test(replayedLogCall));
+    bite('mutation: the same arm over a log call with `detail` removed is RED, so it is '
+         + 'reading the field and not merely matching the call',
+         !/\bdetail: decided\.detail\b/
+            .test(replayedLogCall.replace(/,\s*\n\s*detail: decided\.detail \?\? null/, '')));
     const captureSrc = readFileSync(new URL('./capture-chain.mjs', import.meta.url), 'utf8');
     ck('`capture-chain.mjs` calls the gate before it writes',
        /assertRefusalsAreClosed[\s\S]{0,200}?writeFile\(join\(outDir, 'snapshot\.json'\)/.test(captureSrc));
@@ -1831,7 +1862,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(246);
+expectCount(250);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);
