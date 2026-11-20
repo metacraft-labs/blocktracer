@@ -1145,9 +1145,21 @@ jobs:
         run: node tools/chain/solana-producer-selftest.mjs
 
       - name: Does a NEVER RAN say WHY the journey stopped, not only where?
-        # 15 assertions, host-independent: every arm drives `logMissDiagnosis`
+        # 23 assertions, host-independent: every arm drives `logMissDiagnosis`
         # and `redRecords` over a synthetic miss, so it needs neither a browser
         # nor a build nor a corpus — only node.
+        #
+        # PROBES 6 AND 7 COVER THE UNMUTATED PHASE, which is the one whose
+        # silence costs the most: every arm behind an unmutated miss reads the
+        # same refusal, so it fails a whole SHARD. That branch printed three
+        # lines of prose and no data, and the prose asserted a cause it cannot
+        # know — "The assertion was reworded and this arm still names the old
+        # wording". On #108 that was false: journey 12 names its assertion
+        # verbatim and makes 30 records in a full `journeys` run against 12
+        # under a single-journey bite run, so it never REACHED the assertion
+        # and the arm was right. Probe 7 is the control for the repair: sharing
+        # the evidence between the phases could have flattened them into one
+        # message, and the two headers are what say WHICH tree stopped.
         #
         # IT LIVES HERE AND NOT IN `journeys`, AND THAT WAS A MEASURED MISTAKE.
         # It was first written as a step of the self-hosted `journeys` job, in

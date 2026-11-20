@@ -316,7 +316,30 @@ async function jump(page, index, selector, before) {
   if (tick !== null) {
     await waitForFacts(page, (f) => f.step === tick, 8000);
   }
-  return readFacts(page);
+  // AND THEN WAIT FOR THE URL, WHICH IS A SEPARATE WRITE FROM THE STEP.
+  //
+  // `before` was already threaded into this helper by all three call sites and
+  // never read — the wait it was passed for was never written. The two waits
+  // above settle the console line and the STEP; the history entry that carries
+  // the time coordinate is written by the app independently, so reading the
+  // facts straight after the step lands can observe the OLD query. That is
+  // exactly what `CONTROL: the … click reached the engine (the time coordinate
+  // advanced)` has been reporting intermittently: on #106 the event-log arm saw
+  // `?v=1&c=…:1 -> ?v=1&c=…:1`, on #111 BOTH arms saw an unchanged query
+  // (`?v=1&t=5&…:13` on both sides) — while the assertions straight after them
+  // passed, `data-step 5 -> 0` and the mark moving. The session HAD moved; only
+  // the read was early. #108, on the same subject bytes, was green.
+  //
+  // THIS CANNOT TURN A REAL DEFECT GREEN, which is the property that makes it
+  // the right fix. The assertion still compares `after.urlQuery` with
+  // `before.urlQuery`; a product that never writes the coordinate still reds,
+  // just after a bounded wait instead of a race. `waitForFacts` returns
+  // `{facts, reached}` and never throws, so a timeout stays a red assertion
+  // rather than becoming a thrown journey.
+  const want = before?.urlQuery;
+  if (want === undefined) return readFacts(page);
+  const settled = await waitForFacts(page, (f) => f.urlQuery !== want, 5000);
+  return settled.facts;
 }
 
 export async function run({ browser, site, j }) {
