@@ -88,7 +88,9 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const DEFAULT_ENDPOINT = 'https://api.cartridge.gg/x/starknet/mainnet';
+// api.cartridge.gg, which the committed measurement was taken against, answers 401 to every
+// request since 2026-11; publicnode serves the same floor (Recorder-Cairo, 2026-11-20).
+const DEFAULT_ENDPOINT = 'https://starknet-rpc.publicnode.com';
 const SCAN_LIMIT = 25;
 const CROSSCHECK_KEYS = 3;
 
