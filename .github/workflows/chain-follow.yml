@@ -53,11 +53,21 @@ name: Follow the Aztec chains into the site
 # catching up. Building a corpus from height 1 through the schedule alone would
 # take 79 hours on mainnet and 101 on testnet.
 #
-# A CATCH-UP IS THIS SAME WORKFLOW WITH TWO INPUTS, not a different tool:
-# dispatch it with a large `max-blocks`, and the job takes the wider
-# `timeout-minutes` below. The fetch measured 6.0 heights/second, so one
-# dispatch can cover tens of thousands of heights. Repeat until a cycle reports
-# `caught up` (exit 75), then leave it to the schedule.
+# A CATCH-UP IS THIS SAME WORKFLOW WITH THREE INPUTS, not a different tool:
+# dispatch it with a large `max-blocks` and `replay: false`, and the job takes
+# the wider `timeout-minutes` below. The fetch measured 6.0 heights/second, so
+# one dispatch can cover tens of thousands of heights. Repeat until a cycle
+# reports `caught up` (exit 75), then leave it to the schedule.
+#
+# `replay: false` IS NOT AN OPTIMISATION, it is what makes a catch-up finish. A
+# replay needs the transaction's BODY, and a body is served only between the
+# finalized tip and the tip — measured 2026-11-23 as 194 blocks (~49 min) on
+# mainnet and 83 (~31 min) on testnet. Historic heights have none, so a catch-up
+# with replay on spends its store budget and then ENDS the run, leaving every
+# row it did not reach saying `body-source-unreachable`. The corpus it builds is
+# therefore metadata: blocks, transactions, outcomes and costs, without traces.
+# That is the same shape the existing published corpora were built in, and the
+# traces accrue from the tip forward once the schedule takes over.
 
 # ── NEW SLUGS, BESIDE THE RETIRED CORPORA RATHER THAN OVER THEM ─────────────
 #
@@ -144,6 +154,18 @@ on:
           starts here.
         type: boolean
         default: false
+      replay:
+        description: >-
+          Produce TRACES as well as metadata. Leave on for a tip-following
+          cycle and turn it OFF for a catch-up: a replay needs the transaction's
+          BODY, and a body is served only between the finalized tip and the tip
+          (194 blocks on mainnet, 83 on testnet, measured 2026-11-23). Over
+          historic heights there is nothing to replay from, so `ingest-range.mjs`
+          spends its store budget and then ENDS the run — every row it did not
+          reach saying `body-source-unreachable`. A catch-up with this on covers
+          far less than one with it off, and costs more to do it.
+        type: boolean
+        default: true
       plan-only:
         description: >-
           Read the ledger and the node, print the range that would be requested,
@@ -419,6 +441,9 @@ jobs:
           MAX_BLOCKS: ${{ github.event.inputs.max-blocks || '150' }}
           ALLOW_FRESH: ${{ github.event.inputs.allow-fresh-ledger || 'false' }}
           PLAN_ONLY: ${{ github.event.inputs.plan-only || 'false' }}
+          # Defaults to on, and a cron passes no inputs — so the schedule always
+          # replays and only a dispatch can turn it off.
+          REPLAY: ${{ github.event.inputs.replay || 'true' }}
           CHAIN: ${{ matrix.chain }}
         run: |
           set -euo pipefail
@@ -464,13 +489,24 @@ jobs:
 
           # Everything after `--` is ingest-range.mjs's, verbatim. `follow-to-tip`
           # restates none of it, which is what keeps one definition of `--replay`.
+          args+=(--)
+          # THE TOOLCHAIN FLAGS GO WITH `--replay` AND ONLY WITH IT. Passing a
+          # runtime to a metadata-only run is harmless but misleading: it says
+          # this cycle intended to trace. `preflightToolchain` refuses before a
+          # single transaction is attempted, so when they ARE passed they are all
+          # passed together.
+          if [ "${REPLAY}" = "true" ]; then
+            args+=(
+              --replay
+              --runtime "${RUNTIME}"
+              --node "${NODE_BIN}"
+              --avm "$RUNNER_TEMP/avm.wasm"
+              --ct-writer "${CT_WRITER}"
+            )
+          else
+            echo "replay OFF — metadata coverage only, no containers will be produced"
+          fi
           args+=(
-            --
-            --replay
-            --runtime "${RUNTIME}"
-            --node "${NODE_BIN}"
-            --avm "$RUNNER_TEMP/avm.wasm"
-            --ct-writer "${CT_WRITER}"
             --ingest-bin ./blocktracer-chain-ingest
             --publish-bin ./blocktracer-publish
             --backend s3
