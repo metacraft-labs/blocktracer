@@ -386,7 +386,13 @@ jobs:
             --endpoint-url "$R2_ENDPOINT" --only-show-errors > "$RUNNER_TEMP/seed.log" 2>&1 || rc=$?
           if [ "$rc" -eq 0 ]; then
             echo "seeded from ${key}:"
-            nix develop .#ci --command jq -r '.chains | keys | join(", ")' "$seed" | sed 's/^/  chains: /'
+            # python3, NOT jq: the `.#ci` devShell declares awscli2, curl, brotli,
+            # perl and bubblewrap — and no jq. `jq` here would exit 127 inside a
+            # `set -e` step and fail the cycle for one cosmetic line, which is the
+            # worst trade available. python3 IS declared there.
+            nix develop .#ci --command python3 -c \
+              'import json,sys; print("  chains:", ", ".join(sorted(json.load(open(sys.argv[1]))["chains"])))' \
+              "$seed"
             echo "SEED=$seed" >> "$GITHUB_ENV"
           elif grep -qiE 'does not exist|NoSuchKey|Not Found|404' "$RUNNER_TEMP/seed.log"; then
             echo "the bucket has no registry/chains.v1.json yet — first publish, nothing to preserve"
