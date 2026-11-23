@@ -1594,6 +1594,14 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // snapshot with an invented `tip` or a `prestateStrategy` of "unknown", which
     // ingests, publishes, and is wrong in a way no reader of the site can detect.
     ['snapshot-from-ingest-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // THE TIP-FOLLOWER'S REFUSALS, offline, so its `BASE_ARMS` is its total. The two
+    // that matter are about one measured hazard: BOTH Aztec networks were restarted
+    // after this project captured them (`tools/chain/retired-networks.json`), so a
+    // follower that reads "head below the highest covered height" as "nothing to do"
+    // files a new rollup's blocks into a generation whose height map belongs to the
+    // retired one — every object well-formed, the pointer agreeing with the map, and
+    // the map a lie about which chain it holds.
+    ['follow-to-tip-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
   ];
   const terms = [];
   for (const [file, re] of declared) {
@@ -1622,7 +1630,7 @@ test('the recipe\'s declared assertion total is the one the suites declare');
                    'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN',
                    'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN', 'TWENTY', 'TWENTY-ONE',
                    'TWENTY-TWO', 'TWENTY-THREE', 'TWENTY-FOUR', 'TWENTY-FIVE', 'TWENTY-SIX',
-                   'TWENTY-SEVEN'];
+                   'TWENTY-SEVEN', 'TWENTY-EIGHT'];
     const statedWord = m[1];
     const stated = m[2].split(' + ').map(Number);
     const statedTotal = Number(m[3]);
@@ -1922,7 +1930,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(261);
+expectCount(262);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

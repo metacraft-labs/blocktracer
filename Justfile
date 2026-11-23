@@ -174,7 +174,7 @@ test-runquota-bridge:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-SEVEN suites — 105 + 18 + 19 + 24 + 24 + 57 + 261 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 13 + 36 + 24 + 56 + 25 + 15 = 1521 counted assertions —
+# TWENTY-EIGHT suites — 105 + 18 + 19 + 24 + 24 + 57 + 262 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 13 + 36 + 24 + 56 + 25 + 15 + 19 = 1541 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -657,6 +657,12 @@ chain-selftest:
     # asserts the tool refuses by name, because a bucket missing a member must
     # not yield a snapshot with a plausible value invented in its place.
     node tools/chain/snapshot-from-ingest-selftest.mjs
+    # Offline and toolchain-free: the tip-follower's arithmetic and its two
+    # refusals. No node, no ledger on disk and no child process — `planRange` and
+    # `checkIdentity` were separated from the side effects so a restarted chain
+    # can be driven over made-up numbers, which is the one case that must never
+    # publish and the one case a live endpoint cannot be asked to produce.
+    node tools/chain/follow-to-tip-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
