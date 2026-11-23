@@ -79,12 +79,19 @@ name: Follow the Aztec chains into the site
 on:
   schedule:
     # EVERY 15 MINUTES, AND THE NUMBER IS THE REPLAYABLE WINDOW RATHER THAN A
-    # ROUND FIGURE. `follow-chain.mjs`'s header measures it: a body is served
-    # only between the finalized tip and the tip, "25 blocks ≈ 30 minutes".
-    # A cycle that starts more than that after the previous one leaves heights
-    # whose bodies have pruned, and a height with no body is a transaction
-    # published with no trace — which is the product, not a cosmetic loss.
-    # Half the window leaves room for a cycle to take as long as a cycle.
+    # ROUND FIGURE. A body is served only between the finalized tip and the tip,
+    # and a height whose body has pruned is a transaction published with no
+    # trace — the product, not a cosmetic loss. `follow-chain.mjs`'s header
+    # measured that window at "25 blocks ≈ 30 minutes"; re-measured on both
+    # live chains on 2026-11-23 as `tip - finalized` it is 194 blocks (~49 min)
+    # on mainnet and 83 (~31 min) on testnet. 15 minutes is inside the SHORTER
+    # of those with room for a cycle to take as long as a cycle.
+    #
+    # It also has to be fast enough to keep up, which is a separate sum and the
+    # one that set `max-blocks`: from block timestamps 200 apart the same day,
+    # mainnet runs at 15.1 s/block (60 blocks per cycle) and testnet at 22.7
+    # (40). A cadence or a cap below those numbers falls behind for ever while
+    # every cycle exits 0.
     - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
@@ -101,7 +108,7 @@ on:
           watch the rate limit: the measured cost of a `retry-after` on these
           public endpoints is 41 minutes, and polling it makes that longer.
         type: string
-        default: '50'
+        default: '150'
       allow-fresh-ledger:
         description: >-
           Permit a cycle that finds NO coverage ledger. Off by default and it
@@ -308,7 +315,7 @@ jobs:
           AWS_DEFAULT_REGION: auto
           R2_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          MAX_BLOCKS: ${{ github.event.inputs.max-blocks || '50' }}
+          MAX_BLOCKS: ${{ github.event.inputs.max-blocks || '150' }}
           ALLOW_FRESH: ${{ github.event.inputs.allow-fresh-ledger || 'false' }}
           PLAN_ONLY: ${{ github.event.inputs.plan-only || 'false' }}
           CHAIN: ${{ matrix.chain }}

@@ -81,10 +81,31 @@
 //     [--url URL] [--max-blocks N] [--below-finalized] [--allow-fresh-ledger] \
 //     [--plan-only] [--json] [-- ...every ingest-range.mjs flag...]
 //
-//   --max-blocks N      the most heights one cycle may request (default 50).
+//   --max-blocks N      the most heights one cycle may request (default 150).
 //                       A cycle is BOUNDED so a follower that fell a day behind
 //                       catches up over many short runs instead of one run that
 //                       a timer kills in the middle of a publish.
+//
+//                       150 IS A MEASUREMENT AND THE FIRST VALUE HERE WAS WRONG.
+//                       It was 50, chosen before anything measured the chains,
+//                       and 50 is BELOW what mainnet produces between cycles — a
+//                       follower capped there falls about ten blocks further
+//                       behind every quarter hour, for ever, while every cycle
+//                       exits 0 and publishes something. Taken from block
+//                       timestamps 200 apart on 2026-11-23:
+//
+//                         aztec          15.1 s/block -> 60 blocks per 15 min
+//                         aztec-testnet  22.7 s/block -> 40 blocks per 15 min
+//
+//                       So the cap has to clear 60, and the headroom above it is
+//                       what lets a cycle that was skipped be made up by the
+//                       next one rather than by an operator. The ceiling that
+//                       bounds it is the REPLAYABLE WINDOW, measured the same
+//                       day as `tip - finalized`: 194 blocks (~49 min) on
+//                       mainnet and 83 (~31 min) on testnet. A cap far above
+//                       that would ask for heights whose bodies have pruned, and
+//                       a height with no body is a transaction published with no
+//                       trace.
 //   --below-finalized   follow `finalized` rather than the unproven tip. OFF by
 //                       default, because the replayable window is
 //                       `finalized+1 .. tip` (`follow-chain.mjs`'s header: ~25
@@ -126,7 +147,10 @@ export function parseArgs(argv) {
     chain,
     url: arg('url', chain ? DEFAULT_URL(chain) : ''),
     stateDir: arg('state', ''),
-    maxBlocks: Number(arg('max-blocks', '50')),
+    // See the header: 150 clears mainnet's measured 60 blocks per 15-minute
+    // cycle with headroom, and stays well inside the 83-block testnet
+    // replayable window that bounds it from above.
+    maxBlocks: Number(arg('max-blocks', '150')),
     belowFinalized: flag('below-finalized'),
     allowFreshLedger: flag('allow-fresh-ledger'),
     planOnly: flag('plan-only'),
