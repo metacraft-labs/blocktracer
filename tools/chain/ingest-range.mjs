@@ -67,7 +67,14 @@
 //     [--state .chain-state/<chain>] [--ingest-bin ./blocktracer-chain-ingest] \
 //     [--publish-bin ./blocktracer-publish] \
 //     [--backend local|s3] [--dest DIR | --bucket B --endpoint U --prefix P] \
-//     [--no-publish] [--no-merge] [--refetch] [--pad 9] [--json]
+//     [--no-publish] [--no-merge] [--refetch] [--pad 9] [--json] \
+//     [--registry-seed <chains.vN.json>]
+//
+//   --registry-seed  a registry object copied into the fresh tree BEFORE the
+//                    ingest, so `ingest.nim` adds this chain to the store's
+//                    existing rows. Required against any store that serves
+//                    another chain; the publisher refuses a registry that drops
+//                    one, by name.
 //
 //   --refetch     re-fetch a range the ledger already covers (the refresh path)
 //   --no-merge    ingest ONLY this range's snapshot, not the union — the
@@ -76,7 +83,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync, statSync,
          linkSync, copyFileSync } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
@@ -201,6 +208,10 @@ const bodyDir = arg('body-dir', join(stateDir, 'bodies'));
 // `body-source-unreachable` rather than claiming a permanent property of the chain.
 const storeAttempts = Math.max(1, Number(arg('store-attempts', '4')));
 const storeTimeoutMs = Math.max(1000, Number(arg('store-timeout-ms', '30000')));
+// A registry object to copy into the fresh tree before the ingest, so this
+// chain is ADDED to the store's existing rows rather than replacing them. See
+// the block beside `treeDir`.
+const registrySeed = arg('registry-seed', '');
 const configRef = arg('config',
   'https://raw.githubusercontent.com/AztecProtocol/networks/main/network_config.json');
 
@@ -214,6 +225,41 @@ const configRef = arg('config',
 if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
   console.error('usage: --from N --to M [--url U] [--chain C] [--state DIR] …');
   process.exit(2);
+}
+
+// VALIDATED HERE AND USED MUCH LATER, because a run that is going to refuse
+// should refuse before it spends an endpoint's rate limit. The copy itself
+// happens beside `treeDir`, after the fetch, because that is when the tree
+// exists; the REASONS to refuse are all knowable now.
+if (registrySeed) {
+  if (!existsSync(registrySeed)) {
+    console.error(`refusing: --registry-seed ${registrySeed} does not exist. An absent seed `
+      + 'would silently produce a registry holding only this chain, which the publisher '
+      + 'refuses against any store that serves another chain — so this refuses first, where '
+      + 'the cause is still visible and before a single height is fetched.');
+    process.exit(1);
+  }
+  const seedBase = basename(registrySeed);
+  if (!/^chains\.v\d+\.json$/.test(seedBase)) {
+    console.error(`refusing: --registry-seed must be named chains.v<N>.json (got `
+      + `'${seedBase}'). The contract version lives in the filename and the ingest looks `
+      + 'for it by that name, so a seed under any other name is silently ignored rather '
+      + 'than used — which is the failure this check exists to make loud.');
+    process.exit(1);
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(registrySeed, 'utf8'));
+    if (parsed === null || typeof parsed !== 'object' || typeof parsed.chains !== 'object'
+        || parsed.chains === null) {
+      throw new Error('no `chains` object');
+    }
+  } catch (err) {
+    console.error(`refusing: --registry-seed ${registrySeed} is not a registry `
+      + `(${err.message}). Seeding a malformed file would make the ingest write its own `
+      + 'one-chain registry over it and the publish would then refuse for a reason that '
+      + 'names the registry rather than this file.');
+    process.exit(1);
+  }
 }
 
 const say = (m) => { if (!jsonOnly) console.error(`ingest-range: ${m}`); };
@@ -1383,6 +1429,37 @@ report.ingestSource = { merged: !noMerge, coveredRanges: covered.length,
 const treeDir = TREE;
 spawnSync('rm', ['-rf', treeDir]);
 mkdirSync(treeDir, { recursive: true });
+
+// ── THE REGISTRY THE STORE ALREADY HAS, PUT BACK BEFORE THE INGEST ──────────
+//
+// `--registry-seed` is a registry object copied into the fresh tree so that
+// `ingest.nim` ADDS this chain to it instead of writing a registry holding only
+// this chain. That file says so in its own words — "registry: ADD this chain,
+// never replace the file … this reads what is there and adds one key" — and the
+// publisher refuses the other shape by name:
+//
+//   refusing to publish a registry that drops chain(s) aztec,
+//   aztec-testnet-frames, demo (the object is registry/chains.v1.json): the
+//   store lists them and this tree does not.
+//
+// MEASURED, not predicted: that is the verbatim refusal from publishing one
+// chain into a local store whose registry carried blocktracer.org's four rows.
+// Without a seed a continuous single-chain publisher cannot write to a store
+// that serves any other chain — which is every real store.
+//
+// IT GOES BEFORE THE INGEST AND NOT AFTER, and the order is the whole point: a
+// seed written afterwards would REPLACE the row this run just produced, leaving
+// the chain unlisted and its objects invisible. Before, it is the base that
+// `ingest.nim` adds to.
+//
+// Copied rather than merged here, because merging is `ingest.nim`'s job and a
+// second implementation of it is a second thing to disagree.
+if (registrySeed) {
+  const base = basename(registrySeed);   // validated at startup; see the guard there
+  mkdirSync(join(treeDir, 'registry'), { recursive: true });
+  copyFileSync(registrySeed, join(treeDir, 'registry', base));
+  say(`seeded ${base} from ${registrySeed}`);
+}
 
 say(`ingesting ${source.blocks} blocks / ${source.transactions} transactions -> ${treeDir}`);
 const tIngest = Date.now();

@@ -59,29 +59,48 @@ name: Follow the Aztec chains into the site
 # dispatch can cover tens of thousands of heights. Repeat until a cycle reports
 # `caught up` (exit 75), then leave it to the schedule.
 
-# ── THE FIRST CYCLE OF A CHAIN IS A DELIBERATE CUTOVER, AND ONLY A DISPATCH ──
+# ── NEW SLUGS, BESIDE THE RETIRED CORPORA RATHER THAN OVER THEM ─────────────
 #
-# The schedule can never start a chain, because it never passes
-# `allow-fresh-ledger` and `follow-to-tip.mjs` refuses a chain whose state
-# directory holds no ledger. That is not caution for its own sake: the
-# generations currently published under `aztec` and `aztec-testnet` belong to
-# RETIRED rollups (`tools/chain/retired-networks.json` — mainnet captured head
-# 102,690, testnet 99,092, and both networks were restarted after that), so the
-# first cycle of a chain publishes a generation holding the LIVE rollup's blocks
-# and flips `current.json` onto it. Every URL pinned to the old generation stops
-# resolving. That is the intended replacement and it is a one-way production
-# cutover, so it is one checkbox on one dispatch rather than something a cron can
-# do by finding an empty directory:
+# This publishes `aztec-v6` and `aztec-testnet-v6`, not `aztec` and
+# `aztec-testnet`, and that is forced by two guards rather than chosen for
+# tidiness. Both Aztec networks restarted, so the corpora published under the
+# old slugs belong to rollups that no longer exist
+# (`tools/chain/retired-networks.json`). Republishing the LIVE chains under
+# those names was measured against a store shaped like blocktracer.org's and is
+# refused twice over:
+#
+#   1. `ingest.nim` refuses to re-pin a chain's default recorder. Production
+#      pins `aztec` and `aztec-testnet` to recorder build `sha1:508588d9…`;
+#      this producer writes `sha1:ce9426cf…`. Its refusal says why: every
+#      overlay row that names no recorder of its own is addressed under that
+#      pin, so moving it re-derives their trace addresses and strands their
+#      containers at the old ones.
+#   2. `blocktracer-publish` refuses a registry that DROPS a chain the store
+#      lists — which is a different problem, solved by `--registry-seed` below,
+#      and it bites whatever slug is used.
+#
+# Both guards are right, and neither is worth defeating: the retired corpora
+# stay readable at their own names, `retired-networks.json` stays true about
+# them, and the live chains get names that say which rollup they are. The cost
+# is that URLs pinned to the old generations keep pointing at the old data,
+# which is accurate rather than broken.
+#
+# ── THE FIRST CYCLE OF A CHAIN IS STILL ONLY A DISPATCH ─────────────────────
+#
+# The schedule can never START a chain: it does not pass `--allow-fresh-ledger`,
+# and `follow-to-tip.mjs` refuses a chain whose state directory holds no ledger.
+# That refusal is about losing coverage, not about cutting over — an absent
+# ledger is a forgotten one, and the union over a single range would publish a
+# generation whose height map holds nothing else. So:
 #
 #   1. `plan-only: true` — read the ledger and the node, publish nothing, and
-#      look at the range and the identity it reports.
+#      look at the range and the chain identity it reports.
 #   2. `allow-fresh-ledger: true`, one chain at a time, small `max-blocks`.
-#   3. Drop that chain's entry from `tools/chain/retired-networks.json` in the
-#      same change as the data replacement: with the live rollup published, the
-#      "the network that would serve the repair no longer exists" claim becomes
-#      false for every row the new generation carries.
-#   4. From then on the schedule owns it, and a dispatch is only ever needed to
-#      catch up faster or to inspect.
+#   3. Then catch up (see below), then leave it to the schedule.
+#
+# Nothing here changes `retired-networks.json`: those entries describe the old
+# slugs, they remain true, and this workflow does not write to them.
+
 
 on:
   schedule:
@@ -153,7 +172,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        chain: ${{ fromJSON(github.event.inputs.chain && format('["{0}"]', github.event.inputs.chain) || '["aztec","aztec-testnet"]') }}
+        chain: ${{ fromJSON(github.event.inputs.chain && format('["{0}"]', github.event.inputs.chain) || '["aztec-v6","aztec-testnet-v6"]') }}
     runs-on:
       - self-hosted
       - nixos
@@ -324,6 +343,62 @@ jobs:
           # fixtures/chain-artifacts, and a list of trees to repair goes stale.
           cp -r --no-preserve=mode,ownership "$RUNNER_TEMP/fixture-recordings"/. .
 
+      # ── THE REGISTRY THE STORE ALREADY HAS ─────────────────────────────────
+      #
+      # MEASURED, NOT PREDICTED. Publishing one chain into a local store whose
+      # registry carried blocktracer.org's four rows produced, verbatim:
+      #
+      #   publish failed: refusing to publish a registry that drops chain(s)
+      #   aztec, aztec-testnet-frames, demo (the object is
+      #   registry/chains.v1.json): the store lists them and this tree does not.
+      #
+      # `ingest.nim` writes the registry by ADDING this chain to whatever the
+      # tree already holds ("registry: ADD this chain, never replace the file"),
+      # and `ingest-range.mjs` wipes the tree every run — so the store's rows
+      # have to be put back into the fresh tree BEFORE the ingest. That is what
+      # `--registry-seed` does, and the order is the whole point: a seed applied
+      # afterwards would replace the row this cycle just produced and leave the
+      # chain unlisted.
+      #
+      # READ FROM THE BUCKET AND NOT FROM blocktracer.org, because an edge can
+      # serve a cached registry and the publisher compares against the bucket.
+      #
+      # ABSENT IS NOT EMPTY: a bucket with no registry yet is a first publish and
+      # the ingest writes its own. A bucket whose registry cannot be READ is a
+      # credential or endpoint fault, and seeding nothing there would publish a
+      # one-chain registry over a populated one — which the publisher would
+      # refuse, but for a reason naming the registry rather than this step. So
+      # the two cases are told apart here.
+      - name: Seed the store's registry rows
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/registry-seed"
+          seed="$RUNNER_TEMP/registry-seed/chains.v1.json"
+          key="s3://${R2_BUCKET}/registry/chains.v1.json"
+          rc=0
+          nix develop .#ci --command aws s3 cp "$key" "$seed" \
+            --endpoint-url "$R2_ENDPOINT" --only-show-errors > "$RUNNER_TEMP/seed.log" 2>&1 || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "seeded from ${key}:"
+            nix develop .#ci --command jq -r '.chains | keys | join(", ")' "$seed" | sed 's/^/  chains: /'
+            echo "SEED=$seed" >> "$GITHUB_ENV"
+          elif grep -qiE 'does not exist|NoSuchKey|Not Found|404' "$RUNNER_TEMP/seed.log"; then
+            echo "the bucket has no registry/chains.v1.json yet — first publish, nothing to preserve"
+            echo "SEED=" >> "$GITHUB_ENV"
+          else
+            echo "::error::could not read ${key}, and that is not the same as the bucket not"
+            echo "::error::having one. Publishing without the seed would write a registry holding"
+            echo "::error::only this chain over a populated one. Refusing here instead."
+            sed 's/^/  /' "$RUNNER_TEMP/seed.log"
+            exit 1
+          fi
+
       - name: Follow ${{ matrix.chain }} to the tip
         env:
           STATE_ROOT: ${{ vars.CHAIN_FOLLOW_STATE_ROOT || '/build/blocktracer-site-follow' }}
@@ -396,6 +471,10 @@ jobs:
             --bucket "${R2_BUCKET}"
             --endpoint "${R2_ENDPOINT}"
           )
+          # Empty when the bucket has no registry yet; the flag is then omitted
+          # entirely rather than passed as "", which `ingest-range.mjs` would
+          # read as "seed from a file named ''" and refuse.
+          [ -n "${SEED:-}" ] && args+=(--registry-seed "${SEED}")
 
           set +e
           "${NODE_BIN}" "${args[@]}"

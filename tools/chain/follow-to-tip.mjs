@@ -122,6 +122,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 // Exit codes, named so the systemd unit and the selftest agree on them.
+export { CHAIN_ENDPOINTS };
 export const EXIT_OK = 0;
 export const EXIT_REFUSED = 1;
 export const EXIT_USAGE = 2;
@@ -130,7 +131,34 @@ export const EXIT_USAGE = 2;
 // published something. The infra unit lists it in `SuccessExitStatus`.
 export const EXIT_CAUGHT_UP = 75;
 
-const DEFAULT_URL = (chain) => `https://${chain === 'aztec' ? 'aztec' : chain}.drpc.org`;
+/**
+ * The endpoint each slug is followed from — a TABLE, not a rule.
+ *
+ * This derived the URL from the slug (`https://${chain}.drpc.org`), which works
+ * only while every slug happens to be a drpc hostname. It stopped being true the
+ * moment the live rollups needed slugs of their own: both Aztec networks
+ * restarted, and the corpora published under `aztec` and `aztec-testnet` belong
+ * to the retired ones, so the live chains are published beside them rather than
+ * over them. `https://aztec-testnet-v6.drpc.org` is not a host.
+ *
+ * A WRONG URL IS NOT A LOUD FAILURE HERE, which is why this refuses instead of
+ * guessing: a slug that resolves to some other chain's endpoint produces a
+ * perfectly well-formed ledger, snapshot and generation describing the WRONG
+ * chain under this name, and nothing downstream can tell. `--url` always wins,
+ * so an operator can follow anything; it is only the DEFAULT that is a table.
+ */
+const CHAIN_ENDPOINTS = {
+  // The live rollups, which is what a follower follows.
+  'aztec-v6': 'https://aztec.drpc.org',
+  'aztec-testnet-v6': 'https://aztec-testnet.drpc.org',
+  // The retired slugs keep their mapping so an operator can still point a tool
+  // at them deliberately. `tools/chain/retired-networks.json` records that the
+  // networks behind them are gone, so a follower aimed here will be refused by
+  // the tip-regression check rather than by this table — which is the right
+  // refusal, because it is about the data and not about a hostname.
+  'aztec': 'https://aztec.drpc.org',
+  'aztec-testnet': 'https://aztec-testnet.drpc.org',
+};
 
 export function parseArgs(argv) {
   // Everything after a bare `--` is ingest-range.mjs's, verbatim and unparsed.
@@ -145,7 +173,7 @@ export function parseArgs(argv) {
   const chain = arg('chain', '');
   return {
     chain,
-    url: arg('url', chain ? DEFAULT_URL(chain) : ''),
+    url: arg('url', '') || CHAIN_ENDPOINTS[chain] || '',
     stateDir: arg('state', ''),
     // See the header: 150 clears mainnet's measured 60 blocks per 15-minute
     // cycle with headroom, and stays well inside the 83-block testnet
@@ -258,6 +286,14 @@ async function main() {
   if (!o.chain || !o.stateDir) {
     console.error('usage: --chain SLUG --state DIR [--url U] [--max-blocks N] '
       + '[--below-finalized] [--allow-fresh-ledger] [--plan-only] [--json] [-- …]');
+    process.exit(EXIT_USAGE);
+  }
+  if (!o.url) {
+    console.error(`follow-to-tip: refusing: no endpoint for chain '${o.chain}' and no --url.\n`
+      + `  Known slugs: ${Object.keys(CHAIN_ENDPOINTS).join(', ')}.\n`
+      + '  This used to derive the host from the slug, which silently produces a ledger,\n'
+      + '  a snapshot and a generation describing the WRONG chain under this name when the\n'
+      + '  guess happens to resolve. Pass --url to follow a chain this table does not know.');
     process.exit(EXIT_USAGE);
   }
 

@@ -18,12 +18,13 @@
 // everything could not pass them all — the shape
 // `snapshot-from-ingest-selftest.mjs`'s header had to be corrected into.
 
-import { planRange, checkIdentity, highestCovered, EXIT_CAUGHT_UP } from './follow-to-tip.mjs';
+import { planRange, checkIdentity, highestCovered, CHAIN_ENDPOINTS, EXIT_CAUGHT_UP }
+  from './follow-to-tip.mjs';
 
 // Reconciled against the arms actually run, not maintained by hand: a short
 // tally is a finding, and editing the expected number to match a short run is
 // how a suite goes quiet.
-const BASE_ARMS = 19;
+const BASE_ARMS = 23;
 
 let ran = 0, failed = 0;
 const ok = (name, cond, detail = '') => {
@@ -135,6 +136,40 @@ console.log('follow-to-tip-selftest');
 {
   ok('highestCovered is null for a ledger with no ranges',
     highestCovered({ ranges: {} }) === null);
+}
+
+// ── the endpoint table ──────────────────────────────────────────────────────
+//
+// THE TABLE REPLACED A RULE, and the rule is what these arms are really about.
+// The URL used to be derived from the slug, which is correct only while every
+// slug is a drpc hostname — and the live rollups needed slugs of their own, so
+// it stopped being correct. A guess that RESOLVES is the dangerous case: it
+// produces a well-formed ledger, snapshot and generation describing the wrong
+// chain under this name, and nothing downstream can tell.
+{
+  ok('both live slugs are known',
+    CHAIN_ENDPOINTS['aztec-v6'] === 'https://aztec.drpc.org'
+    && CHAIN_ENDPOINTS['aztec-testnet-v6'] === 'https://aztec-testnet.drpc.org',
+    JSON.stringify(CHAIN_ENDPOINTS));
+}
+{
+  // The hazard this table exists for: a v6 slug must NOT be turned into a
+  // hostname, because `aztec-testnet-v6.drpc.org` is not one.
+  ok('a v6 slug does not name its own host',
+    !Object.keys(CHAIN_ENDPOINTS).some((c) => CHAIN_ENDPOINTS[c].includes(`${c}.drpc.org`) && c.endsWith('-v6')),
+    JSON.stringify(CHAIN_ENDPOINTS));
+}
+{
+  // The retired slugs keep a mapping deliberately: an operator may still aim a
+  // tool at them, and the refusal that should stop a FOLLOWER is the
+  // tip-regression one, which is about the data rather than about a hostname.
+  ok('the retired slugs are still mapped, so the refusal comes from the data',
+    typeof CHAIN_ENDPOINTS['aztec'] === 'string'
+    && typeof CHAIN_ENDPOINTS['aztec-testnet'] === 'string');
+}
+{
+  ok('an unknown slug has no endpoint, so the tool must be given one',
+    CHAIN_ENDPOINTS['aztec-whatever'] === undefined);
 }
 
 console.log(`\nfollow-to-tip-selftest: ${ran} arm(s), ${failed} failure(s)`);
