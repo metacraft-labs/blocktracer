@@ -47,10 +47,17 @@ name: Follow the Aztec chains into the site
 #
 # ── WHAT IT DOES NOT DO ──────────────────────────────────────────────────────
 #
-# It does not backfill. A cycle asks for at most `max-blocks` heights above what
-# the ledger already covers, so a follower that fell behind catches up over many
-# short runs rather than one run a timer kills mid-publish. Reaching genesis is
-# `just chain-replay-range` over explicit ranges, by an operator, once.
+# THE SCHEDULE DOES NOT BACKFILL. A scheduled cycle asks for at most
+# `max-blocks` heights above what the ledger already covers, and that cap is
+# sized for KEEPING UP — mainnet produces 60 heights per cycle — rather than for
+# catching up. Building a corpus from height 1 through the schedule alone would
+# take 79 hours on mainnet and 101 on testnet.
+#
+# A CATCH-UP IS THIS SAME WORKFLOW WITH TWO INPUTS, not a different tool:
+# dispatch it with a large `max-blocks`, and the job takes the wider
+# `timeout-minutes` below. The fetch measured 6.0 heights/second, so one
+# dispatch can cover tens of thousands of heights. Repeat until a cycle reports
+# `caught up` (exit 75), then leave it to the schedule.
 
 # ── THE FIRST CYCLE OF A CHAIN IS A DELIBERATE CUTOVER, AND ONLY A DISPATCH ──
 #
@@ -152,12 +159,25 @@ jobs:
       - nixos
       - bare-metal
       - topology-host
-    # A cycle is `max-blocks` heights of metadata plus a replay per settled
-    # transaction in them, and a replay is roughly fifteen node calls after the
-    # body proxy's cache. 50 heights has measured well under an hour; the ceiling
-    # is named so a genuinely stuck cycle is reported as a timeout rather than as
-    # the `cancelled` this fleet also uses for two unrelated failure modes.
-    timeout-minutes: 90
+    # TWO CEILINGS, BECAUSE A SCHEDULED CYCLE AND A CATCH-UP ARE NOT THE SAME JOB.
+    #
+    # A scheduled cycle is `max-blocks` heights of metadata plus a replay per
+    # settled transaction, and a replay is roughly fifteen node calls after the
+    # body proxy's cache. 90 minutes is generous for 150 heights and names the
+    # ceiling so a genuinely stuck cycle reports as a timeout rather than as the
+    # `cancelled` this fleet also uses for two unrelated failure modes.
+    #
+    # A CATCH-UP IS HOURS, AND THE ARITHMETIC IS WHY THIS IS NOT ONE NUMBER.
+    # Both chains restarted, so their published corpora belong to a retired
+    # rollup and a full one has to be built from height 1. Measured 2026-11-23
+    # against `aztec-testnet` — 200 heights, metadata only, default pacing — the
+    # fetch runs at 6.0 heights/second. From genesis that is ~2.2 h for
+    # mainnet's 47,363 heights and ~2.8 h for testnet's 60,644, before ingest
+    # and publish. The schedule ALONE would take 79 and 101 HOURS at 150 heights
+    # per cycle, because 150 is sized for keeping up rather than for catching
+    # up. So a dispatch gets a ceiling that can hold one pass and the schedule
+    # keeps the tight one.
+    timeout-minutes: ${{ github.event_name == 'schedule' && 90 || 350 }}
     steps:
       # BEFORE the checkout, because the checkout is what dies: a tree copied out
       # of the Nix store keeps the store's 0555, and nothing can be unlinked from
