@@ -242,6 +242,12 @@ let
       # The module names this exact path; assert it rather than assume the copy.
       test -f "$out/tools/chain/follow-chain.mjs"
       test -f "$out/tools/chain/lib/replay.mjs"
+      # ...and the publish path's two, for the same reason. `follow-to-tip.mjs`
+      # execs `ingest-range.mjs` BY PATH from its own directory, so a copy that
+      # carried one without the other would build, install, deploy, and fail at
+      # the first cycle with ENOENT on a file nothing had looked for.
+      test -f "$out/tools/chain/follow-to-tip.mjs"
+      test -f "$out/tools/chain/ingest-range.mjs"
       runHook postInstall
     '';
 
