@@ -75,6 +75,9 @@ on:
   push:
     branches: [live, staging, dev]
   pull_request:
+    # Named bases: an unfiltered trigger also runs on pull requests into `agents`,
+    # which runs no CI (branching policy, "`agents` Has No CI").
+    branches: [live, staging, dev]
 
 # One in-flight deploy per branch/PR; cancel superseded runs.
 concurrency:

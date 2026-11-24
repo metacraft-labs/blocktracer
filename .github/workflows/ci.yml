@@ -77,6 +77,9 @@ on:
   push:
     branches: [dev, staging, live]
   pull_request:
+    # Named bases: an unfiltered trigger also runs on pull requests into `agents`,
+    # which runs no CI (branching policy, "`agents` Has No CI").
+    branches: [dev, staging, live]
   # THE LANE THAT CANNOT BE EVICTED. See the concurrency block below — this
   # trigger exists so that a run can be produced which no push and no PR is
   # able to collapse. `ci-coverage-clock.yml` is what fires it on a clock; it
