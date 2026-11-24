@@ -112,6 +112,27 @@ name: Follow the Aztec chains into the site
 # slugs, they remain true, and this workflow does not write to them.
 
 
+# ── THE SCHEDULE ONLY FIRES FROM THE DEFAULT BRANCH ─────────────────────────
+#
+# READ THIS BEFORE BELIEVING THIS FILE IS RUNNING. GitHub evaluates `schedule:`
+# on the repository's DEFAULT branch and nowhere else. This repository's default
+# is `dev`; agent work lands on `agents`. So while this file lives only on
+# `agents` it will NEVER fire a cycle, and nothing anywhere reports that — the
+# workflow simply does not appear in the schedule, which is the same silence as
+# a cron that is working and finding nothing to do.
+#
+# WHAT STILL WORKS FROM `agents`: `workflow_dispatch`. A dispatch can target any
+# branch that carries the file, so the first cutover cycle and every catch-up
+# can be run from here. What cannot work from here is the word "continuous".
+#
+# SO THE CONTINUOUS HALF OF THIS IS GATED ON PROMOTION TO `dev`, not on anything
+# in this file. Until then the honest description is "a dispatchable publisher
+# with a schedule that is declared but dormant".
+#
+# This was found by checking rather than by a failure: no workflow in this
+# repository had a `schedule:` trigger before this one, so there was no working
+# example to notice the rule against.
+
 on:
   schedule:
     # EVERY 15 MINUTES, AND THE NUMBER IS THE REPLAYABLE WINDOW RATHER THAN A
