@@ -655,7 +655,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 261 assertions, and the reason it is offline is the reason it
+        # ING-3, 262 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -1269,6 +1269,40 @@ jobs:
         # assemble ran nine arms and said nothing was missing. They are unconditional
         # now and the suite reconciles its tally against `BASE_ARMS`.
         run: node tools/chain/snapshot-from-ingest-selftest.mjs
+
+      - name: Does the tip-follower refuse a chain that restarted under its own slug?
+        # 23 arms, host-independent: every arm is pure, so no node, no ledger on disk
+        # and no child process.
+        #
+        # AZTEC HAD NO TIP-FOLLOWING PUBLISHER AND ETHEREUM DID, which is visible in
+        # the file names rather than in anybody's notes:
+        #
+        #   capture-eth-range.mjs -> eth-ingest-range.mjs -> follow-eth-chain.mjs
+        #   follow-chain.mjs         ingest-range.mjs         ** nothing **
+        #
+        # So Aztec's publish path was a thing an operator ran with two block numbers
+        # in it, and a continuous publisher cannot have that shape.
+        # `follow-to-tip.mjs` is the missing caller: it reads the ledger's highest
+        # covered height and the node's own tip, does arithmetic, and execs
+        # `ingest-range.mjs`. Every flag it does not recognise is passed through, so
+        # `--replay`, `--backend` and the rest keep ONE definition.
+        #
+        # WHAT IS WORTH TESTING IS THE TWO REFUSALS, and both are about one measured
+        # hazard: BOTH Aztec networks were restarted after this project captured them
+        # (`tools/chain/retired-networks.json` — mainnet captured head 102,690 against
+        # a live tip of 3,403; testnet 99,092 against 9,405). A follower that reads
+        # "head below the highest covered height" as "nothing to do" would file the new
+        # rollup's blocks into a generation whose height map belongs to the retired one:
+        # every object well-formed, the pointer agreeing with the map, and the map a lie
+        # about which chain it holds. The second refusal covers the case the arithmetic
+        # stops seeing once the new rollup climbs past the old head — the node's own
+        # `l1ChainId`/`rollupVersion` identity, recorded beside the ledger on the first
+        # cycle and compared on every later one.
+        #
+        # Six green-path arms run FIRST and unconditionally, so a tool that refused
+        # everything could not pass them all, and the suite reconciles its tally
+        # against `BASE_ARMS`.
+        run: node tools/chain/follow-to-tip-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this

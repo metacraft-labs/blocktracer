@@ -1,0 +1,575 @@
+name: Follow the Aztec chains into the site
+
+# ---------------------------------------------------------------------------
+# THE CONTINUOUS PUBLISHER. It is a `schedule:` and that is the whole point.
+#
+# `publish-r2.yml`'s header says what it is and is not: "this workflow keeps the
+# SITE fresh. It does not keep the HISTORY fresh." Nothing kept the history
+# fresh, because Aztec had no tip-following publisher — Ethereum has
+# `follow-eth-chain.mjs`, Aztec had `follow-chain.mjs` (capture) and
+# `ingest-range.mjs` (one named range) and no caller between them. This runs
+# `tools/chain/follow-to-tip.mjs`, which is that caller.
+#
+# ── WHY A SCHEDULE HERE IS NOT THE THING `publish-r2.yml` REFUSES ────────────
+#
+# That workflow is `workflow_dispatch`-only for a stated reason: "A publish
+# flips `current.json` ... Making that a side effect of merging would mean every
+# merge is a production cutover." The decision it keeps with a human is
+# PUBLISHING THIS TREE'S SITE — `index.html`, `_a/**`, `replay-engine/**`, and a
+# demo/fixture data plane that would overwrite real history.
+#
+# This publishes none of those. `ingest-range.mjs` builds a tree from a captured
+# range and invokes `blocktracer-publish --chain <slug>`, so the only objects it
+# can write are that chain's data plane and that chain's pointer. Advancing one
+# chain's pointer onto a newer generation OF THE SAME CHAIN is not a cutover, it
+# is the continuous case — and Deployment-And-Operations.md §6b.3 contemplates it
+# by name when it says "the continuous publisher's credential is not the release
+# deploy credential".
+#
+# ── WHY IT IS PINNED TO ONE HOST, WHICH IS A PIN AND NOT A CAPABILITY ────────
+#
+# `ingest-range.mjs` publishes the UNION of every range its ledger holds, and
+# `mergeSnapshots` reads `<state>/ranges/<key>/snapshot.json` for each of them
+# and hard-links that range's containers into the merged directory. So the state
+# directory IS the corpus, and a cycle on a host that does not have it would
+# either refuse (the `--allow-fresh-ledger` guard) or, without that guard,
+# publish a generation whose height map holds one range — the defect
+# `eth-ingest-range.mjs`'s header measured, where both cycles exit 0 and three
+# heights go unlisted.
+#
+# `topology-host` is advertised only by high-mem-server's runners
+# (`high-mem-server-mcl-00{1,2,3}` and the `deploy-pipeline` trio), all of which
+# are the SAME machine, so a fixed absolute path under `/build` is stable across
+# runs and across runners. `/build` and not `$HOME` or `/var` is that host's own
+# rule: docs/High-Mem-Server-Development.md §2 puts heavy capture output on the
+# `/build` ZFS dataset and says "never `$HOME`, never `/var`, both are on the
+# same contended pool".
+#
+# ── WHAT IT DOES NOT DO ──────────────────────────────────────────────────────
+#
+# THE SCHEDULE DOES NOT BACKFILL. A scheduled cycle asks for at most
+# `max-blocks` heights above what the ledger already covers, and that cap is
+# sized for KEEPING UP — mainnet produces 60 heights per cycle — rather than for
+# catching up. Building a corpus from height 1 through the schedule alone would
+# take 79 hours on mainnet and 101 on testnet.
+#
+# A CATCH-UP IS THIS SAME WORKFLOW WITH THREE INPUTS, not a different tool:
+# dispatch it with a large `max-blocks` and `replay: false`, and the job takes
+# the wider `timeout-minutes` below. The fetch measured 6.0 heights/second, so
+# one dispatch can cover tens of thousands of heights. Repeat until a cycle
+# reports `caught up` (exit 75), then leave it to the schedule.
+#
+# `replay: false` IS NOT AN OPTIMISATION, it is what makes a catch-up finish. A
+# replay needs the transaction's BODY, and a body is served only between the
+# finalized tip and the tip — measured 2026-11-23 as 194 blocks (~49 min) on
+# mainnet and 83 (~31 min) on testnet. Historic heights have none, so a catch-up
+# with replay on spends its store budget and then ENDS the run, leaving every
+# row it did not reach saying `body-source-unreachable`. The corpus it builds is
+# therefore metadata: blocks, transactions, outcomes and costs, without traces.
+# That is the same shape the existing published corpora were built in, and the
+# traces accrue from the tip forward once the schedule takes over.
+
+# ── NEW SLUGS, BESIDE THE RETIRED CORPORA RATHER THAN OVER THEM ─────────────
+#
+# This publishes `aztec-v6` and `aztec-testnet-v6`, not `aztec` and
+# `aztec-testnet`, and that is forced by two guards rather than chosen for
+# tidiness. Both Aztec networks restarted, so the corpora published under the
+# old slugs belong to rollups that no longer exist
+# (`tools/chain/retired-networks.json`). Republishing the LIVE chains under
+# those names was measured against a store shaped like blocktracer.org's and is
+# refused twice over:
+#
+#   1. `ingest.nim` refuses to re-pin a chain's default recorder. Production
+#      pins `aztec` and `aztec-testnet` to recorder build `sha1:508588d9…`;
+#      this producer writes `sha1:ce9426cf…`. Its refusal says why: every
+#      overlay row that names no recorder of its own is addressed under that
+#      pin, so moving it re-derives their trace addresses and strands their
+#      containers at the old ones.
+#   2. `blocktracer-publish` refuses a registry that DROPS a chain the store
+#      lists — which is a different problem, solved by `--registry-seed` below,
+#      and it bites whatever slug is used.
+#
+# Both guards are right, and neither is worth defeating: the retired corpora
+# stay readable at their own names, `retired-networks.json` stays true about
+# them, and the live chains get names that say which rollup they are. The cost
+# is that URLs pinned to the old generations keep pointing at the old data,
+# which is accurate rather than broken.
+#
+# ── THE FIRST CYCLE OF A CHAIN IS STILL ONLY A DISPATCH ─────────────────────
+#
+# The schedule can never START a chain: it does not pass `--allow-fresh-ledger`,
+# and `follow-to-tip.mjs` refuses a chain whose state directory holds no ledger.
+# That refusal is about losing coverage, not about cutting over — an absent
+# ledger is a forgotten one, and the union over a single range would publish a
+# generation whose height map holds nothing else. So:
+#
+#   1. `plan-only: true` — read the ledger and the node, publish nothing, and
+#      look at the range and the chain identity it reports.
+#   2. `allow-fresh-ledger: true`, one chain at a time, small `max-blocks`.
+#   3. Then catch up (see below), then leave it to the schedule.
+#
+# Nothing here changes `retired-networks.json`: those entries describe the old
+# slugs, they remain true, and this workflow does not write to them.
+
+
+# ── THE SCHEDULE ONLY FIRES FROM THE DEFAULT BRANCH ─────────────────────────
+#
+# READ THIS BEFORE BELIEVING THIS FILE IS RUNNING. GitHub evaluates `schedule:`
+# on the repository's DEFAULT branch and nowhere else. This repository's default
+# is `dev`; agent work lands on `agents`. So while this file lives only on
+# `agents` it will NEVER fire a cycle, and nothing anywhere reports that — the
+# workflow simply does not appear in the schedule, which is the same silence as
+# a cron that is working and finding nothing to do.
+#
+# WHAT STILL WORKS FROM `agents`: `workflow_dispatch`. A dispatch can target any
+# branch that carries the file, so the first cutover cycle and every catch-up
+# can be run from here. What cannot work from here is the word "continuous".
+#
+# SO THE CONTINUOUS HALF OF THIS IS GATED ON PROMOTION TO `dev`, not on anything
+# in this file. Until then the honest description is "a dispatchable publisher
+# with a schedule that is declared but dormant".
+#
+# This was found by checking rather than by a failure: no workflow in this
+# repository had a `schedule:` trigger before this one, so there was no working
+# example to notice the rule against.
+
+on:
+  schedule:
+    # EVERY 15 MINUTES, AND THE NUMBER IS THE REPLAYABLE WINDOW RATHER THAN A
+    # ROUND FIGURE. A body is served only between the finalized tip and the tip,
+    # and a height whose body has pruned is a transaction published with no
+    # trace — the product, not a cosmetic loss. `follow-chain.mjs`'s header
+    # measured that window at "25 blocks ≈ 30 minutes"; re-measured on both
+    # live chains on 2026-11-23 as `tip - finalized` it is 194 blocks (~49 min)
+    # on mainnet and 83 (~31 min) on testnet. 15 minutes is inside the SHORTER
+    # of those with room for a cycle to take as long as a cycle.
+    #
+    # It also has to be fast enough to keep up, which is a separate sum and the
+    # one that set `max-blocks`: from block timestamps 200 apart the same day,
+    # mainnet runs at 15.1 s/block (60 blocks per cycle) and testnet at 22.7
+    # (40). A cadence or a cap below those numbers falls behind for ever while
+    # every cycle exits 0.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      chain:
+        description: >-
+          One chain slug, or empty for every chain the matrix names. Naming one
+          is how a single chain is caught up without spending the other's
+          rate-limit budget.
+        type: string
+        default: ''
+      max-blocks:
+        description: >-
+          The most heights one cycle may request. Raise it for a catch-up run and
+          watch the rate limit: the measured cost of a `retry-after` on these
+          public endpoints is 41 minutes, and polling it makes that longer.
+        type: string
+        default: '150'
+      allow-fresh-ledger:
+        description: >-
+          Permit a cycle that finds NO coverage ledger. Off by default and it
+          must stay off for the schedule: an absent ledger is a forgotten one,
+          not an empty start, and a union over one range flips `current.json` to
+          a map holding nothing else. Say yes only for a chain that genuinely
+          starts here.
+        type: boolean
+        default: false
+      replay:
+        description: >-
+          Produce TRACES as well as metadata. Leave on for a tip-following
+          cycle and turn it OFF for a catch-up: a replay needs the transaction's
+          BODY, and a body is served only between the finalized tip and the tip
+          (194 blocks on mainnet, 83 on testnet, measured 2026-11-23). Over
+          historic heights there is nothing to replay from, so `ingest-range.mjs`
+          spends its store budget and then ENDS the run — every row it did not
+          reach saying `body-source-unreachable`. A catch-up with this on covers
+          far less than one with it off, and costs more to do it.
+        type: boolean
+        default: true
+      plan-only:
+        description: >-
+          Read the ledger and the node, print the range that would be requested,
+          and publish nothing. The cheap way to see what a cycle would do.
+        type: boolean
+        default: false
+
+# NOT `cancel-in-progress`, and per chain rather than per workflow. Two cycles
+# on ONE chain must not interleave: they share a state directory, and the second
+# would merge a half-written range. Two cycles on DIFFERENT chains are
+# independent — separate ledgers, separate generations, separate publisher
+# leases, separate endpoints and so separate rate-limit budgets — so serialising
+# them would halve the rate at which either is followed for no safety gained.
+concurrency:
+  group: chain-follow-${{ github.workflow }}-${{ github.event.inputs.chain || 'all' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  follow:
+    # A matrix of one when `chain` is given, of both when it is not. `fromJSON`
+    # of a string built here rather than two jobs: the steps are identical and a
+    # second copy of them is a second thing to keep in step.
+    strategy:
+      fail-fast: false
+      matrix:
+        chain: ${{ fromJSON(github.event.inputs.chain && format('["{0}"]', github.event.inputs.chain) || '["aztec-v6","aztec-testnet-v6"]') }}
+    runs-on:
+      - self-hosted
+      - nixos
+      - bare-metal
+      - topology-host
+    # TWO CEILINGS, BECAUSE A SCHEDULED CYCLE AND A CATCH-UP ARE NOT THE SAME JOB.
+    #
+    # A scheduled cycle is `max-blocks` heights of metadata plus a replay per
+    # settled transaction, and a replay is roughly fifteen node calls after the
+    # body proxy's cache. 90 minutes is generous for 150 heights and names the
+    # ceiling so a genuinely stuck cycle reports as a timeout rather than as the
+    # `cancelled` this fleet also uses for two unrelated failure modes.
+    #
+    # A CATCH-UP IS HOURS, AND THE ARITHMETIC IS WHY THIS IS NOT ONE NUMBER.
+    # Both chains restarted, so their published corpora belong to a retired
+    # rollup and a full one has to be built from height 1. Measured 2026-11-23
+    # against `aztec-testnet` — 200 heights, metadata only, default pacing — the
+    # fetch runs at 6.0 heights/second. From genesis that is ~2.2 h for
+    # mainnet's 47,363 heights and ~2.8 h for testnet's 60,644, before ingest
+    # and publish. The schedule ALONE would take 79 and 101 HOURS at 150 heights
+    # per cycle, because 150 is sized for keeping up rather than for catching
+    # up. So a dispatch gets a ceiling that can hold one pass and the schedule
+    # keeps the tight one.
+    timeout-minutes: ${{ github.event_name == 'schedule' && 90 || 350 }}
+    steps:
+      # BEFORE the checkout, because the checkout is what dies: a tree copied out
+      # of the Nix store keeps the store's 0555, and nothing can be unlinked from
+      # a directory with no write bit, so `actions/checkout` fails in "Deleting
+      # the contents of" with EACCES and poisons the runner for every job after
+      # it. `publish-r2.yml` carries the same step for the same reason.
+      - name: Make this runner's leftover workspace removable
+        run: chmod -R u+w . 2>/dev/null || true
+
+      - uses: actions/checkout@v4
+
+      - name: Setup Nix
+        uses: metacraft-labs/devops-modules/.github/setup-nix@dev
+        with:
+          trusted-public-keys: ${{ vars.TRUSTED_PUBLIC_KEYS }}
+          substituters: ${{ vars.SUBSTITUTERS }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── THE STATE DIRECTORY, ASSERTED AND NEVER CREATED HERE ────────────────
+      #
+      # A cycle that created its own state directory would be a cycle that
+      # silently started a fresh corpus, and the `--allow-fresh-ledger` refusal
+      # exists precisely so that cannot happen by accident. So this step REFUSES
+      # a missing or unwritable path and names what provides it, rather than
+      # calling `mkdir -p` and continuing into a publish.
+      - name: Is the persistent state directory present and writable?
+        env:
+          STATE_ROOT: ${{ vars.CHAIN_FOLLOW_STATE_ROOT || '/build/blocktracer-site-follow' }}
+        run: |
+          set -euo pipefail
+          echo "state root: ${STATE_ROOT}"
+          if [ ! -d "${STATE_ROOT}" ]; then
+            echo "::error::${STATE_ROOT} does not exist on $(hostname). It is created by"
+            echo "::error::infra's systemd.tmpfiles rule for the follower's site-publish"
+            echo "::error::state, owned by this runner's user. This job will not create it:"
+            echo "::error::a cycle that makes its own state directory is a cycle that"
+            echo "::error::silently starts a fresh corpus, and the union it then publishes"
+            echo "::error::flips current.json to a generation holding one range."
+            exit 1
+          fi
+          if [ ! -w "${STATE_ROOT}" ]; then
+            echo "::error::${STATE_ROOT} exists but is not writable by $(id -un)."
+            exit 1
+          fi
+          df -h "${STATE_ROOT}" | sed 's/^/  /'
+
+      # ── THE REPLAY TOOLCHAIN, PROVED BEFORE ANYTHING IS SPENT ──────────────
+      #
+      # `preflightToolchain` refuses before a single transaction is attempted,
+      # and that refusal is the reason these four paths are resolved here rather
+      # than left to defaults. A wrong `--node` cost this campaign five live
+      # transactions on 2026-09-09: each recorded `refused / unknown` in twelve
+      # milliseconds, inside the replayable window, and the window does not come
+      # back.
+      #
+      # THE AVM IS FETCHED AND NOT BUILT, and `tools/chain/nix/default.nix` says
+      # why in its own words: `avm.wasm` needs a Barretenberg build that asserts
+      # 8 GB of free work space, so it is "an operator-supplied path" rather than
+      # a flake package. It is fetched from the published release whose TAG
+      # CARRIES ITS OWN CONTENT HASH (`avm-wasm-<sha256 prefix>`), and the hash
+      # of the downloaded bytes is checked against that prefix. That is a pin
+      # that cannot go stale: there is no second copy of the digest to fall out
+      # of step with the URL, and a release retagged over different bytes fails
+      # the check rather than silently changing what replays.
+      - name: Fetch and verify the pinned AVM module
+        env:
+          AVM_URL: ${{ vars.AVM_WASM_URL || 'https://github.com/metacraft-labs/aztec-avm-runtime/releases/download/avm-wasm-0f2fb11e/avm.wasm' }}
+        run: |
+          set -euo pipefail
+          tag="$(printf '%s' "${AVM_URL}" | sed -n 's#.*/download/avm-wasm-\([0-9a-f]\{8\}\)/avm\.wasm$#\1#p')"
+          if [ -z "${tag}" ]; then
+            echo "::error::AVM_WASM_URL must be a .../download/avm-wasm-<8 hex>/avm.wasm release asset:"
+            echo "::error::the tag's suffix IS the content pin, and a URL without one leaves the"
+            echo "::error::bytes unchecked. Got [${AVM_URL}]."
+            exit 1
+          fi
+          curl -fsSL "${AVM_URL}" -o "$RUNNER_TEMP/avm.wasm"
+          got="$(sha256sum "$RUNNER_TEMP/avm.wasm" | cut -d' ' -f1)"
+          echo "avm.wasm: $(stat -c %s "$RUNNER_TEMP/avm.wasm") bytes, sha256 ${got}"
+          case "${got}" in
+            "${tag}"*) echo "sha256 begins with the tag's ${tag} — the pin holds." ;;
+            *) echo "::error::the release tag says avm-wasm-${tag} and the bytes hash to ${got}."
+               echo "::error::Either the asset was replaced or the URL names the wrong tag; both"
+               echo "::error::change what replays, so nothing is published from here."
+               exit 1 ;;
+          esac
+
+      - name: Build the producer, the publisher and the replay runtime
+        # ONE `nix build` PER PACKAGE, AND EACH PATH ASSERTED FOR WHAT IT MUST
+        # CONTAIN. Building four installables in one invocation prints four
+        # paths whose ORDER is not a documented property of the command, and the
+        # cost of reading them in the wrong order is not a build failure: it is
+        # `--runtime` pointing at the ct-writer and `--node` at the runtime,
+        # which is the shape that made five live transactions record
+        # `refused / unknown` in twelve milliseconds each on 2026-09-09. The
+        # assertions make a mis-assignment impossible to pass silently, because
+        # each path is checked for a file only that package has.
+        run: |
+          set -euo pipefail
+          {
+            echo "RUNTIME=$(nix build .#chain-runtime --no-link --print-out-paths)"
+            echo "CT_WRITER_DIR=$(nix build .#aztec-ct-writer-wasm --no-link --print-out-paths)"
+            echo "NODE_PKG=$(nix build .#chain-follower-nodejs --no-link --print-out-paths)"
+          } > "$RUNNER_TEMP/toolchain.env"
+          sed 's/^/  /' "$RUNNER_TEMP/toolchain.env"
+          # shellcheck disable=SC1090
+          . "$RUNNER_TEMP/toolchain.env"
+          test -d "${RUNTIME}/replay" \
+            || { echo "::error::${RUNTIME} carries no replay/ — that is not chain-runtime."; exit 1; }
+          test -f "${CT_WRITER_DIR}/lib/aztec_ct_writer.wasm" \
+            || { echo "::error::${CT_WRITER_DIR} carries no lib/aztec_ct_writer.wasm."; exit 1; }
+          test -x "${NODE_PKG}/bin/node" \
+            || { echo "::error::${NODE_PKG} carries no bin/node."; exit 1; }
+          # `--experimental-wasm-exnref` is the property that makes this Node the
+          # right one, and `preflightToolchain` refuses without it — but it
+          # refuses AFTER the range has been fetched, so it is asked here.
+          "${NODE_PKG}/bin/node" --experimental-wasm-exnref -e 'process.exit(0)' \
+            || { echo "::error::${NODE_PKG}/bin/node does not accept --experimental-wasm-exnref."; exit 1; }
+
+          nix develop .#ci --command bash -c '
+            set -euo pipefail
+            nim c --hints:off -d:release -o:blocktracer-chain-ingest src/blocktracer_chain_ingest.nim
+            nim c --hints:off -d:release -o:blocktracer-publish      src/blocktracer_publish.nim
+          '
+          test -x ./blocktracer-chain-ingest
+          test -x ./blocktracer-publish
+
+      - name: Materialise the generated recordings the producer reads
+        # `647283f` made all 55 `.ct` fixtures generated rather than tracked, and
+        # the jobs that drive the Nim binaries directly do not go through the
+        # recipes that prepare them. Run 40941893230 died on the first `open`
+        # AFTER staging 460k objects and promoting three generations, which is
+        # why this is early: a `nix build` of a cached closure is seconds and the
+        # work it protects is not.
+        run: |
+          set -euo pipefail
+          nix build .#fixture-recordings --out-link "$RUNNER_TEMP/fixture-recordings"
+          # `--no-preserve=mode,ownership` and a copy into the tree root, which is
+          # `publish-r2.yml`'s form verbatim. A plain `cp` from the store carries
+          # the store's 0555, and a directory with no write bit cannot have
+          # anything unlinked from it — so the NEXT job on this runner dies in
+          # actions/checkout's "Deleting the contents of" with EACCES. A chmod of
+          # named trees is what poisoned mcl-bench-001: the list missed
+          # fixtures/chain-artifacts, and a list of trees to repair goes stale.
+          cp -r --no-preserve=mode,ownership "$RUNNER_TEMP/fixture-recordings"/. .
+
+      # ── THE REGISTRY THE STORE ALREADY HAS ─────────────────────────────────
+      #
+      # MEASURED, NOT PREDICTED. Publishing one chain into a local store whose
+      # registry carried blocktracer.org's four rows produced, verbatim:
+      #
+      #   publish failed: refusing to publish a registry that drops chain(s)
+      #   aztec, aztec-testnet-frames, demo (the object is
+      #   registry/chains.v1.json): the store lists them and this tree does not.
+      #
+      # `ingest.nim` writes the registry by ADDING this chain to whatever the
+      # tree already holds ("registry: ADD this chain, never replace the file"),
+      # and `ingest-range.mjs` wipes the tree every run — so the store's rows
+      # have to be put back into the fresh tree BEFORE the ingest. That is what
+      # `--registry-seed` does, and the order is the whole point: a seed applied
+      # afterwards would replace the row this cycle just produced and leave the
+      # chain unlisted.
+      #
+      # READ FROM THE BUCKET AND NOT FROM blocktracer.org, because an edge can
+      # serve a cached registry and the publisher compares against the bucket.
+      #
+      # ABSENT IS NOT EMPTY: a bucket with no registry yet is a first publish and
+      # the ingest writes its own. A bucket whose registry cannot be READ is a
+      # credential or endpoint fault, and seeding nothing there would publish a
+      # one-chain registry over a populated one — which the publisher would
+      # refuse, but for a reason naming the registry rather than this step. So
+      # the two cases are told apart here.
+      - name: Seed the store's registry rows
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/registry-seed"
+          seed="$RUNNER_TEMP/registry-seed/chains.v1.json"
+          key="s3://${R2_BUCKET}/registry/chains.v1.json"
+          rc=0
+          nix develop .#ci --command aws s3 cp "$key" "$seed" \
+            --endpoint-url "$R2_ENDPOINT" --only-show-errors > "$RUNNER_TEMP/seed.log" 2>&1 || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "seeded from ${key}:"
+            # python3, NOT jq: the `.#ci` devShell declares awscli2, curl, brotli,
+            # perl and bubblewrap — and no jq. `jq` here would exit 127 inside a
+            # `set -e` step and fail the cycle for one cosmetic line, which is the
+            # worst trade available. python3 IS declared there.
+            nix develop .#ci --command python3 -c \
+              'import json,sys; print("  chains:", ", ".join(sorted(json.load(open(sys.argv[1]))["chains"])))' \
+              "$seed"
+            echo "SEED=$seed" >> "$GITHUB_ENV"
+          elif grep -qiE 'does not exist|NoSuchKey|Not Found|404' "$RUNNER_TEMP/seed.log"; then
+            echo "the bucket has no registry/chains.v1.json yet — first publish, nothing to preserve"
+            echo "SEED=" >> "$GITHUB_ENV"
+          else
+            echo "::error::could not read ${key}, and that is not the same as the bucket not"
+            echo "::error::having one. Publishing without the seed would write a registry holding"
+            echo "::error::only this chain over a populated one. Refusing here instead."
+            sed 's/^/  /' "$RUNNER_TEMP/seed.log"
+            exit 1
+          fi
+
+      - name: Follow ${{ matrix.chain }} to the tip
+        env:
+          STATE_ROOT: ${{ vars.CHAIN_FOLLOW_STATE_ROOT || '/build/blocktracer-site-follow' }}
+          # The SITE bucket's credential — `rotationGroup blocktracer-r2-publisher`,
+          # R2 bucket item read+write on `blocktracer` only. The publisher reads
+          # the AWS_* names because `objectstore.nim` is a thin `aws` wrapper.
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          MAX_BLOCKS: ${{ github.event.inputs.max-blocks || '150' }}
+          ALLOW_FRESH: ${{ github.event.inputs.allow-fresh-ledger || 'false' }}
+          PLAN_ONLY: ${{ github.event.inputs.plan-only || 'false' }}
+          # Defaults to on, and a cron passes no inputs — so the schedule always
+          # replays and only a dispatch can turn it off.
+          REPLAY: ${{ github.event.inputs.replay || 'true' }}
+          CHAIN: ${{ matrix.chain }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "::error::R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY are not set on this"
+            echo "::error::repository. An empty credential makes the aws CLI fail per object,"
+            echo "::error::which reads like a network fault rather than like a missing secret."
+            exit 1
+          fi
+          # AN EMPTY ENDPOINT IS NOT A DEFAULT, IT IS A DIFFERENT CLOUD.
+          # `ingest-range.mjs` only passes `--endpoint` when it is non-empty, and
+          # the publisher without one signs for AWS S3 rather than R2 — so an
+          # unset secret would send a production publish at a bucket named
+          # `blocktracer` in somebody else's account and fail (or worse, succeed)
+          # far from anything that reads like a missing secret.
+          if [ -z "${R2_ENDPOINT:-}" ]; then
+            echo "::error::R2_ENDPOINT is not set on this repository. Without it the publisher"
+            echo "::error::signs for AWS S3 instead of R2, which is a different account and a"
+            echo "::error::different bucket namespace, so nothing is published from here."
+            exit 1
+          fi
+
+          # Named assignments written by the build step, not positional reads of a
+          # list whose order is nobody's documented property. See that step.
+          # shellcheck disable=SC1090
+          . "$RUNNER_TEMP/toolchain.env"
+          NODE_BIN="${NODE_PKG}/bin/node"
+          CT_WRITER="${CT_WRITER_DIR}/lib/aztec_ct_writer.wasm"
+          test -x "${NODE_BIN}"
+          test -f "${CT_WRITER}"
+
+          state="${STATE_ROOT}/${CHAIN}"
+          args=(
+            tools/chain/follow-to-tip.mjs
+            --chain "${CHAIN}"
+            --state "${state}"
+            --max-blocks "${MAX_BLOCKS}"
+            --json
+          )
+          [ "${ALLOW_FRESH}" = "true" ] && args+=(--allow-fresh-ledger)
+          [ "${PLAN_ONLY}" = "true" ] && args+=(--plan-only)
+
+          # Everything after `--` is ingest-range.mjs's, verbatim. `follow-to-tip`
+          # restates none of it, which is what keeps one definition of `--replay`.
+          args+=(--)
+          # THE TOOLCHAIN FLAGS GO WITH `--replay` AND ONLY WITH IT. Passing a
+          # runtime to a metadata-only run is harmless but misleading: it says
+          # this cycle intended to trace. `preflightToolchain` refuses before a
+          # single transaction is attempted, so when they ARE passed they are all
+          # passed together.
+          if [ "${REPLAY}" = "true" ]; then
+            args+=(
+              --replay
+              --runtime "${RUNTIME}"
+              --node "${NODE_BIN}"
+              --avm "$RUNNER_TEMP/avm.wasm"
+              --ct-writer "${CT_WRITER}"
+            )
+          else
+            echo "replay OFF — metadata coverage only, no containers will be produced"
+          fi
+          args+=(
+            --ingest-bin ./blocktracer-chain-ingest
+            --publish-bin ./blocktracer-publish
+            --backend s3
+            --bucket "${R2_BUCKET}"
+            --endpoint "${R2_ENDPOINT}"
+          )
+          # Empty when the bucket has no registry yet; the flag is then omitted
+          # entirely rather than passed as "", which `ingest-range.mjs` would
+          # read as "seed from a file named ''" and refuse.
+          [ -n "${SEED:-}" ] && args+=(--registry-seed "${SEED}")
+
+          set +e
+          "${NODE_BIN}" "${args[@]}"
+          rc=$?
+          set -e
+
+          # 75 is EX_TEMPFAIL and it is `follow-to-tip`'s "caught up", which is the
+          # STEADY STATE of a healthy follower. A schedule firing into it must be
+          # green: colouring it red would train a reader to ignore the one signal
+          # that says the follower stopped.
+          case "${rc}" in
+            0)  echo "cycle published." ;;
+            75) echo "caught up — the ledger already covers the node's head." ;;
+            *)  echo "::error::follow-to-tip exited ${rc} for ${CHAIN}; nothing was published."
+                exit "${rc}" ;;
+          esac
+
+      # ── WHAT A VISITOR RECEIVES, WHICH IS NOT WHAT THE BUCKET HOLDS ─────────
+      #
+      # An edge can ignore a no-cache request, so a publish is verified through
+      # the public hostname with a cache-busting query and the read value is
+      # PRINTED rather than merely compared. `curl -sI` against the bucket
+      # endpoint would answer a different question.
+      - name: What does blocktracer.org serve for ${{ matrix.chain }} now?
+        if: always()
+        continue-on-error: true
+        env:
+          SITE: ${{ vars.BLOCKTRACER_SITE_BASE || 'https://blocktracer.org' }}
+          CHAIN: ${{ matrix.chain }}
+        run: |
+          set -euo pipefail
+          url="${SITE}/d/${CHAIN}/current.json?cb=$RANDOM$RANDOM"
+          echo "GET ${url}"
+          curl -fsSL "${url}" | head -c 600 | sed 's/^/  /' || echo "  (not served)"
+          echo
