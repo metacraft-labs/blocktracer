@@ -121,13 +121,22 @@ name: Follow the Aztec chains into the site
 # workflow simply does not appear in the schedule, which is the same silence as
 # a cron that is working and finding nothing to do.
 #
-# WHAT STILL WORKS FROM `agents`: `workflow_dispatch`. A dispatch can target any
-# branch that carries the file, so the first cutover cycle and every catch-up
-# can be run from here. What cannot work from here is the word "continuous".
+# AND `workflow_dispatch` DOES NOT RESCUE IT EITHER. An earlier version of this
+# note said a dispatch "can target any branch that carries the file", so the
+# first cutover could be run from `agents`. THAT IS FALSE, and GitHub says so
+# without ambiguity:
 #
-# SO THE CONTINUOUS HALF OF THIS IS GATED ON PROMOTION TO `dev`, not on anything
-# in this file. Until then the honest description is "a dispatchable publisher
-# with a schedule that is declared but dormant".
+#   HTTP 404: workflow chain-follow.yml not found on the default branch
+#
+# A workflow has to exist on the DEFAULT branch to be REGISTERED at all. `--ref`
+# only chooses which branch's code a registered workflow runs; it cannot
+# conjure a workflow GitHub has never seen. `gh workflow list --all` confirms
+# the other side of it: this file is 32 KB on `agents` and absent from the list.
+#
+# SO NOTHING HERE RUNS — not a cycle, not a catch-up, not a plan-only preview —
+# UNTIL THIS FILE REACHES `dev`. The honest description until then is "a
+# publisher that is merged, tested and completely dormant", and the remedy is
+# promotion, not a flag in this file.
 #
 # This was found by checking rather than by a failure: no workflow in this
 # repository had a `schedule:` trigger before this one, so there was no working
