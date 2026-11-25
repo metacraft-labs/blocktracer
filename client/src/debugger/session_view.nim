@@ -407,6 +407,9 @@ type
     path*: string         ## as the trace interns it, e.g. `src/shield.nr`
     language*: string     ## `noir`, `solidity`, … — used for labelling only
     lines*: seq[SourceLine]
+    totalLines*: int
+      ## How long the file is when `lines` is a window of it
+      ## (`source_document.servedWindow`); 0 when `lines` is the whole file.
 
   SourceAvailabilityView* = enum
     ## What the source pane can show, and therefore what it must say when it
