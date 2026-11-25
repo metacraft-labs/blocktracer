@@ -1670,6 +1670,10 @@ type
     framesWaited: int        ## frames this paint has held for the values
     everPainted: bool        ## a live paint has replaced the served frame
     pendingQuery: string     ## the §6.3 coordinate the next paint publishes
+    openedDoc: string
+      ## A file the reader opened by its tab, drawn as the active document until
+      ## the session moves. `renderSource` carries rows for the active document
+      ## only, so opening another one is a render with it active.
       ## The address bar moves WITH the panes, not ahead of them.
       ##
       ## `applyStop` used to call `replaceQuery` itself, which was right while
@@ -2091,6 +2095,16 @@ proc paint(h: Hydration) =
       discard h.session.selectLandingFrame("")
   h.holdPinnedFrame()
   var view = projectReplayPanes(h.session, h.base, h.ui.island)
+  # A FILE THE READER OPENED IS DRAWN AS THE ACTIVE ONE. The pane carries rows
+  # for its active document only (`renderSource`), so the tab a reader chose is
+  # shown by rendering with it active rather than by uncovering rows that were
+  # never sent. The session's position is untouched: its line is marked if it
+  # is in this file, and the next move returns to the file it is in.
+  if h.openedDoc.len > 0:
+    for di in 0 ..< view.editor.documents.len:
+      if view.editor.documents[di].path == h.openedDoc:
+        view.editor.activeIndex = di
+        break
   # THE MARKS GO ON HERE, INSIDE THE RENDER, and that placement is the whole
   # reason they survive.
   #
@@ -2347,6 +2361,10 @@ proc applyStop(h: Hydration; ticks: uint64; file: string; line: int) =
   # An outcome belongs to a GESTURE, so it is cleared by the next gesture —
   # `invoke` and the navigation rows — and never by a stop, of which one
   # gesture can produce several in an order this file does not control.
+  # A MOVE RETURNS THE PANE TO THE FILE THE SESSION IS IN. A file the reader
+  # opened by its tab (`openedDoc`) is shown until the session steps, the way a
+  # debugger follows execution.
+  h.openedDoc = ""
   h.session.applyPosition(ticks, file, line)
   # §6.3: "`t` updates on **every** navigation via `history.replaceState`".
   # The COORDINATE, so a share link from a hydrated session lands where the
@@ -2933,6 +2951,24 @@ proc bindGestures(h: Hydration) =
   ## The toolbar reads `data-action`, which is the enum's own wire spelling,
   ## rather than matching a label — a toolbar whose behaviour depended on its
   ## wording would break on the first rename.
+  # A TAB THAT OPENS A FILE WITH NO ROWS DRAWS IT. Tabs are `#D-…` links and
+  # stay `:target` navigation, so a tab works with scripting off and keeps its
+  # URL. An unopened file's panel carries `.srclazy` instead of rows
+  # (`renderSource`), and when the fragment lands on one, that file becomes the
+  # active document and the pane is rendered. `paint`'s fragment handling then
+  # re-targets the id onto the panel the render produced.
+  proc openTargetedDocument() =
+    let fragment = locationHash()
+    if fragment.len < 2 or carriesPayload(fragment): return
+    let target = document.getElementById(fragment[1 .. ^1].cstring)
+    if target == nil: return
+    let panel = closestOf(target, ".srcdoc")
+    if panel == nil or panel.querySelector(".srclazy") == nil: return
+    h.openedDoc = attr(panel, "data-path")
+    if h.everPainted: h.render()
+  window.addEventListener("hashchange", proc(ev: Event) = openTargetedDocument())
+  openTargetedDocument()
+
   proc rowHandler(container: Element; selector: cstring) =
     container.addEventListener("click", proc(ev: Event) =
       let row = closestFrom(ev, selector)

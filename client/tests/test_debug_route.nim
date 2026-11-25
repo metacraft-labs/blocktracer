@@ -984,6 +984,35 @@ suite "M8a — the source pane renders real source, with stable line identity":
     # No inert tab left behind.
     check "<span class=\"srctab" notin html
 
+  test "only the document a reader lands on is pre-rendered; the rest open on demand":
+    ## Measured 2026-11-25 over the built sites: an Aptos debug page was
+    ## 26,497,056 bytes, 22.5 MB of it the rows of all 58 documents of which a
+    ## reader sees one at a time, and hydration's first paint rebuilt every one of
+    ## them from the island anyway. Pre-rendering the documents a reader has not
+    ## opened buys no speed, and it put two Aptos pages and a Starknet one over
+    ## Cloudflare Pages' 25 MiB per-file limit (codetracer-pm #103).
+    ##
+    ## So the served pane carries rows for the active document only, still WHOLE
+    ## (the test above), and every other document a panel that names it and says
+    ## how long it is. Reachability is the test above's, unchanged: the panel and
+    ## its tab are still there.
+    let s = sessionFor(readyTx)
+    let docs = s.editor.documents
+    let active = activeDocument(s.editor)
+    check docs.len > 1          # or there is no other document to defer
+    let html = debugHtml(readyTx)
+    let rows = idsInOrder(html, "L-")
+    let activePrefix = "L-" & pathSlug(active.path) & "-"
+    check rows.len == active.lines.len
+    check rows.allIt(it.startsWith(activePrefix))
+    for d in docs:
+      if d.path == active.path: continue
+      let at = html.find("id=\"" & docAnchor(d.path) & "\"")
+      check at > 0
+      let panel = html[at ..< min(html.len, at + 4000)]
+      check "srclazy" in panel
+      check ($d.lines.len & " lines") in panel
+
   # ── the second view is an AGGREGATION, not an ordering ───────────────────
   #
   # The research finding this replaced: Chrome DevTools' `Bottom-up` view is an
@@ -2870,6 +2899,10 @@ suite "the current line is marked, and a branch claim cannot take the mark":
 
   let html = debugHtml(readyTx)
   let onDemandHtml = debugHtml(onDemandTx)
+  # The rows the served pane carries: the landing document's, whole. The other
+  # documents are panels drawn when opened ("only the document a reader lands
+  # on is pre-rendered" above), so a page-wide count is this file's length.
+  let rowCount = activeDocument(sessionFor(readyTx).editor).lines.len
 
   test "the subject exists: one positioned line, in a listing of many":
     # Nothing below is worth checking over a page with no listing or no
@@ -2878,7 +2911,8 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     # 133 and not 108. The 25 are `shield.nr`'s lines 1–25, which the pane used
     # to drop and announce as "Showing from line 26"; the file is 67 lines and
     # all 67 are here. See "the source pane renders the WHOLE file …" above.
-    check occurrences(html, "class=\"srcline") == 133
+    check rowCount == 67        # `shield.nr`, whole
+    check occurrences(html, "class=\"srcline") == rowCount
     check occurrences(html, "class=\"srcline cur") == 1
     check "id=\"L-src-shield-nr-32\"" in html
     check "id=\"L-src-shield-nr-1\"" in html
@@ -2893,13 +2927,13 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     # row's cell now carries the `tabindex`/`autofocus`/`aria-label` triple that
     # opens the pane at the position on a page with no script. The total is the
     # invariant; the split below is what changed.
-    check occurrences(html, "<span class=\"p\"") == 133
+    check occurrences(html, "<span class=\"p\"") == rowCount
     # …and exactly one of them is inked, and it is the one that is focusable.
     # The other 132 hold a space and carry no attribute at all.
     check occurrences(html, "<span class=\"p\" tabindex=\"-1\" " &
                             "autofocus=\"autofocus\"") == 1
     check occurrences(html, "<span class=\"p\">▶</span>") == 0
-    check occurrences(html, "<span class=\"p\"> </span>") == 132
+    check occurrences(html, "<span class=\"p\"> </span>") == rowCount - 1
 
   test "the OVERLAP row states both facts, in the order the renderer emits":
     # The whole composition question, as one exact string. `shield.nr:32` is
@@ -2968,7 +3002,7 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     # emitting the attribute and one row happens to match".
     check occurrences(html, "aria-current=\"true\"") == 1
     # 132, up from 107, for the same reason `class="srcline"` went 108 -> 133.
-    check occurrences(html, "aria-current=\"false\"") == 132
+    check occurrences(html, "aria-current=\"false\"") == rowCount - 1
     check ("id=\"L-src-shield-nr-32\" data-line=\"32\" " &
            "aria-current=\"true\"") in html
 
