@@ -86,8 +86,22 @@ function cairoFilesOf(rec, classHash) {
   return rec.listings.filter((L) => L.classHash === null && want.has(L.interned));
 }
 
-export function artifactRow(k, r) {
-  const address = (r.frames.find((f) => f.classHash === k.classHash) ?? {}).contract ?? '';
+/**
+ * One artifact row per CONTRACT that ran class `k`, every one naming that class: an
+ * `artifacts[]` entry is "the contract instance that ran" and "the class it ran"
+ * (Data-Contract §5.2b), and the reader derives one code edge per entry. Two accounts
+ * that share a class are two code edges to one class hash. Only the first one named
+ * meant the second had no code edge, and its address page could not say it is a
+ * contract.
+ */
+export function artifactRows(k, r) {
+  const contracts = [...new Set(r.frames.filter((f) => f.classHash === k.classHash)
+    .map((f) => f.contract).filter((c) => typeof c === 'string' && c.length > 0))];
+  return (contracts.length ? contracts : ['']).map((address) => artifactRow(k, r, address));
+}
+
+export function artifactRow(k, r, address = (r.frames.find((f) => f.classHash === k.classHash) ?? {})
+  .contract ?? '') {
   const src = k.source ?? null;
   if (src?.bound === true) {
     const b = src.provenance?.build ?? {};
@@ -505,7 +519,7 @@ export async function main(argv) {
         instructions: `instructions/${r.txHash}.json`,
         positions: `positions/${r.txHash}.json`,
         callTrace: `calltrace/${r.txHash}.json`,
-        artifacts: r.classes.map((k) => artifactRow(k, r)),
+        artifacts: r.classes.flatMap((k) => artifactRows(k, r)),
       });
       yielded.push({ txHash: r.txHash, outcome: reproduced ? 'replayed' : 'divergent' });
     }
