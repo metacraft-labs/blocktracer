@@ -2899,6 +2899,10 @@ suite "the current line is marked, and a branch claim cannot take the mark":
 
   let html = debugHtml(readyTx)
   let onDemandHtml = debugHtml(onDemandTx)
+  # The rows the served pane carries: the landing document's, whole. The other
+  # documents are panels drawn when opened ("only the document a reader lands
+  # on is pre-rendered" above), so a page-wide count is this file's length.
+  let rowCount = activeDocument(sessionFor(readyTx).editor).lines.len
 
   test "the subject exists: one positioned line, in a listing of many":
     # Nothing below is worth checking over a page with no listing or no
@@ -2907,7 +2911,8 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     # 133 and not 108. The 25 are `shield.nr`'s lines 1–25, which the pane used
     # to drop and announce as "Showing from line 26"; the file is 67 lines and
     # all 67 are here. See "the source pane renders the WHOLE file …" above.
-    check occurrences(html, "class=\"srcline") == 133
+    check rowCount == 67        # `shield.nr`, whole
+    check occurrences(html, "class=\"srcline") == rowCount
     check occurrences(html, "class=\"srcline cur") == 1
     check "id=\"L-src-shield-nr-32\"" in html
     check "id=\"L-src-shield-nr-1\"" in html
@@ -2922,13 +2927,13 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     # row's cell now carries the `tabindex`/`autofocus`/`aria-label` triple that
     # opens the pane at the position on a page with no script. The total is the
     # invariant; the split below is what changed.
-    check occurrences(html, "<span class=\"p\"") == 133
+    check occurrences(html, "<span class=\"p\"") == rowCount
     # …and exactly one of them is inked, and it is the one that is focusable.
     # The other 132 hold a space and carry no attribute at all.
     check occurrences(html, "<span class=\"p\" tabindex=\"-1\" " &
                             "autofocus=\"autofocus\"") == 1
     check occurrences(html, "<span class=\"p\">▶</span>") == 0
-    check occurrences(html, "<span class=\"p\"> </span>") == 132
+    check occurrences(html, "<span class=\"p\"> </span>") == rowCount - 1
 
   test "the OVERLAP row states both facts, in the order the renderer emits":
     # The whole composition question, as one exact string. `shield.nr:32` is
@@ -2997,7 +3002,7 @@ suite "the current line is marked, and a branch claim cannot take the mark":
     # emitting the attribute and one row happens to match".
     check occurrences(html, "aria-current=\"true\"") == 1
     # 132, up from 107, for the same reason `class="srcline"` went 108 -> 133.
-    check occurrences(html, "aria-current=\"false\"") == 132
+    check occurrences(html, "aria-current=\"false\"") == rowCount - 1
     check ("id=\"L-src-shield-nr-32\" data-line=\"32\" " &
            "aria-current=\"true\"") in html
 
