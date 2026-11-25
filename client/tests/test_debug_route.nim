@@ -984,6 +984,35 @@ suite "M8a — the source pane renders real source, with stable line identity":
     # No inert tab left behind.
     check "<span class=\"srctab" notin html
 
+  test "only the document a reader lands on is pre-rendered; the rest open on demand":
+    ## Measured 2026-11-25 over the built sites: an Aptos debug page was
+    ## 26,497,056 bytes, 22.5 MB of it the rows of all 58 documents of which a
+    ## reader sees one at a time, and hydration's first paint rebuilt every one of
+    ## them from the island anyway. Pre-rendering the documents a reader has not
+    ## opened buys no speed, and it put two Aptos pages and a Starknet one over
+    ## Cloudflare Pages' 25 MiB per-file limit (codetracer-pm #103).
+    ##
+    ## So the served pane carries rows for the active document only, still WHOLE
+    ## (the test above), and every other document a panel that names it and says
+    ## how long it is. Reachability is the test above's, unchanged: the panel and
+    ## its tab are still there.
+    let s = sessionFor(readyTx)
+    let docs = s.editor.documents
+    let active = activeDocument(s.editor)
+    check docs.len > 1          # or there is no other document to defer
+    let html = debugHtml(readyTx)
+    let rows = idsInOrder(html, "L-")
+    let activePrefix = "L-" & pathSlug(active.path) & "-"
+    check rows.len == active.lines.len
+    check rows.allIt(it.startsWith(activePrefix))
+    for d in docs:
+      if d.path == active.path: continue
+      let at = html.find("id=\"" & docAnchor(d.path) & "\"")
+      check at > 0
+      let panel = html[at ..< min(html.len, at + 4000)]
+      check "srclazy" in panel
+      check ($d.lines.len & " lines") in panel
+
   # ── the second view is an AGGREGATION, not an ordering ───────────────────
   #
   # The research finding this replaced: Chrome DevTools' `Bottom-up` view is an
