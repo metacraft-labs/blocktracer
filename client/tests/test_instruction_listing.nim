@@ -1169,7 +1169,10 @@ suite "7 — a recording at TWO fidelities says where it is at both of them":
       # union it was the PANE's flag, so a reader standing on a program counter
       # would have had all 32 Noir files stamped `src instr` and described as
       # "Steps 1–83".
-      ck occurrences(body, "class=\"src instr\"") == 1
+      # The prefix and not the whole attribute: when the session lands on
+      # source, the listing is an unopened panel (`src instr srclazy`, drawn
+      # when opened) and still says it is a listing.
+      ck occurrences(body, "class=\"src instr") == 1
       ck occurrences(body, "class=\"instrcap\"") == 1
       # …and the source panels keep the tab strip a listing does not get. The
       # caption used to be chosen from `p.listingCaption`, which is a fact about
