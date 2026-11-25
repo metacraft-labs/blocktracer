@@ -218,6 +218,46 @@ proc focus*(pane: var EditorPane; path: string; line: int) =
 ## position with, and it keeps the banner that says what it did — an honest
 ## announced reduction, which is the part this pane got right.
 
+const ServedDocumentLines* = 5_000
+  ## The most rows the SERVED frame draws for one document.
+
+proc servedWindow*(pane: EditorPane; limit = ServedDocumentLines): EditorPane =
+  ## The pane the served frame renders: the active document narrowed to `limit`
+  ## rows around the position when it is longer than that, every other document
+  ## untouched (their rows are not drawn on the served page at all, see
+  ## `renderSource`). The narrowed document records its whole length in
+  ## `totalLines`, so the pane says which lines it holds and how many there are.
+  ##
+  ## ## WHY A BOUND, AFTER THE ARGUMENT ABOVE AGAINST ONE
+  ##
+  ## The argument above is right about what it argued against: a lead-in that
+  ## hid the top of an 83-line program, on a page that then had no way to show
+  ## it. This bound is different on both counts. It applies to the served frame
+  ## only, and the live session draws the whole file from the island, which
+  ## still carries every line; and it is set by a hard limit rather than a
+  ## taste. Cloudflare Pages refuses any file over 25 MiB, and one Starknet
+  ## CASM listing is 85,375 rows, about 25.5 MB of markup on its own (measured
+  ## 2026-11-25, `0x7329e82b…`). No page holding it whole can be served. 5,000
+  ## rows is about 1.5 MB of markup at the measured ~300 bytes a row, more
+  ## than any screen shows; every Noir, Aztec, Sui and Aptos document in the
+  ## corpus is under it, so for them nothing changes.
+  result = pane
+  let i = activeIndexOf(pane)
+  if i < 0 or limit <= 0: return
+  let n = pane.documents[i].lines.len
+  if n <= limit: return
+  var centre = 0
+  if pane.currentLine > 0:
+    for k in 0 ..< n:
+      if pane.documents[i].lines[k].number == pane.currentLine:
+        centre = k
+        break
+  var lo = max(0, centre - limit div 2)
+  let hi = min(n, lo + limit)
+  lo = max(0, hi - limit)
+  result.documents[i].lines = pane.documents[i].lines[lo ..< hi]
+  result.documents[i].totalLines = n
+
 proc windowAround*(pane: EditorPane; radius: int): EditorPane =
   ## The active document narrowed to `radius` lines either side of the current
   ## line, other documents dropped.
