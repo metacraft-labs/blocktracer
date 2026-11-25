@@ -162,10 +162,11 @@
 // Both default to the live-run values (`--rpc-url` and `new Date()`), so a run that does
 // not pass them behaves exactly as before.
 
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync,
          writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
 
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
@@ -489,6 +490,60 @@ const ctPrintPath = (explicit) => containerReaderPath({
 const CTFS_NOTE = 'A snapshot container holds what a RECORDER wrote; an already-encoded '
                 + 'object is refused.';
 
+/**
+ * The container's event stream, read line by line from `ct-print --events`.
+ *
+ * It used to be read whole into one string with a 256 MiB cap, which a long transaction
+ * outgrows: every step line carries the step's `vars`, and with frame memory captured
+ * those are the whole memory of the frame. Sepolia block 7,840,000's
+ * 0x356e572f…c13a0 is 199,337 steps and 8.5 GB of JSON lines, so the producer exited on
+ * "stdout maxBuffer length exceeded" with every recording of the window on disk.
+ *
+ * Nothing here reads a step's `vars` (the value stream is counted from `meta.counts`), so
+ * a step line is parsed without them: `ct-print` writes `vars` as the step object's last
+ * member, and the text before it is a complete object once closed. A step line whose
+ * `vars` is not where that cut expects is parsed whole, so the cut can only save work,
+ * never drop a field.
+ */
+async function readEvents(ctPrint, file) {
+  const child = spawn(ctPrint, ['--events', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (d) => { if (stderr.length < 4000) stderr += d; });
+  const exited = new Promise((ok) => child.on('close', (code, signal) => ok({ code, signal })));
+  let header = {};
+  const steps = [];
+  const callEntries = [];
+  const ioEvents = [];
+  for await (const line of createInterface({ input: child.stdout, crlfDelay: Infinity })) {
+    if (line.trim().length === 0) continue;
+    if (line.startsWith('{"kind":"step"')) {
+      const cut = line.indexOf(',"vars":[');
+      let step = null;
+      if (cut > 0 && line.endsWith(']}')) {
+        try { step = JSON.parse(`${line.slice(0, cut)}}`); } catch { step = null; }
+        if (step !== null && !Number.isInteger(step.step_index)) step = null;
+      }
+      if (step === null) {
+        step = JSON.parse(line);
+        delete step.vars;
+      }
+      steps.push(step);
+      continue;
+    }
+    const l = JSON.parse(line);
+    // The first line carrying `metadata` is the header. An io event carries one of its
+    // own (a revert's `"metadata":"RevertRaw"`), so the two tests are independent.
+    if (l.metadata && !header.metadata) header = l;
+    if (l.kind === 'call_entry') callEntries.push(l);
+    else if (l.kind === 'io') ioEvents.push(l);
+  }
+  const { code, signal } = await exited;
+  if (code !== 0) {
+    throw new Error(`${ctPrint} --events ${file} exited ${code ?? signal}: ${stderr.slice(0, 400)}`);
+  }
+  return { header, steps, callEntries, ioEvents };
+}
+
 async function readContainer(ctPrint, file) {
   let meta;
   try {
@@ -498,12 +553,7 @@ async function readContainer(ctPrint, file) {
     throw refuse(SOURCE_REFUSAL, 
       `${ctPrint} would not open ${file}: ${String(e.stderr ?? e.message).slice(0, 400)}`);
   }
-  const { stdout: ev } = await run(ctPrint, ['--events', file], { maxBuffer: 1 << 28 });
-  const lines = ev.split('\n').filter((l) => l.trim().length > 0).map((l) => JSON.parse(l));
-  const header = lines.find((l) => l.metadata) ?? {};
-  const steps = lines.filter((l) => l.kind === 'step');
-  const callEntries = lines.filter((l) => l.kind === 'call_entry');
-  const ioEvents = lines.filter((l) => l.kind === 'io');
+  const { header, steps, callEntries, ioEvents } = await readEvents(ctPrint, file);
   return {
     counts: meta.counts,
     flags: meta.metadata.flags,
