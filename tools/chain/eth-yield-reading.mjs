@@ -41,6 +41,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readingFromSnapshot, checkReading, READING_FORMAT } from './lib/yield.mjs';
 import { refusalCounts, REFUSAL_REASON_IDS } from './lib/refusal.mjs';
+import { EVM_INSTANCES } from './lib/eth-producer-facts.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -67,7 +68,16 @@ function main() {
     return 2;
   }
   const method = JSON.parse(readFileSync(join(HERE, 'yield-method.json'), 'utf8'));
-  const pinned = method.pinned.eth;
+  // `--pinned` names the instance's entry in the method (`eth` for mainnet, `eth-sepolia`);
+  // each tree's snapshot chain must be that instance's slug (EVM_INSTANCES).
+  const pinnedKey = flag('pinned') ?? 'eth';
+  const instance = Object.values(EVM_INSTANCES).find((i) => i.pinned === pinnedKey);
+  const pinned = method.pinned[pinnedKey];
+  if (!instance || !pinned) {
+    console.error(`eth-yield-reading: --pinned ${pinnedKey} is not a declared EVM instance `
+                  + `with a pinned entry`);
+    return 2;
+  }
 
   const windows = [];
   const runtimeCommits = new Set();
@@ -78,6 +88,11 @@ function main() {
       return 2;
     }
     const snap = JSON.parse(readFileSync(path, 'utf8'));
+    if (snap.provenance?.chain !== instance.slug) {
+      console.error(`eth-yield-reading: ${dir} is a ${snap.provenance?.chain} snapshot and --pinned ${pinnedKey} `
+                    + `is ${instance.slug}`);
+      return 2;
+    }
     const heights = snap.transactions.map((t) => t.blockNumber);
     const lo = Math.min(...heights);
     const pin = pinned.windows.find(([a, b]) => lo >= a && lo <= b);
@@ -144,13 +159,13 @@ function main() {
   const doc = {
     format: READING_FORMAT,
     _comment: [
-      'ETHEREUM MAINNET, EVERY TRANSACTION OF EACH PINNED WINDOW. Recorder-EVM CXP-EVM-5,',
+      `${instance.name.toUpperCase()}, EVERY TRANSACTION OF EACH PINNED WINDOW. Recorder-EVM CXP-EVM-5,`,
       'built by tools/chain/eth-yield-reading.mjs from whole-block captures',
       '(capture-eth-range.mjs --whole-blocks). Each block was replayed once, in order, from',
       'its parent block (replay-preceding).',
     ],
     measuredAt: new Date().toISOString(),
-    chain: 'eth',
+    chain: pinnedKey,
     endpoint,
     chainTipAtRun: tip,
     finalizedAtRun: finalized,

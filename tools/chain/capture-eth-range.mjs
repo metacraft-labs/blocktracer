@@ -163,11 +163,11 @@
 import { spawn } from 'node:child_process';
 import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { evmInstanceFor } from './lib/eth-producer-facts.mjs';
 
 const HERE = 'tools/chain/capture-eth-range.mjs';
 
-/** This tool's one chain, named in its own source. Not a parameter over chains. */
-const CHAIN_ID = 1;
+/** The chain is the endpoint's, and only a declared instance (`EVM_INSTANCES`). */
 
 /** The producer this drives, located from this file rather than from the cwd. */
 const PRODUCER = resolve(dirname(new URL(import.meta.url).pathname),
@@ -405,11 +405,10 @@ async function main() {
 
   // ── the chain ────────────────────────────────────────────────────────────
   const chainId = parseInt(await rpc(url, 'eth_chainId', []), 16);
-  if (chainId !== CHAIN_ID) {
+  if (!evmInstanceFor(chainId)) {
     throw refuse(ConfigRefusal,
-      `${url} serves chain id ${chainId} and this capture is Ethereum mainnet `
-      + `(${CHAIN_ID}). It names one chain in its own source: there is no dispatch here to `
-      + `widen, and a second EVM instance is a second capture.`);
+      `${url} serves chain id ${chainId}, which is not a declared EVM instance (Recorder-EVM `
+      + `CXP-EVM-1; EVM_INSTANCES in lib/eth-producer-facts.mjs).`);
   }
   const tip = parseInt(await rpc(url, 'eth_blockNumber', []), 16);
   const finalized = parseInt(

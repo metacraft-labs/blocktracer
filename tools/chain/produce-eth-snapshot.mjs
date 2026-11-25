@@ -179,18 +179,16 @@ import {
 import {
   RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
   INSTRUCTION_STREAM_SCHEMA, CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET,
-  costVectorForRow, executionsForRow, rolesForRow, payloadForRow,
+  costVectorForRow, executionsForRow, rolesForRow, payloadForRow, evmInstanceFor,
 } from './lib/eth-producer-facts.mjs';
 
 const run = promisify(execFile);
 
 const HERE = 'tools/chain/produce-eth-snapshot.mjs';
 
-/** This producer's one chain. Not a parameter over chains — a default it states. */
-const CHAIN_SLUG = 'ethereum-mainnet';
-
-/** The chain id this producer is for. A different one is a configuration refusal. */
-const CHAIN_ID = 1;
+/** The chain this producer is for is the one the endpoint reports, and only if it is a
+ *  declared instance (`EVM_INSTANCES`, lib/eth-producer-facts.mjs). Any other id is a
+ *  configuration refusal, and a `--chain` that disagrees with the endpoint's id is one too. */
 
 /**
  * The engine skew this tool reports about its own output. Both halves are READ from the
@@ -725,8 +723,8 @@ async function main() {
   // `recorderProvenance`. Optional so a hand run keeps working; every capture script passes it.
   const recorderBinary = flag('recorder-binary');
   const outDir = flag('out');
-  const chain = flag('chain', CHAIN_SLUG);
-  const label = flag('label', 'Real Ethereum mainnet data');
+  const chainFlag = flag('chain');
+  const labelFlag = flag('label');
   // The node the DATA came from, and the instant it came from there — see the header.
   // Defaulting to the live-run values keeps a run that passes neither byte-for-byte
   // identical to one taken before these existed.
@@ -813,12 +811,20 @@ async function main() {
   // ── the chain ────────────────────────────────────────────────────────────
   const chainIdHex = await rpc(url, 'eth_chainId', []);
   const chainId = parseInt(chainIdHex, 16);
-  if (chainId !== CHAIN_ID) {
-    throw refuse(CONFIG_REFUSAL, 
-      `${url} serves chain id ${chainId} and this producer is Ethereum mainnet `
-      + `(${CHAIN_ID}). It is written for ONE chain on purpose: there is no dispatch here `
-      + `to widen, and a second EVM instance is a second producer (Chain-Delivery DEL-6).`);
+  const instance = evmInstanceFor(chainId);
+  if (!instance) {
+    throw refuse(CONFIG_REFUSAL,
+      `${url} serves chain id ${chainId}, which is not a declared EVM instance (Recorder-EVM `
+      + `CXP-EVM-1; EVM_INSTANCES in lib/eth-producer-facts.mjs). An instance is declared `
+      + `there and pinned in yield-method.json before it is produced.`);
   }
+  if (chainFlag !== undefined && chainFlag !== instance.slug) {
+    throw refuse(CONFIG_REFUSAL,
+      `--chain ${chainFlag} names a different instance from the endpoint's: ${url} serves `
+      + `chain id ${chainId}, which is ${instance.slug}.`);
+  }
+  const chain = instance.slug;
+  const label = labelFlag ?? instance.label;
 
   // The control, taken against the SAME endpoint in the same run, so "it answered" is a
   // reading rather than an assumption. An endpoint that answers a method that does not
