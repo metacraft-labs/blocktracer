@@ -6,9 +6,9 @@
   "(capture-eth-range.mjs --whole-blocks). Each block was replayed once, in order, from",
   "its parent block (replay-preceding)."
  ],
- "measuredAt": "2026-11-25T19:55:25.690Z",
+ "measuredAt": "2026-11-25T22:28:21.387Z",
  "chain": "eth-sepolia",
- "endpoint": "https://sepolia.rpc.thirdweb.com + https://rpc.sepolia.ethpandaops.io, round-robin through a local pacing proxy (127.0.0.1:18545)",
+ "endpoint": "https://sepolia.rpc.thirdweb.com + https://rpc.sepolia.ethpandaops.io, round-robin through a local loopback pacing proxy (tools/chain/rpc-pacer.mjs)",
  "chainTipAtRun": 12211689,
  "finalizedAtRun": 12211614,
  "toolchain": {
