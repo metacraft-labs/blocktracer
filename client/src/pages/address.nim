@@ -29,6 +29,12 @@
 ## complete log coverage** — no capability to negotiate, no degraded variant of
 ## this page, and no record cap."
 ##
+## THE COMPLETE-HISTORY HALF HOLDS ONLY WHERE THE TREE CARRIES IT. A tree with no
+## chain history for an address (§5.2 `addressHistory` absent, "the window only")
+## lists what the export recorded. The page then says so, and states the blocks
+## covered, rather than calling the list complete (`AddressView.historyComplete`).
+## This was first seen on Starknet, whose nodes answer no per-address query.
+##
 ## The no-record-cap half is structural here and not a promise: history is paged
 ## by block-range segment (§2.2), the page reads ONE segment, and the pager
 ## walks the generation's own list. The cost of the thousandth page is the cost
@@ -191,8 +197,30 @@ proc addressPage*(chain: string, info: ChainInfo, v: AddressView,
             # are both this system describing itself. The reader's version is
             # the promise underneath them: the list is complete and nothing is
             # cut off at a row count.
-            text "Complete history, one block-range segment at a time. "
-            text "Nothing is cut off at a row limit."
+            #
+            # BUT ONLY WHERE THE TREE SAYS THE LIST IS COMPLETE (`historyComplete`).
+            # A tree that carries no chain history for the address publishes the
+            # transactions IT recorded, and calling that "complete history" told
+            # a visitor that the address did nothing outside those blocks.
+            # Starknet's nodes have no per-address query, so its pages are this
+            # case on every address. The operator's ruling (2026-11-25) is to say
+            # plainly that the list is not the full history, and which blocks it
+            # covers.
+            if v.historyComplete:
+              text "Complete history, one block-range segment at a time. "
+              text "Nothing is cut off at a row limit."
+            else:
+              text "Recorded transactions only — this is not the address's full "
+              text "history. "
+              if v.coveredBlocks > 0:
+                text "BlockTracer recorded " & $v.coveredBlocks &
+                  (if v.coveredBlocks == 1: " block" else: " blocks") &
+                  " of this chain, from block " & $v.coveredFrom & " to " &
+                  $v.coveredTo & ", and this lists the address's transactions "
+                text "in them. Its transactions in other blocks are not listed."
+              else:
+                text "Its transactions in blocks this export did not record are "
+                text "not listed."
           raw txTable(chain, rows,
             "This segment of the address's history resolved but listed no " &
             "transactions this generation still holds. The segment list " &

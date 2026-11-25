@@ -1482,6 +1482,20 @@ type
     segmentPaths*: seq[string]   ## in the generation's display order, newest first
     index*: int                  ## which segment this view is positioned on, -1 for none
     segment*: AddressSegmentRow
+    historyComplete*: bool
+      ## Whether the list reaches back to the address's FIRST transaction. True
+      ## only when the tree says so: the oldest segment is the chain's own history
+      ## with `complete` set (§5.2 `addressHistory`), or the export's blocks run
+      ## unbroken from block 0. Otherwise the list is the transactions this export
+      ## recorded, and §5.2 reads a tree with no `addressHistory` as "the window
+      ## only". A page that called that list "complete history" made a claim the tree
+      ## did not support. Starknet is the case that made it visible: its nodes
+      ## answer no per-address query at all.
+    coveredBlocks*, coveredFrom*, coveredTo*: int
+      ## When `historyComplete` is false: how many blocks this export holds, and
+      ## its lowest and highest. The blocks may be several disjoint windows, so
+      ## the count is stated with the bounds rather than implied by them. Zero
+      ## when the history is complete, or when no block is published.
 
 proc addressSegmentPaths*(r: DataRoot, info: ChainInfo,
                           address: string): tuple[found: bool, reason: string,
@@ -1585,6 +1599,42 @@ proc addressView*(r: DataRoot, info: ChainInfo, address: string;
   # That shape was briefly here as a deliberate mutation to prove the test bites;
   # it bit, and this is the implementation.
   result.segment = readAddressSegment(info, listed.paths[want])
+  # THE LIST'S SCOPE, which the page must state and must not round up.
+  #
+  # NO EXTRA SEGMENT READ ON A WINDOW-ONLY TREE, which is what
+  # `e2e_address_history_pagination_has_no_cap` holds this page to: ONE segment
+  # per page. The first version read the oldest segment on every page to look for
+  # `complete`; that test caught it as two segment reads per page, and as one
+  # page (the oldest) cheaper than the rest. The height map is read instead. It is
+  # one object per epoch, constant in the depth of the address's history. Only a
+  # segment whose range lies BELOW the window can be the chain's own history
+  # (S5-ADDRESS-HISTORY-BELOW-WINDOW), so the oldest segment is read only when its
+  # path, which states its range, puts it there.
+  var lo = high(int)
+  var hi = -1
+  var n = 0
+  for b in blockRefsNewestFirst(info.store, info.session):
+    inc n
+    lo = min(lo, b.height)
+    hi = max(hi, b.height)
+  if n > 0 and lo == 0 and n == hi - lo + 1:
+    result.historyComplete = true
+    return
+  var top = -1
+  for part in segmentIdOf(listed.paths[^1]).split('-'):
+    try: top = max(top, parseInt(part))
+    except ValueError: discard
+  # `n > 0`: with no published block there is no window for a segment to lie below.
+  if n > 0 and top >= 0 and top < lo:
+    let oldest = if want == listed.paths.high: result.segment
+                 else: readAddressSegment(info, listed.paths[^1])
+    if oldest.complete:
+      result.historyComplete = true
+      return
+  if n > 0:
+    result.coveredBlocks = n
+    result.coveredFrom = lo
+    result.coveredTo = hi
 
 proc addressRows*(r: DataRoot, info: ChainInfo, v: AddressView): seq[TxRow] =
   ## The transactions of the segment this view is positioned on.
