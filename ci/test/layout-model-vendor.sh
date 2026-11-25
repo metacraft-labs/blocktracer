@@ -14,7 +14,7 @@
 #
 #   A. LOCAL INTEGRITY (always runs, needs nothing but this repository)
 #      Both vendored files still hash to the sha256s in the manifest, and the
-#      manifest's commit EQUALS `ci/embed-sdk-pin.env`'s CODETRACER_REF. An
+#      manifest's commit EQUALS the CodeTracer pin (`ci/codetracer-ref.sh`). An
 #      edit here — a helpful tweak, a merge, a formatter — fails.
 #
 #   B. STRUCTURAL CONFORMANCE (needs a CodeTracer checkout)
@@ -136,24 +136,24 @@ done
 
 # The manifest's commit must equal the Embed SDK pin — see the header. This is
 # the check that turns part B from unanswerable into a drift detector.
-pin_file="${repo_root}/ci/embed-sdk-pin.env"
-if [ -f "${pin_file}" ]; then
-	pinned="$(grep -oE '^CODETRACER_REF=[0-9a-f]+' "${pin_file}" | cut -d= -f2)"
-	vendored_commit="$(grep -oE '"commit"[[:space:]]*:[[:space:]]*"[0-9a-f]+"' \
-		"${manifest}" | grep -oE '[0-9a-f]{7,}')"
-	if [ -n "${pinned}" ] && [ -n "${vendored_commit}" ] &&
-		[ "${pinned}" != "${vendored_commit}" ]; then
-		echo "--- A: the vendor manifest and the Embed SDK pin name different commits" >&2
-		echo "    ci/embed-sdk-pin.env: ${pinned}" >&2
-		echo "    vendor manifest:      ${vendored_commit}" >&2
-		echo "  Part B compares this copy against \$CODETRACER_SRC, which IS the pin." >&2
-		echo "  A manifest naming a different commit makes part B unanswerable: it" >&2
-		echo "  would redden on every SDK bump whether or not this module moved." >&2
-		echo "  Re-vendor from the pinned commit and update the manifest." >&2
-		exit 1
-	fi
-	echo "--- A: manifest commit == Embed SDK pin (${pinned:0:12}…)"
+# The pin is the organisation's CodeTracer pin, which this repository reads
+# and does not store; `ci/codetracer-ref.sh` prints it.
+pinned="$(bash "${repo_root}/ci/codetracer-ref.sh")" ||
+	fail "cannot read the CodeTracer pin (ci/codetracer-ref.sh, above)"
+vendored_commit="$(grep -oE '"commit"[[:space:]]*:[[:space:]]*"[0-9a-f]+"' \
+	"${manifest}" | grep -oE '[0-9a-f]{7,}')"
+[ -n "${vendored_commit}" ] || fail "the manifest records no commit"
+if [ "${pinned}" != "${vendored_commit}" ]; then
+	echo "--- A: the vendor manifest and the Embed SDK pin name different commits" >&2
+	echo "    CodeTracer pin:       ${pinned}" >&2
+	echo "    vendor manifest:      ${vendored_commit}" >&2
+	echo "  Part B compares this copy against \$CODETRACER_SRC, which IS the pin." >&2
+	echo "  A manifest naming a different commit makes part B unanswerable: it" >&2
+	echo "  would redden on every SDK bump whether or not this module moved." >&2
+	echo "  Re-vendor from the pinned commit and update the manifest." >&2
+	exit 1
 fi
+echo "--- A: manifest commit == Embed SDK pin (${pinned:0:12}…)"
 
 # ---------------------------------------------------------------------------
 # B. Structural conformance against a real CodeTracer checkout

@@ -37,7 +37,7 @@
 ##
 ## **The spellings are checked against the real parsers, not trusted.**
 ## `tests/tviewmodelseam.nim` compiles against the pinned Embed SDK
-## (`ci/embed-sdk-pin.env`), feeds every value this module can emit through the
+## (`ci/codetracer-ref.sh`), feeds every value this module can emit through the
 ## real `applyReplayStatus`, and asserts the axis it lands on. A spelling that
 ## drifts on either side fails that suite. Nothing here is verified by reading.
 ##

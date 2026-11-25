@@ -17,7 +17,7 @@
 #   A. LOCAL INTEGRITY (always runs, needs nothing but this repository)
 #      Every vendored file still hashes to its sha256 in the manifest, the
 #      manifest lists exactly the files the port compiles, and the
-#      manifest's commit EQUALS `ci/embed-sdk-pin.env`'s CODETRACER_REF. An
+#      manifest's commit EQUALS the CodeTracer pin (`ci/codetracer-ref.sh`). An
 #      edit here — a helpful tweak, a merge, a formatter — fails.
 #
 #   B. BYTE CONFORMANCE (needs a CodeTracer checkout)
@@ -86,7 +86,6 @@ require=0
 # path has never been executed is a check nobody has reason to believe.
 vendor_dir="${CT_STYLES_VENDOR_DIR:-${repo_root}/client/src/debugger/vendor}"
 manifest="${CT_STYLES_VENDOR_MANIFEST:-${vendor_dir}/ct_styles.vendor.json}"
-pin_file="${CT_STYLES_PIN_FILE:-${repo_root}/ci/embed-sdk-pin.env}"
 # The sibling-checkout fallback, overridable for the same reason as the rest:
 # `ct-styles-vendor-test.sh` has to be able to drive the no-checkout branch,
 # and on a developer machine a real `../codetracer` is exactly what makes that
@@ -183,17 +182,17 @@ for rel in "${rels[@]}"; do
 done
 echo "--- A: ${#rels[@]} file(s) match their manifest digests"
 
-pinned=""
-if [ -f "${pin_file}" ]; then
-	pinned="$(grep -oE '^CODETRACER_REF=[0-9a-f]+' "${pin_file}" | cut -d= -f2)"
-fi
+# The organisation's CodeTracer pin, which this repository reads and does not
+# store. `ci/codetracer-ref.sh` returns `$CODETRACER_REF` when it is set, which
+# is how `ct-styles-vendor-test.sh` drives a pin that moved.
 vendored_commit="$(grep -oE '"commit"[[:space:]]*:[[:space:]]*"[0-9a-f]+"' \
 	"${manifest}" | grep -oE '[0-9a-f]{7,}')"
 [ -n "${vendored_commit}" ] || fail "the manifest records no commit"
-[ -n "${pinned}" ] || fail "no CODETRACER_REF in ${pin_file}"
+pinned="$(bash "${repo_root}/ci/codetracer-ref.sh")" ||
+	fail "cannot read the CodeTracer pin (ci/codetracer-ref.sh, above)"
 if [ "${pinned}" != "${vendored_commit}" ]; then
 	echo "--- A: the vendor manifest and the Embed SDK pin name different commits" >&2
-	echo "    ci/embed-sdk-pin.env: ${pinned}" >&2
+	echo "    CodeTracer pin:       ${pinned}" >&2
 	echo "    vendor manifest:      ${vendored_commit}" >&2
 	echo "  One commit, so the version the handoff compiles against and the" >&2
 	echo "  version the chrome is drawn from can never be two different" >&2

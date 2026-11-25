@@ -66,9 +66,12 @@ name: ci
 # dissolves a second defect: the hand-rolled checkout was sparse on
 # `src/frontend` only, and `src/frontend/.../flow_vm.nim` imports
 # `../../../common/flow_mode_wire`, so both cross-repo suites died with `cannot
-# open file` the moment they got far enough to compile. flake.nix's codetracer
-# rev and `ci/embed-sdk-pin.env`'s CODETRACER_REF are required to be equal and
-# are (8d1c84a); the flake is now the only one of the two these jobs read.
+# open file` the moment they got far enough to compile. The CodeTracer
+# revision is the organisation's pin (`pins/codetracer.json` in
+# metacraft-github-actions), read through flake.nix and stored nowhere here, so
+# the flake input and the revision the scripts compare against cannot differ.
+# What is still checked is pin == vendored manifests: part A of
+# `ci/test/{layout-model,flow-layout,ct-styles}-vendor.sh`, below.
 #
 # Why it took 178 commits to see any of it: these three jobs were the only ones
 # taking a toolchain from the network rather than from the flake, and no run of

@@ -90,6 +90,15 @@ if [ -z "${ct}" ]; then
 	exit 1
 fi
 
+# The CodeTracer pin, resolved once and exported: the isolated copy in case 4
+# has no flake to evaluate, and `ci/codetracer-ref.sh` returns
+# `$CODETRACER_REF` as given.
+CODETRACER_REF="$(bash "${repo_root}/ci/codetracer-ref.sh")" || {
+	echo "layout-model-vendor-test.sh: cannot read the CodeTracer pin" >&2
+	exit 1
+}
+export CODETRACER_REF
+
 echo "=== layout-model-vendor.sh self-test ==="
 
 # ── 1. The real thing passes ───────────────────────────────────────────────
@@ -147,6 +156,16 @@ LAYOUT_VENDOR_DIR="${work}/skew" CODETRACER_SRC="${ct}" \
 report "a manifest commit that is not the SDK pin FAILS" 1 $?
 because "${work}/2d.log" "different commits" "the pin-skew case failed for the wrong reason"
 rm -rf "${work}/skew"
+
+# ── 2e. A pin that cannot be read FAILS, never skips check A ──────────────
+# Until 2026-11-24 check A read a file and skipped itself when the file or the
+# value was absent. The pin is now resolved by `ci/codetracer-ref.sh`; a value
+# it cannot vouch for must stop the gate, not let it pass on hashes alone.
+CODETRACER_REF="not-a-commit" CODETRACER_SRC="${ct}" \
+	"${subject}" --require >"${work}/2e.log" 2>&1
+report "an unreadable CodeTracer pin FAILS rather than skipping check A" 1 $?
+because "${work}/2e.log" "cannot read the CodeTracer pin" \
+	"the unreadable-pin case failed for the wrong reason"
 
 # ── 3a. A structural change upstream is caught (check B) ───────────────────
 # The vendored files and their manifest are consistent; what moves is UPSTREAM.
@@ -234,7 +253,7 @@ rm -rf "${work}/fake-c"
 mkdir -p "${work}/isolated/ci/test"
 cp "${subject}" "${work}/isolated/ci/test/"
 mirror "${work}/isolated/client/src/debugger/vendor"
-cp "${repo_root}/ci/embed-sdk-pin.env" "${work}/isolated/ci/"
+cp "${repo_root}/ci/codetracer-ref.sh" "${work}/isolated/ci/"
 isolated="${work}/isolated/ci/test/layout-model-vendor.sh"
 [ -e "${work}/isolated/../codetracer" ] &&
 	{ echo "  [FAILED] the isolated tree has a codetracer sibling after all" >&2

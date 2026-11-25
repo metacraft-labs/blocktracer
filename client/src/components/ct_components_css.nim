@@ -3,7 +3,7 @@
 ## This module is the whole of what BlockTracer *decides*. The rules themselves
 ## are not here: they are the vendored `.styl` bytes under
 ## `../debugger/vendor/frontend/styles/components/`, byte-identical to the
-## CodeTracer commit `ci/embed-sdk-pin.env` pins, and `design_system/ct_styl`
+## CodeTracer commit the CodeTracer pin names (`ci/codetracer-ref.sh`), and `design_system/ct_styl`
 ## compiles them. The argument for that mechanism — and for why adding Stylus
 ## to this build was the worse of the two honest options — is in `ct_styl.nim`'s
 ## own header.

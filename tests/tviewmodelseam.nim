@@ -36,7 +36,7 @@
 ## Build:
 ##   ci/test/viewmodel-seam-test.sh --require
 ##
-## or by hand, with the pinned Embed SDK (ci/embed-sdk-pin.env):
+## or by hand, with the pinned Embed SDK (ci/codetracer-ref.sh):
 ##   nim c -r -d:nimOldCaseObjects \
 ##     --path:$CODETRACER_SRC/src/frontend/viewmodel \
 ##     --path:$CODETRACER_SRC/src/frontend --path:$CODETRACER_SRC/src \

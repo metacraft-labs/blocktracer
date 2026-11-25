@@ -24,6 +24,15 @@ trap 'rm -rf "${work}"' EXIT
 fails=0
 cases=0
 
+# The CodeTracer pin, resolved once (`ci/codetracer-ref.sh`) and handed to every
+# case as `$CODETRACER_REF`, which the gate's resolver returns as given. Case 6
+# hands it a different value instead.
+pin="$(bash "${repo_root}/ci/codetracer-ref.sh")" || {
+	echo "ct-styles-vendor-test.sh: cannot read the CodeTracer pin" >&2
+	exit 1
+}
+export CODETRACER_REF="${pin}"
+
 # Part A only: no CodeTracer checkout is visible to these runs, so the gate
 # reaches part B, finds nothing and exits 3 — which is the PASS code for the
 # cases below that expect part A to be happy. The cases that expect a part A
@@ -34,7 +43,7 @@ run_case() {
 	local out
 	out="$(CT_STYLES_VENDOR_DIR="${dir}" \
 		CT_STYLES_VENDOR_MANIFEST="${dir}/ct_styles.vendor.json" \
-		CT_STYLES_PIN_FILE="${CASE_PIN_FILE:-${repo_root}/ci/embed-sdk-pin.env}" \
+		CODETRACER_REF="${CASE_PIN:-${pin}}" \
 		CODETRACER_SRC="${work}/no-such-checkout" \
 		CT_STYLES_CT_FALLBACK="${work}/no-such-checkout" \
 		"${gate}" 2>&1)"
@@ -143,11 +152,17 @@ run_case "a reordered manifest fails, before any digest is compared" 1 \
 # 6. The pin moved and nobody re-vendored — the failure mode that made the
 #    sibling layout-model gate red by construction for weeks.
 d="$(fresh pin-moved)"
-printf 'CODETRACER_REF=%s\n' "0000000000000000000000000000000000000000" \
-	>"${work}/moved-pin.env"
-CASE_PIN_FILE="${work}/moved-pin.env" run_case \
+CASE_PIN="0000000000000000000000000000000000000000" run_case \
 	"a pin that moved without a re-vendor fails, by name" 1 \
 	"name different commits" "${d}"
+
+# 6b. A pin that cannot be read fails rather than letting part A pass on the
+#     digests alone (`ci/codetracer-ref.sh` refuses a value that is not a
+#     40-hex commit).
+d="$(fresh pin-unreadable)"
+CASE_PIN="not-a-commit" run_case \
+	"an unreadable CodeTracer pin fails, by name" 1 \
+	"cannot read the CodeTracer pin" "${d}"
 
 # 7. --require turns a missing checkout from a skip into a failure, so CI
 #    cannot go green on a part B that never ran.

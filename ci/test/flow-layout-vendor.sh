@@ -115,23 +115,23 @@ done
 # `client/hydrate/` compiles against that tree — so a manifest naming a
 # different commit would mean the served page and the hydrated page were laid
 # out by two versions of one module.
-pin_file="${repo_root}/ci/embed-sdk-pin.env"
-if [ -f "${pin_file}" ]; then
-	pinned="$(grep -oE '^CODETRACER_REF=[0-9a-f]+' "${pin_file}" | cut -d= -f2)"
-	vendored_commit="$(grep -oE '"commit"[[:space:]]*:[[:space:]]*"[0-9a-f]+"' \
-		"${manifest}" | grep -oE '[0-9a-f]{7,}')"
-	if [ -n "${pinned}" ] && [ -n "${vendored_commit}" ] &&
-		[ "${pinned}" != "${vendored_commit}" ]; then
-		echo "--- A: the vendor manifest and the Embed SDK pin name different commits" >&2
-		echo "    ci/embed-sdk-pin.env: ${pinned}" >&2
-		echo "    vendor manifest:      ${vendored_commit}" >&2
-		echo "  These two files live in the tree the pin names, and the hydration" >&2
-		echo "  bundle compiles against that tree. Two commits means two versions" >&2
-		echo "  of one arithmetic laying out one page." >&2
-		exit 1
-	fi
-	echo "--- A: manifest commit == Embed SDK pin (${pinned:0:12}…)"
+# The pin is the organisation's CodeTracer pin, which this repository reads
+# and does not store; `ci/codetracer-ref.sh` prints it.
+pinned="$(bash "${repo_root}/ci/codetracer-ref.sh")" ||
+	fail "cannot read the CodeTracer pin (ci/codetracer-ref.sh, above)"
+vendored_commit="$(grep -oE '"commit"[[:space:]]*:[[:space:]]*"[0-9a-f]+"' \
+	"${manifest}" | grep -oE '[0-9a-f]{7,}')"
+[ -n "${vendored_commit}" ] || fail "the manifest records no commit"
+if [ "${pinned}" != "${vendored_commit}" ]; then
+	echo "--- A: the vendor manifest and the Embed SDK pin name different commits" >&2
+	echo "    CodeTracer pin:       ${pinned}" >&2
+	echo "    vendor manifest:      ${vendored_commit}" >&2
+	echo "  These two files live in the tree the pin names, and the hydration" >&2
+	echo "  bundle compiles against that tree. Two commits means two versions" >&2
+	echo "  of one arithmetic laying out one page." >&2
+	exit 1
 fi
+echo "--- A: manifest commit == Embed SDK pin (${pinned:0:12}…)"
 
 # ---------------------------------------------------------------------------
 # B. Structural conformance against a real CodeTracer checkout

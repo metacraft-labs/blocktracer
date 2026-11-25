@@ -231,8 +231,8 @@ function runHydratedExporter(outRoot) {
       ok: false,
       reason:
         "no CodeTracer Embed SDK on the Nim path, so there is no hydration " +
-        "bundle to export (hydrate/build.sh exit 3; the pinned commit is in " +
-        "ci/embed-sdk-pin.env, and $CODETRACER_SRC or a ../codetracer sibling " +
+        "bundle to export (hydrate/build.sh exit 3; ci/codetracer-ref.sh prints the " +
+        "pinned commit, and $CODETRACER_SRC or a ../codetracer sibling " +
         "satisfies it — the repository's own devShell sets it)",
     };
   }
