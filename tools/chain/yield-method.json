@@ -498,6 +498,114 @@
         ]
       }
     },
+    "eth-sepolia": {
+      "pinnedOn": "2026-11-25",
+      "rosterState": "declared, NOT SHIPPED",
+      "_whyThisIsCommittedBeforeAnyReading": [
+        "DECLARED ON THE ROSTER BY OPERATOR RULING (2026-11-25, Recorder-EVM CXP-EVM-1: mainnet AND",
+        "Sepolia), AND NOT SHIPPED: no snapshot of this instance is produced or published. This",
+        "entry is the pending row the method asks a chain to commit before it measures, so the",
+        "windows and the expectation below exist in git before any of these windows is replayed.",
+        "",
+        "WHAT WAS ALREADY READ FOR THIS INSTANCE, so `in advance` is stated rather than implied:",
+        "Recorder-EVM CXP-EVM-5's between-instance comparison (codetracer-pm 522d7b2d declared it,",
+        "blocktracer 815538f read it) recorded Sepolia 6,000,000-6,000,001 and 9,000,000-9,000,001:",
+        "367 of 367 recorded transactions matched their receipts, and the per-window median source",
+        "share differed by 22.7 points. Neither window is pinned here, and none of the six below",
+        "has been replayed."
+      ],
+      "historicRange": {
+        "from": 1,
+        "to": 12100000
+      },
+      "historicRangeRecordedBy": "tools/chain/measurements/sepolia-endpoint-capability.json (tools/chain/evm-endpoint-probe.mjs): state answered at 1, 1,000,000, 1,451,146, 2,990,716, 4,000,000, 5,400,000, 7,840,000, 10,400,000, 11,200,000 and 12,100,000 by sepolia.rpc.thirdweb.com, and at eight of those by rpc.sepolia.ethpandaops.io (two network timeouts), eth_getProof agreeing with the flat reads at every answered depth and the two sources agreeing wherever both answered",
+      "windows": [[1440000, 1440001], [1700000, 1700001], [4000000, 4000001], [5400000, 5400001], [7840000, 7840001], [11200000, 11200001]],
+      "blocksPerWindow": 2,
+      "windowsNote": [
+        "SIX WINDOWS OF TWO BLOCKS, ONE PER ERA SEPOLIA HAS HAD, for the reason mainnet's note gives:",
+        "a window set that skips an era cannot refute a variable that lives there.",
+        "",
+        "  1,440,000-1,440,001    pre-Merge proof-of-work under London (Sepolia's genesis rules);",
+        "                         Sepolia's pre-Merge blocks are sparse, and this pair is 9+0",
+        "  1,700,000-1,700,001    Paris (Merge at 1,450,409); 1+10",
+        "  4,000,000-4,000,001    Shanghai; 48+57",
+        "  5,400,000-5,400,001    Cancun; 140+70",
+        "  7,840,000-7,840,001    Prague; 128+109",
+        "  11,200,000-11,200,001  Osaka (Fusaka, October 2025); 106+150",
+        "",
+        "Two boundaries checked on chain 2026-11-25 rather than quoted: difficulty is non-zero at",
+        "1,450,408 and zero at 1,450,409; and an `eth_call` executing CLZ (0x1e, Osaka) fails with",
+        "`invalid opcode: CLZ` at 7,840,000 and succeeds at 11,200,000.",
+        "",
+        "828 transactions, enumerated 2026-11-25. The recorder (dc516fd `spec_for_block`) keeps",
+        "the header rule for chains other than 1: the first five infer the era they were mined",
+        "in, and the sixth infers PRAGUE, since Osaka added no header field. So exactly one window",
+        "sits on a collapsed rung, the last."
+      ],
+      "tipAtPinning": 12208693,
+      "finalizedAtPinning": 12208598,
+      "expectedDominantVariable": "contract-population",
+      "expectationDeclaredInAdvance": true,
+      "expectedOn": "2026-11-25",
+      "expectationReasoning": [
+        "THE CHARTER'S OWN, REPEATED UNCHANGED: Recorder-EVM.milestones.org CXP-EVM-5 carries",
+        "`:expected_dominant_variable: contract-population`. It is not re-chosen for this instance.",
+        "",
+        "WHAT WOULD REFUTE IT, stated before the windows are read: if the Osaka window",
+        "(11,200,000-11,200,001) is markedly the worst and the other five are alike, the variable",
+        "is `era`. If every window traces every transaction with an execution, as all six mainnet",
+        "windows did, the yield has no dominant variable (`none`) and this declaration was wrong",
+        "for the yield, whatever it says about source level. Contract-population is supported only",
+        "if windows differ AND the untraced rows are explained by the contracts they ran rather",
+        "than by the window's era."
+      ],
+      "exclusions": [
+        {
+          "id": "no-code-executed",
+          "removes": "privateOnly",
+          "structural": true,
+          "why": "a value transfer to an account with no code runs no EVM instruction, so there is no execution to trace at instruction level or any other. Published in Data-Contract.md §5.2's \"the chain published no execution here\" population, whose only token is `private-only` until CPC-6 renames it. Decided by the replay itself (`codetracer-evm-recorder trace-block`: \"captured 0 EVM steps\"), never by an outcome this pipeline chose. Permanent, and the transaction's shape rather than the producer's limit."
+        }
+      ],
+      "exclusionsNote": [
+        "The same structural exclusion as `eth`, for the same reason: a value transfer to an account with no code runs no EVM instruction, decided by the replay (\"captured 0 EVM steps\")."
+      ],
+      "declinedColumns": [
+        "refused",
+        "bodyUnavailable",
+        "notAttempted"
+      ],
+      "tracedColumns": [
+        "replayed",
+        "divergent"
+      ],
+      "denominators": [
+        {
+          "id": "all-transactions",
+          "member": "transactions",
+          "yieldMember": "tracedOverAllTransactions",
+          "excludes": []
+        },
+        {
+          "id": "with-execution",
+          "member": "withExecution",
+          "yieldMember": "tracedOverWithExecution",
+          "excludes": [
+            "no-code-executed"
+          ]
+        }
+      ],
+      "denominatorsNote": [
+        "Two, as `eth`: every transaction, and those with an execution."
+      ],
+      "provenanceCoverage": {
+        "windowsWithRecordedReplayLedger": 0,
+        "windowsWithout": [[1440000, 1440001], [1700000, 1700001], [4000000, 4000001], [5400000, 5400001], [7840000, 7840001], [11200000, 11200001]],
+        "_note": [
+          "NONE, because no window of this instance's pinned set has been replayed. Declared as zero rather than left absent, as `eth` was before its first reading."
+        ]
+      }
+    },
     "starknet-mainnet": {
       "pinnedOn": "2026-10-20",
       "_whyThisIsCommittedBeforeAnyReading": [
