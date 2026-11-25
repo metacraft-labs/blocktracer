@@ -23,6 +23,8 @@
 //       class is `resolved` with its build named, a refused binding is not, and says so
 //   §4  code edges key on the class hash: every contract that ran a class has its own
 //       artifact row naming that one class
+//   §5  the pc on every step (Data-Contract §5.4, amended 2026-11-25): a step on a Cairo
+//       line states the CASM instruction it ran, from the recorder's step pcs
 //
 // Every arm that asserts a refusal or a distinction has a control beside it that takes
 // the other branch, so the arm measures the rule and not the fixture
@@ -36,7 +38,9 @@ import {
   CHAIN_SLUG, IDENTIFIER_ENCODING, PRESTATE_STRATEGY, RECORDER, VERIFICATION,
   costVectorForRow, executionsForRow, l1MessageForRow, payloadForRow, reachReasonFor, rolesForRow,
 } from './lib/starknet-producer-facts.mjs';
-import { BLOCK_REPORT_FORMAT, artifactRow, artifactRows, main as produce } from './produce-starknet-snapshot.mjs';
+import {
+  BLOCK_REPORT_FORMAT, artifactRow, artifactRows, instructionColumns, main as produce, parseListing,
+} from './produce-starknet-snapshot.mjs';
 
 let asserted = 0;
 let failed = 0;
@@ -45,7 +49,7 @@ const ck = (label, cond) => {
   if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`);
 };
 const test = (name) => console.error(`\n${name}`);
-const DECLARED = 39;
+const DECLARED = 45;
 
 const SENDER = '0x48ddc53f41523d2a6b40c3dff7f69f4bbac799cd8b2e3fc50d3de1d4119441f';
 const TARGET = '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
@@ -334,6 +338,40 @@ test('§2 the producer end to end, over captures with no container in them');
   const none = artifactRows({ classHash: D, source: null }, { frames: [{ classHash: C, contract: SENDER }] });
   ck('CONTROL: a class no frame ran keeps its one row, with no address borrowed from another class',
      none.length === 1 && none[0].address === '' && none[0].contractClassId === D);
+}
+
+{
+  test('§5 the pc on every step, a Cairo line included (Data-Contract §5.4, amended 2026-11-25)');
+  const C = '0x36078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f';
+  // A class's CASM listing as the recorder writes it: a label line, then `0x<pc>  <insn>`.
+  const casm = parseListing('fn@0x0000:\n// sierra #0: x\n0x0000  [ap + 0] = 1, ap++\n'
+    + '0x0002  call rel 4\n// sierra #1: y\n0x0004  ret\n');
+  const listings = [
+    { classHash: C, listing: casm },
+    { classHash: null, listing: null },          // a Cairo source file of that class's build
+  ];
+  // The container: step 0 on CASM line 3 (pc 0), step 1 on the Cairo file, line 12,
+  // step 2 on CASM line 6 (pc 4).
+  const c = { pathId: [0, 1, 0], line: [3, 12, 6] };
+  const pcs = { classes: [C], class: [0, 0, 0], pc: [0, 2, 4] };
+  const withPcs = instructionColumns(c, listings, pcs);
+  ck('a step on a Cairo line states the pc it ran and its CLASS\'s listing, not the Cairo file',
+     withPcs.pc[1] === 2 && withPcs.pathId[1] === 0 && withPcs.op[1] === 'call');
+  ck('…and every step is counted as carrying a pc',
+     withPcs.counters === 3 && withPcs.pc.every((x) => x !== null));
+  ck('CONTROL: a step on a CASM line is unchanged by the step pcs',
+     withPcs.pc[0] === 0 && withPcs.pc[2] === 4 && withPcs.pathId[2] === 0 && withPcs.op[2] === 'ret');
+  const without = instructionColumns(c, listings, null);
+  ck('CONTROL: with no step pcs (an older capture) the Cairo step\'s pc stays unstated, never guessed',
+     without.pc[1] === null && without.pathId[1] === 1 && without.counters === 2);
+  let off = null;
+  try { instructionColumns(c, listings, { ...pcs, pc: [2, 2, 4] }); } catch (e) { off = e.message; }
+  ck('step pcs that disagree with the container\'s CASM line are REFUSED, naming the step',
+     off !== null && /step 0: the container places it at pc 0 and the recorder's step pcs say 2/.test(off));
+  let short = null;
+  try { instructionColumns(c, listings, { ...pcs, pc: [0, 2], class: [0, 0] }); } catch (e) { short = e.message; }
+  ck('step pcs of a different length from the container are REFUSED',
+     short !== null && /hold 2 step\(s\) and the container 3/.test(short));
 }
 
 rmSync(work, { recursive: true, force: true });

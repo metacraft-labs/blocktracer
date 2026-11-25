@@ -231,6 +231,78 @@ export function parseListing(text) {
   return out;
 }
 
+/** The recorder's per-step pc sidecar (`trace-block` writes it beside the container). */
+export const STEP_PCS_FORMAT = 'codetracer-cairo-onchain/step-pcs@1';
+
+/**
+ * The instruction stream's columns: the pc the VM executed on EVERY step, with the listing
+ * it is in (Data-Contract §5.4, amended 2026-11-25). The two streams are independent per
+ * step. A step the position stream places on a Cairo line still ran a CASM instruction, so
+ * the listing states that pc and indexes the CLASS's CASM listing, not the Cairo file the
+ * position stream points at. The container keeps only the line for such a step, so its pc
+ * comes from the recorder's `step-pcs` sidecar (`stepPcs`: `{ classes, class, pc }`, one
+ * entry per container step).
+ *
+ * A step on a CASM line has its pc in two places, the listing line the container names and
+ * the sidecar. They must agree, and a disagreement refuses the recording: a sidecar that is
+ * off by one step would otherwise label every Cairo step with its neighbour's instruction.
+ * With no sidecar (a capture from a recorder before it), a Cairo step's pc stays `null`, as
+ * it always was: stated as unknown, never guessed.
+ */
+export function instructionColumns(c, listings, stepPcs = null) {
+  const n = c.pathId.length;
+  const at = (i) => listings[c.pathId[i]]?.listing?.[c.line[i] - 1] ?? null;
+  const pathId = new Array(n);
+  const pc = new Array(n);
+  const op = new Array(n);
+  let counters = 0;
+  let byClass = null;
+  if (stepPcs) {
+    if (stepPcs.pc.length !== n || stepPcs.class.length !== n) {
+      throw refuse(SOURCE_REFUSAL, `the recorder's step pcs hold ${stepPcs.pc.length} step(s) and `
+        + `the container ${n}; a pc column that does not line up with the steps is not published.`);
+    }
+    byClass = new Map();
+    listings.forEach((L, k) => {
+      if (L.classHash === null || !L.listing) return;
+      const insns = new Map();
+      for (const insn of L.listing) if (insn) insns.set(insn.pc, insn);
+      byClass.set(L.classHash, { k, insns });
+    });
+  }
+  for (let i = 0; i < n; i++) {
+    const insn = at(i);
+    const k = stepPcs ? stepPcs.class[i] : -1;
+    const p = stepPcs ? stepPcs.pc[i] : null;
+    if (stepPcs && p !== null && k >= 0) {
+      const L = byClass.get(stepPcs.classes[k]);
+      if (!L) {
+        throw refuse(SOURCE_REFUSAL, `step ${i}: the recorder's step pcs name class `
+          + `${stepPcs.classes[k]}, which has no CASM listing in this capture.`);
+      }
+      if (insn && insn.pc !== p) {
+        throw refuse(SOURCE_REFUSAL, `step ${i}: the container places it at pc ${insn.pc} and the `
+          + `recorder's step pcs say ${p}. The two disagree, so neither is published.`);
+      }
+      const ran = L.insns.get(p) ?? null;
+      if (!ran) {
+        throw refuse(SOURCE_REFUSAL, `step ${i}: pc ${p} is not an instruction in class `
+          + `${stepPcs.classes[k]}'s listing.`);
+      }
+      pathId[i] = L.k;
+      pc[i] = p;
+      op[i] = mnemonic(ran);
+      counters += 1;
+      continue;
+    }
+    pathId[i] = c.pathId[i];
+    pc[i] = insn ? insn.pc : null;
+    op[i] = mnemonic(insn);
+    if (insn) counters += 1;
+  }
+  return { pathId, pc, op, counters };
+}
+
 /** The instruction's kind, as a mnemonic a column can hold: the listing line is the full
  *  CASM text, the instruction sidecar carries what kind of instruction it was. */
 export function mnemonic(insn) {
@@ -405,6 +477,16 @@ export async function main(argv) {
         if (bad.length > 0) {
           throw refuse(SOURCE_REFUSAL, `${src}: step(s) ${bad.join(', ')} do not land inside a `
             + `listing this capture holds.`);
+        }
+        // THE RECORDER'S STEP PCS, where it wrote them (a capture input, never published).
+        const pcsName = r.container?.stepPcs ?? null;
+        if (pcsName) {
+          const pcs = JSON.parse(readFileSync(join(tdir, pcsName), 'utf8'));
+          if (pcs.format !== STEP_PCS_FORMAT) {
+            throw refuse(SOURCE_REFUSAL, `${join(tdir, pcsName)} is \`${pcs.format}\`; this `
+              + `producer reads ${STEP_PCS_FORMAT}.`);
+          }
+          rec.stepPcs = pcs;
         }
       }
       recordings.set(r.txHash, rec);
@@ -633,28 +715,19 @@ export async function main(argv) {
         };
       }),
     });
-    // A step on a Cairo source line has no instruction listing behind it, so its pc
-    // and opcode are not stated (null), never guessed.
-    const at = (i) => listings[c.pathId[i]]?.listing?.[c.line[i] - 1] ?? null;
-    const pc = new Array(c.pathId.length);
-    const op = new Array(c.pathId.length);
-    let counters = 0;
-    for (let i = 0; i < c.pathId.length; i++) {
-      const insn = at(i);
-      pc[i] = insn ? insn.pc : null;
-      op[i] = mnemonic(insn);
-      if (insn) counters += 1;
-    }
+    // THE PC ON EVERY STEP (Data-Contract §5.4, amended 2026-11-25): a Cairo-line step
+    // states the CASM instruction it ran, from the recorder's step pcs, in its own listing.
+    const ins = instructionColumns(c, listings, rec.stepPcs ?? null);
     writeJson(`instructions/${txHash}.json`, {
       schema: INSTRUCTION_STREAM_SCHEMA,
       tx: txHash,
       isa: INSTRUCTION_SET,
       paths: listings.map((L) => L.publishedPath),
       steps: row.recording.steps,
-      counters,
-      pathId: c.pathId,
-      pc,
-      op,
+      counters: ins.counters,
+      pathId: ins.pathId,
+      pc: ins.pc,
+      op: ins.op,
     });
     writeJson(`positions/${txHash}.json`, {
       schema: POSITION_STREAM_SCHEMA,
