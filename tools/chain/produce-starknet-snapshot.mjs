@@ -266,8 +266,9 @@ export function instructionColumns(c, listings, stepPcs = null) {
     listings.forEach((L, k) => {
       if (L.classHash === null || !L.listing) return;
       const insns = new Map();
-      for (const insn of L.listing) if (insn) insns.set(insn.pc, insn);
-      byClass.set(L.classHash, { k, insns });
+      let last = -1;
+      for (const insn of L.listing) if (insn) { insns.set(insn.pc, insn); last = Math.max(last, insn.pc); }
+      byClass.set(L.classHash, { k, insns, last });
     });
   }
   for (let i = 0; i < n; i++) {
@@ -285,7 +286,13 @@ export function instructionColumns(c, listings, stepPcs = null) {
           + `recorder's step pcs say ${p}. The two disagree, so neither is published.`);
       }
       const ran = L.insns.get(p) ?? null;
-      if (!ran) {
+      // THE END OF THE PROGRAM, where cairo-vm stops after an entry point's last `ret`: a
+      // pc PAST the class's last instruction, stepped on and executing nothing. Measured on
+      // block 1,948,151's transaction: 5 steps, each at one past its class's last pc
+      // (2571, 25534, 20477). Its pc is stated and its opcode is not, because there is no
+      // instruction there. A pc missing from INSIDE the program is something else and is
+      // still refused.
+      if (!ran && !(p > L.last)) {
         throw refuse(SOURCE_REFUSAL, `step ${i}: pc ${p} is not an instruction in class `
           + `${stepPcs.classes[k]}'s listing.`);
       }

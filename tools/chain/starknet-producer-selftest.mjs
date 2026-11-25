@@ -49,7 +49,7 @@ const ck = (label, cond) => {
   if (!cond) { failed++; console.error(`  FAIL  ${label}`); } else console.error(`  ok    ${label}`);
 };
 const test = (name) => console.error(`\n${name}`);
-const DECLARED = 45;
+const DECLARED = 47;
 
 const SENDER = '0x48ddc53f41523d2a6b40c3dff7f69f4bbac799cd8b2e3fc50d3de1d4119441f';
 const TARGET = '0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
@@ -372,6 +372,20 @@ test('§2 the producer end to end, over captures with no container in them');
   try { instructionColumns(c, listings, { ...pcs, pc: [0, 2], class: [0, 0] }); } catch (e) { short = e.message; }
   ck('step pcs of a different length from the container are REFUSED',
      short !== null && /hold 2 step\(s\) and the container 3/.test(short));
+  // The program's end: cairo-vm stops at the pc one past the last instruction after an
+  // entry point returns. The recorder shows that step on the listing's first line.
+  let end = null;
+  try {
+    end = instructionColumns({ pathId: [0, 0], line: [3, 1] }, listings,
+                             { classes: [C], class: [0, 0], pc: [0, 5] });
+  } catch (e) { end = { refused: e.message }; }
+  ck('a step at the end of the program (past the last instruction) states its pc and no opcode',
+     end.pc?.[1] === 5 && end.op?.[1] === null && end.pathId?.[1] === 0);
+  let inside = null;
+  try { instructionColumns({ pathId: [0, 0], line: [3, 1] }, listings,
+                           { classes: [C], class: [0, 0], pc: [0, 1] }); } catch (e) { inside = e.message; }
+  ck('CONTROL: a pc missing from INSIDE the program is still REFUSED',
+     inside !== null && /step 1: pc 1 is not an instruction in class/.test(inside));
 }
 
 rmSync(work, { recursive: true, force: true });
