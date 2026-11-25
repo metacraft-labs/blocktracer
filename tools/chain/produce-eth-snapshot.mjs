@@ -504,7 +504,16 @@ const CTFS_NOTE = 'A snapshot container holds what a RECORDER wrote; an already-
  * member, and the text before it is a complete object once closed. A step line whose
  * `vars` is not where that cut expects is parsed whole, so the cut can only save work,
  * never drop a field.
+ *
+ * A step is then KEPT as the four members this file reads and nothing else: `path_id`,
+ * `line`, `column` and `depth` (STEP_MEMBERS). Every container of a run stays in
+ * memory until its sidecars are written, and a parsed step also carries its path, function
+ * name and step kind as strings. Sepolia's 11,200,000 window is 234 containers and 14.0
+ * million steps, and held whole they ran node out of its default heap. A member added to a
+ * use of `c.steps` must be added to STEP_MEMBERS, or it reads as `undefined`.
  */
+const STEP_MEMBERS = Object.freeze(['path_id', 'line', 'column', 'depth']);
+
 async function readEvents(ctPrint, file) {
   const child = spawn(ctPrint, ['--events', file], { stdio: ['ignore', 'pipe', 'pipe'] });
   let stderr = '';
@@ -525,9 +534,10 @@ async function readEvents(ctPrint, file) {
       }
       if (step === null) {
         step = JSON.parse(line);
-        delete step.vars;
       }
-      steps.push(step);
+      const kept = {};
+      for (const k of STEP_MEMBERS) if (k in step) kept[k] = step[k];
+      steps.push(kept);
       continue;
     }
     const l = JSON.parse(line);
