@@ -599,9 +599,10 @@
         "Two, as `eth`: every transaction, and those with an execution."
       ],
       "provenanceCoverage": {
-        "windowsWithRecordedReplayLedger": 0,
-        "windowsWithout": [[1440000, 1440001], [1700000, 1700001], [4000000, 4000001], [5400000, 5400001], [7840000, 7840001], [11200000, 11200001]],
+        "windowsWithRecordedReplayLedger": 6,
+        "windowsWithout": [],
         "_note": [
+          "SIX OF SIX since the 2026-11-25 reading (`measurements/sepolia-replay-yield.json`). Windows 1,440,000 to 7,840,000 were recorded by codetracer-evm-recorder dc516fd and 11,200,000 by c24d5b9, as each window's replay ledger names. dc516fd could not replay the Osaka window (no BPO blob-fee schedule), which is why that window is c24d5b9's. Before that reading:",
           "NONE, because no window of this instance's pinned set has been replayed. Declared as zero rather than left absent, as `eth` was before its first reading."
         ]
       }
