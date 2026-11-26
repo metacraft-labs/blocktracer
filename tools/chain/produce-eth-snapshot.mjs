@@ -1573,6 +1573,7 @@ async function main() {
         ? clientVersion.answer.body.result
         : '',
       l1ChainId: chainId,
+      identity: instance.identity,
       tool: HERE,
       runtimeCommit: recorderCommit,
       // THE CONTROL, PUBLISHED RATHER THAN ASSERTED. §5's own argument about `counts` is

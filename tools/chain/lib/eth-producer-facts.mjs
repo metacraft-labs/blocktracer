@@ -70,12 +70,37 @@ export const PRESTATE_STRATEGY = 'replay-preceding';
  * names the snapshot's chain slug and the instance's entry in `yield-method.json`'s
  * `pinned`. Adding an instance is adding a row here and a pinned entry there, both
  * committed before the instance is measured.
+ *
+ * `identity` is what the chain IS, declared as `provenance.identity` and carried onto the
+ * registry row (Configuration.md §2.1; Data-Contract.md §5.3, S5-IDENTITY-DECLARED), as the
+ * Sui and Aptos producers already declare theirs. Chain-Support-Matrix.md §5 step 1 asks for
+ * it, and until 2026-11-26 neither EVM row carried any of it.
+ *
+ *   caip2          `eip155:<chain id>`, CAIP-2's own example namespace for EVM chains.
+ *   nativeCurrency ETH, 18 decimals (1 ETH = 10^18 wei), on both: Sepolia's ether has no
+ *                  value, but its unit and denomination are mainnet's.
+ *   blockTimeMs    12,000: the beacon chain's SECONDS_PER_SLOT on both networks. That is
+ *                  a protocol constant, not a measurement. A missed slot makes the observed
+ *                  gap between blocks longer, never shorter.
+ *   finality       `checkpoint` (tools/chain/finality-rules.json): Casper FFG finalises a
+ *                  block at a later justified checkpoint.
  */
+const ethIdentity = (chainId, name) => Object.freeze({
+  caip2: `eip155:${chainId}`,
+  name,
+  family: 'evm',
+  nativeCurrency: Object.freeze({ symbol: 'ETH', decimals: 18 }),
+  blockTimeMs: 12000,
+  finality: Object.freeze({ rule: 'checkpoint' }),
+});
+
 export const EVM_INSTANCES = Object.freeze({
   1: Object.freeze({ name: 'Ethereum mainnet', slug: 'ethereum-mainnet', pinned: 'eth',
-                     label: 'Real Ethereum mainnet data' }),
+                     label: 'Real Ethereum mainnet data',
+                     identity: ethIdentity(1, 'Ethereum Mainnet') }),
   11155111: Object.freeze({ name: 'Sepolia', slug: 'ethereum-sepolia', pinned: 'eth-sepolia',
-                            label: 'Real Ethereum Sepolia data' }),
+                            label: 'Real Ethereum Sepolia data',
+                            identity: ethIdentity(11155111, 'Ethereum Sepolia') }),
 });
 
 /** The instance for a chain id, or null when the id is not a declared instance. */
