@@ -18,11 +18,11 @@
 ## the published tree with, over the same committed capture
 ## (`fixtures/chain-inputs/solana-mainnet/`), including the address-history
 ## sidecar that capture carries. Then it is ingested by the real ingest. No
-## recorder is built here, so the window's 13 replayed rows arrive as
+## recorder is built here, so the window's 129 replayed rows arrive as
 ## `no-container-written` refusals and no trace is published: the same shape
 ## `tidentifierencoding`'s Solana arm grades. That is this file's LIMIT, stated
 ## rather than left to be noticed. The control for the floor is an in-window
-## transaction that HAS a page, not one that steps. That 13 of them step and
+## transaction that HAS a page, not one that steps. That 129 of them step and
 ## match is graded by `nix build .#sol-capture-tree`, which replays the
 ## committed bundles through the recorder.
 ##
@@ -51,13 +51,14 @@ import blocktracer/contract/version
 
 const
   Chain = "solana-mainnet"
-  PublishedSlot = "459262601"   ## the one slot `tools/chain/nix/sol.nix` publishes
+  PublishedFrom = "474104725"   ## the slots `tools/chain/nix/sol.nix` publishes
+  PublishedTo = "474104734"
 
 let
   clientRoot = currentSourcePath().parentDir.parentDir
   repoRoot = clientRoot.parentDir
   solanaInputs = repoRoot / "fixtures" / "chain-inputs" / Chain /
-                 "459262600-459262602"
+                 "474104724-474104735"
   chainFixtures = clientRoot / "fixtures" / "chain"
   scratch = getTempDir() / ("bt-solstaging-" & $getCurrentProcessId())
 
@@ -93,7 +94,7 @@ proc produceSolana(): string =
     else: ""
   run("cd " & quoteShell(repoRoot) & " && node tools/chain/produce-sol-snapshot.mjs " &
       "--capture " & quoteShell(capture) & ctPrint & " --recorder-commit " & rev &
-      " --from " & PublishedSlot & " --to " & PublishedSlot & " --out " &
+      " --from " & PublishedFrom & " --to " & PublishedTo & " --out " &
       quoteShell(result), "the real Solana producer")
 
 proc committedFixtures(): seq[string] =
@@ -213,7 +214,7 @@ suite "below the floor a transaction is listed and offers no trace":
     let row = parseJson(readFile(stagingTree / "registry" /
       ("chains.v" & $ContractVersion & ".json")))["chains"][Chain]
     ck row["historyFloor"]["height"].getInt == floorAt
-    ck $PublishedSlot == $floorAt
+    ck $PublishedFrom == $floorAt
 
   test "every history entry is below the floor, and none is a row of the window":
     ck oldest.transactions.len == 0

@@ -10,7 +10,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,10 +19,11 @@ import {
 } from './lib/solana-producer-facts.mjs';
 import { REFUSAL_REASON_IDS } from './lib/refusal.mjs';
 import { CELLS, census } from './lib/solana-corpus-census.mjs';
+import { readHistory, writeHistory } from './lib/solana-history-files.mjs';
 
 // The assertion count this suite declares, which `refusal-selftest.mjs` cross-checks
 // against the `chain-selftest` header. No host configurations, so the base is the total.
-const BASE_ARMS = 14;
+const BASE_ARMS = 15;
 
 let passed = 0;
 const arm = (name, fn) => {
@@ -219,6 +220,31 @@ arm('test_a_mostly_refused_window_still_enumerates_completely: a row per transac
   assert.equal(short.ok, true, short.stderr);
   assert.equal(short.snapshot.counts.accountedFor, short.snapshot.transactions.length);
   assert.equal(short.snapshot.transactions.length, chainCount - 1);
+});
+
+arm('a window\'s address history in parts reads back as the one answer, and a bad part set is refused', () => {
+  // A wide window's history is over the 1024 KB file ceiling, so it is committed as parts.
+  const committedHistory = JSON.parse(readFileSync(join(FIXTURE, 'history', '459262601-459262601.json'), 'utf8'));
+  const work = mkdtempSync(join(tmpdir(), 'sol-history-'));
+  try {
+    const names = writeHistory(work, committedHistory, 200 * 1024);
+    assert.ok(names.length > 1, `${names.length} part(s)`);
+    for (const n of names) assert.ok(statSync(join(work, n)).size < 1024 * 1024, n);
+    const back = readHistory(work, 459262601, 459262601);
+    assert.deepEqual(back.addresses, committedHistory.addresses);
+    assert.equal(back.rpc, committedHistory.rpc);
+    // Refused: an address in two parts, and a part missing from the set.
+    const p2 = join(work, names[1]);
+    const doc = JSON.parse(readFileSync(p2, 'utf8'));
+    const first = JSON.parse(readFileSync(join(work, names[0]), 'utf8'));
+    const dup = Object.keys(first.addresses)[0];
+    writeFileSync(p2, JSON.stringify({ ...doc, addresses: { ...doc.addresses, [dup]: first.addresses[dup] } }));
+    assert.throws(() => readHistory(work, 459262601, 459262601), /also in an earlier part/);
+    rmSync(p2);
+    assert.throws(() => readHistory(work, 459262601, 459262601), /part file\(s\) are present/);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
 });
 
 arm('test_an_unresolved_terms_answer_blocks_publication_not_ingestion', () => {

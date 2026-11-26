@@ -66,6 +66,7 @@ import {
   executionsForRow, costVectorForRow, rolesForRow, payloadForRow, reachReasonFor, VERIFICATION, addressHistoryFor,
   sourcesOf, sourcesWithoutTerms,
 } from './lib/solana-producer-facts.mjs';
+import { readHistory } from './lib/solana-history-files.mjs';
 
 const run = promisify(execFile);
 const HERE = 'tools/chain/produce-sol-snapshot.mjs';
@@ -150,8 +151,8 @@ async function main() {
   // CXP-SOL-1, Chain-Support-Matrix.md §1.1: nothing read from a source whose terms are not
   // recorded is published. The capture was free to read from it; this is where it stops.
   const termsPath = resolve(flag('source-terms') ?? new URL('./sol-source-terms.json', import.meta.url).pathname);
-  const historyFile = join(captureDir, 'history', `${from}-${to}.json`);
-  const sources = sourcesOf(capture, existsSync(historyFile) ? JSON.parse(readFileSync(historyFile, 'utf8')) : null);
+  const history = readHistory(join(captureDir, 'history'), from, to);
+  const sources = sourcesOf(capture, history);
   const unresolved = sourcesWithoutTerms(sources, JSON.parse(readFileSync(termsPath, 'utf8')).sources ?? {});
   if (unresolved.length > 0) {
     throw refuse(CONFIG_REFUSAL, `terms-unresolved: this capture read from ${unresolved.join(', ')}, `
@@ -355,11 +356,10 @@ async function main() {
   assertRefusalsAreClosed(snapshot.transactions, HERE);
 
   // Spine need (f): the chain's own history for each paged address, below the window.
-  const historyPath = join(captureDir, 'history', `${from}-${to}.json`);
-  if (existsSync(historyPath)) {
+  if (history) {
     const paged = new Set(rows.flatMap((r) => [...(r.roles ?? []).map((x) => x.address), r.payload?.target].filter(Boolean)));
     try {
-      snapshot.addressHistory = addressHistoryFor(JSON.parse(readFileSync(historyPath, 'utf8')),
+      snapshot.addressHistory = addressHistoryFor(history,
         new Set(rows.map((r) => r.txHash)), paged, from);
     } catch (e) { dieOperational(HERE, e); }
   }

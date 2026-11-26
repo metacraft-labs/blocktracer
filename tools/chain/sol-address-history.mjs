@@ -24,6 +24,7 @@ import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync
 import { join } from 'node:path';
 
 import { payloadForRow, rolesForRow } from './lib/solana-producer-facts.mjs';
+import { writeHistory } from './lib/solana-history-files.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -92,7 +93,7 @@ for (const address of addresses) {
   await sleep(250);
 }
 
-const path = join(fixture, 'history', `${from}-${to}.json`);
-writeFileSync(path, `${JSON.stringify({ format: 'codetracer-solana/address-history@1', rpc: url, from, to, addresses: out }, null, 1)}\n`);
+// Written as parts under the repository's 1024 KB file ceiling (lib/solana-history-files.mjs).
+const names = writeHistory(join(fixture, 'history'), { rpc: url, from, to, addresses: out });
 rmSync(partial);
-console.error(`wrote ${path}: ${addresses.length} addresses, ${Object.values(out).reduce((s, a) => s + a.entries.length, 0)} entries`);
+console.error(`wrote ${names.length} part(s) under ${join(fixture, 'history')}: ${addresses.length} addresses, ${Object.values(out).reduce((s, a) => s + a.entries.length, 0)} entries`);
