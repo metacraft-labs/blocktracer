@@ -112,7 +112,31 @@ const INPUT_SETS = [
 // here opens a container.
 //
 // A SUITE THAT RAN FEWER ARMS THAN IT DECLARES IS A FAILURE, not a quieter pass.
+//
+// TWO FIGURES, AND THE SECOND ONE IS NOT REDUNDANT. `refusal-selftest`'s cross-check reads
+// ONE INTEGER PER SUITE OUT OF THIS SOURCE FILE, and that is the whole point of it: a figure
+// it had to run the suite to learn would only prove the suite agrees with itself, and the
+// Justfile header and the ci.yml step comment are compared against the same integer.
+//
+// When Sepolia was added this line became `20 + 10 * INPUT_SETS.length`. The cross-check's
+// `/^const BASE_ARMS = (\d+);/m` then matched nothing and read NaN, so three of its arms went
+// red and — worse if it had been tolerant instead — the Justfile's and ci.yml's copies of
+// this number would have dropped out of the comparison entirely while still being wrong.
+// The Justfile's copy WAS wrong: it said 30 against a suite running 40.
+//
+// So the derived count stays derived, because it should grow with the input sets, and the
+// static one is written down beside it for the reader that cannot evaluate an expression.
+// Disagreement between them fails THIS suite immediately, which is what keeps the static
+// figure from going stale the next time a set is added.
+const DECLARED_ARMS = 40;
 const BASE_ARMS = 20 + 10 * INPUT_SETS.length;
+if (BASE_ARMS !== DECLARED_ARMS) {
+  console.log(`FAIL  the derived arm count is ${BASE_ARMS} (20 + 10 x ${INPUT_SETS.length} input `
+    + `set(s)) but DECLARED_ARMS says ${DECLARED_ARMS}. Reconcile DECLARED_ARMS to the code, and `
+    + `with it the Justfile's \`chain-selftest\` header term and this suite's ci.yml step `
+    + `comment — refusal-selftest compares all three against DECLARED_ARMS.`);
+  process.exit(1);
+}
 
 let pass = 0;
 let fail = 0;

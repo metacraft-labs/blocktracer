@@ -1559,7 +1559,12 @@ test('the recipe\'s declared assertion total is the one the suites declare');
     // the total. The spelling is shared because the cross-check reads a spelling and not
     // a rationale, and a fourth pattern for a figure that is already stated in the third
     // would be a pattern per suite.
-    ['eth-rpc-transcript-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
+    // READ FROM `DECLARED_ARMS` AND NOT `BASE_ARMS`, because that suite's `BASE_ARMS`
+    // is now an EXPRESSION — `20 + 10 * INPUT_SETS.length`, since Sepolia joined its
+    // input sets — and this cross-check reads source text rather than evaluating it. It
+    // matched nothing and read NaN, which failed three arms here and would otherwise have
+    // quietly excused the Justfile's copy of the figure, which was stale by ten.
+    ['eth-rpc-transcript-selftest.mjs', /^const DECLARED_ARMS = (\d+);/m],
     // THE FOURTH SUITE IN PATTERN FIVE, for the third suite's reason: no host
     // configurations, so its `BASE_ARMS` is its total.
     ['eth-regen-check-selftest.mjs', /^const BASE_ARMS = (\d+);/m],
