@@ -80,7 +80,8 @@ uploading refusal-only data). 0 files were ever uploaded, so production was neve
 polluted. Re-enable with
 `systemctl start blocktracer-ingest-<chain>-publish.timer` once traces exist.
 
-## The crash, named and fixed; the next blocker is a revert divergence
+## The crash, named and fixed; the revert divergence, named and refused
+
 
 **What it was.** The exit 139 was a **Node.js/V8 bug**, not the AVM module.
 - On node 22.21.1 and later, which includes the follower's 22.23.2, avm.wasm's
@@ -120,19 +121,34 @@ Of the 124 that crashed before, **81 now reproduce, 42 now diverge**, and 1 was
 pruned before the second arm reached it. Of the transactions this pipeline
 attempts, 222 of 276 (80.4%) now reproduce, against 137 of 273 (50.2%).
 
-**The next blocker: the replay reverts where the chain did not.** All 43
-divergences carry ONE signature:
-- published `revertCode 0`, replayed `1`, effects 1/21;
-- 5 hydration rounds and a seed of 3 nullifiers and 5 public-data leaves;
-- about 92,000 steps;
-- one of two contract addresses (`0x02b76743…`, `0x201aa740…`), neither with a
-  resolvable artifact.
+**The revert divergence: an L1→L2 message the replay could not hold.** All 43
+divergences above were bridge claims on two contracts (`0x02b76743…`,
+`0x201aa740…`): published `revertCode 0`, replayed `1`, effects 1/21. Each one
+consumes an L1→L2 message. The AVM's `L1TOL2MSGEXISTS` read the runtime's L1→L2
+message tree, which hydration cannot seed (append-only, and the runtime's hint
+carries the index but not the message hash). The read answered "absent", the
+claim's assert failed, and the replay reverted where the chain did not.
 
-The fee and every public-data write differ as a consequence of the revert.
-#24's comment reads it as a state-seeding gap: the run reverts on an empty
-`Assertion failed:`, so some state the call reads is not the chain's. It is
-deterministic and independent of the crash, and it needs a runtime-side
-investigation of what those two contracts read that hydration does not seed.
+**Now refused by name, not published as traces.** aztec-avm-runtime `abd5aade`
+(#26), pinned here, refuses a converged run that read that tree
+(`L1ToL2MessageReadUnanswerable`). `lib/refusal.mjs` files it as the eleventh
+member, `l1-to-l2-message-unseedable` (repairable), and `decideOutcome` rule 2b
+words the row: the transaction consumes an L1→L2 message, the leaf it read, and
+that this is not a statement about the transaction.
+
+Re-measured on arch on 2026-11-26. Every attempted row of the rehearsal's
+`6c28eb93` arm was re-run through this repository's `replayTransaction` with
+`abd5aade`, node 22.23.2 and `avm-wasm-0f2fb11e`, with nothing published:
+
+| attempted rows (276) | `6c28eb93` | `abd5aade` (this pin) |
+|---|---|---|
+| replayed and reproduced | 222 | 222 (the same transactions) |
+| divergent | **43** | **0** |
+| `l1-to-l2-message-unseedable` | — | **43** (the same 43) |
+| `runtime-refused`: `ModuleRefusedReplay` / `HydrationDidNotConverge` | 8 / 3 | 8 / 3 (the same transactions) |
+
+Replaying them instead needs a source for the message hash. That is upstream
+work, drafted and not filed.
 
 ## Source-level coverage — satisfied in kind, limited by the chain
 
@@ -155,7 +171,7 @@ Nothing here is a defect in our machinery.
 
 | | what | owner |
 |---|---|---|
-| 1 | ~~the AVM crash~~ **fixed** (aztec-avm-runtime `6c28eb93`, pinned here). Next: the 43-of-276 revert divergence above, on the runtime side | `home-pc:avm-crash` → runtime |
+| 1 | ~~the AVM crash~~ **fixed** (aztec-avm-runtime `6c28eb93`). ~~the 43-of-276 revert divergence~~ **refused by name** (`abd5aade`, pinned here, as `l1-to-l2-message-unseedable`). Replaying them needs the L1→L2 message hash (upstream) | runtime |
 | 2 | infra PR: `ExecStartPre=+ install -d` on all three units, so no unit depends on tmpfiles traversing a human-owned parent | this lane |
 | 3 | relocating `stateDir` off `/build` to a root-owned parent — **the operator's storage call, not a bug fix**; `/build` and `/var/lib` are the same zroot pool, 8.8T free each | operator |
 | 4 | the pin bump (3 hops above): blocktracer `agents` carries the fix; next are the agents → dev promotion, dev → live, and then infra's `blocktracer` input | manager → operator |
