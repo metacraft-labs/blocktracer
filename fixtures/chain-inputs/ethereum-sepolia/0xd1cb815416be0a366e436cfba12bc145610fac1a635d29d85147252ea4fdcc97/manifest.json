@@ -1,0 +1,305 @@
+{
+  "version": 1,
+  "upstream": "https://sepolia.rpc.thirdweb.com",
+  "recordedAt": "2026-11-26T07:57:12.657Z",
+  "recordedBy": "tools/chain/eth-rpc-transcript.mjs",
+  "command": [
+    "bash",
+    "tools/chain/eth-capture.sh",
+    "--recorder",
+    "/tmp/claude-1000/-home-zahary-m-bt-evm/f9079af8-6190-4647-9896-275f1135b0a2/scratchpad/evm-recorder-pinned/bin/codetracer-evm-recorder",
+    "--recorder-commit",
+    "dc516fdab3933bcdef877c51a44b0718fbcc1198",
+    "--tx",
+    "0xd1cb815416be0a366e436cfba12bc145610fac1a635d29d85147252ea4fdcc97",
+    "--out",
+    ".eth-capture/tree"
+  ],
+  "totals": {
+    "calls": 24,
+    "bytes": 1330762,
+    "immutable": 20,
+    "tipDependent": 2,
+    "endpointIdentity": 2
+  },
+  "calls": [
+    {
+      "key": "9d4b85eb9fb8ba461d4f4cea69198ba2",
+      "method": "eth_blockNumber",
+      "params": [],
+      "kind": "tip-dependent",
+      "file": "eth_blockNumber.9d4b85eb.json",
+      "bytes": 108,
+      "sha256": "3c8f531e8368f2da10e0019187b4986aa078670a91b5ef3479339e2db4cb6bec"
+    },
+    {
+      "key": "1deee398e437110cd0f8e9be8a8df655",
+      "method": "eth_chainId",
+      "params": [],
+      "kind": "immutable",
+      "file": "eth_chainId.1deee398.json",
+      "bytes": 100,
+      "sha256": "e409232e0f649206af7433eb504213d6460f5744460f250665151beab8b5d980"
+    },
+    {
+      "key": "bec308db0e415e9438ae7aa3f8609d46",
+      "method": "eth_getAccountInfo",
+      "params": [
+        "0x73f2474bd3dbc6059336538b7952edfc379af501",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getAccountInfo.0x73f2474bd3-0x5265bf.bec308db.json",
+      "bytes": 240,
+      "sha256": "2e4ceb264f2265bd2d35ab82ed56aa3f4c2c2c22403fb210380a834023f2c4eb"
+    },
+    {
+      "key": "41525975ebe036227e583994d7c275b1",
+      "method": "eth_getBalance",
+      "params": [
+        "0x4873528341d33ec918c7465f244491acb75bc95f",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getBalance.0x4873528341-0x5265bf.41525975.json",
+      "bytes": 153,
+      "sha256": "a022f9aefad420d97f7da099cf477f9be6ae66bed67464a3b3350ae0e4531ec8"
+    },
+    {
+      "key": "a5688cec69d08e3b444bcb18705b232a",
+      "method": "eth_getBalance",
+      "params": [
+        "0x73f2474bd3dbc6059336538b7952edfc379af501",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getBalance.0x73f2474bd3-0x5265bf.a5688cec.json",
+      "bytes": 169,
+      "sha256": "832d48cfeeb193c01666e1e2fe504b0a6910b040ad8d80db44a60ac80bd549f3"
+    },
+    {
+      "key": "da7d8da86a1c106a02be70b1915e19f6",
+      "method": "eth_getBalance",
+      "params": [
+        "0x9a6034c84cd431409ac1a35278c7da36ffda53e5",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getBalance.0x9a6034c84c-0x5265bf.da7d8da8.json",
+      "bytes": 171,
+      "sha256": "73f5795b3e5d507150fd16d9a5856e79ab38e8a47b664a848d44961df29bfe4f"
+    },
+    {
+      "key": "26395d53f7b666e9b492a93acb64242f",
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "finalized",
+        false
+      ],
+      "kind": "tip-dependent",
+      "file": "eth_getBlockByNumber.finalized-false.26395d53.json",
+      "bytes": 10049,
+      "sha256": "43f18209fd56cd7ad3c877d2eaaf0f6cd4d23e13a1ecd7ba1f4400d28e774d70"
+    },
+    {
+      "key": "4b7ba3e1b838ea0dba6af6dc88252181",
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x5265c0",
+        true
+      ],
+      "kind": "immutable",
+      "file": "eth_getBlockByNumber.0x5265c0-true.4b7ba3e1.json",
+      "bytes": 411712,
+      "sha256": "56136ea962216119cfcf89b6e83d9bf420433a1478b18dbef76d7d0802f7e7ed"
+    },
+    {
+      "key": "660a85a929c03cdd8f08f16959ac9136",
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x5265c0",
+        false
+      ],
+      "kind": "immutable",
+      "file": "eth_getBlockByNumber.0x5265c0-false.660a85a9.json",
+      "bytes": 13390,
+      "sha256": "3455bbd126b85df620ada5849ea60b3a8e707462fba068b7463b470e625f9434"
+    },
+    {
+      "key": "3bf00d2382cf810027196a06b5815a81",
+      "method": "eth_getBlockReceipts",
+      "params": [
+        "0x5265c0"
+      ],
+      "kind": "immutable",
+      "file": "eth_getBlockReceipts.0x5265c0.3bf00d23.json",
+      "bytes": 862672,
+      "sha256": "6078bc54869c84b204fc9ffb6ea418544859e3aec3a89e80543312883fd05832"
+    },
+    {
+      "key": "752510e59a3205584c2ca78487747792",
+      "method": "eth_getCode",
+      "params": [
+        "0x73f2474bd3dbc6059336538b7952edfc379af501",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getCode.0x73f2474bd3-0x5265bf.752510e5.json",
+      "bytes": 149,
+      "sha256": "b306aa18d7762c128dc2f16c5253d4146e5e189768382dfaff4ece56fc5d482b"
+    },
+    {
+      "key": "b05c444225d01176e384cb4181a907c3",
+      "method": "eth_getCode",
+      "params": [
+        "0x4873528341d33ec918c7465f244491acb75bc95f",
+        "0x5265c0"
+      ],
+      "kind": "immutable",
+      "file": "eth_getCode.0x4873528341-0x5265c0.b05c4442.json",
+      "bytes": 10745,
+      "sha256": "94a38878214c0157b2026456aa94d8358f8bc60f3a53906fcec1fb020256ab3f"
+    },
+    {
+      "key": "bd47d6b40710f97e47d0f44646bfaef0",
+      "method": "eth_getCode",
+      "params": [
+        "0x4873528341d33ec918c7465f244491acb75bc95f",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getCode.0x4873528341-0x5265bf.bd47d6b4.json",
+      "bytes": 10745,
+      "sha256": "f56822cb8ceb872279c1e8eb22f2109786c73113a9d15f7a035561fa135dfdcf"
+    },
+    {
+      "key": "d95694dc70367915953f69bd9f37022c",
+      "method": "eth_getCode",
+      "params": [
+        "0x9a6034c84cd431409ac1a35278c7da36ffda53e5",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getCode.0x9a6034c84c-0x5265bf.d95694dc.json",
+      "bytes": 149,
+      "sha256": "828abe5eee3ec40331fa186156a626bf4ca1f3e640d208e9860f1eba7940c5d0"
+    },
+    {
+      "key": "1062087aaeb9094c6795806f0be09349",
+      "method": "eth_getProof",
+      "params": [
+        "0x4873528341d33ec918c7465f244491acb75bc95f",
+        [],
+        "0x0"
+      ],
+      "kind": "immutable",
+      "file": "eth_getProof.0x4873528341--0x0.1062087a.json",
+      "bytes": 1177,
+      "sha256": "6e1c41a58fadc0d6c2231c27bfde13465115efc682a1d1a9fc19f85e60e35a5a"
+    },
+    {
+      "key": "8c406be122dcac18fce43762a6f97792",
+      "method": "eth_getProof",
+      "params": [
+        "0x4873528341d33ec918c7465f244491acb75bc95f",
+        [],
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getProof.0x4873528341--0x5265bf.8c406be1.json",
+      "bytes": 6847,
+      "sha256": "d7650e8bc1adefd5cb0e5e048af5fc4e98375f8df95eeaadce8832be02e4f3ae"
+    },
+    {
+      "key": "1fb83685513f62628473f3f87e3374de",
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x4873528341d33ec918c7465f244491acb75bc95f",
+        "0x2",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getStorageAt.0x4873528341-0x2-0x5265bf.1fb83685.json",
+      "bytes": 224,
+      "sha256": "ad675078074b7f3d5a2d5d09a3d3b4621cd72b4735f31267c10c4926d36d9916"
+    },
+    {
+      "key": "f0a89da4b6cca76c0580c6a8b91e80d1",
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x4873528341d33ec918c7465f244491acb75bc95f",
+        "0xd125c1d432fab9120d7cc9cb0e330cbb518064dce9a04737618507477878f7c6",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getStorageAt.0x4873528341-0xd125c1d432-0x5265bf.f0a89da4.json",
+      "bytes": 287,
+      "sha256": "a201eddd73c4de13d8ae1a56e2e9e84bdf5e45e2dde92d8d77ee9c05d06fed01"
+    },
+    {
+      "key": "f0dcf280ed47fb96e0ab7c903bd0b58e",
+      "method": "eth_getTransactionByHash",
+      "params": [
+        "0xd1cb815416be0a366e436cfba12bc145610fac1a635d29d85147252ea4fdcc97"
+      ],
+      "kind": "immutable",
+      "file": "eth_getTransactionByHash.0xd1cb815416.f0dcf280.json",
+      "bytes": 865,
+      "sha256": "ae2eb2ee2df3674f01cfb6a958df50eb79e832a40156825f3a6f5c81d831bf9d"
+    },
+    {
+      "key": "137080a499c1eac7bb4c613c4172f401",
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x9a6034c84cd431409ac1a35278c7da36ffda53e5",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getTransactionCount.0x9a6034c84c-0x5265bf.137080a4.json",
+      "bytes": 163,
+      "sha256": "af805c53027a7f658ef66397e4e4eb35e8a8e2d1a00ccfeed3e4f1f3d6af38f2"
+    },
+    {
+      "key": "2127f1b35db72af06332eb6a88d44b91",
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x4873528341d33ec918c7465f244491acb75bc95f",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getTransactionCount.0x4873528341-0x5265bf.2127f1b3.json",
+      "bytes": 162,
+      "sha256": "88b9389d9843bce049b4748a58c5fddb4c79c3797ade8e24cab122045c815d36"
+    },
+    {
+      "key": "acd34323403d4bf3a9b9f62c4dc1cc1b",
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x73f2474bd3dbc6059336538b7952edfc379af501",
+        "0x5265bf"
+      ],
+      "kind": "immutable",
+      "file": "eth_getTransactionCount.0x73f2474bd3-0x5265bf.acd34323.json",
+      "bytes": 165,
+      "sha256": "f25eaa81334aefeca97f877a288f9735bf779a0efa209dd59efb198af274233e"
+    },
+    {
+      "key": "67c10973466b8cf9987c611e57526e3e",
+      "method": "thisMethodDoesNotExist",
+      "params": [],
+      "kind": "endpoint-identity",
+      "file": "thisMethodDoesNotExist.67c10973.json",
+      "bytes": 201,
+      "sha256": "02bc46f57c15a6e9468b32a825f25a6b552e56b8ec70bdd799b3aeb05da7cbe3"
+    },
+    {
+      "key": "91e2e2d3ec81ededf3b455f18d133977",
+      "method": "web3_clientVersion",
+      "params": [],
+      "kind": "endpoint-identity",
+      "file": "web3_clientVersion.91e2e2d3.json",
+      "bytes": 119,
+      "sha256": "70e9b07b2f874d7bb46ee233d43f4ebc49edc22e54e56cc2cb6e40fc55c802b4"
+    }
+  ]
+}

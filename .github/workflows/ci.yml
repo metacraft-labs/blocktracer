@@ -1033,8 +1033,10 @@ jobs:
           node tools/fixtures/check-recordings-wiring.mjs --selftest
           node tools/fixtures/check-recordings-wiring.mjs
 
-      - name: Is the committed Ethereum JSON-RPC input set the input set it claims to be?
-        # 30 assertions, host-independent: every arm is offline and needs only node.
+      - name: Are the committed Ethereum JSON-RPC input sets the input sets they claim to be?
+        # 40 assertions, host-independent: every arm is offline and needs only node.
+        # Arms 21-30 read mainnet's set and 31-40 the same ten over Sepolia's
+        # (`fixtures/chain-inputs/ethereum-sepolia/<tx>/`, 24 answers, since 2026-11-26).
         #
         # WHAT IT GUARDS. `fixtures/chain-inputs/ethereum-mainnet/<tx>/` is 472
         # recorded JSON-RPC answers — the whole conversation the Ethereum capture

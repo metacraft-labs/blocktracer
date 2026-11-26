@@ -6,8 +6,9 @@
 //
 // ── WHAT THIS SUITE IS EVIDENCE FOR ───────────────────────────────────────────────────
 //
-// `fixtures/chain-inputs/ethereum-mainnet/<tx>/` is 2.29 MiB of committed JSON-RPC answers
-// and `tools/chain/eth-rpc-transcript.mjs` is the endpoint that replays them. Together they
+// `fixtures/chain-inputs/ethereum-mainnet/<tx>/` is 2.29 MiB of committed JSON-RPC answers,
+// `fixtures/chain-inputs/ethereum-sepolia/<tx>/` 1.27 MiB more since Sepolia shipped to staging
+// (Recorder-EVM CXP-EVM-6, 2026-11-26), and `tools/chain/eth-rpc-transcript.mjs` is the endpoint that replays them. Together they
 // are what makes the Ethereum capture reproducible without a network, which is the whole
 // reason the `.ct` ban does not block the Ethereum landing page any more. Two distinct
 // things can be wrong with that, and this suite covers both:
@@ -17,7 +18,8 @@
 //     green. A transcript whose manifest did not pin its files would make the committed
 //     bytes replaceable. Both are asserted here against planted defects, with in-process
 //     `http.Server`s standing in for the upstream.
-//   * THE INPUT SET (arms 21-30). The committed answers are CROSS-CHECKED against each
+//   * THE INPUT SETS (arms 21-30 for mainnet, 31-40 for Sepolia: the same ten arms over each
+//     committed set, with the figures each one declares). The committed answers are CROSS-CHECKED against each
 //     other: the hash-only block against the full block, the receipts against the block
 //     order, the receipts' `blockHash` against the block's own. An input set whose members
 //     disagree is not a record of a block, and no amount of sha256 would notice — the
@@ -82,16 +84,25 @@ const REPO_ROOT = resolve(HERE, '..', '..');
 const CLI = join(HERE, 'eth-rpc-transcript.mjs');
 
 /**
- * The transaction the committed input set describes, and the three figures the capture
+ * Each committed input set, the transaction it describes, and the figures the capture
  * declares about it. Written here rather than read from the inputs on purpose: an arm that
  * read its expectation out of the thing it is checking would pass for any block.
+ * `minCalls` is the floor arm 21 holds the set to, so that an emptied set is not a pass.
  */
-const TX = '0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa';
-const BLOCK = 26083328;
-const TX_INDEX = 8;
-const BLOCK_TX_COUNT = 208;
-const ENTRY_POINT = '0xdac17f958d2ee523a2206206994597c13d831ec7';
-const INPUTS = join(REPO_ROOT, 'fixtures', 'chain-inputs', 'ethereum-mainnet', TX);
+/** An address for the mechanism arms (1-20) to build call keys over; mainnet's entry point. */
+const SAMPLE_ADDRESS = '0xdac17f958d2ee523a2206206994597c13d831ec7';
+
+const INPUT_SETS = [
+  { slug: 'ethereum-mainnet', name: 'Ethereum MAINNET', chainId: '0x1',
+    tx: '0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa',
+    block: 26083328, txIndex: 8, blockTxCount: 208,
+    entryPoint: '0xdac17f958d2ee523a2206206994597c13d831ec7', minCalls: 401 },
+  // Sepolia 5,400,000 index 0: nothing precedes it, so the set is 24 calls.
+  { slug: 'ethereum-sepolia', name: 'SEPOLIA', chainId: '0xaa36a7',
+    tx: '0xd1cb815416be0a366e436cfba12bc145610fac1a635d29d85147252ea4fdcc97',
+    block: 5400000, txIndex: 0, blockTxCount: 140,
+    entryPoint: '0x4873528341d33ec918c7465f244491acb75bc95f', minCalls: 20 },
+];
 
 // ── THE DECLARED ARM COUNT ───────────────────────────────────────────────────────────
 //
@@ -101,7 +112,7 @@ const INPUTS = join(REPO_ROOT, 'fixtures', 'chain-inputs', 'ethereum-mainnet', T
 // here opens a container.
 //
 // A SUITE THAT RAN FEWER ARMS THAN IT DECLARES IS A FAILURE, not a quieter pass.
-const BASE_ARMS = 30;
+const BASE_ARMS = 20 + 10 * INPUT_SETS.length;
 
 let pass = 0;
 let fail = 0;
@@ -174,7 +185,7 @@ export async function selftest() {
     // `produce-eth-snapshot.mjs` lowercases on purpose.
     {
       const checksummed = callKey('eth_getCode', ['0xdAC17F958D2ee523a2206206994597C13D831ec7', '0x18dffff']);
-      const lower = callKey('eth_getCode', [ENTRY_POINT, '0x18dffff']);
+      const lower = callKey('eth_getCode', [SAMPLE_ADDRESS, '0x18dffff']);
       arm('arm 2: a checksummed and a lowercase address are ONE key — the two clients in this '
           + 'pipeline spell addresses differently',
           checksummed === lower, () => `${checksummed} vs ${lower}`);
@@ -182,10 +193,10 @@ export async function selftest() {
 
     // arm 3
     {
-      const base = callKey('eth_getCode', [ENTRY_POINT, '0x18dffff']);
-      const otherMethod = callKey('eth_getBalance', [ENTRY_POINT, '0x18dffff']);
-      const otherBlock = callKey('eth_getCode', [ENTRY_POINT, '0x18e0000']);
-      const fewerParams = callKey('eth_getCode', [ENTRY_POINT]);
+      const base = callKey('eth_getCode', [SAMPLE_ADDRESS, '0x18dffff']);
+      const otherMethod = callKey('eth_getBalance', [SAMPLE_ADDRESS, '0x18dffff']);
+      const otherBlock = callKey('eth_getCode', [SAMPLE_ADDRESS, '0x18e0000']);
+      const fewerParams = callKey('eth_getCode', [SAMPLE_ADDRESS]);
       const distinct = new Set([base, otherMethod, otherBlock, fewerParams]);
       arm('arm 3: a different method, a different block and a different param COUNT are three '
           + 'different keys',
@@ -306,7 +317,7 @@ export async function selftest() {
     {
       const srv = await startTranscriptServer({ mode: 'replay', transcript: small });
       const answer = await call(srv.url, {
-        jsonrpc: '2.0', id: 1, method: 'eth_getCode', params: [ENTRY_POINT, '0x1'],
+        jsonrpc: '2.0', id: 1, method: 'eth_getCode', params: [SAMPLE_ADDRESS, '0x1'],
       });
       await srv.close();
       arm('arm 11: replay answers a LOWERCASE spelling of a request that was recorded '
@@ -465,6 +476,12 @@ export async function selftest() {
     // transcript that could not be opened at all.
     // ───────────────────────────────────────────────────────────────────────────────
 
+    for (const [setIndex, set] of INPUT_SETS.entries()) {
+    const { tx: TX, block: BLOCK, txIndex: TX_INDEX, blockTxCount: BLOCK_TX_COUNT,
+            entryPoint: ENTRY_POINT } = set;
+    const INPUTS = join(REPO_ROOT, 'fixtures', 'chain-inputs', set.slug, TX);
+    /** This set's number for what is arm `k` (21..30) over the first set. */
+    const n = (k) => `arm ${k + 10 * setIndex} (${set.slug})`;
     const real = loadTranscript(INPUTS);
     /** The one recorded answer for `method` with `params`, or undefined. */
     const answerFor = (method, params) => real.byKey.get(callKey(method, params))?.response?.result;
@@ -473,25 +490,25 @@ export async function selftest() {
     // arm 21
     {
       const { stdout } = await exec(process.execPath, [CLI, '--verify', '--transcript', INPUTS]);
-      arm('arm 21 (base case): the committed input set loads, every sha256 as the manifest '
+      arm(n(21) + ' (base case): the committed input set loads, every sha256 as the manifest '
           + 'says, so the arms below are not vacuous',
           /transcript OK/.test(stdout) && real.byKey.size === real.manifest.totals.calls
-          && real.byKey.size > 400,
+          && real.byKey.size >= set.minCalls,
           () => `calls=${real.byKey.size} stdout=${stdout.slice(0, 200)}`);
     }
 
     // arm 22
     {
       const chainId = answerFor('eth_chainId', []);
-      arm('arm 22: the input set is Ethereum MAINNET — `eth_chainId` answers 0x1',
-          chainId === '0x1', () => `eth_chainId=${chainId}`);
+      arm(`${n(22)}: the input set is ${set.name} — \`eth_chainId\` answers ${set.chainId}`,
+          chainId === set.chainId, () => `eth_chainId=${chainId}`);
     }
 
     // arm 23 — the transaction's own answer about where it sits, against the three figures
     // this file declares rather than reads.
     {
       const tx = answerFor('eth_getTransactionByHash', [TX]);
-      arm('arm 23: the target transaction sits where the capture says it does — block '
+      arm(n(23) + ': the target transaction sits where the capture says it does — block '
           + `${BLOCK}, index ${TX_INDEX}`,
           tx && parseInt(tx.blockNumber, 16) === BLOCK
           && parseInt(tx.transactionIndex, 16) === TX_INDEX
@@ -507,7 +524,7 @@ export async function selftest() {
       const full = answerFor('eth_getBlockByNumber', [hex(BLOCK), true]);
       const thinHashes = (thin?.transactions ?? []).map((h) => h.toLowerCase());
       const fullHashes = (full?.transactions ?? []).map((t) => t.hash.toLowerCase());
-      arm(`arm 24: the hash-only block and the full block agree on all ${BLOCK_TX_COUNT} `
+      arm(`${n(24)}: the hash-only block and the full block agree on all ${BLOCK_TX_COUNT} `
           + 'transaction hashes, in order',
           thinHashes.length === BLOCK_TX_COUNT
           && fullHashes.length === BLOCK_TX_COUNT
@@ -522,7 +539,7 @@ export async function selftest() {
       const thin = answerFor('eth_getBlockByNumber', [hex(BLOCK), false]);
       const receipts = answerFor('eth_getBlockReceipts', [hex(BLOCK)]);
       const hashes = (thin?.transactions ?? []).map((h) => h.toLowerCase());
-      arm(`arm 25: the receipts are ${BLOCK_TX_COUNT} and pair with the block IN ORDER — the `
+      arm(`${n(25)}: the receipts are ${BLOCK_TX_COUNT} and pair with the block IN ORDER — the `
           + 'producer pairs them by position, so position is what has to be right',
           Array.isArray(receipts) && receipts.length === BLOCK_TX_COUNT
           && receipts.every((r, i) => r.transactionHash.toLowerCase() === hashes[i]),
@@ -537,7 +554,7 @@ export async function selftest() {
       const strays = receipts.filter(
         (r) => r.blockHash?.toLowerCase() !== thin?.hash?.toLowerCase()
           || parseInt(r.blockNumber, 16) !== BLOCK);
-      arm('arm 26: every receipt names the captured block — same `blockHash`, same height',
+      arm(n(26) + ': every receipt names the captured block — same `blockHash`, same height',
           receipts.length === BLOCK_TX_COUNT && strays.length === 0,
           () => `${strays.length} receipt(s) name another block`);
     }
@@ -550,7 +567,7 @@ export async function selftest() {
       const replayed = (full?.transactions ?? []).slice(0, TX_INDEX + 1);
       const needed = ['hash', 'from', 'gas', 'input', 'nonce', 'value'];
       const incomplete = replayed.filter((t) => needed.some((k) => t[k] === undefined || t[k] === null));
-      arm(`arm 27: all ${TX_INDEX + 1} transaction bodies the replay executes (indices 0..`
+      arm(`${n(27)}: all ${TX_INDEX + 1} transaction bodies the replay executes (indices 0..`
           + `${TX_INDEX}) carry every field the replay converts`,
           replayed.length === TX_INDEX + 1 && incomplete.length === 0
           && replayed[TX_INDEX].hash.toLowerCase() === TX,
@@ -564,7 +581,7 @@ export async function selftest() {
     {
       const atParent = answerFor('eth_getCode', [ENTRY_POINT, hex(BLOCK - 1)]);
       const atTarget = answerFor('eth_getCode', [ENTRY_POINT, hex(BLOCK)]);
-      arm('arm 28: the entry point\'s deployed code is in the input set at BOTH heights the '
+      arm(n(28) + ': the entry point\'s deployed code is in the input set at BOTH heights the '
           + 'capture reads — the parent (the fork pin) and the target block (the listing)',
           typeof atParent === 'string' && atParent.length > 2
           && typeof atTarget === 'string' && atTarget === atParent,
@@ -579,7 +596,7 @@ export async function selftest() {
       const tip = real.manifest.calls.filter((c) => c.kind === 'tip-dependent');
       const identity = real.manifest.calls.filter((c) => c.kind === 'endpoint-identity');
       const methods = tip.map((c) => c.method).sort();
-      arm('arm 29: exactly the two tip-dependent answers are MARKED tip-dependent, and the '
+      arm(n(29) + ': exactly the two tip-dependent answers are MARKED tip-dependent, and the '
           + 'two endpoint-identity ones endpoint-identity',
           tip.length === 2 && identity.length === 2
           && methods.join(',') === 'eth_blockNumber,eth_getBlockByNumber'
@@ -617,13 +634,14 @@ export async function selftest() {
           .push(`${entry.method} (code ${stored.response.error?.code})`);
       }
       const chainRefusals = absent.filter((s) => !s.startsWith('thisMethodDoesNotExist'));
-      arm('arm 30: every recorded refusal is an ABSENT-class `-32601`, and the only chain '
+      arm(n(30) + ': every recorded refusal is an ABSENT-class `-32601`, and the only chain '
           + 'method refused is `eth_getAccountInfo` — whose refusal is what makes alloy take '
           + 'its fallback offline too. No policy or transport refusal was recorded.',
           notAbsent.length === 0
           && chainRefusals.length === 1
           && chainRefusals[0].startsWith('eth_getAccountInfo'),
           () => `notAbsent=${JSON.stringify(notAbsent)} chainRefusals=${JSON.stringify(chainRefusals)}`);
+    }
     }
   } finally {
     rmSync(tmp, { recursive: true, force: true });

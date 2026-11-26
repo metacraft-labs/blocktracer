@@ -166,9 +166,9 @@ jobs:
       # `live` builds `default`; every other deploy builds `site-staging`, which is
       # `default` plus the chains cleared for staging and not for production.
       # Chain-Expansion's environment target: only Aztec goes to production, and
-      # every other chain ships to staging. Today that means `ethereum-mainnet`,
-      # its container produced inside the build (flake.nix, tools/chain/nix/eth.nix)
-      # rather than committed. `live` must stay `default` until a per-chain
+      # every other chain ships to staging. Today that means `ethereum-mainnet`
+      # and `ethereum-sepolia` among others, their containers produced inside the
+      # build (flake.nix, tools/chain/nix/eth.nix) rather than committed. `live` must stay `default` until a per-chain
       # promotion decision says otherwise.
       flake-target: >-
         ${{ (github.event_name == 'push' && github.ref_name == 'live') && 'default'

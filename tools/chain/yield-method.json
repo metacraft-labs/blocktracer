@@ -500,8 +500,10 @@
     },
     "eth-sepolia": {
       "pinnedOn": "2026-11-25",
-      "rosterState": "declared, NOT SHIPPED",
+      "rosterState": "declared, SHIPPED TO STAGING (operator ruling 2026-11-26: every network but Aztec ships to staging)",
       "_whyThisIsCommittedBeforeAnyReading": [
+        "SHIPPED TO STAGING 2026-11-26 (Recorder-EVM CXP-EVM-6), by the operator's ruling that every network but Aztec ships to staging: `packages.produced-captures` carries `ethereum-sepolia`, one transaction produced in the build from a committed transcript (tools/chain/nix/eth.nix). This changes no window, no expectation and no figure below; the reading of 2026-11-25 stands as read. What follows is the entry as pinned, when the instance was not shipped.",
+        "",
         "DECLARED ON THE ROSTER BY OPERATOR RULING (2026-11-25, Recorder-EVM CXP-EVM-1: mainnet AND",
         "Sepolia), AND NOT SHIPPED: no snapshot of this instance is produced or published. This",
         "entry is the pending row the method asks a chain to commit before it measures, so the",

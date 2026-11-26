@@ -120,6 +120,23 @@ a capture that runs in 9 seconds offline instead of 3 minutes against a public e
 CI, in a hermetic `nix build`, and in two years when somebody needs to know whether a change
 to the producers moved the result.
 
+## `ethereum-sepolia/<tx>/`
+
+The same transcript format, for Sepolia (chain 11155111), the second EVM instance. It has been on
+staging since 2026-11-26, when the operator ruled that every network but Aztec ships there
+(Recorder-EVM CXP-EVM-6). One transaction: block 5,400,000 (Cancun), index 0,
+`0xd1cb8154…`, a 34,993-gas call of 566 steps in one frame. Index 0 means no preceding
+transaction is replayed, so the set is 24 answers and 1.27 MiB, two thirds of it the full block
+and its receipts. Recorded against `sepolia.rpc.thirdweb.com`: `rpc.sepolia.ethpandaops.io`
+answered the `thisMethodDoesNotExist` control with a 429 on both attempts, so the control
+read `policy` and the snapshot withheld `nodeVersion`.
+
+`nix build .#eth-sepolia-capture-tree` produces it offline (`tools/chain/nix/eth.nix`), and
+`--rebuild` reproduces it. `eth-rpc-transcript-selftest.mjs` runs its ten input-set arms over
+this set as arms 31-40. To re-record it, run `just eth-inputs-record`'s command with
+`--upstream https://sepolia.rpc.thirdweb.com` and `--out fixtures/chain-inputs/ethereum-sepolia/<tx>`.
+The recipe's own default directory is mainnet's.
+
 ## `sui-mainnet/<checkpoint>/`
 
 A `tools/chain/sui-graphql-transcript.mjs` transcript: the **entire** GraphQL conversation

@@ -770,6 +770,10 @@
         # ── Chain two, produced rather than committed (Chain-Delivery DEL-5, route 3) ──
         packages.evm-recorder = eth.evmRecorder;
         packages.eth-capture-tree = eth.ethCaptureTree;
+        # Sepolia, the second declared EVM instance (Recorder-EVM CXP-EVM-1), in
+        # produced-captures as `ethereum-sepolia` since the operator's 2026-11-26 ruling
+        # that every network but Aztec ships to staging (CXP-EVM-6).
+        packages.eth-sepolia-capture-tree = eth.sepoliaCaptureTree;
 
         # ── Chain three, produced the same way (Chain-Delivery DEL-6) ──
         packages.flow-recorder = flow.flowRecorder;
@@ -809,8 +813,8 @@
         packages.starknet-capture-tree = starknet.starknetCaptureTree;
         packages.starknet-ct-print = starknet.ctPrint;
 
-        # The site with the STAGING-ONLY chains added: `default` plus the Ethereum,
-        # Flow, Solana, Starknet and Sui trees, and Aptos on x86_64-linux, placed where the exporter already looks for a live-chain capture.
+        # The site with the STAGING-ONLY chains added: `default` plus the Ethereum
+        # (mainnet and Sepolia), Flow, Solana, Starknet and Sui trees, and Aptos on x86_64-linux, placed where the exporter already looks for a live-chain capture.
         # deploy.yml builds this for every deploy except `live`, so `live` (the
         # production Pages project) keeps `default` and carries no chain the
         # operator has not cleared for production; Chain-Expansion's environment
@@ -862,11 +866,12 @@
         # about an hour cold (58 and 64 minutes, measured on high-mem-server). That
         # build now lands on every deploy and CI run with no cached copy, and Aptos is
         # on every `site-staging` deploy; the operator accepted both. On any other
-        # system the set is the five chains it always was, so a local build there
-        # still evaluates.
+        # system the set is every tree but Aptos, so a local build there still
+        # evaluates.
         packages.produced-captures = pkgs.runCommand "blocktracer-produced-captures" { } (''
           mkdir -p $out
           cp -r ${eth.ethCaptureTree} $out/ethereum-mainnet
+          cp -r ${eth.sepoliaCaptureTree} $out/ethereum-sepolia
           cp -r ${flow.flowCaptureTree} $out/flow-mainnet
           cp -r ${sol.solCaptureTree} $out/solana-mainnet
           cp -r ${starknet.starknetCaptureTree} $out/starknet-mainnet

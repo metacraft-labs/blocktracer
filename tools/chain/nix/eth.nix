@@ -1,4 +1,9 @@
-# tools/chain/nix/eth.nix — chain two's container, PRODUCED in the build instead of committed.
+# tools/chain/nix/eth.nix — chain two's containers, PRODUCED in the build instead of committed.
+#
+# One capture per declared EVM instance that ships to staging: `ethereum-mainnet` (DEL-5)
+# and, since the operator's 2026-11-26 ruling that every network but Aztec ships to
+# staging, `ethereum-sepolia` (Recorder-EVM CXP-EVM-6). Both are the same derivation over a
+# different committed transcript; the recorder, writer and producer are shared.
 #
 # Chain-Delivery DEL-5 priced three routes for getting `ethereum-mainnet` onto staging,
 # whose site is a Pages build of the git tree. Route 1 commits the 81,920-byte container
@@ -105,15 +110,12 @@ let
     doCheck = false;
   };
 
-  # The one transaction the committed input set describes. Justfile's ETH_CAPTURE_TX.
-  tx = "0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa";
-
-  # What the capture reads, and nothing else, so an unrelated edit does not re-run it.
-  captureSrc = lib.fileset.toSource {
+  # What a capture reads, and nothing else, so an unrelated edit does not re-run it.
+  captureSrcFor = slug: tx: lib.fileset.toSource {
     root = blocktracerRoot;
     fileset = lib.fileset.unions [
       (blocktracerRoot + "/tools/chain")
-      (blocktracerRoot + "/fixtures/chain-inputs/ethereum-mainnet/${tx}")
+      (blocktracerRoot + "/fixtures/chain-inputs/${slug}/${tx}")
       (blocktracerRoot + "/client/hydrate/engine-pin.txt")
     ];
   };
@@ -126,9 +128,13 @@ let
   # of this derivation reproduced its output, and the container differed from the one
   # staging published from 6430643 in exactly one byte (offset 57349, `meta.dat` 6 -> 7:
   # the writer pin). `just eth-regen-check` still compares two trees decoded.
-  ethCaptureTree = stdenv.mkDerivation {
-    name = "ethereum-mainnet-capture";
-    src = captureSrc;
+  #
+  # The chain id comes from the transcript's own `eth_chainId` answer, and the producer maps
+  # it to the slug (tools/chain/lib/eth-producer-facts.mjs EVM_INSTANCES); `slug` here only
+  # names the committed input directory and the derivation.
+  captureTreeFor = { slug, tx }: stdenv.mkDerivation {
+    name = "${slug}-capture";
+    src = captureSrcFor slug tx;
     nativeBuildInputs = [ nodejs bash ];
     CT_PRINT = "${ctPrint}/bin/ct-print";
     # reqwest refuses to construct a client with no CA store, even though every call
@@ -138,12 +144,12 @@ let
       runHook preBuild
       export HOME=$TMPDIR
       node tools/chain/eth-rpc-transcript.mjs \
-        --replay --transcript fixtures/chain-inputs/ethereum-mainnet/${tx} -- \
+        --replay --transcript fixtures/chain-inputs/${slug}/${tx} -- \
         bash tools/chain/eth-capture.sh \
           --recorder ${evmRecorder}/bin/codetracer-evm-recorder \
           --recorder-commit ${recorderRev} \
           --tx ${tx} --out $TMPDIR/tree --work $TMPDIR/work \
-          --transcript fixtures/chain-inputs/ethereum-mainnet/${tx}
+          --transcript fixtures/chain-inputs/${slug}/${tx}
       runHook postBuild
     '';
     installPhase = ''
@@ -153,6 +159,21 @@ let
       runHook postInstall
     '';
   };
+  # The one transaction each committed input set describes. Mainnet's is Justfile's
+  # ETH_CAPTURE_TX.
+  ethCaptureTree = captureTreeFor {
+    slug = "ethereum-mainnet";
+    tx = "0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa";
+  };
+  # Sepolia block 5,400,000 (Cancun), index 0: a 34,993-gas call, 566 steps in one frame,
+  # so no preceding transaction is replayed and the transcript is 24 calls. Picked from the
+  # CXP-EVM-5 window of that block, where it was recorded and matched its receipt; the
+  # small shape is deliberate, because a 30k-step EVM trace is slow in the hydrated debug
+  # page (codetracer-pm issues/2026-11-26-large-evm-recordings-cannot-be-debugged-…).
+  sepoliaCaptureTree = captureTreeFor {
+    slug = "ethereum-sepolia";
+    tx = "0xd1cb815416be0a366e436cfba12bc145610fac1a635d29d85147252ea4fdcc97";
+  };
 in {
-  inherit evmRecorder ethCaptureTree ctPrint;
+  inherit evmRecorder ethCaptureTree sepoliaCaptureTree ctPrint;
 }
