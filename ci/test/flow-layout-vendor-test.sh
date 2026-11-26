@@ -63,6 +63,15 @@ mirror() { # dest — a working copy of the vendor directory
 	cp "${vendor_dir}/flow_layout.vendor.json" "$1/flow_layout.vendor.json"
 }
 
+# The CodeTracer pin, resolved once and exported: the isolated copy in case 4
+# has no flake to evaluate, and `ci/codetracer-ref.sh` returns
+# `$CODETRACER_REF` as given.
+CODETRACER_REF="$(bash "${repo_root}/ci/codetracer-ref.sh")" || {
+	echo "flow-layout-vendor-test.sh: cannot read the CodeTracer pin" >&2
+	exit 1
+}
+export CODETRACER_REF
+
 echo "=== flow-layout-vendor.sh self-test ==="
 
 # ── 1. The real thing passes ───────────────────────────────────────────────
@@ -110,6 +119,16 @@ FLOW_VENDOR_DIR="${work}/skew" CODETRACER_SRC="${ct}" \
 report "a manifest commit that is not the SDK pin FAILS" 1 $?
 because "${work}/2c.log" "different commits" "the pin-skew case failed for the wrong reason"
 rm -rf "${work}/skew"
+
+# ── 2d. A pin that cannot be read FAILS, never skips check A ──────────────
+# Until 2026-11-24 the commit check read a file and skipped itself when the
+# file or the value was absent; `ci/codetracer-ref.sh` now resolves the pin,
+# and a value it cannot vouch for must stop the gate.
+CODETRACER_REF="not-a-commit" CODETRACER_SRC="${ct}" \
+	"${subject}" --require >"${work}/2d.log" 2>&1
+report "an unreadable CodeTracer pin FAILS rather than skipping the commit check" 1 $?
+because "${work}/2d.log" "cannot read the CodeTracer pin" \
+	"the unreadable-pin case failed for the wrong reason"
 
 # ── 3. A behaviour change upstream is caught (check B) ─────────────────────
 # `MinExpressionChars` is the smallest edit that moves a NUMBER a renderer
@@ -161,7 +180,7 @@ fi
 mkdir -p "${work}/isolated/ci/test" "${work}/isolated/client/src/debugger"
 cp "${subject}" "${work}/isolated/ci/test/"
 mirror "${work}/isolated/client/src/debugger/vendor"
-cp "${repo_root}/ci/embed-sdk-pin.env" "${work}/isolated/ci/"
+cp "${repo_root}/ci/codetracer-ref.sh" "${work}/isolated/ci/"
 isolated="${work}/isolated/ci/test/flow-layout-vendor.sh"
 [ -e "${work}/isolated/../codetracer" ] &&
 	{

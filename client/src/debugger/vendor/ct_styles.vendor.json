@@ -58,7 +58,7 @@
     "",
     "WHAT KEEPS THE COPY HONEST is `ci/test/ct-styles-vendor.sh`:",
     "  A. the bytes here still hash to the sha256s below (no local edits), and",
-    "     the commit below EQUALS `ci/embed-sdk-pin.env`'s CODETRACER_REF, and",
+    "     the commit below EQUALS the CodeTracer pin (`ci/codetracer-ref.sh`), and",
     "  B. against a real CodeTracer checkout at that pin, each file is compared",
     "     byte for byte with its upstream path — so a change upstream fails here",
     "     with a diff to read, rather than leaving BlockTracer drawing a window",
@@ -80,7 +80,7 @@
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "dev",
-  "commit": "a3986b0de1c215bcc9bd2bfa5c9619f0fa6bc5f3",
+  "commit": "a7cddd8bce554f5d73a7636e2bad15605b71963c",
   "files": [
     {
       "path": "src/frontend/styles/components/button.styl",

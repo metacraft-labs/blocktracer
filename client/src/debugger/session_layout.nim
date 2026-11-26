@@ -6,7 +6,7 @@
 ## `vendor/frontend/headless_app/layout_model.nim` is a **byte-verbatim vendored
 ## copy** of CodeTracer's `src/frontend/headless_app/layout_model.nim`, guarded
 ## by `ci/test/layout-model-vendor.sh` — a hash manifest, a check that the
-## manifest's commit equals `ci/embed-sdk-pin.env`'s, and a probe that imports
+## manifest's commit equals the CodeTracer pin's, and a probe that imports
 ## both modules and compares `defaultReplayLayout()`, `allPanes`, `visiblePanes`,
 ## the enum spellings, `LayoutSchemaVersion` and `validate`. Editing it to change
 ## BlockTracer's arrangement would fail that check, correctly: the copy's whole

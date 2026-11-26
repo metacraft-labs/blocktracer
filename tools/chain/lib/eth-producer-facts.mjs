@@ -63,6 +63,25 @@ export const RECORDER = Object.freeze({ id: 'ethereum-evm', traceSchema: 'ctfs/v
 /** `provenance.prestateStrategy` — one of Chain-Support-Matrix.md §1.4's six. */
 export const PRESTATE_STRATEGY = 'replay-preceding';
 
+/**
+ * The EVM instances this pipeline may produce for, keyed by the chain id the endpoint
+ * reports, and CLOSED: an id not listed here is refused, as every id but 1 was before
+ * Sepolia was declared (Recorder-EVM CXP-EVM-1, operator ruling 2026-11-25). Each entry
+ * names the snapshot's chain slug and the instance's entry in `yield-method.json`'s
+ * `pinned`. Adding an instance is adding a row here and a pinned entry there, both
+ * committed before the instance is measured.
+ */
+export const EVM_INSTANCES = Object.freeze({
+  1: Object.freeze({ name: 'Ethereum mainnet', slug: 'ethereum-mainnet', pinned: 'eth',
+                     label: 'Real Ethereum mainnet data' }),
+  11155111: Object.freeze({ name: 'Sepolia', slug: 'ethereum-sepolia', pinned: 'eth-sepolia',
+                            label: 'Real Ethereum Sepolia data' }),
+});
+
+/** The instance for a chain id, or null when the id is not a declared instance. */
+export const evmInstanceFor = (chainId) =>
+  (Object.prototype.hasOwnProperty.call(EVM_INSTANCES, chainId) ? EVM_INSTANCES[chainId] : null);
+
 /** A source bundle's `language` — what this capture's positions are written in. */
 export const POSITION_LANGUAGE = 'evm-disassembly';
 

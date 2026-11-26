@@ -46,7 +46,7 @@
 ##     recipes say so ("Hermetic: no debugger on the Nim path"). That property
 ##     is defended by CI and is worth more than seventy-five lines of state
 ##     machine. Reaching for `flow_layout` would also mean bumping
-##     `ci/embed-sdk-pin.env`, because the module postdates the current pin.
+##     the CodeTracer pin, because the module postdates the current pin.
 ##
 ## ## The seam: a second language is data
 ##

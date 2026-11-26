@@ -371,7 +371,7 @@ html[data-register="debugger"],
    this comment is the record of what replaced it. The rules that draw a pane
    now arrive from `components/ct_components_css`, compiled out of the `.styl`
    sources vendored at `client/src/debugger/vendor/frontend/styles/components/`
-   and byte-identical to the CodeTracer commit `ci/embed-sdk-pin.env` pins.
+   and byte-identical to the CodeTracer pin's commit (`ci/codetracer-ref.sh`).
 
    The deleted class names are written below WITHOUT their leading dot, on
    purpose and for the reason this file gives twice already: it is inlined into

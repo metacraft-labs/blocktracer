@@ -2180,7 +2180,7 @@ func controlMark(a: DebugAction): string =
   ## The action's mark, drawn by CODETRACER and not by this repository.
   ##
   ## `vendor/frontend/viewmodel/views/debug_control_marks` is CodeTracer's own
-  ## module, vendored byte-verbatim at the pin in `ci/embed-sdk-pin.env` and
+  ## module, vendored byte-verbatim at the CodeTracer pin (`ci/codetracer-ref.sh`) and
   ## checked by `ci/test/control-marks-vendor.sh`. Its `markFor` is keyed by
   ## the SAME eight action strings `toolbarActionId` produces, so the mark and
   ## the request it accompanies are derived from one expression; and its

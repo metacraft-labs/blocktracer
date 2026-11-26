@@ -162,10 +162,11 @@
 // Both default to the live-run values (`--rpc-url` and `new Date()`), so a run that does
 // not pass them behaves exactly as before.
 
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync,
          writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
 
 import { SNAPSHOT_FORMAT, assertReadableSnapshotFormat } from './lib/snapshot-format.mjs';
@@ -179,18 +180,16 @@ import {
 import {
   RECORDER, PRESTATE_STRATEGY, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
   INSTRUCTION_STREAM_SCHEMA, CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET,
-  costVectorForRow, executionsForRow, rolesForRow, payloadForRow,
+  costVectorForRow, executionsForRow, rolesForRow, payloadForRow, evmInstanceFor,
 } from './lib/eth-producer-facts.mjs';
 
 const run = promisify(execFile);
 
 const HERE = 'tools/chain/produce-eth-snapshot.mjs';
 
-/** This producer's one chain. Not a parameter over chains — a default it states. */
-const CHAIN_SLUG = 'ethereum-mainnet';
-
-/** The chain id this producer is for. A different one is a configuration refusal. */
-const CHAIN_ID = 1;
+/** The chain this producer is for is the one the endpoint reports, and only if it is a
+ *  declared instance (`EVM_INSTANCES`, lib/eth-producer-facts.mjs). Any other id is a
+ *  configuration refusal, and a `--chain` that disagrees with the endpoint's id is one too. */
 
 /**
  * The engine skew this tool reports about its own output. Both halves are READ from the
@@ -491,6 +490,70 @@ const ctPrintPath = (explicit) => containerReaderPath({
 const CTFS_NOTE = 'A snapshot container holds what a RECORDER wrote; an already-encoded '
                 + 'object is refused.';
 
+/**
+ * The container's event stream, read line by line from `ct-print --events`.
+ *
+ * It used to be read whole into one string with a 256 MiB cap, which a long transaction
+ * outgrows: every step line carries the step's `vars`, and with frame memory captured
+ * those are the whole memory of the frame. Sepolia block 7,840,000's
+ * 0x356e572f…c13a0 is 199,337 steps and 8.5 GB of JSON lines, so the producer exited on
+ * "stdout maxBuffer length exceeded" with every recording of the window on disk.
+ *
+ * Nothing here reads a step's `vars` (the value stream is counted from `meta.counts`), so
+ * a step line is parsed without them: `ct-print` writes `vars` as the step object's last
+ * member, and the text before it is a complete object once closed. A step line whose
+ * `vars` is not where that cut expects is parsed whole, so the cut can only save work,
+ * never drop a field.
+ *
+ * A step is then KEPT as the four members this file reads and nothing else: `path_id`,
+ * `line`, `column` and `depth` (STEP_MEMBERS). Every container of a run stays in
+ * memory until its sidecars are written, and a parsed step also carries its path, function
+ * name and step kind as strings. Sepolia's 11,200,000 window is 234 containers and 14.0
+ * million steps, and held whole they ran node out of its default heap. A member added to a
+ * use of `c.steps` must be added to STEP_MEMBERS, or it reads as `undefined`.
+ */
+const STEP_MEMBERS = Object.freeze(['path_id', 'line', 'column', 'depth']);
+
+async function readEvents(ctPrint, file) {
+  const child = spawn(ctPrint, ['--events', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (d) => { if (stderr.length < 4000) stderr += d; });
+  const exited = new Promise((ok) => child.on('close', (code, signal) => ok({ code, signal })));
+  let header = {};
+  const steps = [];
+  const callEntries = [];
+  const ioEvents = [];
+  for await (const line of createInterface({ input: child.stdout, crlfDelay: Infinity })) {
+    if (line.trim().length === 0) continue;
+    if (line.startsWith('{"kind":"step"')) {
+      const cut = line.indexOf(',"vars":[');
+      let step = null;
+      if (cut > 0 && line.endsWith(']}')) {
+        try { step = JSON.parse(`${line.slice(0, cut)}}`); } catch { step = null; }
+        if (step !== null && !Number.isInteger(step.step_index)) step = null;
+      }
+      if (step === null) {
+        step = JSON.parse(line);
+      }
+      const kept = {};
+      for (const k of STEP_MEMBERS) if (k in step) kept[k] = step[k];
+      steps.push(kept);
+      continue;
+    }
+    const l = JSON.parse(line);
+    // The first line carrying `metadata` is the header. An io event carries one of its
+    // own (a revert's `"metadata":"RevertRaw"`), so the two tests are independent.
+    if (l.metadata && !header.metadata) header = l;
+    if (l.kind === 'call_entry') callEntries.push(l);
+    else if (l.kind === 'io') ioEvents.push(l);
+  }
+  const { code, signal } = await exited;
+  if (code !== 0) {
+    throw new Error(`${ctPrint} --events ${file} exited ${code ?? signal}: ${stderr.slice(0, 400)}`);
+  }
+  return { header, steps, callEntries, ioEvents };
+}
+
 async function readContainer(ctPrint, file) {
   let meta;
   try {
@@ -500,12 +563,7 @@ async function readContainer(ctPrint, file) {
     throw refuse(SOURCE_REFUSAL, 
       `${ctPrint} would not open ${file}: ${String(e.stderr ?? e.message).slice(0, 400)}`);
   }
-  const { stdout: ev } = await run(ctPrint, ['--events', file], { maxBuffer: 1 << 28 });
-  const lines = ev.split('\n').filter((l) => l.trim().length > 0).map((l) => JSON.parse(l));
-  const header = lines.find((l) => l.metadata) ?? {};
-  const steps = lines.filter((l) => l.kind === 'step');
-  const callEntries = lines.filter((l) => l.kind === 'call_entry');
-  const ioEvents = lines.filter((l) => l.kind === 'io');
+  const { header, steps, callEntries, ioEvents } = await readEvents(ctPrint, file);
   return {
     counts: meta.counts,
     flags: meta.metadata.flags,
@@ -725,8 +783,8 @@ async function main() {
   // `recorderProvenance`. Optional so a hand run keeps working; every capture script passes it.
   const recorderBinary = flag('recorder-binary');
   const outDir = flag('out');
-  const chain = flag('chain', CHAIN_SLUG);
-  const label = flag('label', 'Real Ethereum mainnet data');
+  const chainFlag = flag('chain');
+  const labelFlag = flag('label');
   // The node the DATA came from, and the instant it came from there — see the header.
   // Defaulting to the live-run values keeps a run that passes neither byte-for-byte
   // identical to one taken before these existed.
@@ -813,12 +871,20 @@ async function main() {
   // ── the chain ────────────────────────────────────────────────────────────
   const chainIdHex = await rpc(url, 'eth_chainId', []);
   const chainId = parseInt(chainIdHex, 16);
-  if (chainId !== CHAIN_ID) {
-    throw refuse(CONFIG_REFUSAL, 
-      `${url} serves chain id ${chainId} and this producer is Ethereum mainnet `
-      + `(${CHAIN_ID}). It is written for ONE chain on purpose: there is no dispatch here `
-      + `to widen, and a second EVM instance is a second producer (Chain-Delivery DEL-6).`);
+  const instance = evmInstanceFor(chainId);
+  if (!instance) {
+    throw refuse(CONFIG_REFUSAL,
+      `${url} serves chain id ${chainId}, which is not a declared EVM instance (Recorder-EVM `
+      + `CXP-EVM-1; EVM_INSTANCES in lib/eth-producer-facts.mjs). An instance is declared `
+      + `there and pinned in yield-method.json before it is produced.`);
   }
+  if (chainFlag !== undefined && chainFlag !== instance.slug) {
+    throw refuse(CONFIG_REFUSAL,
+      `--chain ${chainFlag} names a different instance from the endpoint's: ${url} serves `
+      + `chain id ${chainId}, which is ${instance.slug}.`);
+  }
+  const chain = instance.slug;
+  const label = labelFlag ?? instance.label;
 
   // The control, taken against the SAME endpoint in the same run, so "it answered" is a
   // reading rather than an assumption. An endpoint that answers a method that does not

@@ -28,8 +28,8 @@
     # The Embed SDK's editor core reads IsoNim-TUI's width tables
     # (`editor/selection.nim`), so the hydration bundle needs it. Pinned with
     # isonim and nim-everywhere to the revisions codetracer's own `repro.lock`
-    # names at `ci/embed-sdk-pin.env`'s CODETRACER_REF — the same three values
-    # that file records, so the bundle nix builds is the one the pin names.
+    # names at the CodeTracer pin (`ci/codetracer-ref.sh`) — the same three values
+    # `ci/embed-sdk-pin.env` records, so the bundle nix builds is the one the pin names.
     isonim-tui = {
       url = "github:metacraft-labs/isonim-tui/ff295f7be6d7efc095ef4d249b1df0577d969c89";
       flake = false;
@@ -47,17 +47,38 @@
     # The CodeTracer Embed SDK — needed by ONE compilation in this repository,
     # `client/hydrate/hydrate.nim`, the `nim js` bundle the debug route defers.
     # Everything else still builds with no debugger on the Nim path at all;
-    # that is the layering (AGENTS.md §1a) and adding this input does not
-    # change it, because nothing under `client/src` imports it.
+    # that is the layering (AGENTS.md §1a) and this input does not change it,
+    # because nothing under `client/src` imports it.
     #
-    # The revision MUST equal `ci/embed-sdk-pin.env`'s `CODETRACER_REF` — that
-    # file is the one place naming the bytes this repository is built and
-    # checked against, and a flake input that drifted from it would mean the
-    # bundle CI ships and the Embed SDK CI's suites run against are two
-    # different trees. `client/hydrate/build.sh` resolves `$CODETRACER_SRC`,
-    # which `packages.default` sets from here.
+    # ── THE ORGANISATION'S ONE CODETRACER PIN, NOT A REVISION OF OUR OWN ───
     #
-    # ── `submodules=0`, STATED, AND WHY IT CANNOT BE 1 ─────────────────────
+    # metacraft-pm milestones/Single-Tool-Pins.milestones.org, STP3: CodeTracer
+    # has ONE pin, `pins/codetracer.json` in metacraft-github-actions, and every
+    # consumer reads it. This input is that pin set: a flake with no inputs and
+    # one output, `pins`. `nix/codetracer-pin.nix` fetches `pins.codetracer` by
+    # its rev AND narHash, as a source tree only, and `outputs` exports it as
+    # `CODETRACER_SRC` (the tree) and `CODETRACER_REF` (its revision) in every
+    # dev shell and in `packages.default`.
+    #
+    # So the revision is named in ONE place and this repository stores none:
+    # not here, and not in `ci/embed-sdk-pin.env`, which used to carry it as
+    # `CODETRACER_REF` and had to be kept equal to this input by hand.
+    # `ci/codetracer-ref.sh` prints it for the scripts that compare against it
+    # (the three vendor manifests must name it; `client/hydrate/build.sh`
+    # reports and checks it). Moving CodeTracer here is
+    # `nix flake update metacraft-github-actions` after the pin moved there,
+    # plus re-vendoring the three manifests under
+    # `client/src/debugger/vendor/` to the new revision in the same commit.
+    #
+    # NOT a `follows`-style override slot. Testing against another CodeTracer
+    # is done the way it always was here, by pointing `$CODETRACER_SRC` at a
+    # checkout and, for the hydration bundle, `CODETRACER_ALLOW_UNPINNED=1`;
+    # the scripts identify such a tree by its git `HEAD`, never by the pin.
+    #
+    # ── NO SUBMODULES: WHY THE OLD INPUT STATED `submodules=0` ─────────────
+    #
+    # (History; it is why the pin's `github:` fetch, which carries no
+    # submodules, is the right shape for this repository.)
     #
     # 5d1e44a set `submodules=1` to stop the lock's narHash and CI's resolved
     # narHash disagreeing. It settled that disagreement and introduced a worse
@@ -102,37 +123,10 @@
     # identical in length, differing only where Nim mangles the input's store
     # path into its symbol names.
     #
-    # The `0` is spelled out rather than left to the default for the same
-    # reason 5d1e44a wanted a `1`: the variant must be STATED, so the lock and
-    # any fetcher compute one tree by construction and not by whichever
-    # default a nix version happens to hold.
-    #
-    # ── IF YOU RE-LOCK THIS INPUT, DO IT WITH A COLD FETCHER CACHE ──────────
-    #
-    # `nix` memoises rev -> narHash in `~/.cache/nix/fetcher-cache-v*.sqlite`,
-    # and because this input is pinned by rev it is treated as immutable, so
-    # `--refresh` does NOT recompute it. A machine that once fetched this rev
-    # under different fetcher options keeps answering with the old hash
-    # forever. MEASURED on the workstation that produced 334204a..5d1e44a:
-    #
-    #   pristine cache, nix 2.25.2   sha256-ce3EtVQdz6vqLgSDKrm/NWZTL8Nz…
-    #   pristine cache, nix 2.35.2   sha256-ce3EtVQdz6vqLgSDKrm/NWZTL8Nz…  (same)
-    #   that machine's live cache    sha256-Ia/JuLW+qTestHjWmxdWPn4/T9/4…
-    #   empty gitv3 + only that
-    #     machine's sqlite copied in sha256-Ia/JuLW+qTestHjWmxdWPn4/T9/4…
-    #
-    # The last line is the proof: with no git objects present at all the stale
-    # answer still comes back, so it is the memo and not the repository. CI
-    # deletes `gitv3` and `fetcher-cache-v*.sqlite` before every job, which is
-    # why the lock recorded on that workstation could never match CI's. Re-lock
-    # with `XDG_CACHE_HOME=$(mktemp -d) nix flake lock --update-input codetracer`
-    # and the two agree.
-    codetracer = {
-      # KEEP IN LOCK-STEP with `ci/embed-sdk-pin.env`'s `CODETRACER_REF`, which
-      # carries the reason this value moved and the four gates it survived.
-      url = "git+https://github.com/metacraft-labs/codetracer?ref=refs/heads/dev&rev=a3986b0de1c215bcc9bd2bfa5c9619f0fa6bc5f3&submodules=0";
-      flake = false;
-    };
+    # The old `git+https` input spelled `submodules=0` out so that the lock and
+    # every fetcher computed one tree. The pin's `github:` fetch has no
+    # submodule variant at all, and it is locked by the pin's own narHash.
+    metacraft-github-actions.url = "github:metacraft-labs/metacraft-github-actions/dev";
 
     # The fixture producer is the version that recorded the existing Aztec
     # subjects. Its writer (`aztec-trace-format-nim` below) writes `meta.dat` 6,
@@ -378,7 +372,7 @@
     # removed rather than either set being re-pinned.)
   };
 
-  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, isonim-tui, codetracer-design-system, codetracer
+  outputs = { self, nixpkgs, flake-utils, isonim, nim-everywhere, isonim-tui, codetracer-design-system, metacraft-github-actions
             , aztec-avm-runtime, aztec-avm-runtime-historical
             , codetracer-trace-format, aztec-trace-format-nim, noir-fixture-recorder
             , codetracer-evm-recorder, evm-trace-format, codetracer-trace-format-nim
@@ -388,7 +382,18 @@
             , aptos-core, rust-overlay, codetracer-move-recorder-aptos, aptos-trace-format
             , codetracer-cairo-recorder, cairo-trace-format
             , nim-stew, nim-results, nim-unittest2 }:
-    flake-utils.lib.eachDefaultSystem (system:
+    let
+      # The organisation's CodeTracer pin (the `metacraft-github-actions` input):
+      # `src` is the Embed SDK tree, `rev` the revision it is.
+      codetracerPin = import ./nix/codetracer-pin.nix metacraft-github-actions.pins;
+      codetracer = codetracerPin.src;
+    in
+    {
+      # What `ci/codetracer-ref.sh` reads outside a dev shell. Evaluating it
+      # fetches the pin set only, not the CodeTracer tree.
+      lib.codetracerPin = { inherit (codetracerPin) owner repo rev narHash; };
+    }
+    // flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
 
@@ -458,6 +463,10 @@
           # every one of which resolves $CODETRACER_SRC before falling back to
           # a ../codetracer sibling.
           CODETRACER_SRC = codetracer;
+          # Its revision, from the same pin. `ci/codetracer-ref.sh` returns this
+          # when it is set, so the vendor gates and the hydration build compare
+          # against the tree they were handed without evaluating the flake again.
+          CODETRACER_REF = codetracerPin.rev;
 
           # ── THE CTFS WRITER'S NIM SOURCE, FOR TOOLS THAT LINK IT ──────────
           #
@@ -993,6 +1002,7 @@
           # with no `Content-Encoding`.
           nativeBuildInputs = [ pkgs.nim pkgs.bash pkgs.brotli ];
           CODETRACER_SRC = codetracer;
+          CODETRACER_REF = codetracerPin.rev;
           ISONIM_SRC = isonim;
           NIM_EVERYWHERE_SRC = nim-everywhere;
           ISONIM_TUI_SRC = isonim-tui;

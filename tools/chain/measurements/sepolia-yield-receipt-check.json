@@ -1,0 +1,124 @@
+{
+ "format": "blocktracer/eth-receipt-check@1",
+ "measuredAt": "2026-11-25T19:10:00.270Z",
+ "rpc": "https://rpc.sepolia.ethpandaops.io",
+ "totals": {
+  "rows": 828,
+  "matched": 607,
+  "divergent": 0
+ },
+ "blocks": [
+  {
+   "block": 1440000,
+   "rows": 9,
+   "matched": 9,
+   "divergent": 0,
+   "notRecorded": {},
+   "divergentRows": []
+  },
+  {
+   "block": 1440001,
+   "rows": 0,
+   "matched": 0,
+   "divergent": 0,
+   "notRecorded": {},
+   "divergentRows": []
+  },
+  {
+   "block": 1700000,
+   "rows": 1,
+   "matched": 1,
+   "divergent": 0,
+   "notRecorded": {},
+   "divergentRows": []
+  },
+  {
+   "block": 1700001,
+   "rows": 10,
+   "matched": 10,
+   "divergent": 0,
+   "notRecorded": {},
+   "divergentRows": []
+  },
+  {
+   "block": 4000000,
+   "rows": 48,
+   "matched": 42,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 6
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 4000001,
+   "rows": 57,
+   "matched": 45,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 12
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 5400000,
+   "rows": 140,
+   "matched": 71,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 69
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 5400001,
+   "rows": 70,
+   "matched": 37,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 33
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 7840000,
+   "rows": 128,
+   "matched": 81,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 47
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 7840001,
+   "rows": 109,
+   "matched": 77,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 32
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 11200000,
+   "rows": 106,
+   "matched": 98,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 8
+   },
+   "divergentRows": []
+  },
+  {
+   "block": 11200001,
+   "rows": 150,
+   "matched": 136,
+   "divergent": 0,
+   "notRecorded": {
+    "no-code-executed": 14
+   },
+   "divergentRows": []
+  }
+ ]
+}

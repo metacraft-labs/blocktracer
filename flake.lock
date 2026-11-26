@@ -102,26 +102,6 @@
         "type": "github"
       }
     },
-    "codetracer": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1794149993,
-        "narHash": "sha256-wfUp4CJy10yYbkiK+BNDBKe21+dQ2aFEBLkGq/Vishc=",
-        "ref": "refs/heads/dev",
-        "rev": "a3986b0de1c215bcc9bd2bfa5c9619f0fa6bc5f3",
-        "revCount": 6233,
-        "submodules": false,
-        "type": "git",
-        "url": "https://github.com/metacraft-labs/codetracer"
-      },
-      "original": {
-        "ref": "refs/heads/dev",
-        "rev": "a3986b0de1c215bcc9bd2bfa5c9619f0fa6bc5f3",
-        "submodules": false,
-        "type": "git",
-        "url": "https://github.com/metacraft-labs/codetracer"
-      }
-    },
     "codetracer-cairo-recorder": {
       "flake": false,
       "locked": {
@@ -357,6 +337,22 @@
         "type": "github"
       }
     },
+    "metacraft-github-actions": {
+      "locked": {
+        "lastModified": 1795596526,
+        "narHash": "sha256-Wy8ZL+q2Xgu44seMgod1aAbjxVmuGJGQbsoRcEgQRik=",
+        "owner": "metacraft-labs",
+        "repo": "metacraft-github-actions",
+        "rev": "d59db3f7d33659282032a18abfd772e22a204bcb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "metacraft-labs",
+        "ref": "dev",
+        "repo": "metacraft-github-actions",
+        "type": "github"
+      }
+    },
     "nim-everywhere": {
       "flake": false,
       "locked": {
@@ -466,7 +462,6 @@
         "aztec-avm-runtime-historical": "aztec-avm-runtime-historical",
         "aztec-trace-format-nim": "aztec-trace-format-nim",
         "cairo-trace-format": "cairo-trace-format",
-        "codetracer": "codetracer",
         "codetracer-cairo-recorder": "codetracer-cairo-recorder",
         "codetracer-design-system": "codetracer-design-system",
         "codetracer-evm-recorder": "codetracer-evm-recorder",
@@ -481,6 +476,7 @@
         "flow-trace-format": "flow-trace-format",
         "isonim": "isonim",
         "isonim-tui": "isonim-tui",
+        "metacraft-github-actions": "metacraft-github-actions",
         "nim-everywhere": "nim-everywhere",
         "nim-results": "nim-results",
         "nim-stew": "nim-stew",

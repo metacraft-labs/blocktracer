@@ -902,8 +902,8 @@ suite "M8a — the debug panes render the Embed SDK's own ViewModels":
 # event, verbatim, from the engine replaying `noir_space_ship` — the same
 # program `fixtures/trace/noir_space_ship/zk_shields.ct` in THIS repository was
 # recorded from — and ships it beside its own tests. So the parse below is
-# checked against bytes the engine wrote, at the commit `ci/embed-sdk-pin.env`
-# names, and a drift in the wire format fails this suite rather than passing it.
+# checked against bytes the engine wrote, at the commit the CodeTracer pin
+# names (`ci/codetracer-ref.sh`), and a drift in the wire format fails this suite rather than passing it.
 #
 # THE EXPECTATIONS ARE RELATIONS, NOT CONSTANTS. Every value asserted below is
 # recomputed from the capture by a second, deliberately naive reader in this

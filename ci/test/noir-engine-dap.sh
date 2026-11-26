@@ -61,11 +61,11 @@ find_src() {
 CT="$(find_src CODETRACER_SRC codetracer src/frontend/viewmodel/codetracer_embed.nim)"
 [ -n "${CT}" ] || fail "no CodeTracer Embed SDK found.
   Set \$CODETRACER_SRC or keep a ../codetracer checkout.
-  The pinned commit is in ci/embed-sdk-pin.env."
+  ci/codetracer-ref.sh prints the pinned commit."
 [ -f "${CT}/src/frontend/viewmodel/backend/worker_backend.nim" ] || \
 	fail "that Embed SDK has no WorkerBackendService:
   ${CT}/src/frontend/viewmodel/backend/worker_backend.nim is missing.
-  This suite drives the replay worker through it. Move CODETRACER_REF forward."
+  This suite drives the replay worker through it. Move the CodeTracer pin forward."
 
 ISONIM="$(find_src ISONIM_SRC isonim src/isonim/core/signals.nim)"
 NEVERYWHERE="$(find_src NIM_EVERYWHERE_SRC nim-everywhere src)"

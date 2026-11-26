@@ -1387,7 +1387,7 @@ sdk-boundary:
 
 # The handoff: compile and run tests/tembedhandoff.nim against the real Embed
 # SDK, so "a TraceSource the Embed SDK accepts" is checked by the Embed SDK.
-# Needs CODETRACER_SRC or a ../codetracer checkout (ci/embed-sdk-pin.env).
+# Needs CODETRACER_SRC or a ../codetracer checkout (ci/codetracer-ref.sh).
 sdk-test-embed: prepare-recordings
     ci/test/embed-handoff-test.sh --require
 
@@ -1423,7 +1423,7 @@ debug-panes: prepare-recordings
 #   * `viewmodel/viewmodels/flow_layout.nim` + `ui/flow_loop_math.nim` — the
 #     Omniscience layout arithmetic.
 #
-# BOTH manifests are pinned to `ci/embed-sdk-pin.env`'s CODETRACER_REF, and both
+# BOTH manifests are pinned to the CodeTracer pin (`ci/codetracer-ref.sh`), and both
 # checks assert it. That is not decoration: part B of each check compares the
 # copy against `$CODETRACER_SRC`, which IS that pin, so a manifest naming any
 # other commit asks a question with no passable answer. The layout model was
