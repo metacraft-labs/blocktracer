@@ -170,7 +170,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 <!-- BEGIN GENERATED: expectations — do not edit by hand -->
 <!-- regenerate with: node tools/capture/render-brief.mjs -->
 
-*85 named views, 85 blocks — generated from `tools/capture/expectations.mjs`. 51 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
+*86 named views, 86 blocks — generated from `tools/capture/expectations.mjs`. 52 are currently `ready` to capture; the rest are listed with the reason their route or state is not served yet, because a view that cannot be captured still has to have an expectation before it can be.*
 
 #### Explorer register — entry and navigation
 
@@ -2036,7 +2036,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 ### View: `debugger--engine-refused-container`
 
-> §8's deadline, second sentence. The engine loaded, is running and is reachable — and it will not open THIS container. The fault the old shared sentence hid, and the reason the three sentences exist as three strings.
+> The engine loaded, is running and is reachable — and it REFUSES this container, with a reason. The page reports the refusal as soon as the engine sends it, quoting the engine. Until 2026-11-26 this view waited out the 45 s deadline and then guessed a format rejection; the pinned engine in fact answers `launch` twice, success and then the refusal, and the page discarded the second answer.
 
 | | |
 | --- | --- |
@@ -2045,7 +2045,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 | **Captured at** | wide · laptop × light · dark |
 | **Capture status** | `ready` |
 | **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
-| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads, reports itself, and refuses the container (`tools/capture/lib/engine-stubs.mjs`); it stands in for a published engine whose container-format reader does not accept this trace — it logs the refusal to the worker console and posts nothing, so the session sits in `positioning` until the deadline. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine that loads, reports itself, and refuses the container (`tools/capture/lib/engine-stubs.mjs`); it stands in for the pinned engine given a container its reader does not accept (a `meta.dat` 6 recording): it answers `launch` with success and then with the refusal, verbatim from the pinned wasm — the stub replays that transcript. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
 
 **Must show** — absent ⇒ P1, rating ≤ 4:
 
@@ -2054,7 +2054,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
   - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
   - Every pane region below the identity bar is a pane: no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar. The full-width bands this register admits are the ABNORMAL-STATE ones — a divergent or truncated trace, an unavailable replay engine, a link-landing notice — and they are not panes and must not be judged as ones. THERE IS NO PROVENANCE BAND HERE any more, deliberately: provenance moved into the transaction pane as a row (see the next item), because a band interrupts and "this data is real" is not an interruption. A provenance band reappearing above the identity bar is now itself the finding.
   - THE PROVENANCE MARKER, which in this register is the FIRST ROW of the transaction pane — labelled `Data`, carrying a toned badge naming what this data is, and the producer's own sentences beneath it. `debugLayout` drops the nav and the footer, so the pane is the only place a reader can learn whose data they are looking at — and this is the register where they are most likely to forget, because a trace recorded from a real node and a Noir program published under a synthetic hash step identically here. §7.1 puts that pane on the page in EVERY state, so the row is on every debug page including the ones where no session opens. Grade it as CONTENT, not decoration: missing, mislabelled, or a tone that contradicts the label is a P1. It used to be a full-width band above the identity bar and was moved on 2026-08-31 because the band spent ~190px of a 1080px viewport — roughly 17% — and both adversarial reviewers of the previous round independently named that cost the page's single weakest element. Judging whether the row is now TOO quiet for a claim this important is exactly the fair question to raise.
-- A banner stating that the engine LOADED and would not open this trace container — both halves. 'The engine is running and reachable' is the half that makes this a different diagnosis from `debugger--engine-never-loaded`, and dropping it would recreate the defect.
+- A banner stating that the replay engine REFUSED to open this trace container, and the engine's own reason after it (here: `meta.dat: version 6 is not readable …`). The reason is the half that tells whoever can fix it what to fix; a refusal without it is the sentence this view replaced.
 - What is still possible, stated: the container can be downloaded and opened in CodeTracer. The ladder's floor is intact.
 - The ladder's surviving rungs on screen — the download affordance in the identity bar, and the static call and event summary that is this page.
 - The stepping controls inert and saying so; the phase rail removed.
@@ -2063,15 +2063,49 @@ transaction. Inherited items are presence requirements exactly like the rest.
 
 - Any retry or reload affordance. The engine will refuse the same container again.
 - A phase rail, spinner or progress indicator.
-- A sentence indistinguishable from `debugger--engine-never-loaded`'s. This is the specific regression the separation prevents.
-- Any suggestion that the trace is corrupt or that the transaction is at fault. The container is fine; this engine build will not read it.
+- Live stepping controls, or a `ready` phase. The engine answered `launch` with success before it refused; a page that trusted the first answer went ready over a session with nothing behind it.
+- A sentence indistinguishable from `debugger--engine-never-loaded`'s or `debugger--engine-still-opening`'s. Three faults, three sentences.
 
 **Watch for** — judged after the presence check, normally P2/P3:
 
-- The comparative read against `debugger--engine-never-loaded` — the same question, from this side. Which of the two sentences lands faster, and does the difference between them survive being skimmed?
-- 'it rejected the container's format' is the actionable half for whoever can fix this, and is the half a visitor can do nothing with. Judge whether the sentence serves both readers or neither.
-- Whether 'loaded but would not open' reads as a fault in the product or as a fault in the trace. It is the former, and a reader who concludes the latter has been misled by the copy.
+- The engine's reason is long and technical. Judge whether the banner stays legible with it — whether the headline (refused) still lands first, and the reason reads as a quotation rather than as the page's own prose.
+- Whether the sentence reads as a fault in the trace's format version rather than in the transaction. The transaction is fine; this engine build will not read this container.
 - Both themes, and the banner against the identity bar above it. Note whether the failure banner and the divergence banner are separable in dark.
+
+### View: `debugger--engine-still-opening`
+
+> §8's deadline over an engine that accepted the container and had not finished opening it when the page stopped waiting — measured on a 673,363-step EVM recording whose `launch` was not answered in 902 s. The page says the engine is still opening the trace and that the recording is too large for the browser in the time allowed. It used to say the engine had rejected the container's format, which it had not.
+
+| | |
+| --- | --- |
+| **Register** | debugger — apply rubric B (§6) |
+| **Spec** | Page-Descriptions §8, §14, Debugger-Integration §7 |
+| **Captured at** | wide · laptop × light · dark |
+| **Capture status** | `ready` |
+| **Captured from** | the HYDRATED build (`client/dist-hydrated`, exported with `-d:hydrationBundle`). The sentence this view is about is drawn by the shipped hydration bundle and can appear on no statically exported page — which is why it had never been reviewed. Everything else in the frame is the page the ordinary exporter writes. |
+| **Replay engine** | STAND-IN. The capture server answers `/replay-engine/worker.js` with an engine still opening the trace when the deadline passes (`tools/capture/lib/engine-stubs.mjs`); it stands in for the pinned engine given a recording too large to open in the time allowed (a 673,363-step EVM transaction): `initialize` and `configurationDone` answered, `launch` never answered. Nothing in the image is drawn by it — the banner is `components/debugger.renderEngineFailure` over a string from `client/hydrate/hydrate.nim`. Grade the sentence and the treatment; do not grade the engine. |
+
+**Must show** — absent ⇒ P1, rating ≤ 4:
+
+- *Inherited backbone `debugger-shell` (Page-Descriptions §8, §7.0, Debugger-Integration §3, Design-System §2):*
+  - A slim identity bar across the top carrying the transaction identity (truncated hash, chain), a way OUT of the debugger register that lands on the CHAIN, and — where a session is open — the stepping controls, the position readout and the phase rail. Not the full explorer header. The exit targets the chain and NOT the transaction's own URL, because under Page-Descriptions §7.0 that URL IS this session — for a `ready` or `divergent` trace the two routes serve byte-identical bodies, so a link to the transaction would be a link to the page the visitor is already on. A missing exit is a P1; an exit that targets the chain is CORRECT and is not a finding.
+  - Product-register surface: dark by default, dense, continuous with the CodeTracer desktop app. An explorer-register light marketing surface here is a register error, which is a P1.
+  - Every pane region below the identity bar is a pane: no separate toolbar row, no explorer footer, no marketing chrome, no page-level scrollbar. The full-width bands this register admits are the ABNORMAL-STATE ones — a divergent or truncated trace, an unavailable replay engine, a link-landing notice — and they are not panes and must not be judged as ones. THERE IS NO PROVENANCE BAND HERE any more, deliberately: provenance moved into the transaction pane as a row (see the next item), because a band interrupts and "this data is real" is not an interruption. A provenance band reappearing above the identity bar is now itself the finding.
+  - THE PROVENANCE MARKER, which in this register is the FIRST ROW of the transaction pane — labelled `Data`, carrying a toned badge naming what this data is, and the producer's own sentences beneath it. `debugLayout` drops the nav and the footer, so the pane is the only place a reader can learn whose data they are looking at — and this is the register where they are most likely to forget, because a trace recorded from a real node and a Noir program published under a synthetic hash step identically here. §7.1 puts that pane on the page in EVERY state, so the row is on every debug page including the ones where no session opens. Grade it as CONTENT, not decoration: missing, mislabelled, or a tone that contradicts the label is a P1. It used to be a full-width band above the identity bar and was moved on 2026-08-31 because the band spent ~190px of a 1080px viewport — roughly 17% — and both adversarial reviewers of the previous round independently named that cost the page's single weakest element. Judging whether the row is now TOO quiet for a claim this important is exactly the fair question to raise.
+- A banner stating that the engine is still opening this trace and had not finished after the time allowed — and that nothing was rejected.
+- What is still possible, stated: the container can be downloaded and opened in CodeTracer. For a recording this size that is the path that works, not a consolation.
+- The stepping controls inert and saying so; the phase rail removed.
+
+**Must not show** — present ⇒ P1, rating ≤ 4:
+
+- Any claim that the engine rejected, refused or could not read the container. It accepted it.
+- A phase rail, spinner or progress indicator, or wording that suggests waiting longer will help within this page.
+- A sentence that could equally describe `debugger--engine-refused-container`.
+
+**Watch for** — judged after the presence check, normally P2/P3:
+
+- The comparative read against `debugger--engine-refused-container`: from the page alone, can a reader tell 'too large to open here' from 'this engine cannot read it'? They have different remedies.
+- Whether 'too large to open in the browser within the time allowed' reads as a limit of this page rather than a defect of the transaction.
 
 ### View: `debugger--copy-affordance`
 

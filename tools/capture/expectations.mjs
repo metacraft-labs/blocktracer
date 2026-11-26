@@ -1691,12 +1691,12 @@ export const EXPECTATIONS = [
   {
     id: "debugger--engine-refused-container",
     summary:
-      "§8's deadline, second sentence. The engine loaded, is running and is reachable — and it will not open THIS container. The fault the old shared sentence hid, and the reason the three sentences exist as three strings.",
+      "The engine loaded, is running and is reachable — and it REFUSES this container, with a reason. The page reports the refusal as soon as the engine sends it, quoting the engine. Until 2026-11-26 this view waited out the 45 s deadline and then guessed a format rejection; the pinned engine in fact answers `launch` twice, success and then the refusal, and the page discarded the second answer.",
     spec: "Page-Descriptions §8, §14, Debugger-Integration §7, dap_dialect §6",
     register: "debugger",
     inherits: ["debugger-shell"],
     mustShow: [
-      "A banner stating that the engine LOADED and would not open this trace container — both halves. 'The engine is running and reachable' is the half that makes this a different diagnosis from `debugger--engine-never-loaded`, and dropping it would recreate the defect.",
+      "A banner stating that the replay engine REFUSED to open this trace container, and the engine's own reason after it (here: `meta.dat: version 6 is not readable …`). The reason is the half that tells whoever can fix it what to fix; a refusal without it is the sentence this view replaced.",
       "What is still possible, stated: the container can be downloaded and opened in CodeTracer. The ladder's floor is intact.",
       "The ladder's surviving rungs on screen — the download affordance in the identity bar, and the static call and event summary that is this page.",
       "The stepping controls inert and saying so; the phase rail removed.",
@@ -1704,14 +1704,36 @@ export const EXPECTATIONS = [
     mustNotShow: [
       "Any retry or reload affordance. The engine will refuse the same container again.",
       "A phase rail, spinner or progress indicator.",
-      "A sentence indistinguishable from `debugger--engine-never-loaded`'s. This is the specific regression the separation prevents.",
-      "Any suggestion that the trace is corrupt or that the transaction is at fault. The container is fine; this engine build will not read it.",
+      "Live stepping controls, or a `ready` phase. The engine answered `launch` with success before it refused; a page that trusted the first answer went ready over a session with nothing behind it.",
+      "A sentence indistinguishable from `debugger--engine-never-loaded`'s or `debugger--engine-still-opening`'s. Three faults, three sentences.",
     ],
     watchFor: [
-      "The comparative read against `debugger--engine-never-loaded` — the same question, from this side. Which of the two sentences lands faster, and does the difference between them survive being skimmed?",
-      "'it rejected the container's format' is the actionable half for whoever can fix this, and is the half a visitor can do nothing with. Judge whether the sentence serves both readers or neither.",
-      "Whether 'loaded but would not open' reads as a fault in the product or as a fault in the trace. It is the former, and a reader who concludes the latter has been misled by the copy.",
+      "The engine's reason is long and technical. Judge whether the banner stays legible with it — whether the headline (refused) still lands first, and the reason reads as a quotation rather than as the page's own prose.",
+      "Whether the sentence reads as a fault in the trace's format version rather than in the transaction. The transaction is fine; this engine build will not read this container.",
       "Both themes, and the banner against the identity bar above it. Note whether the failure banner and the divergence banner are separable in dark.",
+    ],
+  },
+
+  {
+    id: "debugger--engine-still-opening",
+    summary:
+      "§8's deadline over an engine that accepted the container and had not finished opening it when the page stopped waiting — measured on a 673,363-step EVM recording whose `launch` was not answered in 902 s. The page says the engine is still opening the trace and that the recording is too large for the browser in the time allowed. It used to say the engine had rejected the container's format, which it had not.",
+    spec: "Page-Descriptions §8, §14, Debugger-Integration §7",
+    register: "debugger",
+    inherits: ["debugger-shell"],
+    mustShow: [
+      "A banner stating that the engine is still opening this trace and had not finished after the time allowed — and that nothing was rejected.",
+      "What is still possible, stated: the container can be downloaded and opened in CodeTracer. For a recording this size that is the path that works, not a consolation.",
+      "The stepping controls inert and saying so; the phase rail removed.",
+    ],
+    mustNotShow: [
+      "Any claim that the engine rejected, refused or could not read the container. It accepted it.",
+      "A phase rail, spinner or progress indicator, or wording that suggests waiting longer will help within this page.",
+      "A sentence that could equally describe `debugger--engine-refused-container`.",
+    ],
+    watchFor: [
+      "The comparative read against `debugger--engine-refused-container`: from the page alone, can a reader tell 'too large to open here' from 'this engine cannot read it'? They have different remedies.",
+      "Whether 'too large to open in the browser within the time allowed' reads as a limit of this page rather than a defect of the transaction.",
     ],
   },
 

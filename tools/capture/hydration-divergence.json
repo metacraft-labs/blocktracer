@@ -97,6 +97,11 @@
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
+    "debugger--engine-still-opening": {
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
+      "capturedFrom": "hydrated",
+      "shipsBundle": true
+    },
     "debugger--engine-worker-missing": {
       "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
       "capturedFrom": "hydrated",

@@ -393,7 +393,11 @@ const requireEngineFailure = ({ advanceClock = false, needle }) =>
     if (advanceClock) {
       await page.context().clock.runFor(ENGINE_DEADLINE_ADVANCE_MS);
     }
-    await waitForText(page, "#dbg-engine-failure", needle, "engine failure");
+    // Several needles when the sentence must carry more than its headline —
+    // a refusal must name the engine's own reason, not only that it refused.
+    for (const n of Array.isArray(needle) ? needle : [needle]) {
+      await waitForText(page, "#dbg-engine-failure", n, "engine failure");
+    }
     // One subject per image. These views open an exact-hit link precisely so
     // §6.0a says nothing here; a notice would mean the URL stopped being one.
     const stray = await page.evaluate(
@@ -1400,7 +1404,7 @@ export const VIEWS = [
   {
     id: "debugger--engine-refused-container",
     description:
-      "§8's deadline, second sentence — the engine is running and reachable and it will not open THIS container. The fault the shared sentence used to hide",
+      "The engine is running and reachable and it REFUSES this container, saying why — the page reports the refusal, in the engine's words, the moment it arrives. No deadline: the engine was not silent",
     covers: ["degraded.engine-unavailable"],
     register: "debugger",
     status: "ready",
@@ -1409,7 +1413,25 @@ export const VIEWS = [
     hydrated: true,
     engine: "refusing",
     route: engineFailureRoute,
-    setup: requireEngineFailure({ advanceClock: true, needle: "would not open" }),
+    // No clock advance, on purpose: the refusal arrives in the handshake, and
+    // a page that only reported it after `EngineDeadlineMs` is the defect.
+    setup: requireEngineFailure({
+      needle: ["refused to open this trace container", "meta.dat: version 6 is not readable"],
+    }),
+  },
+  {
+    id: "debugger--engine-still-opening",
+    description:
+      "§8's deadline over an engine that accepted the container and is still opening it — a recording too large to open in the browser in the time allowed. Not a refusal, and the sentence must not call it one",
+    covers: ["degraded.engine-unavailable"],
+    register: "debugger",
+    status: "ready",
+    sizes: DESKTOP_SIZES,
+    fullPage: false,
+    hydrated: true,
+    engine: "opening",
+    route: engineFailureRoute,
+    setup: requireEngineFailure({ advanceClock: true, needle: "still opening this trace" }),
   },
   {
     id: "debugger--copy-affordance",

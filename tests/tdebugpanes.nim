@@ -45,7 +45,7 @@
 ## Build:
 ##   just debug-panes                 # resolves CODETRACER_SRC / ../codetracer
 
-import std/[json, sets, strutils, tables, unittest]
+import std/[json, options, sets, strutils, tables, unittest]
 
 import codetracer_embed
 import isonim/core/async_compat
@@ -56,6 +56,7 @@ import ../client/src/debugger/source_document
 import ../client/src/debugger/source_island
 import ../client/src/components/debugger as panes
 import ../client/hydrate/session_project
+import ../client/hydrate/session_watch
 # The shared views the live build mounts (Shared-DOM-Front-Ends Q6/D10), for
 # the one suite below that renders them with this page's link builder.
 import codetracer_ui_components
@@ -1443,3 +1444,240 @@ suite "D10 — a mounted shared row links to the URL its row always had":
 
       s.close()
       dispose()
+
+
+# ---------------------------------------------------------------------------
+# The opening watch: what the page may say about a session that is not live
+# ---------------------------------------------------------------------------
+#
+# WHY A SCRIPTED WORKER, and what it is not. The four cases below need the
+# replay engine to answer the handshake in particular ways — refuse a container,
+# or stay silent on `launch` for longer than the page waits. The real engine is
+# a wasm Web Worker; this suite runs on the C backend with no worker at all, and
+# the pinned engine can only be made to stay silent by a recording far too large
+# to ship as a fixture (the 673,363-step EVM recording took more than 902 s).
+#
+# So the WORKER is scripted and everything above it is the shipping code: the
+# SDK's own `WorkerBackend` and `DebuggerSession` (through
+# `session_project.openLiveSession` / `launchLive`), and `session_watch`, fed
+# exactly as `hydrate.nim` feeds it — each raw payload is shown to the watch
+# BEFORE `WorkerBackend.deliver`, each outbound one as it is posted.
+#
+# The refusal script is not invented. `PinnedEngineLaunchRefusal` and
+# `PinnedEngineNoTraceOpen` are the payloads the PINNED engine (wasm sha256
+# `d696b18d…`, client/hydrate/engine-pin.txt) posted, verbatim, when it was
+# driven in the SDK's handshake order over the real worker with a `meta.dat` 6
+# container (measured 2026-11-26 through codetracer's
+# `wasm-testing/node-host/worker_host.mjs`). The double `launch` answer — success,
+# then a failure carrying the same `request_seq` — is the engine's behaviour, and
+# the reason the SDK goes `dspReady` on a container it could not open.
+
+const
+  PinnedEngineMetaDat6Reason =
+    "handle_message_browser failed: CTFS from_bytes failed for \"trace/trace.ct\": " &
+    "meta.dat is malformed: meta.dat: version 6 is not readable: this reader reads " &
+    "version 7 only. Version 5 and below carry a path list after recorder_id that " &
+    "version 7 does not, and version 6 predates the event kinds 14-23, so none of " &
+    "them is read as version 7. Re-record the trace with a current recorder"
+  PinnedEngineNoTraceOpen =
+    "no trace is open: `threads` cannot be serviced — `configurationDone` and a " &
+    "`launch` naming `traceFolder` \"trace\" both arrived, so the handshake is " &
+    "COMPLETE and opening the trace from the virtual filesystem is what failed. " &
+    "Check that the folder was written to the VFS before `launch`; the worker log " &
+    "carries the setup error."
+
+  FixedEngineMetaDat6Reason =
+    "CTFS from_bytes failed for \"trace/trace.ct\": meta.dat is malformed: " &
+    "meta.dat: version 6 is not readable: this reader reads version 7 only"
+    ## The shape of the refusal from an engine carrying codetracer's
+    ## handshake fix (codetracer-pm CodeTracer-DAP-Extensions, "A container
+    ## the browser engine cannot open is refused on the handshake"): ONE
+    ## answer to the request that completes the handshake, `success: false`.
+
+type
+  WorkerScript = enum
+    wsRefusesMetaDat6   ## the pinned engine, over a `meta.dat` 6 container
+    wsRefusesOnce       ## a fixed engine: `launch` answered ONCE, `success: false`
+    wsNeverAnswersLaunch ## an engine still opening the trace when the page gives up
+
+  ScriptedOpening = ref object
+    backend: WorkerBackend
+    service: BackendService
+    session: Session
+    watch: SessionWatch
+    refusedAt: int        ## how many payloads had arrived when the watch refused
+    delivered: int
+    script: WorkerScript
+
+proc response(requestSeq: int; command: string; success: bool;
+              message = ""; seqNo = 0): string =
+  $(%*{"seq": seqNo, "type": "response", "request_seq": requestSeq,
+       "success": success, "command": command,
+       "message": (if message.len == 0: newJNull() else: %message),
+       "body": newJObject()})
+
+proc feed(o: ScriptedOpening; raw: string) =
+  ## `hydrate.nim`'s inbound hook, line for line: the watch first, then the
+  ## transport.
+  inc o.delivered
+  if o.watch.noteInbound(raw) and o.refusedAt == 0:
+    o.refusedAt = o.delivered
+  o.backend.deliver(raw)
+
+proc answer(o: ScriptedOpening; messageJson: string) =
+  ## The scripted worker. Bootstrap control traffic is fed by the test itself.
+  o.watch.noteOutbound(messageJson)
+  let req = parseJson(messageJson)
+  let rs = req["seq"].getInt
+  let command = req["command"].getStr
+  case command
+  of "initialize":
+    o.feed response(rs, command, true, seqNo = 1)
+    o.feed $(%*{"seq": 2, "type": "event", "event": "initialized", "body": {}})
+  of "configurationDone":
+    o.feed response(rs, command, true, seqNo = 3)
+  of "launch":
+    case o.script
+    of wsRefusesMetaDat6:
+      o.feed response(rs, command, true, seqNo = 4)
+      o.feed response(rs, command, false, PinnedEngineMetaDat6Reason)
+    of wsRefusesOnce:
+      o.feed response(rs, command, false, FixedEngineMetaDat6Reason, seqNo = 4)
+    of wsNeverAnswersLaunch:
+      discard
+  else:
+    case o.script
+    of wsRefusesMetaDat6, wsRefusesOnce:
+      o.feed response(rs, command, false,
+                      PinnedEngineNoTraceOpen.replace("`threads`", "`" & command & "`"))
+    of wsNeverAnswersLaunch:
+      discard
+
+proc openScripted(script: WorkerScript): ScriptedOpening =
+  let o = ScriptedOpening(script: script)
+  o.backend = newWorkerBackend(postProc = proc(messageJson: string) =
+    o.answer(messageJson))
+  o.backend.onControl(proc(message: JsonNode) = o.watch.noteControl(message))
+  o.service = o.backend.toBackendService()
+  o.session = openLiveSession(o.service, sourceIsPublished = false)
+  # The worker's bootstrap, in the order the real one posts it.
+  o.feed $(%*{"type": "wasm-loaded"})
+  o.feed $(%*{"type": "trace-loaded", "files": [{"vfsPath": "trace/trace.ct"}]})
+  o.feed "ready"
+  o.session.launchLive(localFolderTrace("trace"))
+  drainPlatformCallbacks()
+  o
+
+suite "the opening watch — what the page may say about a session that is not live":
+
+  test "a container the pinned engine REFUSES is reported with the engine's reason":
+    let o = openScripted(wsRefusesMetaDat6)
+    # The defect, stated: the SDK is ready over a container the engine could
+    # not open, because `launch`'s FIRST answer was success. Nothing that
+    # reads the session alone can tell.
+    check o.session.debugger.phase.val == dspReady
+    # The watch saw the second answer, and it names the request and the reason.
+    check o.watch.refusal.isSome
+    check o.refusedAt > 0
+    if o.watch.refusal.isSome:
+      let r = o.watch.refusal.get
+      check r.command == "launch"
+      check r.message == PinnedEngineMetaDat6Reason
+      check r.refusalKind == dseUnsupportedTraceKind
+      let sentence = r.refusalSentence
+      check "refused to open this trace container" in sentence
+      check "meta.dat: version 6 is not readable" in sentence
+      check "downloaded and opened in CodeTracer" in sentence
+    check o.watch.stage == osRefused
+    # The deadline, should it still fire, says the same thing and not the
+    # retired guess.
+    let v = o.watch.deadlineVerdict("/replay-engine/", 45_000)
+    check v.stage == osRefused
+    check "version 6 is not readable" in v.sentence
+    check "rejected the container's format" notin v.sentence
+    o.session.close()
+
+  test "an engine that refuses ONCE, on the handshake, is reported the same way":
+    # The engine the page will get once its pin carries codetracer's fix:
+    # no success first, so the SDK fails the launch itself, and the watch
+    # must still carry the reason and agree with the SDK's classification.
+    let o = openScripted(wsRefusesOnce)
+    check o.session.debugger.phase.val == dspFailed
+    check o.session.debugger.failure.val == some(dseUnsupportedTraceKind)
+    check o.watch.refusal.isSome
+    check o.refusedAt > 0
+    if o.watch.refusal.isSome:
+      let r = o.watch.refusal.get
+      check r.command == "launch"
+      check r.refusalKind == o.session.debugger.failure.val.get
+      check "meta.dat: version 6 is not readable" in r.refusalSentence
+    check o.watch.stage == osRefused
+    o.session.close()
+
+  test "the first request's refusal is a refusal too, and a pane's is not":
+    # Start from a watch that missed the launch answer (an engine that answers
+    # `launch` once, with success, and refuses only later).
+    var w = SessionWatch(wasmLoaded: true, traceLoaded: true, workerReady: true)
+    for (sq, cmd) in [(1, "initialize"), (2, "configurationDone"), (3, "launch"),
+                      (4, "threads"), (5, "ct/load-locals")]:
+      w.noteOutbound($(%*{"seq": sq, "type": "request", "command": cmd,
+                          "arguments": {}}))
+    for (sq, cmd) in [(1, "initialize"), (2, "configurationDone"), (3, "launch")]:
+      check not w.noteResponse(parseJson(response(sq, cmd, true)))
+    check w.stage == osPositioning
+    # A panel's own request failing is that pane's business.
+    check not w.noteResponse(parseJson(response(5, "ct/load-locals", false, "x")))
+    check w.refusal.isNone
+    # `threads` failing is the engine saying no trace is open.
+    check w.noteResponse(parseJson(response(4, "threads", false,
+                                            PinnedEngineNoTraceOpen)))
+    check w.refusal.get.command == "threads"
+    check "no trace is open" in w.refusal.get.refusalSentence
+    # First refusal wins.
+    check not w.noteResponse(parseJson(response(3, "launch", false, "later")))
+    check w.refusal.get.command == "threads"
+
+  test "a launch the engine has not answered is STILL OPENING, never a rejected format":
+    let o = openScripted(wsNeverAnswersLaunch)
+    check o.session.debugger.phase.val == dspLaunching
+    check o.watch.refusal.isNone
+    check o.watch.stage == osOpeningTrace
+    let v = o.watch.deadlineVerdict("/replay-engine/", 45_000, totalSteps = 673_363)
+    check v.stage == osOpeningTrace
+    check v.kind == dseCancelled
+    check "still opening this trace" in v.sentence
+    check "673,363 steps" in v.sentence
+    check "after 45 s" in v.sentence
+    check "downloaded and opened in CodeTracer" in v.sentence
+    # The retired sentence, and the classification that went with it.
+    check "rejected the container" notin v.sentence
+    check "format" notin v.sentence
+    check "would not open" notin v.sentence
+    check "the the" notin v.sentence
+    check v.kind != dseUnsupportedTraceKind
+    # Settled as the page settles it, the session agrees with the sentence.
+    o.session.debugger.failStart(v.kind, "no answer within 45000 ms")
+    check o.session.debugger.phase.val == dspFailed
+    check o.session.debugger.failure.val == some(dseCancelled)
+    o.session.close()
+
+  test "each stage before the trace is open gets its own sentence":
+    var w: SessionWatch
+    var v = w.deadlineVerdict("/replay-engine/", 45_000)
+    check v.stage == osEngineNotLoaded
+    check v.kind == classifyStartFailure(engineReached = false)
+    check "never loaded from /replay-engine/" in v.sentence
+    w.noteControl(%*{"type": "wasm-loaded"})
+    v = w.deadlineVerdict("/replay-engine/", 45_000)
+    check v.stage == osDownloadingTrace
+    check "not finished downloading" in v.sentence
+    w.noteControl(%*{"type": "trace-loaded"})
+    v = w.deadlineVerdict("/replay-engine/", 45_000)
+    check v.stage == osStartingEngine
+    w.noteControl(%*{"type": "worker-status", "status": "ready"})
+    w.noteOutbound($(%*{"seq": 1, "type": "request", "command": "initialize",
+                        "arguments": {}}))
+    v = w.deadlineVerdict("/replay-engine/", 45_000)
+    check v.stage == osHandshaking
+    check "opening requests" in v.sentence
+    check "rejected the container's format" notin v.sentence

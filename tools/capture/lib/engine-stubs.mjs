@@ -54,13 +54,86 @@ const SILENT_BODY = `// capture harness (tools/capture/lib/engine-stubs.mjs) —
 self.onmessage = function () {};
 `;
 
-const REFUSING_BODY = `// capture harness (tools/capture/lib/engine-stubs.mjs) — NOT the replay engine.
-// A worker that compiles its engine, says so, and then answers nothing —
-// which is what the deployed engine does when it refuses a container's format:
-// it logs the refusal to the WORKER's console and posts no message at all
-// (client/hydrate/hydrate.nim, the deadline's comment).
+// The two stubs below speak the worker's real protocol: `load-trace` is
+// answered `trace-loaded`, `start` is answered with the bare string `ready`
+// (as `wasm_start()` posts it), and DAP requests are answered with JSON
+// STRINGS, as the engine posts them. Everything they say about the handshake
+// is copied from the pinned engine rather than imagined — see each one.
+const PROTOCOL_PRELUDE = `
+const answer = (req, success, message) => self.postMessage(JSON.stringify({
+  seq: 0, type: 'response', request_seq: req.seq, success, command: req.command,
+  message: message === undefined ? null : message, body: {},
+}));
+let started = false;
+self.onmessage = (event) => {
+  const m = event.data;
+  if (!started) {
+    if (m && m.type === 'load-trace') {
+      self.postMessage({ type: 'trace-loaded', files: m.files || [], manifestStatus: 0, rangeStatuses: [] });
+    } else if (m && m.type === 'vfs-write') {
+      self.postMessage({ type: 'vfs-ack', path: m.path, ok: true });
+    } else if (m && m.type === 'start') {
+      started = true;
+      self.postMessage('ready');
+    }
+    return;
+  }
+  if (!m || m.type !== 'request') return;
+  onRequest(m);
+};
 self.postMessage({ type: 'wasm-loaded' });
-self.onmessage = function () {};
+`;
+
+// The pinned engine's refusal, VERBATIM. Measured 2026-11-26 by driving the
+// pinned wasm (`d696b18d…`, client/hydrate/engine-pin.txt) over its real worker
+// in the SDK's handshake order with a `meta.dat` 6 container: it answers
+// `initialize` and `configurationDone`, answers `launch` with success and then
+// AGAIN, same `request_seq`, with the failure below; every later request is
+// refused "no trace is open". It does NOT post nothing — the stub this replaced
+// said it did, and the page's sentence for it ("rejected the container's
+// format", reached only by a 45 s deadline) was built on that.
+const PINNED_REFUSAL =
+  'handle_message_browser failed: CTFS from_bytes failed for "trace/trace.ct": ' +
+  'meta.dat is malformed: meta.dat: version 6 is not readable: this reader reads ' +
+  'version 7 only. Version 5 and below carry a path list after recorder_id that ' +
+  'version 7 does not, and version 6 predates the event kinds 14-23, so none of ' +
+  'them is read as version 7. Re-record the trace with a current recorder';
+
+const REFUSING_BODY = `// capture harness (tools/capture/lib/engine-stubs.mjs) — NOT the replay engine.
+// Replays what the PINNED engine posts for a container it cannot read.
+${PROTOCOL_PRELUDE}
+function onRequest(req) {
+  if (req.command === 'initialize') {
+    answer(req, true);
+    self.postMessage(JSON.stringify({ seq: 0, type: 'event', event: 'initialized', body: {} }));
+  } else if (req.command === 'configurationDone') {
+    answer(req, true);
+  } else if (req.command === 'launch') {
+    answer(req, true);
+    answer(req, false, ${JSON.stringify(PINNED_REFUSAL)});
+  } else {
+    answer(req, false, 'no trace is open: \`' + req.command + '\` cannot be serviced');
+  }
+}
+`;
+
+// An engine still opening the trace. Measured on the pinned engine with a
+// 673,363-step EVM recording: the container loads in 0.6 s, the handshake's
+// first two requests are answered, and `launch` is not answered in 902 s.
+// Reproducing that with the real engine needs a recording no fixture should
+// carry, so this stub answers exactly those two requests and then nothing.
+const OPENING_BODY = `// capture harness (tools/capture/lib/engine-stubs.mjs) — NOT the replay engine.
+// An engine that accepts the container and is still opening it.
+${PROTOCOL_PRELUDE}
+function onRequest(req) {
+  if (req.command === 'initialize') {
+    answer(req, true);
+    self.postMessage(JSON.stringify({ seq: 0, type: 'event', event: 'initialized', body: {} }));
+  } else if (req.command === 'configurationDone') {
+    answer(req, true);
+  }
+  // \`launch\`, and anything after it: no answer — the engine is still working.
+}
 `;
 
 export const ENGINE_SCENARIOS = {
@@ -94,16 +167,29 @@ export const ENGINE_SCENARIOS = {
     overlay: { [WORKER_PATH]: null },
   },
 
-  // The fault that cost the hours. The engine is present, reachable and
-  // running; it is the CONTAINER it will not open.
+  // The engine is present, reachable and running; it is the CONTAINER it will
+  // not open, and it says why. The page must report that reason when it
+  // arrives — not wait out a deadline and guess.
   refusing: {
     id: "refusing",
     label: "an engine that loads, reports itself, and refuses the container",
     impersonates:
-      "a published engine whose container-format reader does not accept this " +
-      "trace — it logs the refusal to the worker console and posts nothing, so " +
-      "the session sits in `positioning` until the deadline",
+      "the pinned engine given a container its reader does not accept (a " +
+      "`meta.dat` 6 recording): it answers `launch` with success and then with " +
+      "the refusal, verbatim from the pinned wasm — the stub replays that transcript",
     overlay: { [WORKER_PATH]: { type: JS, body: REFUSING_BODY } },
+  },
+
+  // The engine accepted the container and has not finished opening it when
+  // the page stops waiting. Not a refusal, and the page must not call it one.
+  opening: {
+    id: "opening",
+    label: "an engine still opening the trace when the deadline passes",
+    impersonates:
+      "the pinned engine given a recording too large to open in the time " +
+      "allowed (a 673,363-step EVM transaction): `initialize` and " +
+      "`configurationDone` answered, `launch` never answered",
+    overlay: { [WORKER_PATH]: { type: JS, body: OPENING_BODY } },
   },
 };
 

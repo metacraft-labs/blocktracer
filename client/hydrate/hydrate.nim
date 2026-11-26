@@ -95,6 +95,7 @@ import ./live_breakpoints
 import ./live_preferences
 import ./live_source
 import ./session_project
+import ./session_watch
 
 # ---------------------------------------------------------------------------
 # The served page, as this bundle reads it
@@ -1573,13 +1574,12 @@ type
       ## count keeps "the chain found nothing" distinguishable from "the engine
       ## was never given a line", which are different sentences to put in front
       ## of a visitor and were previously the same one.
-    engineLoaded: bool       ## the worker compiled the wasm and said so
-      ## Recorded for ONE reason: so the deadline below can name which of two
-      ## unrelated failures it is reporting. An engine that never arrived (a
-      ## missing or misconfigured `/replay-engine/`) and an engine that arrived
-      ## and would not open this container are different faults with different
-      ## fixes, and a single sentence covering both sent a real diagnosis down
-      ## the wrong path for hours.
+    watch: SessionWatch
+      ## What the worker has actually reported of this session's opening —
+      ## stage by stage, request by request, and the first refusal in the
+      ## engine's own words (`session_watch`). The engine deadline and every
+      ## refusal sentence are read off it, so what the page says is what the
+      ## messages showed. Fed until the session is live, and not after.
     stopped: bool            ## `fail` has been called; the session is over
       ## Read by ONE thing: the locals feed's re-render (`goLive`). A failure
       ## settles every request the transport was holding — `WorkerBackend`
@@ -3475,6 +3475,21 @@ proc goLive(h: Hydration) =
               projectReplayPanes(h.session, h.base, h.ui.island),
               h.keymap)
 
+proc refuse(h: Hydration) =
+  ## The engine refused one of the requests that open the session: say so, in
+  ## its own words, and settle the session with the SDK's classification of
+  ## the same response.
+  ##
+  ## `failStart` is a no-op on a session the SDK already holds `dspReady` —
+  ## which is where the pinned engine leaves it, because it answers `launch`
+  ## success before it refuses (`session_watch`'s transcript). The page is
+  ## then the only party that knows, and it stops: `stopped` keeps every
+  ## later answer from going live.
+  if h.stopped or h.live or h.watch.refusal.isNone: return
+  let r = h.watch.refusal.get
+  h.fail(r.refusalSentence)
+  h.session.debugger.failStart(r.refusalKind, r.command & " refused: " & r.message)
+
 proc afterReady(h: Hydration) =
   ## The trace is open: the SDK's panel ViewModels exist. What follows is the
   ## page's own — the positioning phase, `threads`, going live, and the landing.
@@ -3486,7 +3501,18 @@ proc afterReady(h: Hydration) =
   positioning.phase = spPositioning
   setRail(h.ui, positioning)
   h.service.send("threads", newJObject()).onComplete(
-    onSuccess = proc(_: JsonNode) =
+    onSuccess = proc(response: JsonNode) =
+      # A refusal of this request is the engine saying it has no trace open
+      # (the pinned engine answers `launch` success and refuses afterwards —
+      # see `session_watch`). The watch has normally reported it already, as
+      # the response crossed the worker boundary, and the page has stopped.
+      # Going live on a `success: false` is what put eight live controls over
+      # a session with nothing behind them, so it is checked here as well.
+      if h.stopped: return
+      if not response{"success"}.getBool(true):
+        discard h.watch.noteResponse(response)
+        h.refuse()
+        return
       h.goLive()
       # §6.3: "Resolution happens before first paint, so a shared link opens
       # AT the position rather than at the start with a visible jump." The
@@ -3523,9 +3549,17 @@ proc handshake(h: Hydration) =
           # A page that already said why (the engine deadline) keeps its own
           # sentence; the session's `failure` is the same classification.
           if hh.stopped: return
+          # The engine's own words when the watch caught them (a refused
+          # opening request); otherwise the SDK's record of what failed.
+          # Either way the visitor sees the reason, not just its class.
+          if hh.watch.refusal.isSome:
+            hh.fail(hh.watch.refusal.get.refusalSentence)
+            return
           let kind = hh.session.debugger.failure.val
+          let detail = hh.session.debugger.failureMessage.val.strip()
           hh.fail("The trace could not be opened (" &
-                  (if kind.isSome: $kind.get else: "BackendError") & ").")
+                  (if kind.isSome: $kind.get else: "BackendError") & ")" &
+                  (if detail.len > 0: ": " & detail else: "") & ".")
         else: discard)
   h.session.launchLive(localFolderTrace(VfsTraceFolder))
 
@@ -3537,11 +3571,12 @@ proc onControl(h: Hydration; message: JsonNode) =
   ## raise kills every subsequent reactive effect in the session.
   ## `WorkerBackend` separates the two channels for exactly this, and the
   ## separation only helps if the consumer keeps it.
+  if not h.live: h.watch.noteControl(message)
   case message{"type"}.getStr("")
   of "wasm-loaded":
     # Past this point the engine demonstrably exists, so any later failure is
-    # about the TRACE, not about reaching the engine.
-    h.engineLoaded = true
+    # about the TRACE, not about reaching the engine (`watch.wasmLoaded`, set
+    # above by `noteControl`).
     # The engine is compiled. Now the container — 144 KB, same origin, one
     # request, issued BY THE WORKER. `fetching` is still the honest phase until
     # the bytes are in, and it is still the phase the served page was showing,
@@ -3578,12 +3613,12 @@ proc onControl(h: Hydration; message: JsonNode) =
     # the worker script at /replay-engine/worker.js could not be loaded", which
     # tells a reader the engine ran and then died and sends them looking for why.
     #
-    # `engineLoaded` is the same discriminator the deadline below already uses
+    # `watch.wasmLoaded` is the same discriminator the deadline below uses,
     # and for the same reason: the worker posts `wasm-loaded` the moment the
     # module compiles, so its absence means nothing ever started. One field,
     # two places, one meaning.
     let detail = message{"error"}.getStr("no reason given")
-    h.fail((if h.engineLoaded: "The replay engine stopped: "
+    h.fail((if h.watch.wasmLoaded: "The replay engine stopped: "
             else: "The replay engine did not start: ") & detail)
   else:
     discard
@@ -3668,7 +3703,9 @@ proc hydrate() =
   # worker on every load and this set means nothing to it until it is sent.
   h.breakpoints = loadBreakpoints(h.base.traceContentHash)
   h.backend = newWorkerBackend(
-    postProc = proc(messageJson: string) = postJson(messageJson),
+    postProc = proc(messageJson: string) =
+      if not h.live: h.watch.noteOutbound(messageJson)
+      postJson(messageJson),
     terminateProc = proc() = terminateWorker())
   h.backend.onControl(proc(message: JsonNode) = h.onControl(message))
   h.backend.onEvent(proc(event: JsonNode) = h.onDapEvent(event))
@@ -3681,44 +3718,66 @@ proc hydrate() =
   h.session = openLiveSession(
     h.service,
     sourceIsPublished = islandAvailability(ui.island) == srcSourceLevel)
+  # The mounted views report their viewport on EVERY scroll and resize event
+  # (`measureMounted`), and the store's default scheduler applies each report
+  # at once — so a wheel gesture asks for one call-trace section per scroll
+  # event that moves the first row, and the engine, single-threaded and
+  # answering in order, answers the window the scroll came to rest on LAST.
+  # (Read from the code, not measured. What was measured is the symptom it
+  # multiplies: on a 39,398-step EVM recording whose engine took 7–21 s per
+  # request, the pane showed no rows for 10 s after a wheel — the rows it held
+  # are kept, scrolled out of view, until the new window's answer lands.) The
+  # engine's slowness is the cause; this is CodeTracer's own host setting for
+  # a host that reports on every event (`ui_js.nim`, `vscode_host.nim`: only
+  # the last report of a burst, after `ViewportDebounceMs`).
+  h.session.store.viewportScheduler = timeoutScheduler()
 
   # §8 forbids an indeterminate wait, and a phase rail stuck on `opening` is
-  # one — it is a spinner with a name. Not every engine failure arrives as a
-  # message: the deployed engine logs its container-format refusal to the
-  # WORKER's console and posts nothing, so `configurationDone` answers success,
-  # the next request is dropped with "no handler yet", and the session sits in
-  # `positioning` for as long as the tab is open. That is exactly the state a
-  # visitor cannot tell from a slow connection, so it gets a deadline.
+  # one — it is a spinner with a name. An engine that is still working (a
+  # recording too large to open in the time allowed), a container that never
+  # finishes arriving, an engine that never arrives: none of them posts
+  # anything, and that is exactly the state a visitor cannot tell from a slow
+  # connection, so it gets a deadline. (A REFUSAL does post something — the
+  # pinned engine answers `launch` twice, success and then the reason — and is
+  # reported when it arrives, not here; see `session_watch`. This comment used
+  # to say the refusal "posts nothing", which was read off the worker's
+  # console rather than off its messages.)
   #
   # Generous, because the deadline it must not trip is a cold fetch of an 18 MB
   # wasm on a slow link — that is a legitimate wait, not a failure, and cutting
   # it short would report a broken engine to someone whose engine was merely
   # arriving. Debugger-Integration §7's 3 s p75 budget is the target; this is
   # the point past which something is wrong rather than slow.
-  # Two failures reach this deadline and they are not the same fault, so they
-  # do not get the same sentence. `engineLoaded` is the discriminator: the
-  # worker posts `wasm-loaded` the moment the module compiles, so its absence
-  # means the engine was never reached, and its presence means the engine is
-  # running and declined this container.
+  # WHAT THE DEADLINE SAYS IS WHAT THE MESSAGES SHOWED. It used to choose
+  # between two sentences on whether `wasm-loaded` had arrived, and the second — "the
+  # engine … rejected the container's format" — was measured false: on a
+  # 673,363-step EVM recording the engine had loaded the container in 0.6 s and
+  # was still working on `launch`, having rejected nothing. `session_watch`
+  # records which stage the worker reported and which opening requests were
+  # answered, and the verdict names the stage the session is actually in, with
+  # the SDK classification that agrees with it (`Cancelled` for work the engine
+  # had not finished; never `UnsupportedTraceKind` without a refusal).
+  #
+  # A page that has already said why (a refusal, a worker error) keeps its own
+  # sentence: the deadline is for silence, and that page was not silent.
   afterMs(EngineDeadlineMs, proc() =
-    if not h.live:
-      if not h.engineLoaded:
-        h.fail("The replay engine never loaded from " & ReplayEngineBase &
-               ". Nothing answered at that path, so no trace could be opened; " &
-               "the container can still be downloaded and opened in CodeTracer.")
-      else:
-        h.fail("The replay engine loaded but would not open this trace " &
-               "container. The engine is running and reachable — it rejected " &
-               "the container's format; the container can still be downloaded " &
-               "and opened in CodeTracer.")
-      # The session is settled with the SDK's classification of the same fact
-      # (`classifyStartFailure`), so its `failure` agrees with the sentence.
-      h.session.debugger.failStart(
-        classifyStartFailure(engineReached = h.engineLoaded),
-        "no answer within " & $EngineDeadlineMs & " ms"))
+    if h.live or h.stopped: return
+    let verdict = deadlineVerdict(h.watch, ReplayEngineBase, EngineDeadlineMs,
+                                  totalSteps = h.base.controls.totalSteps)
+    h.fail(verdict.sentence)
+    h.session.debugger.failStart(verdict.kind,
+      "no answer within " & $EngineDeadlineMs & " ms (" & $verdict.stage & ")"))
 
   if not startWorker(ReplayEngineBase & "worker.js",
-                     proc(raw: string) = h.backend.deliver(raw)):
+                     proc(raw: string) =
+                       # Read BEFORE the transport settles anything: the
+                       # pinned engine's refusal is the second response to a
+                       # request `WorkerBackend` has already settled, and it
+                       # is visible nowhere else (`session_watch`).
+                       if not h.live and not h.stopped and
+                          h.watch.noteInbound(raw):
+                         h.refuse()
+                       h.backend.deliver(raw)):
     # A synchronous construction failure — in practice §5.1's cross-origin
     # `SecurityError`. The URL is in the message the transport built, and it is
     # already on the page as `data-replay-engine`, so a reader can see which
