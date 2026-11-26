@@ -241,6 +241,18 @@ function untracedRowOfEveryReason() {
               ...decideOutcome({ code: null, signal: 'SIGSEGV', out: '',
                                  err: 'Simulating... (mem: N/A)\n' },
                                'ct/j.ct', false, 0) });
+  // 11. l1-to-l2-message-unseedable — THE TRANSACTION CONSUMED AN L1->L2 MESSAGE the
+  //     runtime cannot seed, and the runtime said so by name. Reached through
+  //     `decideOutcome` for the reason row 10 is: the member exists because of the runtime's
+  //     class, and a hand-written row would pass while the class still published as
+  //     `runtime-refused`. Before aztec-avm-runtime #26 these 43 aztec-testnet transactions
+  //     were not refused at all; they were published as divergent traces.
+  rows.push({ txHash: '0x0b', blockNumber: 108, txIndexInBlock: 0,
+              ...decideOutcome({ code: 1, out: '',
+                                 err: nodeThrow('L1ToL2MessageReadUnanswerable',
+                                   'transaction 0x0b (block 108) read the L1->L2 message tree '
+                                   + 'at leaf index 6970 (L1TOL2MSGEXISTS).') },
+                               'ct/k.ct', false, 0) });
   return rows;
 }
 
@@ -415,6 +427,10 @@ test('test_unknown_refusal_condition_fails_rather_than_defaults');
   // driver it supervises dies by a signal, so it names a crash and maps to the crash member.
   ck('the runtime crash guard\'s `RuntimeCrashed` maps to `runtime-crashed`, not '
      + '`runtime-refused`', reasonForRuntimeClass('RuntimeCrashed') === 'runtime-crashed');
+  // `L1ToL2MessageReadUnanswerable` (aztec-avm-runtime abd5aade, #26): the transaction
+  // consumed an L1->L2 message the runtime cannot seed. Its own member, not the fallback.
+  ck('the runtime\'s `L1ToL2MessageReadUnanswerable` maps to `l1-to-l2-message-unseedable`',
+     reasonForRuntimeClass('L1ToL2MessageReadUnanswerable') === 'l1-to-l2-message-unseedable');
   ck('…and `runtime-refused` is in the set, so it is counted rather than swallowed',
      isRefusalReason('runtime-refused'));
   ck('…and the class name survives as EVIDENCE beside it, so the specific condition is '
@@ -956,9 +972,13 @@ test('the committed captures are inside the closed set');
   // `runtime-refused` with `refusal: "unknown"`. No COMMITTED capture carries it, because
   // every committed capture was written by the code that could not name it. The first
   // production cycle is expected to move this number, and this arm is what will say so.
-  ck('seven members are not yet reached by any committed capture, and that is stated '
+  //
+  // SEVEN BECAME EIGHT the same day with `l1-to-l2-message-unseedable`, for the same reason:
+  // the member follows aztec-avm-runtime #26, and every committed capture predates it. On
+  // the rehearsal window that produced it, 43 rows are expected to reach it.
+  ck('eight members are not yet reached by any committed capture, and that is stated '
      + `rather than silent: ${REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).join(', ')}`,
-     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 7);
+     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 8);
 }
 
 // ── the version policy, and the four store outcomes that are not one fact ───────────────
@@ -1963,7 +1983,10 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //       2026-11-03) — at the same single assertion.
 //   +1  `RuntimeCrashed`, the runtime crash guard's class, maps to `runtime-crashed`
 //       (aztec-avm-runtime 6c28eb93, 2026-11-26).
-expectCount(264);
+//   +2  `L1ToL2MessageReadUnanswerable` maps to `l1-to-l2-message-unseedable`, and the
+//       member-is-reached loop gains its eleventh member (aztec-avm-runtime abd5aade, #26,
+//       2026-11-26).
+expectCount(266);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

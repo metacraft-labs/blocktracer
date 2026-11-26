@@ -215,6 +215,36 @@ async function main() {
     ck('a named refusal with a non-zero exit keeps the NAME, not the exit status',
        namedAndFailed.refusal === 'AvmTrap'
        && namedAndFailed.refusalReason === 'runtime-refused');
+    // THE RUNTIME'S L1->L2 REFUSAL, from aztec-avm-runtime abd5aade (#26). A transaction
+    // that consumes an L1->L2 message reads the message tree, which the runtime cannot seed,
+    // so the replay would revert where the chain did not. Before #26 that was published as
+    // a DIVERGENT TRACE: 43 of 276 attempted aztec-testnet transactions on 2026-11-26,
+    // revertCode 0 on chain, 1 in the replay, 1 of 21 effects matching. The runtime now
+    // declines by name, and the name must reach its own member and a sentence that says
+    // what happened. The generic "the replay runtime refused with <class>" would hide that
+    // the chain's transaction SUCCEEDED and that only the message is missing. The stderr is
+    // the runtime's text verbatim, from a live run on 0x1a6bad63… (block 70,520).
+    const L1_TO_L2_STDERR = 'replay: round 5 — 11 quer(y|ies) reported, 0 leaf/leaves seeded, 2 skipped\n'
+      + 'file:///runtime/replay/src/replay_execution.ts:475\n'
+      + '        throw new L1ToL2MessageReadUnanswerable(settled.txHash, settled.l2BlockNumber, l1ToL2Reads);\n'
+      + '              ^\n\n'
+      + 'L1ToL2MessageReadUnanswerable: transaction 0x1a6bad634ce717dff304f440939fb5383d336bb585599ed70f1e6c9942ebe296 '
+      + '(block 70520) read the L1->L2 message tree at leaf index 6970 (L1TOL2MSGEXISTS). Route 3 cannot '
+      + 'seed that tree: it is append-only, a leaf at index i needs the i leaves before it, and no '
+      + 'permitted node method serves a message by index. The resident tree is empty, so the read '
+      + 'would answer "absent" whatever the chain held, and a message the transaction consumed would '
+      + 'make the replay revert where the chain did not. REFUSING rather than reporting that replay.\n'
+      + '    at replaySettledTransaction (file:///runtime/replay/src/replay_execution.ts:475:15)\n'
+      + "  kind: 'replay-l1-to-l2-message-read-unanswerable',\n";
+    const l1 = decide({ code: 1, signal: null, out: '', err: L1_TO_L2_STDERR }, false, 0);
+    ck('the runtime\'s `L1ToL2MessageReadUnanswerable` is `l1-to-l2-message-unseedable`, '
+       + 'not `runtime-refused`', l1.refusalReason === 'l1-to-l2-message-unseedable');
+    ck('…the class name stays on the row as evidence', l1.refusal === 'L1ToL2MessageReadUnanswerable');
+    ck('…its reason names the L1->L2 message and the leaf index the runtime read',
+       /L1→L2 message/.test(l1.reason) && l1.reason.includes('6970'));
+    ck('…and says the chain\'s transaction is not in question, instead of the generic '
+       + '"refused with <class>"',
+       !/refused with/.test(l1.reason) && /not a statement about the transaction/.test(l1.reason));
     // And the extractor itself, directly — a positive twin for the negative above.
     ck('refusalName finds a named refusal', refusalName(REFUSAL_STDERR)
        === 'IntraBlockPredecessorsUnavailable');
@@ -886,7 +916,9 @@ async function main() {
   // refused, and the two controls that the rest of the vector did not move.
   // 109 before the crash guard's arms. +3: its line is `runtime-crashed`, its evidence
   // is the signal, and its reason says the driver died.
-  expectCount(112);
+  // 112 before the L1->L2 refusal's arms. +4: its member, its evidence, the index in its
+  // reason, and a reason that is not the generic one.
+  expectCount(116);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

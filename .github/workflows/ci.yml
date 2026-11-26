@@ -586,7 +586,7 @@ jobs:
       # They are all offline and toolchain-free, which is why they belong in
       # THIS job rather than behind the Nix runner.
       - name: Does the replay verdict rule bite? (which outcome a driver run is)
-        # 112 assertions over thirteen cases of recorded driver output. The three
+        # 116 assertions over thirteen cases of recorded driver output. The three
         # that have already
         # cost something are pinned as fixtures: a non-zero exit that is a
         # divergence and not a refusal, a refusal whose name was `unknown`
@@ -658,7 +658,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 264 assertions, and the reason it is offline is the reason it
+        # ING-3, 266 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
