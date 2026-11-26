@@ -142,30 +142,31 @@ console.log('follow-to-tip-selftest');
 //
 // THE TABLE REPLACED A RULE, and the rule is what these arms are really about.
 // The URL used to be derived from the slug, which is correct only while every
-// slug is a drpc hostname — and the live rollups needed slugs of their own, so
-// it stopped being correct. A guess that RESOLVES is the dangerous case: it
+// slug is a drpc hostname. A guess that RESOLVES is the dangerous case: it
 // produces a well-formed ledger, snapshot and generation describing the wrong
 // chain under this name, and nothing downstream can tell.
 {
-  ok('both live slugs are known',
-    CHAIN_ENDPOINTS['aztec-v6'] === 'https://aztec.drpc.org'
-    && CHAIN_ENDPOINTS['aztec-testnet-v6'] === 'https://aztec-testnet.drpc.org',
+  ok('both live chains are known, under the canonical names',
+    CHAIN_ENDPOINTS['aztec'] === 'https://aztec.drpc.org'
+    && CHAIN_ENDPOINTS['aztec-testnet'] === 'https://aztec-testnet.drpc.org',
     JSON.stringify(CHAIN_ENDPOINTS));
 }
 {
-  // The hazard this table exists for: a v6 slug must NOT be turned into a
-  // hostname, because `aztec-testnet-v6.drpc.org` is not one.
-  ok('a v6 slug does not name its own host',
-    !Object.keys(CHAIN_ENDPOINTS).some((c) => CHAIN_ENDPOINTS[c].includes(`${c}.drpc.org`) && c.endsWith('-v6')),
-    JSON.stringify(CHAIN_ENDPOINTS));
+  // The table is exactly the live set. An extra entry is not harmless: a slug
+  // nobody publishes is a slug a dispatch can typo its way into, and the
+  // tip-regression check cannot save a chain that has no ledger yet.
+  ok('the table carries no slugs beyond the two live chains',
+    Object.keys(CHAIN_ENDPOINTS).sort().join(',') === 'aztec,aztec-testnet',
+    Object.keys(CHAIN_ENDPOINTS).sort().join(','));
 }
 {
-  // The retired slugs keep a mapping deliberately: an operator may still aim a
-  // tool at them, and the refusal that should stop a FOLLOWER is the
-  // tip-regression one, which is about the data rather than about a hostname.
-  ok('the retired slugs are still mapped, so the refusal comes from the data',
-    typeof CHAIN_ENDPOINTS['aztec'] === 'string'
-    && typeof CHAIN_ENDPOINTS['aztec-testnet'] === 'string');
+  // The v6-suffixed names were this table's previous answer to a problem that
+  // is now solved differently — the retired corpora are discarded, so the
+  // canonical names are free. Asserted so a revert cannot reintroduce them
+  // quietly alongside the canonical pair.
+  ok('the superseded v6 slugs are gone',
+    CHAIN_ENDPOINTS['aztec-v6'] === undefined
+    && CHAIN_ENDPOINTS['aztec-testnet-v6'] === undefined);
 }
 {
   ok('an unknown slug has no endpoint, so the tool must be given one',

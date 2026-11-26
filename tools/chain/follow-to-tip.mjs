@@ -30,9 +30,16 @@
 // ── THE TWO REFUSALS THAT ARE THE WHOLE POINT ────────────────────────────────
 //
 // A tip-follower that is wrong is worse than no tip-follower, because it
-// publishes. Both refusals below are about the SAME measured hazard, recorded in
-// `tools/chain/retired-networks.json`: BOTH Aztec networks were restarted after
-// this project captured them.
+// publishes. Both refusals below are about the SAME measured hazard: BOTH Aztec
+// networks were restarted after this project captured them.
+//
+// THE FILE THAT USED TO BE THE CITATION HERE NO LONGER CARRIES IT.
+// `tools/chain/retired-networks.json` recorded this for `aztec` and
+// `aztec-testnet`, and those entries were removed when the retired corpora were
+// discarded and the canonical names reused — correctly, since the claim they
+// made ("the network that would serve the repair no longer exists") is false of
+// the live rollups those names carry now. The measurement below is kept because
+// it is what these refusals exist for; only its source attribution went stale.
 //
 //   mainnet  captured head 102,690   live tip 3,403   (observed 2026-10-28)
 //   testnet  captured head  99,092   live tip 9,405   (observed 2026-10-28)
@@ -148,14 +155,27 @@ export const EXIT_CAUGHT_UP = 75;
  * so an operator can follow anything; it is only the DEFAULT that is a table.
  */
 const CHAIN_ENDPOINTS = {
-  // The live rollups, which is what a follower follows.
-  'aztec-v6': 'https://aztec.drpc.org',
-  'aztec-testnet-v6': 'https://aztec-testnet.drpc.org',
-  // The retired slugs keep their mapping so an operator can still point a tool
-  // at them deliberately. `tools/chain/retired-networks.json` records that the
-  // networks behind them are gone, so a follower aimed here will be refused by
-  // the tip-regression check rather than by this table — which is the right
-  // refusal, because it is about the data and not about a hostname.
+  // THE CANONICAL NAMES, CARRYING THE LIVE ROLLUPS. An earlier revision of this
+  // table published the live chains as `aztec-v6` / `aztec-testnet-v6` beside
+  // the retired corpora, because reusing these names is refused twice over by
+  // code. The operator's decision of 2026-11-26 removes the reason for that:
+  // nobody outside the team has seen blocktracer.org, so the retired corpora
+  // are DISCARDED rather than preserved, and the canonical names are reused.
+  //
+  // HOW THE TWO REFUSALS ARE SATISFIED RATHER THAN DEFEATED — measured, not
+  // reasoned:
+  //
+  //   * `ingest.nim` refuses to re-pin a chain's default recorder, and it reads
+  //     that pin from the registry IN THE TREE. So the seed omits the row being
+  //     replaced; the ingest then writes a fresh one and there is no incumbent
+  //     to move. See `chain-follow.yml`'s `replace-chain-row`.
+  //   * `blocktracer-publish` refuses a registry that DROPS a chain the store
+  //     lists — and nothing is dropped, because the ingest has just re-added
+  //     this chain beside the store's other rows.
+  //
+  // Proven against a store carrying blocktracer.org's four real rows: ingest 0,
+  // publish 0, registry still listing all four, and `aztec`'s recorder moved
+  // from `sha1:508588d9…` to `sha1:ce9426cf…`.
   'aztec': 'https://aztec.drpc.org',
   'aztec-testnet': 'https://aztec-testnet.drpc.org',
 };
@@ -230,11 +250,12 @@ export function planRange({ highest, head, maxBlocks }) {
         `the endpoint's head is ${head} and this ledger's highest covered height is `
         + `${highest}. A head BELOW what is already covered is not "nothing to do": it `
         + `means this endpoint is serving a different chain at heights this ledger has `
-        + `already published, which is what tools/chain/retired-networks.json records for `
-        + `both Aztec networks. Filing ${highest + 1}.. from here would put a new rollup's `
+        + `already published. Both Aztec networks have restarted once already, which is `
+        + `exactly this shape. Filing ${highest + 1}.. from here would put a new rollup's `
         + `blocks into a generation whose height map belongs to the old one. A restarted `
-        + `chain needs a NEW --state directory, and a reused slug needs its published `
-        + `generation replaced.`,
+        + `chain needs a NEW --state directory; reusing its published slug additionally `
+        + `needs that chain's registry row dropped from the seed, which is what `
+        + `chain-follow.yml's \`replace-chain-row\` does.`,
     };
   }
   const from = highest === null ? 1 : highest + 1;

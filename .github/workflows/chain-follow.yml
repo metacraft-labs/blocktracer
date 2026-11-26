@@ -69,32 +69,42 @@ name: Follow the Aztec chains into the site
 # That is the same shape the existing published corpora were built in, and the
 # traces accrue from the tip forward once the schedule takes over.
 
-# ── NEW SLUGS, BESIDE THE RETIRED CORPORA RATHER THAN OVER THEM ─────────────
+# ── THE CANONICAL NAMES, WITH THE RETIRED CORPORA DISCARDED ─────────────────
 #
-# This publishes `aztec-v6` and `aztec-testnet-v6`, not `aztec` and
-# `aztec-testnet`, and that is forced by two guards rather than chosen for
-# tidiness. Both Aztec networks restarted, so the corpora published under the
-# old slugs belong to rollups that no longer exist
-# (`tools/chain/retired-networks.json`). Republishing the LIVE chains under
-# those names was measured against a store shaped like blocktracer.org's and is
-# refused twice over:
+# This publishes `aztec` and `aztec-testnet` — the canonical names — and the
+# corpora previously published under them are DISCARDED rather than preserved.
+# Operator decision, 2026-11-26: nobody outside the team has seen
+# blocktracer.org, so there is no reader to protect and no URL worth keeping.
+#
+# AN EARLIER REVISION OF THIS FILE PUBLISHED `aztec-v6` / `aztec-testnet-v6`
+# INSTEAD, and the reason was not tidiness: both Aztec networks restarted, so
+# the published corpora belong to rollups that no longer exist, and reusing
+# their names is refused by code in two independent places. That reasoning was
+# correct and is now moot — but the two refusals are still there, so the way
+# they are SATISFIED rather than defeated is the thing to understand:
 #
 #   1. `ingest.nim` refuses to re-pin a chain's default recorder. Production
-#      pins `aztec` and `aztec-testnet` to recorder build `sha1:508588d9…`;
-#      this producer writes `sha1:ce9426cf…`. Its refusal says why: every
-#      overlay row that names no recorder of its own is addressed under that
-#      pin, so moving it re-derives their trace addresses and strands their
-#      containers at the old ones.
+#      pins `aztec` to build `sha1:508588d9…`; this producer writes
+#      `sha1:ce9426cf…`, and moving the pin would re-derive the trace addresses
+#      of every overlay row that names no recorder of its own. It reads that
+#      pin from the registry IN THE TREE — so `replace-chain-row` omits the row
+#      from the seed, the ingest writes a fresh one, and there is no incumbent
+#      to move. The old containers are left unreferenced, which is what
+#      discarding means.
 #   2. `blocktracer-publish` refuses a registry that DROPS a chain the store
-#      lists — which is a different problem, solved by `--registry-seed` below,
-#      and it bites whatever slug is used.
+#      lists. Nothing is dropped: the ingest has just re-added this chain
+#      beside the store's other rows.
 #
-# Both guards are right, and neither is worth defeating: the retired corpora
-# stay readable at their own names, `retired-networks.json` stays true about
-# them, and the live chains get names that say which rollup they are. The cost
-# is that URLs pinned to the old generations keep pointing at the old data,
-# which is accurate rather than broken.
+# MEASURED, against a local store carrying blocktracer.org's four real registry
+# rows: with the row seeded the ingest refuses by name; with it stripped the
+# ingest exits 0, the publish exits 0, the store still lists all four chains,
+# and `aztec`'s recorder has moved to this producer's build.
 #
+# SO `replace-chain-row` IS A ONCE-PER-CHAIN INPUT, not a standing flag. The
+# row carries a `recorders` inventory accumulated across builds; rewriting it
+# when there is nothing to replace recomputes that from this tree alone and
+# loses the older builds.
+
 # ── THE FIRST CYCLE OF A CHAIN IS STILL ONLY A DISPATCH ─────────────────────
 #
 # The schedule can never START a chain: it does not pass `--allow-fresh-ledger`,
@@ -105,11 +115,17 @@ name: Follow the Aztec chains into the site
 #
 #   1. `plan-only: true` — read the ledger and the node, publish nothing, and
 #      look at the range and the chain identity it reports.
-#   2. `allow-fresh-ledger: true`, one chain at a time, small `max-blocks`.
+#   2. `allow-fresh-ledger: true` AND `replace-chain-row: true`, one chain at a
+#      time, small `max-blocks`. The second flag is what lets the canonical name
+#      be reused; see the section above for why, and leave it off afterwards.
 #   3. Then catch up (see below), then leave it to the schedule.
 #
-# Nothing here changes `retired-networks.json`: those entries describe the old
-# slugs, they remain true, and this workflow does not write to them.
+# `retired-networks.json` NO LONGER DESCRIBES THESE SLUGS, and its `aztec` and
+# `aztec-testnet` entries were removed with this change. They said "the network
+# that would serve the repair no longer exists", which was true of the corpora
+# those names USED to carry and is false of the live rollups they carry now.
+# Leaving them would have made the site infer un-repairability for transactions
+# whose chain is answering — the one claim that file exists to keep honest.
 
 
 # ── THE SCHEDULE ONLY FIRES FROM THE DEFAULT BRANCH ─────────────────────────
@@ -196,6 +212,18 @@ on:
           far less than one with it off, and costs more to do it.
         type: boolean
         default: true
+      replace-chain-row:
+        description: >-
+          Drop this chain's EXISTING registry row from the seed, so the ingest
+          writes a fresh one. Needed exactly once per chain whose published row
+          belongs to a retired rollup, and harmful otherwise: the row carries a
+          `recorders` inventory accumulated across builds, and a needless
+          rewrite recomputes it from this tree alone and loses the older builds.
+          `ingest.nim` refuses to re-pin a chain's default recorder, and it
+          reads that pin from the registry in the TREE — so omitting the row is
+          what makes a replacement possible without defeating the guard.
+        type: boolean
+        default: false
       plan-only:
         description: >-
           Read the ledger and the node, print the range that would be requested,
@@ -224,7 +252,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        chain: ${{ fromJSON(github.event.inputs.chain && format('["{0}"]', github.event.inputs.chain) || '["aztec-v6","aztec-testnet-v6"]') }}
+        chain: ${{ fromJSON(github.event.inputs.chain && format('["{0}"]', github.event.inputs.chain) || '["aztec","aztec-testnet"]') }}
     runs-on:
       - self-hosted
       - nixos
@@ -428,6 +456,8 @@ jobs:
           AWS_DEFAULT_REGION: auto
           R2_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          REPLACE_ROW: ${{ github.event.inputs.replace-chain-row || 'false' }}
+          CHAIN: ${{ matrix.chain }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/registry-seed"
@@ -437,6 +467,15 @@ jobs:
           nix develop .#ci --command aws s3 cp "$key" "$seed" \
             --endpoint-url "$R2_ENDPOINT" --only-show-errors > "$RUNNER_TEMP/seed.log" 2>&1 || rc=$?
           if [ "$rc" -eq 0 ]; then
+            # REPLACEMENT: drop this chain's row before the ingest reads it.
+            # Measured against a store carrying blocktracer.org's four real
+            # rows: with the row present the ingest REFUSES ("already pinned …
+            # to recorder build 'sha1:508588d9…'"); with it stripped the ingest
+            # writes a fresh row, the publish accepts the tree because nothing
+            # is dropped, and the chain's recorder moves to this producer's.
+            if [ "${REPLACE_ROW}" = "true" ]; then
+              nix develop .#ci --command python3 -c 'import json,sys; p,c=sys.argv[1],sys.argv[2]; d=json.load(open(p)); had=d.get("chains",{}).pop(c,None); json.dump(d,open(p,"w"),indent=1); print(("  replace-chain-row: dropped " if had else "  replace-chain-row: no row to drop for ")+c)' "$seed" "${CHAIN}"
+            fi
             echo "seeded from ${key}:"
             # python3, NOT jq: the `.#ci` devShell declares awscli2, curl, brotli,
             # perl and bubblewrap — and no jq. `jq` here would exit 127 inside a
