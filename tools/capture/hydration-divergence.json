@@ -78,7 +78,7 @@
       "shipsBundle": true
     },
     "debugger--copy-affordance": {
-      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=7a430ad329eb&a=call:0.0.2",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
@@ -88,22 +88,22 @@
       "shipsBundle": true
     },
     "debugger--engine-never-loaded": {
-      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=7a430ad329eb&a=call:0.0.2",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
     "debugger--engine-refused-container": {
-      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=7a430ad329eb&a=call:0.0.2",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
     "debugger--engine-still-opening": {
-      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=7a430ad329eb&a=call:0.0.2",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
     "debugger--engine-worker-missing": {
-      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=7a430ad329eb&a=call:0.0.2",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
@@ -113,27 +113,27 @@
       "shipsBundle": true
     },
     "debugger--link-exact": {
-      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=7a430ad329eb&a=call:0.0.2",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
     "debugger--link-nearest-frame": {
-      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=3425e191b202&a=call:0.0.2.1",
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=8b541be43afc&a=call:0.0.2.1",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
     "debugger--link-not-replayable": {
-      "route": "/demo/tx/0x7975216719d3f981e5ab9f63f0c9192f98981064/debug?v=1&t=128&c=2314d080a1f1&a=call:0.0.2",
+      "route": "/demo/tx/0x7975216719d3f981e5ab9f63f0c9192f98981064/debug?v=1&t=128&c=7a430ad329eb&a=call:0.0.2",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
     "debugger--link-recovered-by-anchor": {
-      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=3425e191b202&a=call:0.0.2",
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=8b541be43afc&a=call:0.0.2",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
     "debugger--link-start-of-execution": {
-      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=3425e191b202&a=log:11",
+      "route": "/demo/tx/0xb636167a05b9de55bde67756bdaed6e766d46359/debug?v=1&t=128&c=8b541be43afc&a=log:11",
       "capturedFrom": "hydrated",
       "shipsBundle": true
     },
@@ -178,7 +178,7 @@
       "shipsBundle": true
     },
     "debugger--testnet": {
-      "route": "/aztec-testnet/tx/0x1f1c3008ed59245c4ffd33621e54617e9bdeefbe03b836d17b3697d6760c0e06/debug?t=1",
+      "route": "/aztec-testnet/tx/0x0858d644c60851824141160a69391e304430aabc06ef9ace18d8024b22e67fb2/debug?t=1",
       "capturedFrom": "plain",
       "shipsBundle": true
     },
