@@ -5,7 +5,8 @@
 //
 // Usage:
 //   node tools/chain/eth-source-steps.mjs --blocks <dir of per-block trace-block runs> \
-//        --recorder <commit> --out <file> [--chain <label>] [--windows <from>-<to>[,…]]
+//        --recorder <commit> --out <file> [--chain <label>] [--windows <from>-<to>[,…]] \
+//        [--solc-releases <n>]
 //
 // `--windows` defaults to Ethereum mainnet's six pinned windows; a second instance names its
 // own (Recorder-EVM CXP-EVM-5's Sepolia comparison), and `--chain` labels the reading.
@@ -58,12 +59,17 @@ function main() {
   const recorder = flag('recorder');
   const out = flag('out');
   const chain = flag('chain') ?? 'ethereum-mainnet';
+  // how many verified solc releases were on PATH when the blocks were recorded (mainnet's
+  // run had 77; a later run that adds releases says so, since its comment must not claim 77)
+  const solcReleases = Number(flag('solc-releases') ?? '77');
   const WINDOWS = flag('windows')
     ? flag('windows').split(',').map((w) => w.split('-').map(Number))
     : MAINNET_WINDOWS;
   if (!dir || !recorder || !out || !existsSync(dir) ||
+      !Number.isInteger(solcReleases) ||
       WINDOWS.some((w) => w.length !== 2 || !w.every(Number.isInteger))) {
-    console.error('usage: eth-source-steps.mjs --blocks <dir> --recorder <commit> --out <file>');
+    console.error('usage: eth-source-steps.mjs --blocks <dir> --recorder <commit> --out <file> '
+                  + '[--chain <label>] [--windows <from>-<to>[,…]] [--solc-releases <n>]');
     return 2;
   }
   const txs = [];
@@ -101,8 +107,8 @@ function main() {
       'A step is backed when it resolved to a line of source the recorder recompiled from',
       'Sourcify and checked against the deployed code (any §1.2a rung: an optimized contract\'s',
       'lines count). Every transaction of the six pinned windows with an execution, recorded with',
-      'Sourcify on, no lookup cap, and the 77 verified solc releases that have static Linux',
-      'builds on PATH (8 older or nightly releases have none, so their contracts are unbacked).',
+      `Sourcify on, no lookup cap, and the ${solcReleases} verified solc releases that have static Linux`,
+      'builds on PATH (older or nightly releases without one leave their contracts unbacked).',
     ],
     measuredAt: new Date().toISOString(),
     chain,
