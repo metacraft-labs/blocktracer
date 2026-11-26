@@ -9,6 +9,7 @@
 //     --out <snapshot dir> \
 //     [--from <slot> --to <slot>] [--ct-print ../codetracer-trace-format-nim/ct-print] \
 //     [--chain solana-mainnet] [--label 'Real Solana mainnet data'] [--captured-at <iso>]
+//     [--source-terms tools/chain/sol-source-terms.json]
 //
 // Exit codes: 0 wrote a tree · 1 a source would not answer · 2 a configuration refusal.
 //
@@ -63,6 +64,7 @@ import {
   RECORDER, PRESTATE_STRATEGY, IDENTIFIER_ENCODING, POSITION_LANGUAGE, POSITION_STREAM_SCHEMA,
   INSTRUCTION_STREAM_SCHEMA, CALLTRACE_STREAM_SCHEMA, INSTRUCTION_SET,
   executionsForRow, costVectorForRow, rolesForRow, payloadForRow, reachReasonFor, VERIFICATION, addressHistoryFor,
+  sourcesOf, sourcesWithoutTerms,
 } from './lib/solana-producer-facts.mjs';
 
 const run = promisify(execFile);
@@ -144,6 +146,17 @@ async function main() {
   const results = new Map(readJsonl(join(captureDir, 'results.jsonl'))
     .filter((r) => r.signature).map((r) => [r.signature, r]));
   const scope = Array.isArray(capture.scope) ? capture.scope : null;
+
+  // CXP-SOL-1, Chain-Support-Matrix.md §1.1: nothing read from a source whose terms are not
+  // recorded is published. The capture was free to read from it; this is where it stops.
+  const termsPath = resolve(flag('source-terms') ?? new URL('./sol-source-terms.json', import.meta.url).pathname);
+  const historyFile = join(captureDir, 'history', `${from}-${to}.json`);
+  const sources = sourcesOf(capture, existsSync(historyFile) ? JSON.parse(readFileSync(historyFile, 'utf8')) : null);
+  const unresolved = sourcesWithoutTerms(sources, JSON.parse(readFileSync(termsPath, 'utf8')).sources ?? {});
+  if (unresolved.length > 0) {
+    throw refuse(CONFIG_REFUSAL, `terms-unresolved: this capture read from ${unresolved.join(', ')}, `
+      + `whose redistribution terms are not recorded in ${termsPath}; nothing derived from it is published`);
+  }
 
   // ── the rows ──────────────────────────────────────────────────────────────────────
   const rows = [];

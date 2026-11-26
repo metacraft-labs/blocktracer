@@ -46,6 +46,21 @@ export const reachReasonFor = (captureStart, fromSlot) => {
 };
 
 /** `provenance.verification` — what the mandatory divergence oracle compares, and the refusal. */
+/**
+ * Every source a capture read from: its block, feature and account providers, and the RPC
+ * the address history was asked of. CXP-SOL-1 gates publication on each one's terms.
+ */
+export function sourcesOf(capture, history) {
+  const p = capture.providers ?? {};
+  const urls = [p.blocks, p.features, ...(p.accounts ?? []).map((a) => a.url), history?.rpc];
+  return [...new Set(urls.filter((u) => typeof u === 'string' && u.length > 0))].sort();
+}
+
+/** The sources whose terms are not recorded in `terms` (sol-source-terms.json's `sources`). */
+export function sourcesWithoutTerms(sources, terms) {
+  return sources.filter((u) => !(typeof terms[u] === 'string' && terms[u].length > 0));
+}
+
 export const VERIFICATION = 'each trace is compared with what the chain recorded for its transaction (error, compute units, fee, logs, balances, token amounts, inner instructions and return data), and a transaction that cannot be compared is refused, never guessed';
 
 /**

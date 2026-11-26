@@ -1133,7 +1133,7 @@ jobs:
         run: node tools/chain/starknet-producer-selftest.mjs
 
       - name: Does the Solana producer state its chain's facts, and do its committed inputs hold?
-        # 13 assertions, host-independent: every arm is offline and needs only node.
+        # 14 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Solana producer's fee / compute-unit / cost-unit vector, the fee payer as
         # sender, the first non-ComputeBudget program as target, and the committed window's
@@ -1148,7 +1148,9 @@ jobs:
         # taxonomy's cells (Blockchain-Recorder-Test-Suites.md §4): the committed census
         # matches a fresh one, and a cell whose bundles are removed reads uncovered. A third
         # places a precompile by the accounts a transaction carries, since a precompile
-        # writes no invoke log. Traced rows need the recorder and are
+        # writes no invoke log. One refuses to publish a capture that read from a source
+        # whose redistribution terms are not recorded (sol-source-terms.json), and publishes
+        # the same capture once they are. Traced rows need the recorder and are
         # built by `nix build .#sol-capture-tree`.
         run: node tools/chain/solana-producer-selftest.mjs
 

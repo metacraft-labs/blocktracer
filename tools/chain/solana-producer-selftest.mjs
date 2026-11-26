@@ -22,7 +22,7 @@ import { CELLS, census } from './lib/solana-corpus-census.mjs';
 
 // The assertion count this suite declares, which `refusal-selftest.mjs` cross-checks
 // against the `chain-selftest` header. No host configurations, so the base is the total.
-const BASE_ARMS = 13;
+const BASE_ARMS = 14;
 
 let passed = 0;
 const arm = (name, fn) => {
@@ -146,7 +146,7 @@ arm('address history is the committed answer below the window, refusing what wou
 // `no-container-written` and the stub must never run. That keeps these two arms offline
 // and node-only, and a producer that started reading a container here would turn them red
 // rather than quietly needing a toolchain.
-function produce(mutateResults, mutateBlocks) {
+function produce(mutateResults, mutateBlocks, { mutateCapture, extraArgs = [] } = {}) {
   const work = mkdtempSync(join(tmpdir(), 'sol-produce-'));
   const tool = (name) => new URL(`./${name}`, import.meta.url).pathname;
   execFileSync(process.execPath, [tool('sol-fixture.mjs'), 'unpack', '--fixture', FIXTURE, '--out', join(work, 'cap')]);
@@ -160,10 +160,15 @@ function produce(mutateResults, mutateBlocks) {
     const p = join(work, 'cap', 'blocks.jsonl');
     writeFileSync(p, mutateBlocks(readFileSync(p, 'utf8')));
   }
+  if (mutateCapture) {
+    const p = join(work, 'cap', 'capture.json');
+    writeFileSync(p, JSON.stringify(mutateCapture(JSON.parse(readFileSync(p, 'utf8')))));
+  }
   try {
     execFileSync(process.execPath, [tool('produce-sol-snapshot.mjs'), '--capture', join(work, 'cap'),
       '--ct-print', stub, '--recorder-commit', 'c3ca118c312661ae51a68afcccaa49376fdc91dd',
-      '--from', '459262600', '--to', '459262602', '--out', join(work, 'snap')], { stdio: 'pipe' });
+      '--from', '459262600', '--to', '459262602', '--out', join(work, 'snap'),
+      ...extraArgs.map((a) => (typeof a === 'function' ? a(work) : a))], { stdio: 'pipe' });
     return { ok: true, snapshot: JSON.parse(readFileSync(join(work, 'snap', 'snapshot.json'), 'utf8')) };
   } catch (e) {
     return { ok: false, stderr: String(e.stderr ?? '') + String(e.stdout ?? '') };
@@ -214,6 +219,34 @@ arm('test_a_mostly_refused_window_still_enumerates_completely: a row per transac
   assert.equal(short.ok, true, short.stderr);
   assert.equal(short.snapshot.counts.accountedFor, short.snapshot.transactions.length);
   assert.equal(short.snapshot.transactions.length, chainCount - 1);
+});
+
+arm('test_an_unresolved_terms_answer_blocks_publication_not_ingestion', () => {
+  // CXP-SOL-1, Chain-Support-Matrix.md §1.1. A capture that read accounts from a source
+  // with no recorded terms is still a readable capture, but nothing derived from it is
+  // published, and the refusal names the source.
+  const PAID = 'https://paid-archive.invalid';
+  const withPaid = (c) => ({ ...c, providers: { ...c.providers,
+    accounts: [...c.providers.accounts, { url: PAID, perCall: 100, calls: 3, failed: 0 }] } });
+  const refused = produce(null, null, { mutateCapture: withPaid });
+  assert.equal(refused.ok, false);
+  assert.match(refused.stderr, /terms-unresolved/);
+  assert.ok(refused.stderr.includes(PAID), refused.stderr);
+  assert.doesNotMatch(refused.stderr, /ct-print stub invoked/);
+  // Control: the SAME capture publishes once that source's terms are recorded, so the
+  // refusal is the terms' and not the capture's.
+  const terms = JSON.parse(readFileSync(new URL('./sol-source-terms.json', import.meta.url), 'utf8'));
+  const resolvedTerms = (work) => {
+    const p = join(work, 'terms.json');
+    writeFileSync(p, JSON.stringify({ ...terms, sources: { ...terms.sources, [PAID]: 'selftest: terms permit republication' } }));
+    return p;
+  };
+  const allowed = produce(null, null, { mutateCapture: withPaid, extraArgs: ['--source-terms', resolvedTerms] });
+  assert.equal(allowed.ok, true, allowed.stderr);
+  assert.equal(allowed.snapshot.transactions.length, produced.snapshot.transactions.length);
+  // And the committed table holds exactly the sources the committed capture read.
+  assert.deepEqual(Object.keys(terms.sources).sort(),
+    [...new Set([produced.snapshot.provenance.endpoint, ...produced.snapshot.provenance.accountProviders])].sort());
 });
 
 // ── the divergence corpus, per cell (CXP-SOL-4) ─────────────────────────────────────────

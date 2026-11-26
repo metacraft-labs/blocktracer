@@ -1,0 +1,12 @@
+{
+  "format": "blocktracer/sol-source-terms@1",
+  "_comment": [
+    "Recorder-Solana CXP-SOL-1; Chain-Support-Matrix.md §1.1: a source whose terms do not permit republishing derived data is unusable, and an unresolved answer is treated as forbidden.",
+    "produce-sol-snapshot.mjs refuses to publish a tree read from any source not listed here. Capture is not gated: a capture may read from a source while its terms are being resolved, and nothing it read is published until they are.",
+    "A paid provider is added only with the terms that permit republication, named in its basis."
+  ],
+  "sources": {
+    "https://api.mainnet-beta.solana.com": "keyless public RPC run by the Solana Foundation; no account and no agreement; it serves the chain's own public ledger",
+    "https://solana-rpc.publicnode.com": "keyless public RPC run by publicnode; no account and no agreement; it serves the chain's own public ledger"
+  }
+}
