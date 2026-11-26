@@ -80,27 +80,59 @@ uploading refusal-only data). 0 files were ever uploaded, so production was neve
 polluted. Re-enable with
 `systemctl start blocktracer-ingest-<chain>-publish.timer` once traces exist.
 
-## The one blocker
+## The crash, named and fixed; the next blocker is a revert divergence
 
-**A native crash in the AVM module during a simulation round.** Exit 139
-(SIGSEGV), 0 bytes stdout, no error class, no container written. Over 300 live
-testnet blocks: 230 transactions, **119 traced (51.7%)**, **105 refused (45.7%)**
-— 104 with no name and exactly **one** naming `HydrationDidNotConverge`, which is
-what shows the other 104 to be the same condition on a crash path.
+**What it was.** The exit 139 was a **Node.js/V8 bug**, not the AVM module.
+- On node 22.21.1 and later, which includes the follower's 22.23.2, avm.wasm's
+  `fd_write` goes through node:wasi's V8 fast API callback.
+- uvwasi's allocation inside that callback can start a full GC.
+- The GC's stack walk then segfaults in `InnerPointerToCodeCache::GetCacheEntry`.
 
-Reproducer: `aztec-testnet` block **69,236**, tx
-`0x0a0f4e7cbaaf04c7fb6eb4ddbfb8922cd0c2dd6ebe1d84470763a905eeee0da1`, runtime
-`9e9ba381`, `avm-wasm-0f2fb11e`, node 22, `--compact-threshold 0`. Deterministic.
-Control: the same contract replays fine in block 69,240 using **nine** hydration
-rounds, so round 6 is no threshold.
+A 151-byte wasm module with no Aztec code reproduces it on the official node
+binaries. The entry is reprobuild-pm `upstream-bugs/node-wasi-fast-call-gc-segfault`:
+it is ready to file as a comment on nodejs/node#46777 and not submitted. The old
+reproducer, block 69,236's `0x0a0f4e7c…`, still holds: `9e9ba381` exits 139.
 
-Filed: **[aztec-avm-runtime#24](https://github.com/metacraft-labs/aztec-avm-runtime/issues/24)**
-— read the correcting comment too: "hydration stalls" was a misreading of the
-driver log's `seeded` field for the loop's progress signal
-(`added + discovered.added`). The loop's zero-progress handling is correct and
-`DEFAULT_MAX_ROUNDS` is 12. No JS-side change can name a SIGSEGV.
+**The fix** is aztec-avm-runtime `6c28eb93` (#25), pinned by this repository's
+`aztec-avm-runtime` input:
+- node-host's loader turns V8 fast API calls off (`--no-turbo-fast-api-calls`)
+  before any module is compiled;
+- the driver runs under a crash guard. A later signal death prints
+  `RuntimeCrashed: … killed by SIGSEGV …`, and `decideOutcome` rule 2a files it
+  as `runtime-crashed` with the signal as evidence, just as it files a signal
+  Node reports directly.
 
-Owner: a dedicated session, `home-pc:avm-crash`, keeping `~/avm-crash/REPORT.md`.
+**Measured: a rehearsal, nothing published.** Two followers ran side by side on
+arch over the same live testnet window on 2026-11-26, 17:05–19:07Z. Each was the
+production follower exactly as `services/blocktracer-ingest` runs it: node 22.23.2,
+`avm-wasm-0f2fb11e`, `--compact-threshold 1073741824`, with a scratch snapshot.
+635 transactions were common to both arms, over blocks 70,127–70,819.
+
+| | `9e9ba381` (`agents` before) | `6c28eb93` (this pin) |
+|---|---|---|
+| replayed and reproduced | 137 | **222** |
+| `runtime-crashed` (SIGSEGV) | **124** | **0** |
+| divergent | 1 | 43 |
+| `runtime-refused`: `ModuleRefusedReplay` (nullifier collision) / `HydrationDidNotConverge` | 8 / 3 | 8 / 3 (the same transactions) |
+| pruned / private-only / not-first-in-block | 211 / 116 / 35 | 209 / 116 / 35 |
+
+Of the 124 that crashed before, **81 now reproduce, 42 now diverge**, and 1 was
+pruned before the second arm reached it. Of the transactions this pipeline
+attempts, 222 of 276 (80.4%) now reproduce, against 137 of 273 (50.2%).
+
+**The next blocker: the replay reverts where the chain did not.** All 43
+divergences carry ONE signature:
+- published `revertCode 0`, replayed `1`, effects 1/21;
+- 5 hydration rounds and a seed of 3 nullifiers and 5 public-data leaves;
+- about 92,000 steps;
+- one of two contract addresses (`0x02b76743…`, `0x201aa740…`), neither with a
+  resolvable artifact.
+
+The fee and every public-data write differ as a consequence of the revert.
+#24's comment reads it as a state-seeding gap: the run reverts on an empty
+`Assertion failed:`, so some state the call reads is not the chain's. It is
+deterministic and independent of the crash, and it needs a runtime-side
+investigation of what those two contracts read that hydration does not seed.
 
 ## Source-level coverage — satisfied in kind, limited by the chain
 
@@ -123,10 +155,10 @@ Nothing here is a defect in our machinery.
 
 | | what | owner |
 |---|---|---|
-| 1 | the AVM crash — **the blocker**; everything else is cosmetic until it lands | `home-pc:avm-crash` |
+| 1 | ~~the AVM crash~~ **fixed** (aztec-avm-runtime `6c28eb93`, pinned here). Next: the 43-of-276 revert divergence above, on the runtime side | `home-pc:avm-crash` → runtime |
 | 2 | infra PR: `ExecStartPre=+ install -d` on all three units, so no unit depends on tmpfiles traversing a human-owned parent | this lane |
 | 3 | relocating `stateDir` off `/build` to a root-owned parent — **the operator's storage call, not a bug fix**; `/build` and `/var/lib` are the same zroot pool, 8.8T free each | operator |
-| 4 | the pin bump (3 hops above) — **blocked on 1** by decision; before the crash is named it carries no behaviour the site can show | manager → operator |
+| 4 | the pin bump (3 hops above): blocktracer `agents` carries the fix; next are the agents → dev promotion, dev → live, and then infra's `blocktracer` input | manager → operator |
 | 5 | generation-qualified publish keys, so v5 and v6 stop competing for one slug and `replace-chain-row` stops being the only answer | unassigned |
 | 6 | re-enable the publish timers once traces exist | this lane |
 
