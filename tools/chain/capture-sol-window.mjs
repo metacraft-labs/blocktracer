@@ -139,6 +139,11 @@ const RUNTIME = new Set([
 const isRuntime = (k) => RUNTIME.has(k) || k.startsWith('Sysvar');
 const inScope = (keys) => opt.programs.size === 0 || keys.some((k) => opt.programs.has(k));
 
+// A v0 message's lookup tables: the runtime reads them to resolve its loaded addresses, so
+// they are prestate like any account the transaction names, and the replay refuses a
+// transaction whose table it does not hold.
+const lookupTables = (tx) => (tx.transaction.message.addressTableLookups ?? []).map((l) => l.accountKey);
+
 function writableKeys(tx) {
   const m = tx.transaction.message;
   const h = m.header;
@@ -276,7 +281,7 @@ if (opt.programs.size) {
     await Promise.all((r.result ?? []).map(async ({ signature }) => {
       const t = await rpc(opt.blockRpc, 'getTransaction', [signature, { encoding: 'json', maxSupportedTransactionVersion: 1, commitment: 'confirmed' }]);
       if (!t.result) return;
-      const keys = [...t.result.transaction.message.accountKeys, ...(t.result.meta?.loadedAddresses?.writable ?? []), ...(t.result.meta?.loadedAddresses?.readonly ?? [])];
+      const keys = [...t.result.transaction.message.accountKeys, ...(t.result.meta?.loadedAddresses?.writable ?? []), ...(t.result.meta?.loadedAddresses?.readonly ?? []), ...lookupTables(t.result)];
       for (const k of keys) if (!isRuntime(k) && !state.has(k)) { state.set(k, 'pending'); pending.add(k); }
     }));
   }
@@ -329,7 +334,7 @@ const sigWatcher = async () => {
       await Promise.all(sigs.map(async ({ signature }) => {
         const t = await rpc(opt.blockRpc, 'getTransaction', [signature, { encoding: 'json', maxSupportedTransactionVersion: 1, commitment: 'confirmed' }]);
         if (!t.result) return;
-        const keys = [...t.result.transaction.message.accountKeys, ...(t.result.meta?.loadedAddresses?.writable ?? []), ...(t.result.meta?.loadedAddresses?.readonly ?? [])];
+        const keys = [...t.result.transaction.message.accountKeys, ...(t.result.meta?.loadedAddresses?.writable ?? []), ...(t.result.meta?.loadedAddresses?.readonly ?? []), ...lookupTables(t.result)];
         for (const k of keys) if (!isRuntime(k) && !state.has(k)) { state.set(k, 'pending'); pending.add(k); }
       }));
     }
@@ -447,7 +452,7 @@ for (let slot = first; slot < first + opt.slots; slot++) {
       for (const k of res.evictedKeys ?? []) state.delete(k);
     }
     row.result = status;
-    if (row.inScope) for (const k of keys) if (!isRuntime(k) && !state.has(k)) { state.set(k, 'pending'); pending.add(k); }
+    if (row.inScope) for (const k of [...keys, ...lookupTables(t)]) if (!isRuntime(k) && !state.has(k)) { state.set(k, 'pending'); pending.add(k); }
   }
   appendFileSync(join(opt.out, 'blocks.jsonl'), JSON.stringify({
     slot, blockhash: bj.result.blockhash, parentSlot: bj.result.parentSlot, blockTime: bj.result.blockTime,
