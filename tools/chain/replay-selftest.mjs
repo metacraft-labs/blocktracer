@@ -186,6 +186,27 @@ async function main() {
        sig.refusalReason === 'runtime-crashed' && sig.refusal === 'SIGSEGV');
     ck('…and its reason says the runtime DIED rather than declined',
        /DIED while/.test(sig.reason) && sig.reason.includes('SIGSEGV'));
+    // THE CRASH GUARD'S OWN LINE: the same death, reported by a process that survived it.
+    // From aztec-avm-runtime 6c28eb93 (#25), `replay/tools/runtime_crash_guard.mjs` is the
+    // driver's first import. It runs the driver as a child, and when that child dies by a
+    // signal it prints a `RuntimeCrashed:` line and exits with 128 + signo itself. So the
+    // row arrives with code 139, NO signal and a NAME on stderr, and a found name skips
+    // rule 2a. Unhandled, it publishes as `runtime-refused` with
+    // `refusal: "RuntimeCrashed"`, which says the runtime declined: the same false
+    // two-clause claim rule 2a exists to stop, and here it would cover every crash. The
+    // stderr is the guard's text verbatim, behind the child's own opening line.
+    const GUARD_STDERR = 'Simulating... (mem: N/A)\n'
+      + 'RuntimeCrashed: the replay driver was killed by SIGSEGV (signal 11) before it '
+      + 'reported or named a refusal. The transaction was not declined by the runtime; the '
+      + 'process running it died, and a runtime that did not crash would replay it.\n'
+      + "{ kind: 'runtime-crashed', signal: 'SIGSEGV', exitStatus: 139 }\n";
+    const guarded = decide({ code: 139, signal: null, out: '', err: GUARD_STDERR }, false, 0);
+    ck('the crash guard\'s `RuntimeCrashed` line is `runtime-crashed`, not a named refusal',
+       guarded.refusalReason === 'runtime-crashed');
+    ck('…its evidence is the signal the guard names, as for a signal death seen directly',
+       guarded.refusal === 'SIGSEGV');
+    ck('…and its reason says the runtime DIED rather than declined',
+       /DIED while/.test(guarded.reason) && guarded.reason.includes('SIGSEGV'));
     // AND THE FOUND NAME STILL WINS over the exit status, so rule 2a is a fallback and not
     // an override — a runtime that named its refusal and then exited non-zero keeps its
     // class name, which is the better evidence.
@@ -863,7 +884,9 @@ async function main() {
   // 98 before case 13. +7: the stub exists, the flag is present by default, its default
   // value is 0, a supplied value arrives verbatim, the conditional-forward mutation is
   // refused, and the two controls that the rest of the vector did not move.
-  expectCount(109);
+  // 109 before the crash guard's arms. +3: its line is `runtime-crashed`, its evidence
+  // is the signal, and its reason says the driver died.
+  expectCount(112);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

@@ -410,6 +410,11 @@ test('test_unknown_refusal_condition_fails_rather_than_defaults');
      reasonForRuntimeClass('IntraBlockPredecessorsUnavailable') === 'not-first-in-block');
   ck('a runtime class it does not classify becomes `runtime-refused`, a MEMBER with its own '
      + 'count — not an unknown reason', reasonForRuntimeClass('SomeClassInventedTomorrow') === 'runtime-refused');
+  // `RuntimeCrashed` is the one runtime class that is NOT a refusal. aztec-avm-runtime's
+  // crash guard (`replay/tools/runtime_crash_guard.mjs`, from 6c28eb93) prints it when the
+  // driver it supervises dies by a signal, so it names a crash and maps to the crash member.
+  ck('the runtime crash guard\'s `RuntimeCrashed` maps to `runtime-crashed`, not '
+     + '`runtime-refused`', reasonForRuntimeClass('RuntimeCrashed') === 'runtime-crashed');
   ck('…and `runtime-refused` is in the set, so it is counted rather than swallowed',
      isRefusalReason('runtime-refused'));
   ck('…and the class name survives as EVIDENCE beside it, so the specific condition is '
@@ -1956,7 +1961,9 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(263);
+//   +1  `RuntimeCrashed`, the runtime crash guard's class, maps to `runtime-crashed`
+//       (aztec-avm-runtime 6c28eb93, 2026-11-26).
+expectCount(264);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);
