@@ -199,6 +199,28 @@ export function parseArgs(argv) {
     // cycle with headroom, and stays well inside the 83-block testnet
     // replayable window that bounds it from above.
     maxBlocks: Number(arg('max-blocks', '150')),
+    // WHERE A FRESH LEDGER BEGINS, and the default of 1 is why this exists.
+    //
+    // A fresh ledger plans 1..maxBlocks, which is right for a chain being
+    // published from its genesis and wrong for the thing this tool is named
+    // after. Measured 2026-11-26: `aztec` head 60,001 and `aztec-testnet` head
+    // 69,177. At 150 blocks a cycle on a 15-minute schedule — 14,400 a day —
+    // against chains that themselves advance 5,700 and 3,800 a day, walking up
+    // from 1 reaches the tip in about 6.9 and 6.5 days.
+    //
+    // AND EVERY BLOCK OF THAT WALK IS METADATA-ONLY. Bodies are pruned at
+    // finalization, so a height outside the replayable window near the tip can
+    // never produce a trace, and the window moves away from the walk faster
+    // than the walk closes on it. So the walk publishes ~60-69k rows that
+    // cannot be debugged and delivers its FIRST replayable transaction a week
+    // in — on a site whose whole purpose is source-level debugging.
+    //
+    // `--start-at` seeds the first cycle inside the replayable window instead,
+    // so the follower is at the tip from its first publish and every row it
+    // writes can carry a trace. The history is a separate concern with separate
+    // tooling (`backfill-blocks.mjs`), which is the honest split: one of the two
+    // jobs is bounded by the node's retention and the other is not.
+    startAt: mine.includes('--start-at') ? Number(arg('start-at', '')) : null,
     belowFinalized: flag('below-finalized'),
     allowFreshLedger: flag('allow-fresh-ledger'),
     planOnly: flag('plan-only'),
@@ -235,12 +257,55 @@ export function highestCovered(ledger) {
  * Pure, and separated from every side effect so the selftest can drive the
  * arithmetic over made-up numbers with no node, no ledger and no child process.
  */
-export function planRange({ highest, head, maxBlocks }) {
+export function planRange({ highest, head, maxBlocks, startAt = null }) {
   if (!Number.isFinite(maxBlocks) || maxBlocks < 1) {
     return { kind: 'usage', message: `--max-blocks must be a positive integer, got [${maxBlocks}]` };
   }
   if (!Number.isFinite(head) || head < 0) {
     return { kind: 'usage', message: `the node returned no usable head height, got [${head}]` };
+  }
+  if (startAt !== null) {
+    if (!Number.isInteger(startAt) || startAt < 1) {
+      return {
+        kind: 'usage',
+        message:
+          `--start-at must be a positive integer height, got [${startAt}]. It names the `
+          + `height a FRESH ledger begins at; omit it to begin at 1.`,
+      };
+    }
+    // ON A LEDGER THAT ALREADY COVERS SOMETHING THIS IS A REFUSAL, NOT A
+    // NO-OP. Ignoring it would be the dangerous reading: an operator who
+    // passes `--start-at` believes they are choosing where the next publish
+    // begins, and the next publish actually begins at `highest + 1`. Silently
+    // doing the other thing is how a generation acquires a height map nobody
+    // asked for. The two cases also need different fixes — a new state
+    // directory versus dropping the flag — so they may not share an outcome.
+    if (highest !== null) {
+      return {
+        kind: 'refused',
+        reason: 'start-at-on-covered-ledger',
+        message:
+          `--start-at ${startAt} was given, but this ledger already covers up to `
+          + `${highest}, so the next range begins at ${highest + 1} and the flag cannot be `
+          + `honoured. A follower continues from its own coverage; it does not jump. If `
+          + `this chain really is to be republished from ${startAt}, that is a NEW --state `
+          + `directory (and, for a slug that is already published, that chain's registry `
+          + `row dropped from the seed — chain-follow.yml's \`replace-chain-row\`). If it `
+          + `is not, drop --start-at.`,
+      };
+    }
+    if (startAt > head) {
+      return {
+        kind: 'refused',
+        reason: 'start-at-above-head',
+        message:
+          `--start-at ${startAt} is above the endpoint's head of ${head}, so the first `
+          + `range would be empty and the ledger would stay fresh while the run reported `
+          + `success. Pick a height at or below the head — a first cycle inside the `
+          + `replayable window is the usual intent, which is near the head rather than `
+          + `above it.`,
+      };
+    }
   }
   if (highest !== null && head < highest) {
     return {
@@ -258,7 +323,7 @@ export function planRange({ highest, head, maxBlocks }) {
         + `chain-follow.yml's \`replace-chain-row\` does.`,
     };
   }
-  const from = highest === null ? 1 : highest + 1;
+  const from = highest === null ? (startAt === null ? 1 : startAt) : highest + 1;
   if (from > head) {
     return { kind: 'caught-up', from, head, highest };
   }
@@ -305,7 +370,7 @@ async function main() {
   const out = (obj) => console.log(JSON.stringify(obj, null, 1));
 
   if (!o.chain || !o.stateDir) {
-    console.error('usage: --chain SLUG --state DIR [--url U] [--max-blocks N] '
+    console.error('usage: --chain SLUG --state DIR [--url U] [--max-blocks N] [--start-at N] '
       + '[--below-finalized] [--allow-fresh-ledger] [--plan-only] [--json] [-- …]');
     process.exit(EXIT_USAGE);
   }
@@ -362,7 +427,7 @@ async function main() {
   }
 
   const head = o.belowFinalized ? finalized : tip;
-  const plan = planRange({ highest, head, maxBlocks: o.maxBlocks });
+  const plan = planRange({ highest, head, maxBlocks: o.maxBlocks, startAt: o.startAt });
 
   if (plan.kind === 'usage') { say(plan.message); process.exit(EXIT_USAGE); }
   if (plan.kind === 'refused') { say(`refusing (${plan.reason}): ${plan.message}`); process.exit(EXIT_REFUSED); }

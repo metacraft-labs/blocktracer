@@ -30,7 +30,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 // Reconciled against the arms actually run, not maintained by hand: a short
 // tally is a finding, and editing the expected number to match a short run is
 // how a suite goes quiet.
-const BASE_ARMS = 26;
+const BASE_ARMS = 34;
 
 let ran = 0, failed = 0;
 const ok = (name, cond, detail = '') => {
@@ -180,6 +180,59 @@ console.log('follow-to-tip-selftest');
 {
   ok('an unknown slug has no endpoint, so the tool must be given one',
     CHAIN_ENDPOINTS['aztec-whatever'] === undefined);
+}
+
+// ── `--start-at`: WHERE A FRESH LEDGER BEGINS ─────────────────────────────────
+//
+// A fresh ledger planned 1..maxBlocks, which is right for a chain published
+// from genesis and wrong for a tip-follower. Measured 2026-11-26: heads 60,001
+// (`aztec`) and 69,177 (`aztec-testnet`); at 150 blocks per 15-minute cycle
+// against chains advancing 5,700 and 3,800 a day, a walk from 1 reaches the tip
+// in ~6.9 and ~6.5 days, and every block of that walk is outside the replayable
+// window, so it publishes tens of thousands of rows that can never carry a
+// trace before the first debuggable transaction appears.
+{
+  const p = planRange({ highest: null, head: 69177, maxBlocks: 150, startAt: 69000 });
+  ok('a fresh ledger begins where --start-at says',
+    p.kind === 'range' && p.from === 69000 && p.to === 69149, JSON.stringify(p));
+  // THE CONTROL, so the arm above is not passing because the planner ignores
+  // the whole call: the SAME head and maxBlocks with no --start-at must still
+  // plan from 1.
+  const d = planRange({ highest: null, head: 69177, maxBlocks: 150 });
+  ok('…and without it a fresh ledger still begins at 1',
+    d.kind === 'range' && d.from === 1 && d.to === 150, JSON.stringify(d));
+  // The range stays clamped to the head, so a start inside the last maxBlocks
+  // does not plan past the tip.
+  const c = planRange({ highest: null, head: 69177, maxBlocks: 150, startAt: 69100 });
+  ok('…and the range is still clamped to the head',
+    c.kind === 'range' && c.from === 69100 && c.to === 69177, JSON.stringify(c));
+}
+{
+  // A COVERED LEDGER REFUSES IT RATHER THAN IGNORING IT. Ignoring is the
+  // dangerous reading: the operator believes they chose where the publish
+  // begins and it begins at highest+1 instead.
+  const p = planRange({ highest: 500, head: 69177, maxBlocks: 150, startAt: 69000 });
+  ok('--start-at on a ledger that already covers something is REFUSED',
+    p.kind === 'refused' && p.reason === 'start-at-on-covered-ledger', JSON.stringify(p));
+  ok('…and the message names both the flag\'s height and the coverage it collides with',
+    p.message.includes('69000') && p.message.includes('500'), p.message);
+  // AND THE CONTROL: the same covered ledger with no flag proceeds normally,
+  // so the refusal is about the flag and not about the coverage.
+  const d = planRange({ highest: 500, head: 69177, maxBlocks: 150 });
+  ok('…while the same covered ledger with no flag plans 501..650',
+    d.kind === 'range' && d.from === 501 && d.to === 650, JSON.stringify(d));
+}
+{
+  // ABOVE THE HEAD IS A REFUSAL, because the alternative is an empty range on
+  // a still-fresh ledger reported as success.
+  const p = planRange({ highest: null, head: 100, maxBlocks: 150, startAt: 101 });
+  ok('--start-at above the endpoint head is REFUSED',
+    p.kind === 'refused' && p.reason === 'start-at-above-head', JSON.stringify(p));
+  // Malformed values are a USAGE error, which is a different exit code and a
+  // different fix from either refusal above.
+  const u = planRange({ highest: null, head: 100, maxBlocks: 150, startAt: 0 });
+  ok('…and a non-positive --start-at is a usage error, not a refusal',
+    u.kind === 'usage' && u.message.includes('--start-at'), JSON.stringify(u));
 }
 
 // ── THE TABLE IS COMPARED AGAINST THE OBITUARY, BECAUSE THIS IS THE MISTAKE

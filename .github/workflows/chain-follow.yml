@@ -191,6 +191,22 @@ on:
           public endpoints is 41 minutes, and polling it makes that longer.
         type: string
         default: '150'
+      start-at:
+        description: >-
+          The height a FRESH ledger begins at. Only meaningful with
+          `allow-fresh-ledger`; a ledger that already covers something refuses
+          it rather than ignoring it, because a follower continues from its own
+          coverage and an ignored flag would publish a height map nobody asked
+          for. Leave it empty to begin at 1. Seeding the first cycle just below
+          the head is what puts the follower AT the tip from its first publish:
+          bodies are pruned at finalization, so a walk up from 1 publishes tens
+          of thousands of rows that can never carry a trace (measured
+          2026-11-26: heads 60,001 and 69,177, ~6.9 and ~6.5 days to the tip at
+          150 a cycle) before the first debuggable transaction appears. The
+          history is `backfill-blocks.mjs`'s job, which is not bounded by the
+          node's retention.
+        type: string
+        default: ''
       allow-fresh-ledger:
         description: >-
           Permit a cycle that finds NO coverage ledger. Off by default and it
@@ -508,6 +524,9 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET || 'blocktracer' }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           MAX_BLOCKS: ${{ github.event.inputs.max-blocks || '150' }}
+          # Empty on a schedule, which is what keeps the cron from ever naming a
+          # start: a scheduled cycle continues coverage or it refuses.
+          START_AT: ${{ github.event.inputs.start-at || '' }}
           ALLOW_FRESH: ${{ github.event.inputs.allow-fresh-ledger || 'false' }}
           PLAN_ONLY: ${{ github.event.inputs.plan-only || 'false' }}
           # Defaults to on, and a cron passes no inputs — so the schedule always
@@ -553,6 +572,7 @@ jobs:
             --max-blocks "${MAX_BLOCKS}"
             --json
           )
+          if [ -n "${START_AT}" ]; then args+=(--start-at "${START_AT}"); fi
           [ "${ALLOW_FRESH}" = "true" ] && args+=(--allow-fresh-ledger)
           [ "${PLAN_ONLY}" = "true" ] && args+=(--plan-only)
 
