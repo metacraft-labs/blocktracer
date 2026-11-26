@@ -227,6 +227,20 @@ function untracedRowOfEveryReason() {
                                      + 'written for it. The chain published the execution '
                                      + 'and the body was served; what is missing is on '
                                      + 'our side.' }) });
+  // 10. runtime-crashed — THE DRIVER DIED WITHOUT DECLINING, and it is reached through
+  //     `decideOutcome` rather than spelled here, because the whole point of the member is
+  //     that the EXIT STATUS names it: a row this file wrote by hand would pass while
+  //     `decideOutcome` kept publishing `runtime-refused` with `refusal: "unknown"`, which
+  //     is exactly what it did for 7 of 13 live transactions on 2026-11-26 before rule 2a
+  //     existed.
+  //
+  //     NOT `runtime-refused`, for that member's own stated reason. It asserts the runtime
+  //     DECLINED BY NAME — two clauses — and a process killed by a signal established the
+  //     first and not the second.
+  rows.push({ txHash: '0x0a', blockNumber: 107, txIndexInBlock: 0,
+              ...decideOutcome({ code: null, signal: 'SIGSEGV', out: '',
+                                 err: 'Simulating... (mem: N/A)\n' },
+                               'ct/j.ct', false, 0) });
   return rows;
 }
 
@@ -930,9 +944,16 @@ test('the committed captures are inside the closed set');
   // it were shown to have established only half its condition, and `instruction-unimplemented`
   // joined them on arrival: no chain this repository has captured has a recorder with a
   // capability gap to report, so its production count here is zero and is asserted as zero.
-  ck('six members are not yet reached by any committed capture, and that is stated '
+  //
+  // SIX BECAME SEVEN on 2026-11-26 with `runtime-crashed`, and it will not stay unreached:
+  // the member was added BECAUSE a live window produced it — 7 of 13 transactions on
+  // aztec-testnet blocks 69,233-69,252, every one a SIGSEGV that the pipeline was filing as
+  // `runtime-refused` with `refusal: "unknown"`. No COMMITTED capture carries it, because
+  // every committed capture was written by the code that could not name it. The first
+  // production cycle is expected to move this number, and this arm is what will say so.
+  ck('seven members are not yet reached by any committed capture, and that is stated '
      + `rather than silent: ${REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).join(', ')}`,
-     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 6);
+     REFUSAL_REASON_IDS.filter((i) => !seen.has(i)).length === 7);
 }
 
 // ── the version policy, and the four store outcomes that are not one fact ───────────────
@@ -1935,7 +1956,7 @@ test('a producer with no arguments prints usage instead of ingesting range 0..0'
 //   +1  a TWENTY-FOURTH suite joined `chain-selftest` — `aptos-producer-selftest`, the
 //       Aptos producer's facts, comparison and refusals (Recorder-Move CXP-MOVE-7,
 //       2026-11-03) — at the same single assertion.
-expectCount(262);
+expectCount(263);
 console.error(failed === 0
   ? '\nPASS — the closed set bites on every arm'
   : `\nFAIL — ${failed} assertion(s)`);

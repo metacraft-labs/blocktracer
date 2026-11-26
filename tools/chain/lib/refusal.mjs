@@ -237,6 +237,12 @@ const CONDITIONS = Object.freeze({
   // before it will use it. See `STORE_ANSWERS_MEANING_NO_BODY`.
   'node-pruned-and-store-does-not-hold-it': 'body-unavailable',
   'driver-wrote-no-container': 'no-container-written',
+  // A PROCESS THAT DIED IS NOT A RUNTIME THAT DECLINED. `runtime-refused` asserts the
+  // runtime refused BY NAME; a driver killed by a signal, or exiting non-zero having said
+  // nothing classifiable, established that it ran and not that it judged. Mapping it onto
+  // `runtime-refused` publishes a judgement the runtime never made — the same one-clause
+  // observation onto two-clause claim that `instruction-unimplemented` was added to stop.
+  'driver-died-without-declining': 'runtime-crashed',
   'beyond-this-run-budget': 'not-attempted',
   // ── THREE CONDITIONS, ONE REASON, AND THAT IS THE POINT OF THE INDIRECTION ──────────
   //

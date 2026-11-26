@@ -1,83 +1,89 @@
 {
-  "_comment": [
-    "THE CLOSED SET of reasons the chain-ingestion pipeline may give for not tracing a",
-    "transaction. Chain-Ingestion ING-3.",
-    "",
-    "THIS FILE IS DATA BECAUSE TWO LANGUAGES NEED IT. `tools/chain/lib/refusal.mjs` is the",
-    "producer side and `src/blocktracer/chain/refusal_reasons.nim` is the publisher side, and",
-    "a set that is closed in one and open in the other is not closed. The Nim side reads this",
-    "file with `staticRead` at compile time, so a member added here is a member there without",
-    "anyone remembering to copy it, and a member REMOVED here breaks the Nim build rather",
-    "than silently letting a stale id through the validator.",
-    "",
-    "The reasoning behind each member, the conditions that map onto it and the runtime error",
-    "classes that reach it are in `tools/chain/lib/refusal.mjs`. This file carries only what",
-    "both sides must agree on.",
-    "",
-    "`absent` MAY NEVER BE A MEMBER. Trace-Artifacts.md §6 reserves it for an execution the",
-    "chain never published — the Aztec private half — which is a statement about the chain.",
-    "Every member here is a statement about US.",
-    "",
-    "`durability` is load-bearing, not decoration: `tools/capture/expectations.mjs` grades a",
-    "transaction page on whether its durability claim is supported by the cause it printed.",
-    "  permanent   nothing this pipeline can do will produce a trace for this transaction",
-    "  repairable  a better runtime, a mirrored corpus or a longer budget would trace it"
-  ],
-  "format": "blocktracer/refusal-reasons@1",
-  "reasons": [
-    {
-      "id": "not-first-in-block",
-      "durability": "permanent",
-      "statedBy": "aztec-avm-runtime replay/src/historical_state.ts IntraBlockPredecessorsUnavailable",
-      "condition": "The transaction is not at index 0 of its block. The historical-state mechanism answers reads at the settling block's PARENT, and that is the state only the first transaction saw; transaction k>0 saw the parent state plus the effects of the k before it, and no node method serves that intermediate view — it exists only inside the sequencer. Replaying against the parent anyway would read every slot an earlier transaction touched at a stale value, fail nothing, and produce a confidently wrong trace."
-    },
-    {
-      "id": "body-unavailable",
-      "durability": "permanent",
-      "statedBy": "aztec-avm-runtime replay/src/node_client.ts SettledTransactionNotFound",
-      "condition": "The node no longer serves the transaction's body and the file store cannot supply it either. getTxByHash reads the mempool, which is emptied at finalization; getTxEffect reads the archive, which is not — so the effects remain visible after the body is gone, which is why such a transaction is in the snapshot at all. BOTH CLAUSES ARE REQUIRED AND THE SECOND ONE IS NOW ENFORCED: this member may only be reached by a producer that ASKED the keyless transaction file store and got a negative answer about this key (`absent`, `truncated` or `mismatched`), and `refuseBodyUnavailable` throws `BodyUnavailableWithoutStoreEvidence` rather than publish it on the node's word alone. A pruned body is half of a permanent claim; 912 committed rows once carried the whole claim off that half, and the store was measured serving bodies across the exact range they sit in."
-    },
-    {
-      "id": "body-source-unreachable",
-      "durability": "repairable",
-      "statedBy": "tools/chain/backfill-bodies.mjs classify, outcome `unavailable`; routed by tools/chain/ingest-range.mjs replayRange",
-      "condition": "The source that serves transaction bodies COULD NOT BE ASKED about this key — a 5xx, a 429, a TLS failure, a transport error or a timeout. Nothing is known about whether the body exists, so this is a statement about the run and not about the corpus, and it is separate from body-unavailable for exactly the reason backfill-bodies.mjs keeps `unavailable` apart from `absent`: a 404 is the store saying it does not hold the key, and a 503 is the store saying nothing at all. Folding the second into the first published \"this transaction can never be re-executed\" — durability permanent — off the back of somebody else's outage. It is also separate from not-attempted, whose every narrative asserts the body IS obtainable from the file store: that claim is precisely what a run that could not reach the store has failed to establish, and re-publishing it would be asserting the thing that just could not be checked. Aztec bodies have a single source with no failover (Chain-Data-Ingestion.md §4.8), so this member's count is the measure of how much of a range is outstanding for want of that one host."
-    },
-    {
-      "id": "artifact-unresolvable",
-      "durability": "repairable",
-      "statedBy": "aztec-avm-runtime replay/src/settled_transaction.ts MissingContractArtifact",
-      "condition": "A contract the transaction executed has no artifact provable against its class's artifactHash, so the execution cannot be resolved to the code that produced it."
-    },
-    {
-      "id": "prestate-unavailable",
-      "durability": "permanent",
-      "statedBy": "aztec-avm-runtime replay/src/settled_transaction.ts SettlingBlockUnavailable",
-      "condition": "The state the replay must read cannot be obtained at the depth it is required at: the settling block, or the parent it reads through, is not served. Distinct from body-unavailable, which is about the transaction; this is about the STATE."
-    },
-    {
-      "id": "runtime-refused",
-      "durability": "repairable",
-      "statedBy": "tools/chain/lib/replay.mjs refusalName, from the driver's stderr",
-      "condition": "The replay runtime declined by name for a condition none of the four above describes. The runtime defines error classes by the dozen and gains more, so this member exists to keep OUR set closed while THEIRS is open — the class name travels beside it in `refusal` and its message in `detail`, so the specific condition is always recoverable from the row."
-    },
-    {
-      "id": "no-container-written",
-      "durability": "repairable",
-      "statedBy": "tools/chain/lib/replay.mjs decideOutcome, rule 3",
-      "condition": "The driver reported a completed execution and wrote no container, so there is nothing to step. Publishing a row that points at a missing container would be worse than saying so."
-    },
-    {
-      "id": "not-attempted",
-      "durability": "repairable",
-      "statedBy": "tools/chain/capture-chain.mjs --max; tools/chain/ingest-range.mjs --replay",
-      "condition": "Nothing about this transaction or about the chain stopped it being traced — THE RUN STOPPED. Four producers reach this member and all four are statements about the run: a live capture that was inside the window with the body still served and reached its own --max first; a historic range ingested without --replay, whose body the keyless TxFileStore does hold and which this run simply did not fetch; a run whose endpoint began rate-limiting it, which says nothing whatever about the height it was asking about; and a run that watched the NODE prune the body and never asked the file store, which is the one that used to be published as body-unavailable. It is separate for the same reason backfill-bodies.mjs keeps `unavailable` apart from `absent`: a budget, a flag or somebody else's rate limit must never be able to masquerade as a property of the chain. EVERY NARRATIVE HERE ASSERTS THE BODY IS OBTAINABLE FROM THE FILE STORE, and on this chain that is MEASURED rather than assumed — 21 of 21 bodies sampled from block 10 to block 75,969 answered 200 and self-verified, 333 of 333 first-in-block transactions over the full sample had their body served, and 12 of 12 sampled from the frozen mainnet capture did, including six the capture itself had recorded as pruned. That is what makes the claim usable; a run that could not REACH the store has established none of it and belongs in body-source-unreachable instead."
-    },
-    {
-      "id": "instruction-unimplemented",
-      "durability": "repairable",
-      "statedBy": "a recorder's own refusal when the execution reached an instruction it does not implement",
-      "condition": "THE RECORDER DOES NOT IMPLEMENT SOMETHING THE EXECUTION USED — an opcode, a precompile, a host function, a syscall. Added 2026-09-17, from the first recorder team to write a snapshot against §5 alone: every other member of this set is about ACQUISITION (a body, a state, an artifact, a run) and none of them fits a permanent capability gap in the recorder itself. The only member that could be reached was `runtime-refused`, which asserts that the replay runtime DECLINED BY NAME for a condition none of the acquisition members describes — and a recorder that never started the execution has not established that the runtime declined anything. §5.2a's own argument about `pruned` applies verbatim: a one-clause observation (`we do not implement this`) was being mapped onto a two-clause claim (`the runtime ran and refused`), and the second clause was never established. `durability` is `repairable` under this file's own definition — 'a better runtime would trace it' is exactly what implementing the instruction is — and that is the honest reading even though the gap is permanent for the build that hit it: what is permanent about it is a property of one recorder version, not of the transaction or of the chain. A recorder using this member should say WHICH instruction in the row's `reason`, because that sentence is what the page shows and the member alone cannot say it."
-    }
-  ]
+    "_comment": [
+        "THE CLOSED SET of reasons the chain-ingestion pipeline may give for not tracing a",
+        "transaction. Chain-Ingestion ING-3.",
+        "",
+        "THIS FILE IS DATA BECAUSE TWO LANGUAGES NEED IT. `tools/chain/lib/refusal.mjs` is the",
+        "producer side and `src/blocktracer/chain/refusal_reasons.nim` is the publisher side, and",
+        "a set that is closed in one and open in the other is not closed. The Nim side reads this",
+        "file with `staticRead` at compile time, so a member added here is a member there without",
+        "anyone remembering to copy it, and a member REMOVED here breaks the Nim build rather",
+        "than silently letting a stale id through the validator.",
+        "",
+        "The reasoning behind each member, the conditions that map onto it and the runtime error",
+        "classes that reach it are in `tools/chain/lib/refusal.mjs`. This file carries only what",
+        "both sides must agree on.",
+        "",
+        "`absent` MAY NEVER BE A MEMBER. Trace-Artifacts.md §6 reserves it for an execution the",
+        "chain never published — the Aztec private half — which is a statement about the chain.",
+        "Every member here is a statement about US.",
+        "",
+        "`durability` is load-bearing, not decoration: `tools/capture/expectations.mjs` grades a",
+        "transaction page on whether its durability claim is supported by the cause it printed.",
+        "  permanent   nothing this pipeline can do will produce a trace for this transaction",
+        "  repairable  a better runtime, a mirrored corpus or a longer budget would trace it"
+    ],
+    "format": "blocktracer/refusal-reasons@1",
+    "reasons": [
+        {
+            "id": "not-first-in-block",
+            "durability": "permanent",
+            "statedBy": "aztec-avm-runtime replay/src/historical_state.ts IntraBlockPredecessorsUnavailable",
+            "condition": "The transaction is not at index 0 of its block. The historical-state mechanism answers reads at the settling block's PARENT, and that is the state only the first transaction saw; transaction k>0 saw the parent state plus the effects of the k before it, and no node method serves that intermediate view — it exists only inside the sequencer. Replaying against the parent anyway would read every slot an earlier transaction touched at a stale value, fail nothing, and produce a confidently wrong trace."
+        },
+        {
+            "id": "body-unavailable",
+            "durability": "permanent",
+            "statedBy": "aztec-avm-runtime replay/src/node_client.ts SettledTransactionNotFound",
+            "condition": "The node no longer serves the transaction's body and the file store cannot supply it either. getTxByHash reads the mempool, which is emptied at finalization; getTxEffect reads the archive, which is not — so the effects remain visible after the body is gone, which is why such a transaction is in the snapshot at all. BOTH CLAUSES ARE REQUIRED AND THE SECOND ONE IS NOW ENFORCED: this member may only be reached by a producer that ASKED the keyless transaction file store and got a negative answer about this key (`absent`, `truncated` or `mismatched`), and `refuseBodyUnavailable` throws `BodyUnavailableWithoutStoreEvidence` rather than publish it on the node's word alone. A pruned body is half of a permanent claim; 912 committed rows once carried the whole claim off that half, and the store was measured serving bodies across the exact range they sit in."
+        },
+        {
+            "id": "body-source-unreachable",
+            "durability": "repairable",
+            "statedBy": "tools/chain/backfill-bodies.mjs classify, outcome `unavailable`; routed by tools/chain/ingest-range.mjs replayRange",
+            "condition": "The source that serves transaction bodies COULD NOT BE ASKED about this key — a 5xx, a 429, a TLS failure, a transport error or a timeout. Nothing is known about whether the body exists, so this is a statement about the run and not about the corpus, and it is separate from body-unavailable for exactly the reason backfill-bodies.mjs keeps `unavailable` apart from `absent`: a 404 is the store saying it does not hold the key, and a 503 is the store saying nothing at all. Folding the second into the first published \"this transaction can never be re-executed\" — durability permanent — off the back of somebody else's outage. It is also separate from not-attempted, whose every narrative asserts the body IS obtainable from the file store: that claim is precisely what a run that could not reach the store has failed to establish, and re-publishing it would be asserting the thing that just could not be checked. Aztec bodies have a single source with no failover (Chain-Data-Ingestion.md §4.8), so this member's count is the measure of how much of a range is outstanding for want of that one host."
+        },
+        {
+            "id": "artifact-unresolvable",
+            "durability": "repairable",
+            "statedBy": "aztec-avm-runtime replay/src/settled_transaction.ts MissingContractArtifact",
+            "condition": "A contract the transaction executed has no artifact provable against its class's artifactHash, so the execution cannot be resolved to the code that produced it."
+        },
+        {
+            "id": "prestate-unavailable",
+            "durability": "permanent",
+            "statedBy": "aztec-avm-runtime replay/src/settled_transaction.ts SettlingBlockUnavailable",
+            "condition": "The state the replay must read cannot be obtained at the depth it is required at: the settling block, or the parent it reads through, is not served. Distinct from body-unavailable, which is about the transaction; this is about the STATE."
+        },
+        {
+            "id": "runtime-refused",
+            "durability": "repairable",
+            "statedBy": "tools/chain/lib/replay.mjs refusalName, from the driver's stderr",
+            "condition": "The replay runtime declined by name for a condition none of the four above describes. The runtime defines error classes by the dozen and gains more, so this member exists to keep OUR set closed while THEIRS is open — the class name travels beside it in `refusal` and its message in `detail`, so the specific condition is always recoverable from the row."
+        },
+        {
+            "id": "runtime-crashed",
+            "durability": "repairable",
+            "statedBy": "tools/chain/lib/replay.mjs decideOutcome rule 2a, from the driver's EXIT STATUS",
+            "condition": "THE REPLAY DRIVER DIED WITHOUT DECLINING. It wrote no report and named no error class, because it did not reach the point of raising one: the process was killed by a signal, or exited non-zero having said nothing a reader could classify. `refusal` carries the signal (`SIGSEGV`) or the exit code (`exit 139`) in place of a class name, which is the evidence there is. SEPARATE FROM `runtime-refused` FOR THAT MEMBER'S OWN REASON, and the argument is `instruction-unimplemented`'s verbatim. `runtime-refused` asserts the runtime DECLINED BY NAME for a condition the acquisition members do not describe -- a two-clause claim, `the runtime ran and refused`. A crashed process established the first clause and not the second, and publishing it as a refusal says the runtime made a judgement it never made. Measured 2026-11-26 on aztec-testnet: 7 of 13 transactions in blocks 69,233-69,252 were filed `runtime-refused` with `refusal: unknown`, and the driver run directly on block 69,236's 0x0a0f4e7cbaaf04c7fb6eb4ddbfb8922cd0c2dd6ebe1d84470763a905eeee0da1 exited 139 -- SIGSEGV -- after hydration stalled (round 5 reported 11 queries and seeded 0 leaves) on a call that reverted every round with an empty `Assertion failed:`. The runtime defines `HydrationDidNotConverge` for exactly that and crashes before raising it. `durability` is `repairable` under this file's own definition: a fixed runtime would trace it, which is the same reading `instruction-unimplemented` takes of a permanent gap in one build. A row with this member should name the signal in `reason`, because that sentence is what the page shows."
+        },
+        {
+            "id": "no-container-written",
+            "durability": "repairable",
+            "statedBy": "tools/chain/lib/replay.mjs decideOutcome, rule 3",
+            "condition": "The driver reported a completed execution and wrote no container, so there is nothing to step. Publishing a row that points at a missing container would be worse than saying so."
+        },
+        {
+            "id": "not-attempted",
+            "durability": "repairable",
+            "statedBy": "tools/chain/capture-chain.mjs --max; tools/chain/ingest-range.mjs --replay",
+            "condition": "Nothing about this transaction or about the chain stopped it being traced — THE RUN STOPPED. Four producers reach this member and all four are statements about the run: a live capture that was inside the window with the body still served and reached its own --max first; a historic range ingested without --replay, whose body the keyless TxFileStore does hold and which this run simply did not fetch; a run whose endpoint began rate-limiting it, which says nothing whatever about the height it was asking about; and a run that watched the NODE prune the body and never asked the file store, which is the one that used to be published as body-unavailable. It is separate for the same reason backfill-bodies.mjs keeps `unavailable` apart from `absent`: a budget, a flag or somebody else's rate limit must never be able to masquerade as a property of the chain. EVERY NARRATIVE HERE ASSERTS THE BODY IS OBTAINABLE FROM THE FILE STORE, and on this chain that is MEASURED rather than assumed — 21 of 21 bodies sampled from block 10 to block 75,969 answered 200 and self-verified, 333 of 333 first-in-block transactions over the full sample had their body served, and 12 of 12 sampled from the frozen mainnet capture did, including six the capture itself had recorded as pruned. That is what makes the claim usable; a run that could not REACH the store has established none of it and belongs in body-source-unreachable instead."
+        },
+        {
+            "id": "instruction-unimplemented",
+            "durability": "repairable",
+            "statedBy": "a recorder's own refusal when the execution reached an instruction it does not implement",
+            "condition": "THE RECORDER DOES NOT IMPLEMENT SOMETHING THE EXECUTION USED — an opcode, a precompile, a host function, a syscall. Added 2026-09-17, from the first recorder team to write a snapshot against §5 alone: every other member of this set is about ACQUISITION (a body, a state, an artifact, a run) and none of them fits a permanent capability gap in the recorder itself. The only member that could be reached was `runtime-refused`, which asserts that the replay runtime DECLINED BY NAME for a condition none of the acquisition members describes — and a recorder that never started the execution has not established that the runtime declined anything. §5.2a's own argument about `pruned` applies verbatim: a one-clause observation (`we do not implement this`) was being mapped onto a two-clause claim (`the runtime ran and refused`), and the second clause was never established. `durability` is `repairable` under this file's own definition — 'a better runtime would trace it' is exactly what implementing the instruction is — and that is the honest reading even though the gap is permanent for the build that hit it: what is permanent about it is a property of one recorder version, not of the transaction or of the chain. A recorder using this member should say WHICH instruction in the row's `reason`, because that sentence is what the page shows and the member alone cannot say it."
+        }
+    ]
 }

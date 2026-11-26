@@ -64,9 +64,15 @@ export function run(cmd, args, cwd) {
     let err = '';
     p.stdout.on('data', (d) => { out += d; });
     p.stderr.on('data', (d) => { err += d; });
-    p.on('error', (e) => res({ code: -1, out, err: `${err}\nspawn: ${e.message}`,
+    p.on('error', (e) => res({ code: -1, signal: null, out,
+                               err: `${err}\nspawn: ${e.message}`,
                                spawnFailed: e.message }));
-    p.on('close', (code) => res({ code, out, err, spawnFailed: '' }));
+    // `signal` IS THE SECOND ARGUMENT AND IT USED TO BE DROPPED, which is how a SIGSEGV
+    // became `refusal: "unknown"`. On a signal death Node reports `code === null` and the
+    // signal name here, so without it the row carries no exit status at all: 7 of 13
+    // transactions in one measured window were filed as unnamed refusals when the exit
+    // status named every one of them. See `decideOutcome` rule 2a.
+    p.on('close', (code, signal) => res({ code, signal, out, err, spawnFailed: '' }));
   });
 }
 
@@ -438,6 +444,46 @@ export function decideOutcome(r, ctPath, containerOnDisk, containerBytes) {
   // Rule 2: no report ⇒ a named refusal.
   if (facts === null || typeof facts !== 'object' || facts.verdict == null) {
     const why = refusalName(r.err);
+
+    // ── RULE 2a: THE EXIT STATUS NAMES WHAT THE STDERR DID NOT ─────────────────────────
+    //
+    // This rule did not exist, and `r.code` was read by nothing in this function. A driver
+    // killed by a signal prints no `Name: message` line — there is no throw to print — so
+    // `refusalName` answered `unknown` and the row was published as `runtime-refused`,
+    // which asserts the runtime DECLINED BY NAME. It had not: it had died.
+    //
+    // MEASURED 2026-11-26 on aztec-testnet blocks 69,233-69,252. Seven of thirteen
+    // transactions were filed `runtime-refused` / `refusal: "unknown"`, every one with
+    // `bodyRetained: true`, `revertCode: 0` and the same published shape as the six that
+    // replayed. Running the driver directly on block 69,236's
+    // 0x0a0f4e7cbaaf04c7fb6eb4ddbfb8922cd0c2dd6ebe1d84470763a905eeee0da1 exited 139 —
+    // SIGSEGV — with 0 bytes of stdout, 7,472 of stderr and no classifiable line in it.
+    // The cause was never unknowable; two values that name it were being discarded.
+    //
+    // IT RUNS ONLY WHEN THE STDERR SAID NOTHING, deliberately. A runtime that DID name its
+    // refusal and then exited non-zero is still a named refusal, and that name is the
+    // better evidence — so a found name always wins and this rule is the fallback, not an
+    // override.
+    if (why === 'unknown' && (r.signal || (Number.isInteger(r.code) && r.code !== 0))) {
+      const named = r.signal ? String(r.signal) : `exit ${r.code}`;
+      return {
+        replayed: false,
+        outcome: 'refused',
+        // The evidence slot carries the exit status in place of a class name, which is the
+        // evidence there is. `refusal: "unknown"` was the absence of this string.
+        refusal: named,
+        ...classifyRefusal({
+          condition: 'driver-died-without-declining',
+          narrative: `The replay runtime did not decline this transaction — it DIED while `
+            + `replaying it, with ${named}, having written no report and named no error `
+            + `class. Nothing here says the transaction cannot be re-executed: it says this `
+            + `runtime crashed on it, and a runtime that did not would trace it.`,
+          where: 'lib/replay.mjs decideOutcome rule 2a',
+        }),
+        detail: refusalDetail(r.err, named),
+      };
+    }
+
     // ING-3: the runtime's class name is EVIDENCE and stays in `refusal`; the published
     // reason is a member of the closed set in `lib/refusal.mjs`, chosen from that class.
     // Four classes resolve to one of the milestone's named reasons and the rest to

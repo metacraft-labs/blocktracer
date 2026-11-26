@@ -159,11 +159,41 @@ async function main() {
     ck('control: the reason names the refusal so a page can state it',
        d.reason.includes('IntraBlockPredecessorsUnavailable'));
 
-    // MUTATION: strip the name out of stderr. The refusal must degrade to `unknown`,
-    // which proves the extraction is load-bearing rather than decorative.
+    // MUTATION: strip the name out of stderr. The refusal must degrade — which proves the
+    // extraction is load-bearing rather than decorative.
+    //
+    // THE SUBJECT OF THIS ARM CHANGED ON 2026-11-26 AND THE ARM IS CORRECTED, NOT DELETED.
+    // It read `m.refusal === 'unknown'` and stopped biting when rule 2a landed, because an
+    // unnamed stderr with a non-zero EXIT no longer degrades to `unknown` — it degrades to
+    // the exit status, which is the whole point of that rule. A mutation that survives
+    // usually means the subject no longer has the broken thing, and that is the case here:
+    // `unknown` is simply not reachable any more on this input. So the arm now asserts the
+    // degradation that IS the contract.
     const m = decide({ code: 1, out: 'not json', err: 'something went wrong\n' }, false, 0);
-    bite('mutation: an unnamed stderr degrades the refusal to `unknown`',
-         m.refusal === 'unknown');
+    bite('mutation: an unnamed stderr degrades the refusal away from the runtime\'s name',
+         m.refusal !== 'IntraBlockPredecessorsUnavailable' && m.refusal === 'exit 1');
+    // AND `unknown` IS STILL REACHABLE, on the one input that earns it: a driver that
+    // exited CLEANLY and wrote no report named nothing and did not die either, so there is
+    // no exit status to name it with. Without this arm, rule 2a could have swallowed
+    // `unknown` entirely and the suite would read the same.
+    const q = decide({ code: 0, out: 'not json', err: 'something went wrong\n' }, false, 0);
+    ck('…and a CLEAN exit with no report is still `unknown`, the one case that earns it',
+       q.refusal === 'unknown' && q.refusalReason === 'runtime-refused');
+    // THE NEW MEMBER, through the same function: a signal death is not a refusal by name.
+    const sig = decide({ code: null, signal: 'SIGSEGV', out: '', err: 'Simulating...\n' },
+                       false, 0);
+    ck('a driver killed by a signal is `runtime-crashed`, naming the signal',
+       sig.refusalReason === 'runtime-crashed' && sig.refusal === 'SIGSEGV');
+    ck('…and its reason says the runtime DIED rather than declined',
+       /DIED while/.test(sig.reason) && sig.reason.includes('SIGSEGV'));
+    // AND THE FOUND NAME STILL WINS over the exit status, so rule 2a is a fallback and not
+    // an override — a runtime that named its refusal and then exited non-zero keeps its
+    // class name, which is the better evidence.
+    const namedAndFailed = decide({ code: 139, signal: null, out: 'not json',
+                                    err: 'AvmTrap: halted\n' }, false, 0);
+    ck('a named refusal with a non-zero exit keeps the NAME, not the exit status',
+       namedAndFailed.refusal === 'AvmTrap'
+       && namedAndFailed.refusalReason === 'runtime-refused');
     // And the extractor itself, directly — a positive twin for the negative above.
     ck('refusalName finds a named refusal', refusalName(REFUSAL_STDERR)
        === 'IntraBlockPredecessorsUnavailable');
@@ -833,7 +863,7 @@ async function main() {
   // 98 before case 13. +7: the stub exists, the flag is present by default, its default
   // value is 0, a supplied value arrives verbatim, the conditional-forward mutation is
   // refused, and the two controls that the rest of the vector did not move.
-  expectCount(105);
+  expectCount(109);
   if (failed) {
     console.error(`\nFAIL — ${failed} problem(s)`);
     return 1;

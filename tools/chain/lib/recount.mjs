@@ -107,6 +107,24 @@ export function countsDisagreements(s) {
     if (member === 'refusals') {
       for (const [id, n] of Object.entries(want)) {
         const got = declared.refusals?.[id];
+        // ── AN ABSENT `refusals.<id>` WITH NO ROWS IS AGREEMENT, AND ONLY HERE ──────────
+        //
+        // The closed set GROWS. `runtime-crashed` was added on 2026-11-26 and no committed
+        // capture declares it, because every committed capture was written by the code
+        // that could not name it — so demanding the key would mean editing three frozen
+        // captures' tallies every time a member is added, which is editing irreplaceable
+        // data to satisfy a check about that data.
+        //
+        // THE PROPERTY THIS CHECK EXISTS FOR IS UNTOUCHED, because the tolerance is
+        // conditioned on the ROWS and not on the key: a capture that actually produced the
+        // member must still declare it. Absent with `n > 0` is still a disagreement, and
+        // a key that is PRESENT and wrong is still a disagreement whatever `n` is.
+        //
+        // IT DOES NOT EXTEND TO THE TOP-LEVEL MEMBERS, deliberately. Those are a fixed
+        // shape, and the comment below records what treating absence as agreement cost
+        // there: `privateOnly` and `accountedFor` went missing from all three committed
+        // captures under exactly that reading.
+        if (got === undefined && n === 0) continue;
         if (got !== n) out.push({ member: `refusals.${id}`, declared: got, actual: n });
       }
       continue;

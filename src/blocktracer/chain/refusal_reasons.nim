@@ -52,8 +52,15 @@ proc parseRefusalReasons(): seq[RefusalReason] =
   ##
   ## A `seq` of objects rather than a `Table`: a `const Table` cannot be indexed
   ## at run time in Nim, and building one lazily would put the registry behind
-  ## an initialisation nobody can see. Seven members is a linear scan nobody
-  ## will ever measure.
+  ## an initialisation nobody can see. Ten members is a linear scan nobody will
+  ## ever measure.
+  ##
+  ## THAT NUMBER SAID "SEVEN" WHILE THE FILE HELD NINE, which is why it is
+  ## written as a fact about cost rather than left as a count: a sentence that
+  ## names a size goes stale every time the set grows, and nothing compares it
+  ## to anything. It is corrected to ten here by the commit that adds
+  ## `runtime-crashed`; if it drifts again the argument it supports — a linear
+  ## scan is cheap at this size — is what matters, not the digit.
   let doc = parseJson(refusalReasonsJson)
   if doc{"format"}.getStr != "blocktracer/refusal-reasons@1":
     raise newException(ValueError,
