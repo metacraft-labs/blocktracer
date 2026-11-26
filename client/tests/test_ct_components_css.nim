@@ -806,3 +806,132 @@ suite "values — a declaration the browser will DROP is not a pass":
     check unfunctionedParens("a{width:calc(100% - (2px))}").len == 0
     check unfunctionedParens("a{background:linear-gradient(to top,#000,#fff)}").len == 0
     check unfunctionedParens("a{content:'(x'}").len == 0
+
+suite "Stylus expressions — evaluated, never shipped as text":
+  ## `shared_widgets.styl` writes
+  ##
+  ##     CAPTION_BAR_HEIGHT = unquote("var(--caption-bar-height)")
+  ##     #root-container
+  ##       height: "calc(100vh - %s - 2rem)" % CAPTION_BAR_HEIGHT
+  ##       top: CAPTION_BAR_HEIGHT
+  ##
+  ## and Stylus evaluates both: `top: var(--caption-bar-height)` and
+  ## `height: calc(100vh - var(--caption-bar-height) - 2rem)`
+  ## (https://stylus-lang.com/docs/bifs.html#unquote, and the sprintf `%`
+  ## operator, https://stylus-lang.com/docs/operators.html#sprintf). The port
+  ## substituted the identifier textually and shipped
+  ## `height:"calc(100vh - %s - 2rem)" % unquote("var(--caption-bar-height)")`,
+  ## which a browser drops, so `#root-container` lost its height and its top
+  ## offset. The same gap shipped `top:"calc(100% + %s)" % 0.375rem` on the
+  ## picker dropdown, `width:unquote("min(…)")` on the event log's dropdown,
+  ## and `z-index:50 + 7` — the last an addition, not a string operator, but
+  ## the same failure: a Stylus expression emitted as CSS text.
+
+  proc probePort(): StylPort =
+    result.bridge = initOrderedTable[string, string]()
+    result.literalAliases = initOrderedTable[string, string]()
+    result.dropRules = initOrderedTable[string, string]()
+
+  proc compile(src: string): string =
+    var rep = StylReport()
+    transpile(@[StylSource(origin: "probe.styl", text: src)], probePort(), rep)
+
+  proc ruleBody(css, selector: string): string =
+    ## The declarations of every emitted rule whose selector list is exactly
+    ## `selector`, joined — a mixin call splits one source rule into several
+    ## (`emitBlock` flushes around it). "" when there is none, so a missing
+    ## rule fails loudly.
+    for line in css.splitLines:
+      let brace = line.find('{')
+      if brace > 0 and line[0 ..< brace] == selector:
+        result.add line[brace + 1 .. ^1]
+
+  test "the shipped #root-container has its height and top, as Stylus emits them":
+    let body = ruleBody(debugRouteCss, "[data-register=\"debugger\"] #root-container")
+    checkpoint "#root-container{" & body
+    check "height:calc(100vh - var(--caption-bar-height) - 2rem);" in body
+    check "top:var(--caption-bar-height);" in body
+
+  test "the other shipped rules that use the same operators are evaluated too":
+    let picker = ruleBody(debugRouteCss, "[data-register=\"debugger\"] .ct-picker-dropdown")
+    checkpoint ".ct-picker-dropdown{" & picker
+    check "top:calc(100% + 0.375rem);" in picker
+    let dropdown = ruleBody(debugRouteCss, "[data-register=\"debugger\"] .dropdown-container")
+    checkpoint ".dropdown-container{" & dropdown
+    check "width:min(40em, calc(100vw - 2em));" in dropdown
+    check "max-width:calc(100vw - 2em);" in dropdown
+    check "z-index:57;" in dropdown
+
+  proc stylusResidue(css: string): seq[string] =
+    ## Every declaration still carrying a Stylus expression: an `unquote(`
+    ## call, or an operator token (`%`, `+`, `-`, `*`) standing on its own at
+    ## the top level of the value. CSS has no top-level arithmetic — inside
+    ## `calc()` and friends it is the browser's, and is not judged.
+    for chunk in css.split('}'):
+      let brace = chunk.find('{')
+      if brace < 0: continue
+      for decl in chunk[brace + 1 .. ^1].split(';'):
+        let colon = decl.find(':')
+        if colon < 0: continue
+        let value = decl[colon + 1 .. ^1]
+        if "unquote(" in value:
+          result.add decl.strip
+          continue
+        var depth = 0
+        var quote = '\0'
+        var top = ""
+        for c in value:
+          if quote != '\0':
+            if c == quote: quote = '\0'
+          elif c == '\'' or c == '"': quote = c
+          elif c == '(': inc depth
+          elif c == ')':
+            if depth > 0: dec depth
+          elif depth == 0: top.add c
+        for tok in top.splitWhitespace:
+          if tok in ["%", "+", "-", "*"]:
+            result.add decl.strip
+            break
+
+  test "the shipped stylesheet carries no Stylus expression at all":
+    let bad = stylusResidue(debugRouteCss)
+    for b in bad: checkpoint "stylus expression shipped as text: " & b
+    check bad.len == 0
+
+  test "and the residue check BITES on the strings that shipped":
+    check stylusResidue("a{height:\"calc(100vh - %s - 2rem)\" % unquote(\"var(--x)\")}").len == 1
+    check stylusResidue("a{top:unquote(\"var(--x)\")}").len == 1
+    check stylusResidue("a{z-index:50 + 7}").len == 1
+    check stylusResidue("a{width:calc(100% - 2px);margin:0 -2px}").len == 0
+
+  test "unquote() yields the string's contents":
+    let css = compile(".x\n  top: unquote(\"var(--h)\")\n  width: unquote('min(1px, 2px)')\n")
+    check ".x{top:var(--h);width:min(1px, 2px);}" in css
+
+  test "the % operator formats, through a variable that is itself an unquote":
+    let css = compile("""
+H = unquote("var(--h)")
+GAP = 0.375rem
+OFF = "calc(100% + %s)" % GAP
+.x
+  height: "calc(100vh - %s - 2rem)" % H
+  top: OFF
+""")
+    check ".x{height:calc(100vh - var(--h) - 2rem);top:calc(100% + 0.375rem);}" in css
+
+  test "a quoted string argument keeps its quotes, as Stylus's s() prints it":
+    check ".x{content:a(\"b\");}" in compile(".x\n  content: \"a(%s)\" % \"b\"\n")
+
+  test "addition and subtraction fold like multiplication does":
+    let css = compile("Z = 50\n.x\n  z-index: Z + 7\n  width: 2rem - 0.5rem\n  height: 1.5 + 1em\n")
+    check ".x{z-index:57;width:1.5rem;height:2.5em;}" in css
+
+  test "a form outside the subset raises rather than shipping as text":
+    for bad in [".x\n  top: unquote(var(--h))\n",              # not a string
+                ".x\n  top: \"%s %s\" % 1px\n",               # arity mismatch
+                ".x\n  top: \"a(%s)\" % (1px 2px)\n",          # list argument
+                ".x\n  top: 1px \"a(%s)\" % 2px\n"]:           # not the whole value
+      var rep = StylReport()
+      expect StylError:
+        discard transpile(@[StylSource(origin: "probe.styl", text: bad)],
+                          probePort(), rep)

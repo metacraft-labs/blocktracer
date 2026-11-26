@@ -71,6 +71,10 @@
 ##     any other rule
 ##   * `by-mode(dark, light)`, upstream's build-time theme switch, resolved to
 ##     one arm (`resolveByMode`)
+##   * `unquote("…")`, the `"format %s" % arg` sprintf operator, and binary
+##     `*`, `+`, `-` on two numbers, evaluated after substitution
+##     (`evalStylus`) — a Stylus expression emitted as text is a declaration
+##     the browser drops
 ##
 ## NOT in the subset, and each one raises: `@supports` and every other
 ## at-rule, `if`/`else`/`for`/`unless` beyond the listed build conditions,
@@ -477,32 +481,161 @@ proc splitNumUnit(s: string): tuple[num: float, unit: string, ok: bool] =
   except ValueError: (0.0, "", false)
 
 proc foldArithmetic*(value: string): string =
-  ## Stylus's `*` on a length and a number: `0.625em * 3` -> `1.875em`.
+  ## Stylus's binary `*`, `+` and `-` on two numbers: `0.625em * 3` ->
+  ## `1.875em`, `50 + 7` -> `57`, `2rem - 0.5rem` -> `1.5rem`.
   ##
   ## THE CALL TRACE'S DEPTH INDENT. `calltrace.styl:669` is
   ## `margin-left: 0.625em * i` inside `for i in 0..100`, so every nested row's
   ## indentation is one of these products. With no arithmetic the emitted value
   ## was the literal `0.625em * i`, which a browser drops.
   ##
-  ## Only `*`, only two operands, only when exactly one carries a unit — the
-  ## whole of what the vendored set uses. Anything else is left for the
-  ## emitted-value gate to report rather than guessed at. `calc()` is never
-  ## entered: its `*` is already valid CSS and belongs to the browser.
-  if "calc(" in value or '*' notin value: return value
-  let parts = value.split('*')
-  if parts.len != 2: return value
-  let a = splitNumUnit(parts[0].strip)
-  let b = splitNumUnit(parts[1].strip)
+  ## THE EVENT LOG DROPDOWN'S STACKING. `event_log.styl:117` is
+  ## `z-index: TRACE_LOG_EDITOR_Z_INDEX + 7`, and with only `*` implemented the
+  ## port shipped `z-index:50 + 7`, which a browser also drops — so the menu
+  ## lost its stacking order over the trace-log editor it opens above.
+  ##
+  ## Only two operands, and only the whole value: `A op B` with the operator
+  ## standing alone between spaces (Stylus reads `0 -2px` as two values, a
+  ## unary minus, and so does this). Units follow Stylus for the cases the
+  ## vendored set has: a unitless operand takes the other's unit; `*` of two
+  ## dimensions, and `+`/`-` of two DIFFERENT units, are left alone for the
+  ## emitted-value gate to report rather than guessed at
+  ## (https://stylus-lang.com/docs/operators.html, "Additive" /
+  ## "Multiplicative"). `calc()` is never entered: its operators are already
+  ## valid CSS and belong to the browser.
+  if "calc(" in value: return value
+  var lhs, rhs, op: string
+  let toks = value.splitWhitespace
+  if toks.len == 3 and toks[1] in ["*", "+", "-"]:
+    (lhs, op, rhs) = (toks[0], toks[1], toks[2])
+  elif '*' in value:
+    # The unspaced product, `0.625em*3`, which the `*`-only fold accepted.
+    let parts = value.split('*')
+    if parts.len != 2: return value
+    (lhs, op, rhs) = (parts[0].strip, "*", parts[1].strip)
+  else:
+    return value
+  let a = splitNumUnit(lhs)
+  let b = splitNumUnit(rhs)
   if not a.ok or not b.ok: return value
-  if a.unit.len > 0 and b.unit.len > 0: return value
-  fmtNum(a.num * b.num) & (if a.unit.len > 0: a.unit else: b.unit)
+  let unit = if a.unit.len > 0: a.unit else: b.unit
+  case op
+  of "*":
+    if a.unit.len > 0 and b.unit.len > 0: return value
+    fmtNum(a.num * b.num) & unit
+  of "+", "-":
+    if a.unit.len > 0 and b.unit.len > 0 and a.unit != b.unit: return value
+    fmtNum(if op == "+": a.num + b.num else: a.num - b.num) & unit
+  else: value
 
-proc substituteValue(value: string; env: Table[string, string];
+proc quotedEnd(value: string; start: int): int =
+  ## Index of the quote closing the string that opens at `start`, or -1.
+  ## Stylus strings have no escapes in the vendored set; a backslash is still
+  ## honoured so an escaped quote is never mistaken for the end.
+  var j = start + 1
+  while j < value.len:
+    if value[j] == '\\': j += 2; continue
+    if value[j] == value[start]: return j
+    inc j
+  -1
+
+proc unquoteCalls(value, where: string): string =
+  ## `unquote("…")` -> its contents (https://stylus-lang.com/docs/bifs.html#unquote).
+  ## The argument must be ONE quoted string: that is every use in the vendored
+  ## set, and anything else raises rather than being emitted as text.
+  var i = 0
+  var quote = '\0'
+  while i < value.len:
+    let c = value[i]
+    if quote != '\0':
+      result.add c
+      if c == quote: quote = '\0'
+      inc i
+      continue
+    if c == '\'' or c == '"':
+      quote = c
+      result.add c
+      inc i
+      continue
+    if value.continuesWith("unquote(", i) and (i == 0 or value[i - 1] notin IdentBody):
+      var j = i + "unquote(".len
+      while j < value.len and value[j] in Whitespace: inc j
+      let close = if j < value.len and value[j] in {'"', '\''}: quotedEnd(value, j)
+                  else: -1
+      var k = close + 1
+      while close > 0 and k < value.len and value[k] in Whitespace: inc k
+      if close < 0 or k >= value.len or value[k] != ')':
+        raise newException(StylError, where &
+          ": unquote() outside the subset (its argument must be one quoted " &
+          "string): " & value)
+      result.add value[j + 1 ..< close]
+      i = k + 1
+      continue
+    result.add c
+    inc i
+
+proc formatStrings(value, where: string): string =
+  ## Stylus's sprintf operator: `"calc(100% + %s)" % 0.375rem` ->
+  ## `calc(100% + 0.375rem)`, an UNQUOTED literal
+  ## (https://stylus-lang.com/docs/operators.html#sprintf). The argument is
+  ## printed as Stylus's `s()` prints it, so a quoted string keeps its quotes
+  ## (https://stylus-lang.com/docs/bifs.html#sfmt-).
+  ##
+  ## The subset is the form the vendored set uses: the WHOLE value is one
+  ## quoted format, `%`, and one argument filling exactly as many `%s` as the
+  ## format has. A list argument, a count mismatch, or a `%` operator anywhere
+  ## else in a value raises — each would otherwise ship as text a browser drops.
+  var i = 0
+  var quote = '\0'
+  var opAt = -1
+  while i < value.len:
+    let c = value[i]
+    if quote != '\0':
+      if c == quote: quote = '\0'
+    elif c == '\'' or c == '"': quote = c
+    elif c == '%' and i > 0 and value[i - 1] in Whitespace and
+         i + 1 < value.len and value[i + 1] in Whitespace:
+      opAt = i
+      break
+    inc i
+  if opAt < 0: return value
+  let lhs = value[0 ..< opAt].strip
+  let arg = value[opAt + 1 .. ^1].strip
+  if lhs.len < 2 or lhs[0] notin {'"', '\''} or quotedEnd(lhs, 0) != lhs.high:
+    raise newException(StylError, where &
+      ": the % operator outside the subset (its left side must be the whole " &
+      "value's one quoted format string): " & value)
+  if arg.len == 0 or arg[0] == '(':
+    raise newException(StylError, where &
+      ": the % operator outside the subset (one argument, not a list): " & value)
+  let fmt = lhs[1 ..< ^1]
+  if fmt.count("%s") != 1:
+    raise newException(StylError, where & ": the % operator's format has " &
+      $fmt.count("%s") & " `%s` for one argument: " & value)
+  fmt.replace("%s", arg)
+
+proc evalStylus(value, where: string): string =
+  ## The Stylus expressions a substituted value can still hold, evaluated in
+  ## the order Stylus binds them: `unquote()` (a call, so it binds tightest),
+  ## then the `%` format over the result, then arithmetic.
+  ##
+  ## THIS SHIPPED AS TEXT. `shared_widgets.styl` writes
+  ## `height: "calc(100vh - %s - 2rem)" % CAPTION_BAR_HEIGHT` with
+  ## `CAPTION_BAR_HEIGHT = unquote("var(--caption-bar-height)")`, and the port
+  ## emitted `height:"calc(100vh - %s - 2rem)" % unquote("var(--caption-bar-height)")`
+  ## and `top:unquote("var(--caption-bar-height)")`: both invalid, so a browser
+  ## dropped them and `#root-container` had neither its height nor its top.
+  ## The same fix as `foldNegation`'s, for the same reason — the vendored
+  ## bytes are upstream's and correct Stylus; the evaluation is this module's.
+  foldArithmetic(foldNegation(formatStrings(unquoteCalls(value, where), where)))
+
+proc substituteValue(value, where: string; env: Table[string, string];
                      bridge: OrderedTable[string, string]): string =
-  ## `substitute`, with the `by-mode` build switch resolved first, and Stylus's
-  ## unary minus folded AFTER substitution — the operand is a variable, so
-  ## there is nothing to negate until it has been replaced.
-  foldArithmetic(foldNegation(substitute(resolveByMode(value, env, bridge), env, bridge)))
+  ## `substitute`, with the `by-mode` build switch resolved first, and the
+  ## Stylus expressions (`evalStylus`) evaluated AFTER substitution — their
+  ## operands are variables, so there is nothing to evaluate until they have
+  ## been replaced.
+  evalStylus(substitute(resolveByMode(value, env, bridge), env, bridge), where)
 
 proc residualToken(value: string): string =
   ## The first identifier left over that was meant to resolve, or "".
@@ -891,7 +1024,8 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
       var value = n.text[colon + 1 .. ^1].strip
       # Stylus tolerates a trailing `;`; several vendored rules carry one.
       value = value.strip(leading = false, chars = {';', ' '})
-      var subbed = substituteValue(value, env, port.bridge)
+      var subbed = substituteValue(value, src.origin & ":" & $n.line, env,
+                                  port.bridge)
       # The residue check runs BEFORE the aliases, and the order is load-bearing.
       # `residualToken` looks for an identifier that was MEANT to resolve, and
       # one of its shapes is SCREAMING_CASE — which a replacement's own text can
@@ -957,7 +1091,8 @@ proc emitBlock(nodes: seq[Node]; parents: seq[string]; src: StylSource;
       let sp = n.text.find(' ')
       let prop = n.text[0 ..< sp]
       let value = n.text[sp + 1 .. ^1].strip.strip(leading = false, chars = {';', ' '})
-      var subbed = substituteValue(value, env, port.bridge)
+      var subbed = substituteValue(value, src.origin & ":" & $n.line, env,
+                                  port.bridge)
       let residue = residualToken(subbed)
       if residue.len > 0:
         rep.unresolved.add src.origin & ":" & $n.line & "  " & prop & ": " &

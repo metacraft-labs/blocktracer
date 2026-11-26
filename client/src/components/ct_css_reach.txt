@@ -141,14 +141,15 @@
 #     selector. Matching is about the class, never about the register, so it is
 #     skipped by the same rule as every other non-`class` attribute.
 #
-#   * A DECLARATION the browser discards is NOT in scope, and that is a known
-#     gap with a live instance: `.dropdown-list` carries `z-index: 50 + 7`,
-#     which the transpiler passes through unevaluated and the browser throws
+#   * A DECLARATION the browser discards is NOT in scope here; it is a
+#     different gate's. `.dropdown-list` used to carry `z-index: 50 + 7`,
+#     which the transpiler passed through unevaluated and the browser threw
 #     away (confirmed against a control: inline `z-index: 57` computes to 57,
-#     `50 + 7` computes to `auto`). It is the same class of silence one level
-#     down — a rule that matches, carrying a declaration that does nothing —
-#     and nothing in this repository catches it. `ct_styl` raises on an
-#     unsupported at-rule or mixin and passes arithmetic through silently.
+#     `50 + 7` computes to `auto`) — a rule that matches, carrying a
+#     declaration that does nothing. `ct_styl.evalStylus` now evaluates it
+#     (and `unquote()` and the `%` format, which shipped the same way), and
+#     `tests/test_ct_components_css.nim`'s "Stylus expressions" suite fails
+#     on any Stylus expression left in the shipped sheet.
 #
 # ══ LIVE ══════════════════════════════════════════════════════════════════
 
@@ -520,9 +521,9 @@ INERT class hamburger-dropdown
     Its 1.08:1 text-on-surface contrast is CodeTracer's OWN binding —
     `shared_widgets.styl:722` is `color: colors-ui-surface-input-default`, a
     SURFACE role used as a text colour, over a raised surface on the line
-    before it — and is faithful rather than a defect — it must not be "fixed" here. It also
-    carries the `z-index: 50 + 7` the browser discards; see the scope note
-    above.
+    before it — and is faithful rather than a defect — it must not be "fixed" here. Its
+    `z-index: TRACE_LOG_EDITOR_Z_INDEX + 7` is evaluated to 57; see the scope
+    note above.
 
 # ── whole upstream components this product does not build ────────────────
 
