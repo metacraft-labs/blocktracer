@@ -129,7 +129,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -377,6 +377,212 @@ const BRAND_PRIMITIVE = [
   { id: "ct-declaration", re: /--ct-[a-z0-9-]+\s*:/g },
   { id: "dtcg-path", re: /\{colors?\.[a-z0-9.-]+\}/gi },
 ];
+
+// ── D1's `--ct-*` rule: a brand primitive, or a vendored component's own ──
+//
+// D1 used to treat EVERY `--ct-*` in the shipped CSS as a leaked brand
+// primitive. That was a name-prefix test standing in for the real property —
+// "the primitive ramp VD.2 stopped emitting does not come back" — and the
+// stand-in stopped being equivalent the moment the port vendored a CodeTracer
+// sheet that uses the same prefix for something else. Upstream spells its
+// COMPONENT-LOCAL custom properties `--ct-<component>-*` (`checkmark.styl`'s
+// `--ct-checkmark-size`, `toggle.styl`'s `--ct-toggle-*`, `text_editor.styl`'s
+// `--ct-gutter-*`): each one is declared on the component's own rule, read
+// only inside it, and set from a bridged `--bt-*` role or a literal size. None
+// is a token, and none is reachable from a Layer 2 view (A3 still forbids
+// that). Measured 2026-11-26 at blocktracer `agents` `4c12451`: the re-vendor
+// at CodeTracer `f288cfadc3` brought `checkmark.styl` in, and D1 went red on
+// its seven properties while the ramp it guards against was nowhere in the
+// sheet.
+//
+// So D1 now decides the property itself, and fails closed on three shapes:
+//
+//   * a `--ct-*` name NO vendored component sheet declares — the old ramp's
+//     `--ct-bg` / `--ct-font-sans`, or a name somebody invented. This is the
+//     original leak, and it is still caught by name, anywhere in the text;
+//   * a vendored name declared in a TOKEN-LAYER block (`:root`, `html`, a
+//     bare `[data-theme]` / `[data-register]` scope) — a component property
+//     promoted to a page-wide token is a token, and tokens are `--bt-*`;
+//   * a `var(--ct-*)` the shipped CSS reads and never declares — a rule the
+//     port emits while dropping the rule that sets its property, which
+//     renders as the property's initial value rather than as upstream's.
+//
+// The allow set is READ from the vendored `.styl` bytes, not listed here: a
+// list in this file would be a second copy of upstream that drifts, while the
+// vendor tree is hashed against the CodeTracer pin by
+// `ci/test/ct-styles-vendor.sh`, so it is exactly upstream's declarations.
+export const VENDORED_COMPONENT_STYL = join(REPO_ROOT, "client", "src", "debugger", "vendor",
+  "frontend", "styles", "components");
+
+/** Every `--ct-*` custom property a vendored CodeTracer component sheet
+ *  DECLARES (`--ct-x: …` at the start of a Stylus line). An absent directory
+ *  yields the empty set, so D1 then fails closed on every `--ct-*` name. */
+export function vendoredComponentProperties(dir = VENDORED_COMPONENT_STYL) {
+  const names = new Set();
+  if (!existsSync(dir)) return names;
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith(".styl")) continue;
+    const src = readFileSync(join(dir, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const m of src.matchAll(/^[ \t]*(--ct-[a-z0-9-]+)[ \t]*:/gm)) names.add(m[1]);
+  }
+  return names;
+}
+
+// A CSS identifier as the tokenizer reads it, escapes included
+// (https://www.w3.org/TR/css-syntax-3/#consume-name): `--\\63 t-bg` IS the
+// property `--ct-bg`, and `--ct-checkmark-sizeX` / `--ct-checkmark-size_x` are
+// properties of their own, not `--ct-checkmark-size` followed by noise. A
+// narrower character class here would let either shape past D1 — the second
+// one by matching a vendored PREFIX of a name no vendored sheet declares.
+const IDENT_RUN = String.raw`(?:[A-Za-z0-9_-]|[^\x00-\x7f]|\\[0-9A-Fa-f]{1,6}[ \t\r\n\f]?|\\[^\r\n\f0-9A-Fa-f])+`;
+
+/** An identifier with its CSS escapes resolved to the characters they mean. */
+export function cssUnescape(ident) {
+  return ident.replace(/\\(?:([0-9A-Fa-f]{1,6})[ \t\r\n\f]?|([^\r\n\f]))/g, (_, hex, ch) => {
+    if (ch !== undefined) return ch;
+    const cp = parseInt(hex, 16);
+    return cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) ? "\ufffd" : String.fromCodePoint(cp);
+  });
+}
+
+/** Every `--ct-*` custom-property NAME anywhere in a stylesheet's text —
+ *  comments and strings included, as the prefix test always read them —
+ *  escapes resolved. The prefix is matched without regard to case, so a
+ *  `--CT-bg` is judged like any other `--ct-*` name rather than ignored. */
+export function ctNamesIn(css) {
+  const names = new Set();
+  for (const m of css.matchAll(new RegExp(IDENT_RUN, "g"))) {
+    // Every `--ct-` inside the identifier, read to the identifier's END: a
+    // name is never cut short at a later `--`, so `--ct-checkmark-size--x`
+    // stays the undeclared name it is instead of shrinking to a vendored one.
+    const ident = cssUnescape(m[0]);
+    for (const at of ident.matchAll(/--ct-/gi)) {
+      const name = ident.slice(at.index);
+      if (name.length > 5) names.add(name);
+    }
+  }
+  return names;
+}
+
+/** Every custom-property declaration and `var()` read in a compiled
+ *  stylesheet, with the selector of the rule it sits in. A small brace-depth
+ *  walk rather than a regex, because the property D1 needs — WHICH rule a
+ *  declaration belongs to — is structural: comments are skipped, and strings
+ *  (the sheet carries `data:` SVGs in `url("…")`) are opaque, so neither can
+ *  open or close a block. At-rule preludes (`@media …`) are not selectors; a
+ *  declaration's selector is its innermost enclosing non-at-rule prelude. */
+const DECL_RE = new RegExp(String.raw`^\s*(${IDENT_RUN})\s*:`);
+const USE_RE = new RegExp(String.raw`var\(\s*(${IDENT_RUN})`, "g");
+export function customPropertySites(css) {
+  const sites = [];
+  const stack = [];
+  let seg = "";
+  const selector = () => {
+    for (let k = stack.length - 1; k >= 0; k--) if (!stack[k].startsWith("@")) return stack[k];
+    return "";
+  };
+  const flush = () => {
+    const sel = selector();
+    const decl = DECL_RE.exec(seg);
+    const declName = decl ? cssUnescape(decl[1]) : "";
+    if (declName.startsWith("--")) sites.push({ kind: "declaration", name: declName, selector: sel });
+    for (const m of seg.matchAll(USE_RE)) {
+      const name = cssUnescape(m[1]);
+      if (name.startsWith("--")) sites.push({ kind: "use", name, selector: sel });
+    }
+    seg = "";
+  };
+  for (let i = 0; i < css.length; i++) {
+    const c = css[i];
+    if (c === "/" && css[i + 1] === "*") {
+      const e = css.indexOf("*/", i + 2);
+      i = e < 0 ? css.length : e + 1;
+      continue;
+    }
+    // An escaped character outside a string is literal: `.a\\{` opens nothing.
+    if (c === "\\") { seg += css.slice(i, i + 2); i++; continue; }
+    if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < css.length && css[j] !== c) j += css[j] === "\\" ? 2 : 1;
+      seg += '""';
+      i = j;
+      continue;
+    }
+    if (c === "{") { stack.push(seg.trim()); seg = ""; continue; }
+    if (c === "}") { flush(); stack.pop(); continue; }
+    if (c === ";") { flush(); continue; }
+    seg += c;
+  }
+  return sites;
+}
+
+/** Split a selector list at its top-level commas — a comma inside `:is()`,
+ *  `:not()` or an attribute value separates nothing at this level. */
+function splitSelectorList(sel) {
+  const parts = [];
+  let depth = 0, cur = "";
+  for (const ch of sel) {
+    if (ch === "(" || ch === "[") depth++;
+    else if ((ch === ")" || ch === "]") && depth > 0) depth--;
+    if (ch === "," && depth === 0) { parts.push(cur.trim()); cur = ""; continue; }
+    cur += ch;
+  }
+  parts.push(cur.trim());
+  return parts;
+}
+
+/** The complex selectors one member stands for once every `:is(…)` /
+ *  `:where(…)` is distributed: `:where(:root, .x) a` is both `:root a` and
+ *  `.x a`. A forgiving list matches whenever ANY alternative does, so each is
+ *  judged on its own. Capped, so a pathological selector cannot blow up. */
+function expandIsWhere(member, budget = { n: 64 }) {
+  const m = /:(?:is|where)\(/.exec(member);
+  if (!m || budget.n <= 0) return [member];
+  let depth = 0, j = m.index + m[0].length - 1;
+  for (; j < member.length; j++) {
+    if (member[j] === "(") depth++;
+    else if (member[j] === ")" && --depth === 0) break;
+  }
+  const head = member.slice(0, m.index), tail = member.slice(j + 1);
+  const inner = member.slice(m.index + m[0].length, j);
+  const out = [];
+  for (const alt of splitSelectorList(inner)) {
+    budget.n--;
+    out.push(...expandIsWhere(head + alt + tail, budget));
+  }
+  return out;
+}
+
+/** True when ANY member of a selector list is ONLY a document-root or
+ *  theme/register scope — the blocks the token layer emits (`:root`,
+ *  `[data-theme="light"]`, `:root:not([data-theme="light"])`,
+ *  `[data-register="debugger"]`, …), with `*` counted as one too, since a
+ *  declaration on every element is page-wide. ANY, not every: `:root,
+ *  .ct-checkmark { --x: … }` declares `--x` on `:root` as surely as `:root`
+ *  alone does, and listing a component beside it does not make the `:root`
+ *  half a component rule. A member that also names a component, element,
+ *  class or id is not a token block. */
+export function isTokenLayerSelector(sel) {
+  const scope = /:root|\bhtml\b|:not\(\s*\[data-(?:theme|register)[^\]]*\]\s*\)|\[data-(?:theme|register)[^\]]*\]|\*/g;
+  return splitSelectorList(sel).some((member) => member !== "" &&
+    expandIsWhere(member).some((p) => p.trim() !== "" && p.replace(scope, "").replace(/[\s>+~]+/g, "") === ""));
+}
+
+/** D1's `--ct-*` verdict over one compiled stylesheet. Pure, so the self-test
+ *  drives it with planted sheets as well as through the real build. */
+export function ctPropertyVerdict(css, vendored) {
+  const leaked = [...ctNamesIn(css)].filter((n) => !vendored.has(n));
+  const sites = customPropertySites(css).filter((s) => vendored.has(s.name));
+  const declared = new Set(sites.filter((s) => s.kind === "declaration").map((s) => s.name));
+  const atTokenLayer = [...new Set(sites
+    .filter((s) => s.kind === "declaration" && isTokenLayerSelector(s.selector))
+    .map((s) => `${s.name} (on \`${s.selector}\`)`))];
+  const undeclared = [...new Set(sites.filter((s) => s.kind === "use" && !declared.has(s.name)).map((s) => s.name))];
+  return {
+    ok: leaked.length === 0 && atTokenLayer.length === 0 && undeclared.length === 0,
+    leaked, atTokenLayer, undeclared, componentLocal: [...declared].sort(),
+  };
+}
 
 // ── Nim tokenisation: strings in, comments out ─────────────────────────────
 
@@ -1353,14 +1559,19 @@ async function run(opts) {
       const shipped = new Set([...css.matchAll(/(--bt-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
       const missing = diff(declared, shipped);
       const extra = diff(shipped, declared);
-      const ctLeak = [...css.matchAll(/--ct-[a-z0-9-]+/g)].map((m) => m[0]);
-      const ok = missing.length === 0 && extra.length === 0 && ctLeak.length === 0;
+      // `--ct-*`: see `ctPropertyVerdict` for why a name prefix is not the test.
+      const ct = ctPropertyVerdict(css, vendoredComponentProperties());
+      const ok = missing.length === 0 && extra.length === 0 && ct.ok;
       add("D1", "the shipped CSS declares exactly the derived token set", ok,
-        ok ? `${shipped.size} --bt-* variables in ${cssFrom}, exactly the set web.tokens.json defines; 0 --ct-* primitives leaked`
+        ok ? `${shipped.size} --bt-* variables in ${cssFrom}, exactly the set web.tokens.json defines; 0 --ct-* primitives leaked` +
+             ` (${ct.componentLocal.length} component-local --ct-* properties, each declared by a vendored CodeTracer component sheet on a component rule` +
+             `${ct.componentLocal.length ? `: ${ct.componentLocal.join(", ")}` : ""})`
           : [
               missing.length ? `defined but not shipped: ${missing.join(", ")}` : "",
               extra.length ? `shipped but not defined: ${extra.join(", ")}` : "",
-              ctLeak.length ? `brand primitives leaked into the shipped CSS: ${[...new Set(ctLeak)].join(", ")}` : "",
+              ct.leaked.length ? `brand primitives leaked into the shipped CSS (no vendored CodeTracer component sheet declares them): ${ct.leaked.join(", ")}` : "",
+              ct.atTokenLayer.length ? `component-local --ct-* properties declared at the token layer, where only --bt-* tokens belong: ${ct.atTokenLayer.join(", ")}` : "",
+              ct.undeclared.length ? `--ct-* properties the shipped CSS reads and never declares: ${ct.undeclared.join(", ")}` : "",
             ].filter(Boolean).join("; "));
 
       // D2: both themes and both registers actually reached the page.
@@ -1484,7 +1695,11 @@ The token model's own invariants
       unreadable this check FAILS rather than skipping.
 
 The shipped page
-  D1  client/dist declares exactly the derived --bt-* set, and no --ct-*.
+  D1  client/dist declares exactly the derived --bt-* set, and no --ct-*
+      brand primitive. A --ct-* name is allowed only as a vendored
+      CodeTracer component's own property: declared by a sheet under
+      client/src/debugger/vendor/.../components/, declared on a component
+      rule rather than at the token layer, and declared wherever it is read.
   D2  Both themes and both registers reach the shipped CSS.
       Without a build, D1/D2 report NOT RUN. --require-built makes that a
       failure, and \`just design-check\` passes it.

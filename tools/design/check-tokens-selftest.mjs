@@ -111,6 +111,8 @@ import {
   nimStrings, nimCode, unescapeNim, classifyString, CTX,
   flattenTokens, cssVarName, renderBindings, ALLOWLIST, STRUCTURAL_ROWS,
   SYSTEM_COLOURS_COMPOUND, SYSTEM_COLOURS_AMBIGUOUS,
+  ctPropertyVerdict, customPropertySites, isTokenLayerSelector,
+  vendoredComponentProperties, VENDORED_COMPONENT_STYL,
 } from "./check-tokens.mjs";
 
 let pass = 0;
@@ -144,6 +146,18 @@ function runChecker(extraArgs = []) {
 }
 
 const checkOf = (verdict, id) => verdict?.checks?.find((c) => c.id === id);
+
+/** The stylesheet a built page links, as a path in the tree, or null. Mirrors
+ *  how the checker's D1 follows the `<link>`, so a plant lands in the bytes D1
+ *  actually reads. */
+function builtSheet(htmlPath) {
+  const html = readFileSync(htmlPath, "utf8");
+  const link = /<link[^>]+rel=["']?stylesheet["']?[^>]*>/i.exec(html);
+  const href = link ? /href=["']([^"']+)["']/i.exec(link[0]) : null;
+  if (!href) return null;
+  const p = join(dirname(htmlPath), href[1].replace(/^\//, ""));
+  return existsSync(p) ? p : null;
+}
 
 // ── Part 1: the Nim tokeniser ──────────────────────────────────────────────
 // This is load-bearing. A `#`-to-end-of-line comment strip would swallow the
@@ -1029,37 +1043,67 @@ for (const p of PLANTS) {
         `D1 ok=${d1?.ok}; ${String(d1?.detail ?? "").slice(0, 100)}`);
     }
 
-    // 1 + 2. Delete a token declaration from the built page. D1 must name the
-    // token — which proves both that the comparison bites and that the file it
-    // reads is this one, `client/dist/index.html`. If the scan were widened to
+    // 1 + 2. Delete a token declaration from the shipped CSS. D1 must name the
+    // token — which proves both that the comparison bites and that the files it
+    // reads are these, under `client/dist`. If the scan were widened to
     // `result/` or narrowed to nothing, this case goes green-when-it-should-be-
     // red and fails here.
-    {
-      const original = await readFile(BUILT_HTML, "utf8");
-      const before = sha(original);
-      const times = await stat(BUILT_HTML);
-      let restored = false;
-      try {
-        // A token the lexical palette contributes, chosen because it is one of
-        // the fifteen the false failure named.
-        const gone = original.replace(/--bt-syntax-keyword\s*:/g, "--bt-syntax-keywordX:");
-        ok("D1 — the plant actually changed the built page",
-          gone !== original, "--bt-syntax-keyword is declared in the built page");
-        await writeFile(BUILT_HTML, gone);
-        const { code, verdict } = runChecker(["--require-built"]);
-        const d1 = checkOf(verdict, "D1");
-        ok("D1 — a token missing from the BUILT page is caught, and named",
-          code === 1 && d1?.ok === false && String(d1.detail).includes("--bt-syntax-keyword"),
-          d1 ? `exit=${code}; D1 ok=${d1.ok}; detail: ${String(d1.detail).slice(0, 140)}` : "no D1 in the verdict");
-        ok("D1 — the artefact it reads is client/dist, not result/",
-          d1?.ok === false && !String(d1.detail).includes("STALE"),
-          "editing client/dist/index.html alone turns D1 red, so that is the file under test");
-      } finally {
-        await writeFile(BUILT_HTML, original);
-        await utimes(BUILT_HTML, times.atime, times.mtime);
-        restored = sha(await readFile(BUILT_HTML, "utf8")) === before;
-      }
-      ok("D1 — the built page is restored byte-identically", restored, `sha256 ${before.slice(0, 12)}…`);
+    //
+    // The plant goes into the SHEET THE PAGE LINKS, not into index.html. The
+    // exporter stopped inlining the CSS long ago (D1 follows the `<link>`), and
+    // this case kept editing index.html, where no token is declared any more:
+    // "the plant actually changed the built page" failed, and so did every
+    // case downstream of it, measured 2026-11-26 at `agents` `4c12451`.
+    const sheet = builtSheet(BUILT_HTML);
+    ok("D1 — the built page links a stylesheet that is in the tree", sheet !== null,
+      sheet ? sheet.slice(REPO_ROOT.length + 1) : "no <link rel=stylesheet> in client/dist/index.html, or its file is missing");
+    if (sheet !== null) {
+      const plantSheet = async (name, mutate, judge) => {
+        const original = await readFile(sheet, "utf8");
+        const before = sha(original);
+        const times = await stat(sheet);
+        let restored = false;
+        try {
+          const planted = mutate(original);
+          ok(`D1 — ${name}: the plant actually changed the shipped CSS`, planted !== original);
+          await writeFile(sheet, planted);
+          judge(runChecker(["--require-built"]));
+        } finally {
+          await writeFile(sheet, original);
+          await utimes(sheet, times.atime, times.mtime);
+          restored = sha(await readFile(sheet, "utf8")) === before;
+        }
+        ok(`D1 — ${name}: the shipped CSS is restored byte-identically`, restored, `sha256 ${before.slice(0, 12)}…`);
+      };
+
+      // A token the lexical palette contributes, chosen because it is one of
+      // the fifteen the false failure named.
+      await plantSheet("a token missing",
+        (css) => css.replace(/--bt-syntax-keyword\s*:/g, "--bt-syntax-keywordX:"),
+        ({ code, verdict }) => {
+          const d1 = checkOf(verdict, "D1");
+          ok("D1 — a token missing from the BUILT CSS is caught, and named",
+            code === 1 && d1?.ok === false && String(d1.detail).includes("--bt-syntax-keyword"),
+            d1 ? `exit=${code}; D1 ok=${d1.ok}; detail: ${String(d1.detail).slice(0, 140)}` : "no D1 in the verdict");
+          ok("D1 — the artefact it reads is client/dist, not result/",
+            d1?.ok === false && !String(d1.detail).includes("STALE"),
+            "editing client/dist's sheet alone turns D1 red, so that is the file under test");
+        });
+
+      // The leak D1's `--ct-*` rule exists for, end to end: the primitive ramp
+      // VD.2 stopped emitting (`--ct-bg` is the ramp's own first name, from the
+      // M5 skeleton) coming back at the token layer. The vendored checkmark
+      // properties stay in the sheet, so this also proves that admitting them
+      // did not open the door to the ramp.
+      await plantSheet("the primitive ramp comes back",
+        (css) => css + `\n:root{--ct-bg:var(--bt-surface-canvas)}`,
+        ({ code, verdict }) => {
+          const d1 = checkOf(verdict, "D1");
+          ok("D1 — a --ct-* brand primitive in the BUILT CSS is caught, and named",
+            code === 1 && d1?.ok === false && /brand primitives leaked[^;]*--ct-bg/.test(String(d1.detail)) &&
+              !/--ct-checkmark/.test(String(d1.detail)),
+            d1 ? `exit=${code}; D1 ok=${d1.ok}; detail: ${String(d1.detail).slice(0, 160)}` : "no D1 in the verdict");
+        });
     }
 
     // 3. THE REGRESSION GUARD FOR THE INCIDENT. Age the artefact past its own
@@ -1099,6 +1143,125 @@ for (const p of PLANTS) {
         verdict?.checks?.filter((c) => c.ok === false).map((c) => c.id).join(", ") || "no failures");
     }
     }
+  }
+}
+
+// ── Part 7: D1's `--ct-*` rule decides the property, not the prefix ────────
+//
+// D1 read every `--ct-*` in the shipped CSS as a leaked brand primitive, and
+// went red on a clean `agents` (`4c12451`, 2026-11-26) over the seven
+// `--ct-checkmark-*` properties of the vendored `checkmark.styl` — CodeTracer's
+// spelling for a component's OWN custom properties, declared on `.ct-checkmark`
+// and set from bridged `--bt-*` roles, none of them a token. These cases run
+// without a build, against the real vendor tree and planted sheets, so the
+// rule's both directions are pinned even where Part 6 skips.
+{
+  const vendored = vendoredComponentProperties();
+  const checkmark = ["size", "radius", "check", "bar", "bg", "border", "icon"].map((k) => `--ct-checkmark-${k}`);
+  ok("--ct-* — the allow set is read from the vendored sheets, and holds the checkmark's seven properties",
+    checkmark.every((n) => vendored.has(n)),
+    `${vendored.size} names declared under ${VENDORED_COMPONENT_STYL.slice(REPO_ROOT.length + 1)}; ` +
+      `missing: ${checkmark.filter((n) => !vendored.has(n)).join(", ") || "none"}`);
+  ok("--ct-* — the allow set holds only --ct-* declarations, and no ramp name",
+    [...vendored].every((n) => /^--ct-[a-z0-9-]+$/.test(n)) && !vendored.has("--ct-bg") && !vendored.has("--ct-font-sans"));
+  ok("--ct-* — an absent vendor tree yields an empty allow set, so every --ct-* name fails closed",
+    vendoredComponentProperties(join(SCRATCH, "no-such-vendor-dir")).size === 0 &&
+      ctPropertyVerdict(`[data-register="debugger"] .ct-checkmark{--ct-checkmark-size:1rem}`, new Set()).ok === false);
+
+  // CONTROL: the shape the port actually ships — the vendored properties,
+  // declared and read on the component's own rule under the register scope.
+  const shipped =
+    `[data-register="debugger"]{--bt-surface-canvas:#000}` +
+    `[data-register="debugger"] .ct-checkmark{--ct-checkmark-size:1rem;--ct-checkmark-bg:var(--bt-surface-canvas);` +
+    `--ct-checkmark-check:url("data:image/svg+xml,%3Csvg viewBox='0 0 1 1'%3E{}%3C/svg%3E");` +
+    `inline-size:var(--ct-checkmark-size);background:var(--ct-checkmark-bg)}` +
+    `[data-register="debugger"] .ct-checkmark::before{mask:var(--ct-checkmark-check) center}` +
+    `@media (prefers-reduced-motion:reduce){[data-register="debugger"] .ct-checkmark[data-size="md"]{--ct-checkmark-size:1.125rem}}`;
+  const control = ctPropertyVerdict(shipped, vendored);
+  ok("--ct-* — CONTROL: vendored component properties on a component rule pass",
+    control.ok && control.componentLocal.join(",") === "--ct-checkmark-bg,--ct-checkmark-check,--ct-checkmark-size",
+    JSON.stringify(control));
+
+  // 1. The ramp. Caught by NAME, wherever it sits — a declaration, a read, or
+  // a component rule: a name no vendored sheet declares is never component-local.
+  for (const [where, css] of [
+    ["at :root", `:root{--ct-bg:#000}`],
+    ["on a component rule", `[data-register="debugger"] .ct-checkmark{--ct-font-sans:x}`],
+    ["only read", `.x{color:var(--ct-fg)}`],
+  ]) {
+    const v = ctPropertyVerdict(shipped + css, vendored);
+    ok(`--ct-* — a name no vendored sheet declares is a leaked primitive (${where})`,
+      !v.ok && v.leaked.length === 1 && /^--ct-(bg|font-sans|fg)$/.test(v.leaked[0]), JSON.stringify(v.leaked));
+  }
+
+  // 2. A vendored name promoted to a page-wide token block.
+  for (const sel of [":root", "html", `[data-register="debugger"]`, `:root:not([data-theme="light"])`,
+    `[data-theme="dark"], :root`,
+    // A list that names a component BESIDE a root scope still declares the
+    // property on the root, and so do the forgiving wrappers and `*`.
+    `:root, [data-register="debugger"] .ct-checkmark`, `.ct-checkmark,html`,
+    ":where(:root)", `:is(:root, .ct-checkmark)`, "*", `[data-register="debugger"] *`]) {
+    const v = ctPropertyVerdict(shipped + `${sel}{--ct-checkmark-size:2rem}`, vendored);
+    ok(`--ct-* — a vendored property declared at the token layer is caught (\`${sel}\`)`,
+      !v.ok && v.atTokenLayer.length === 1 && v.leaked.length === 0, JSON.stringify(v.atTokenLayer));
+  }
+
+  // Nesting inside at-rules, and an escaped spelling of the name, change nothing.
+  for (const [where, css] of [
+    ["inside @layer and @supports", `@layer a{@supports (x:y){:root{--ct-checkmark-size:2rem}}}`],
+    ["spelled with a CSS escape", `:root{--ct-checkmark-\\73 ize:2rem}`],
+  ]) {
+    const v = ctPropertyVerdict(shipped + css, vendored);
+    ok(`--ct-* — a vendored property declared at the token layer is caught (${where})`,
+      !v.ok && v.atTokenLayer.join(",") === "--ct-checkmark-size (on `:root`)", JSON.stringify(v));
+  }
+
+  // 2b. A name that only BEGINS with a vendored name is a different property.
+  // The prefix test caught these by accident (its match stopped at the first
+  // character outside `[a-z0-9-]`); a set lookup on that truncated match would
+  // admit them, so the name is read to the end of the CSS identifier.
+  for (const name of ["--ct-checkmark-sizeX", "--ct-checkmark-size_x", "--ct-checkmark-size--x"]) {
+    const v = ctPropertyVerdict(shipped + `:root{${name}:red}`, vendored);
+    ok(`--ct-* — a name that extends a vendored one is a leaked primitive (\`${name}\`)`,
+      !v.ok && v.leaked.join(",") === name, JSON.stringify(v.leaked));
+  }
+
+  // 2c. The ramp spelled so a naive pattern cannot see it: an escape IS the
+  // character (`--\63 t-bg` is `--ct-bg`), and the prefix is judged without
+  // regard to case.
+  for (const [css, want] of [[`:root{--\\63 t-bg:#000}`, "--ct-bg"], [`:root{\\2d\\2d ct-bg:#000}`, "--ct-bg"],
+    [`:root{--ct-\\62 g:#000}`, "--ct-bg"], [`:root{--CT-bg:#000}`, "--CT-bg"]]) {
+    const v = ctPropertyVerdict(shipped + css, vendored);
+    ok(`--ct-* — an escaped or upper-case ramp name is a leaked primitive (\`${css}\`)`,
+      !v.ok && v.leaked.join(",") === want, JSON.stringify(v.leaked));
+  }
+
+  // 3. A read whose declaring rule the port dropped.
+  {
+    const v = ctPropertyVerdict(`[data-register="debugger"] .ct-checkmark{inline-size:var(--ct-checkmark-size)}`, vendored);
+    ok("--ct-* — a vendored property read but never declared is caught",
+      !v.ok && v.undeclared.join(",") === "--ct-checkmark-size", JSON.stringify(v));
+  }
+
+  // The walker itself: braces inside a string or a comment open nothing, and
+  // an at-rule prelude is not a selector.
+  {
+    const sites = customPropertySites(
+      `/* :root{ */ .a{--x:url("}{");--y:1}` + `@media (x){.b{--z:var(--y)}}` + `:root{--t:0}` +
+        `.c\\{{--u:0}`);
+    const at = (n, k) => sites.find((s) => s.name === n && s.kind === k)?.selector;
+    ok("--ct-* — the CSS walker attributes each declaration to its own rule",
+      at("--x", "declaration") === ".a" && at("--y", "declaration") === ".a" &&
+        at("--z", "declaration") === ".b" && at("--y", "use") === ".b" && at("--t", "declaration") === ":root" &&
+        at("--u", "declaration") === ".c\\{",
+      JSON.stringify(sites));
+    ok("--ct-* — token-layer selectors are told apart from component rules",
+      isTokenLayerSelector(":root") && isTokenLayerSelector(`[data-register="debugger"]`) &&
+        !isTokenLayerSelector(`[data-register="debugger"] body`) &&
+        !isTokenLayerSelector(`[data-register="debugger"] .ct-checkmark`) &&
+        isTokenLayerSelector(`:root, .ct-checkmark`) && isTokenLayerSelector(":where(html)") &&
+        !isTokenLayerSelector(`.ct-checkmark:is(.a, .b)`) && !isTokenLayerSelector(`.ct-checkmark:not(:root)`) &&
+        !isTokenLayerSelector(""));
   }
 }
 
