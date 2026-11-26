@@ -37,17 +37,17 @@
     "aztec-avm-runtime": {
       "flake": false,
       "locked": {
-        "lastModified": 1794598379,
-        "narHash": "sha256-i6+kwR/fZEWtCZZtPfAzEr1oxZgq9eJokoRRVTV9RoQ=",
+        "lastModified": 1795712057,
+        "narHash": "sha256-c8SayRncuxp9EwjNKftw+3sUjmaCl90wjcPwn9JKono=",
         "owner": "metacraft-labs",
         "repo": "aztec-avm-runtime",
-        "rev": "9e9ba381fd85b65dcf048ba91a5dec6638ab2dd1",
+        "rev": "6c28eb93df1330288fc85670f58945b9d122fd26",
         "type": "github"
       },
       "original": {
         "owner": "metacraft-labs",
         "repo": "aztec-avm-runtime",
-        "rev": "9e9ba381fd85b65dcf048ba91a5dec6638ab2dd1",
+        "rev": "6c28eb93df1330288fc85670f58945b9d122fd26",
         "type": "github"
       }
     },

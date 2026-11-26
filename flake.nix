@@ -145,6 +145,24 @@
     # that infra's resident follower actually runs (`services/blocktracer-ingest`
     # binds both). The fixtures want it frozen; the follower wants it current.
     #
+    # MOVED 2026-11-26 TO 6c28eb93 (the merge of aztec-avm-runtime#25), FOR THE
+    # FOLLOWER. On node 22.21.1 and later, which includes `followerNodejs`'s 22.23.2,
+    # avm.wasm's `fd_write` goes through node:wasi's V8 fast API callback. uvwasi's
+    # allocation in that callback can start a full GC, and the GC's stack walk
+    # segfaults (exit 139, no output). That was the 104 unnamed refusals in
+    # aztec-avm-runtime#24, and it is reproduced without Aztec in reprobuild-pm's
+    # upstream-bugs/node-wasi-fast-call-gc-segfault (nodejs/node#46777).
+    # #25 does two things:
+    #   1. node-host's loader turns V8 fast API calls off
+    #      (`--no-turbo-fast-api-calls`) before any module is compiled.
+    #   2. The driver now runs under a crash guard that turns any later
+    #      signal death into a `RuntimeCrashed:` line on stderr.
+    # The diff from 9e9ba381fd is node-host/src/loader.ts, the two replay/tools
+    # files, verification/ and docs. `replay/package*.json`, `ct-writer/` and
+    # `pins.json` are byte-identical, so `avmRuntimeNpmDepsHash` and the writer
+    # are unchanged. The committed fixtures replay through
+    # `aztec-avm-runtime-historical` and are not touched.
+    #
     # MOVED 2026-11-13 TO 9e9ba381fd, AND THE HAZARD WAS MEASURED BEFORE MOVING.
     # `238a3a5b` carries the ct-writer's `ct_source_step` but NOT
     # `discoverContractsFromSeed`, so a follower on it aborts with
@@ -162,9 +180,10 @@
     # fixture that reproduces: 14/14 matched, same rounds, same seed, same 58
     # instructions, before and after.
     #
-    # `238a3a5b` is an ANCESTOR of this revision, so the move is linear.
+    # `238a3a5b` is an ANCESTOR of 9e9ba381fd, and 9e9ba381fd is an ancestor of
+    # 6c28eb93, so both moves are linear.
     aztec-avm-runtime = {
-      url = "github:metacraft-labs/aztec-avm-runtime/9e9ba381fd85b65dcf048ba91a5dec6638ab2dd1";
+      url = "github:metacraft-labs/aztec-avm-runtime/6c28eb93df1330288fc85670f58945b9d122fd26";
       flake = false;
     };
     # THE HISTORICAL RUNTIME, AND IT IS PINNED SEPARATELY BECAUSE THE WIRE FORMAT
@@ -627,6 +646,7 @@
           avmRuntimeSrc = aztec-avm-runtime;
           avmRuntimeRev = aztec-avm-runtime.rev;
           # `9e9ba381fd` — the v6 lock pair, and v6's three-way scope split.
+          # The same lock at `6c28eb93`: its replay/package*.json are byte-identical.
           avmRuntimeNpmDepsHash = "sha256-OAiJDT4DU4OqfHRHiSDUEXP2ZlMS0De+jk4XHQvsn0g=";
           avmRuntimeRequiredPackages = [ "@aztec-labs/stdlib" "@aztec-foundation/bb.js" ];
           # v6 keeps bb.js under `@aztec-foundation/`; the strip in
