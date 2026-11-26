@@ -145,6 +145,18 @@
     # that infra's resident follower actually runs (`services/blocktracer-ingest`
     # binds both). The fixtures want it frozen; the follower wants it current.
     #
+    # MOVED 2026-11-26 TO abd5aade (the merge of aztec-avm-runtime#26), FOR THE
+    # FOLLOWER. A transaction that consumes an L1->L2 message reads the L1->L2
+    # message tree, which the runtime cannot seed. The read answered "absent", the
+    # claim reverted, and the row was published as a DIVERGENT trace: 43 of 276
+    # attempted aztec-testnet transactions in the 2026-11-26 rehearsal. #26 makes
+    # the runtime decline these by name (`L1ToL2MessageReadUnanswerable`), and
+    # `lib/refusal.mjs` files them as `l1-to-l2-message-unseedable`. The diff from
+    # 6c28eb93 is three replay/src files and one verification/ script, so
+    # `replay/package*.json`, `ct-writer/` and `pins.json` are byte-identical and
+    # `avmRuntimeNpmDepsHash` and the writer are unchanged. 6c28eb93 is an
+    # ancestor of abd5aade, so the move is linear.
+    #
     # MOVED 2026-11-26 TO 6c28eb93 (the merge of aztec-avm-runtime#25), FOR THE
     # FOLLOWER. On node 22.21.1 and later, which includes `followerNodejs`'s 22.23.2,
     # avm.wasm's `fd_write` goes through node:wasi's V8 fast API callback. uvwasi's
@@ -183,7 +195,7 @@
     # `238a3a5b` is an ANCESTOR of 9e9ba381fd, and 9e9ba381fd is an ancestor of
     # 6c28eb93, so both moves are linear.
     aztec-avm-runtime = {
-      url = "github:metacraft-labs/aztec-avm-runtime/6c28eb93df1330288fc85670f58945b9d122fd26";
+      url = "github:metacraft-labs/aztec-avm-runtime/abd5aadee533f80e4589f7887b1b10eeb9c6dda3";
       flake = false;
     };
     # THE HISTORICAL RUNTIME, AND IT IS PINNED SEPARATELY BECAUSE THE WIRE FORMAT
@@ -646,7 +658,7 @@
           avmRuntimeSrc = aztec-avm-runtime;
           avmRuntimeRev = aztec-avm-runtime.rev;
           # `9e9ba381fd` — the v6 lock pair, and v6's three-way scope split.
-          # The same lock at `6c28eb93`: its replay/package*.json are byte-identical.
+          # The same lock at `6c28eb93` and at `abd5aade`: their replay/package*.json are byte-identical.
           avmRuntimeNpmDepsHash = "sha256-OAiJDT4DU4OqfHRHiSDUEXP2ZlMS0De+jk4XHQvsn0g=";
           avmRuntimeRequiredPackages = [ "@aztec-labs/stdlib" "@aztec-foundation/bb.js" ];
           # v6 keeps bb.js under `@aztec-foundation/`; the strip in
