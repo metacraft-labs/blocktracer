@@ -1276,7 +1276,7 @@ jobs:
         run: node tools/chain/snapshot-from-ingest-selftest.mjs
 
       - name: Does the tip-follower refuse a chain that restarted under its own slug?
-        # 23 arms, host-independent: every arm is pure, so no node, no ledger on disk
+        # 26 arms, host-independent: every arm is pure, so no node, no ledger on disk
         # and no child process.
         #
         # AZTEC HAD NO TIP-FOLLOWING PUBLISHER AND ETHEREUM DID, which is visible in

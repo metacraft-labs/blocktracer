@@ -211,7 +211,8 @@ if (existsSync(existingSnapshotPath)) {
       + 'Refusing. Publish the new rollup under a slug of its own, or point --out '
       + 'somewhere else',
       `${existingSnapshotPath} -> .provenance`,
-      'tools/chain/retired-networks.json records the restart');
+      'tools/chain/chain-identity.json records the live deployment; the retired '
+      + 'ones left retired-networks.json when their slugs were reused');
   }
 }
 

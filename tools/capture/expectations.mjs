@@ -2409,6 +2409,15 @@ export const EXPECTATIONS = [
   // obstacle always was, which would make the page read as though the producer
   // had misreported its own refusal.
   //
+  // UPDATED 2026-11-26: the two rollups are still gone, and the two SLUGS are
+  // not. `aztec` and `aztec-testnet` now name the LIVE rollups the tip-follower
+  // tracks, so they are no longer in `retired-networks.json` and the 24,609 +
+  // 1,565 rows above are not what production publishes under those names — the
+  // frozen corpora at the old deployments are discarded rather than
+  // republished. `akStranded` keeps its subject in `aztec-testnet-frames`, and
+  // what the item below demands is unchanged, because it is per-member and
+  // per-chain rather than a list of chains.
+  //
   // (a) — stop asserting durability at all — was not taken, and the reason is
   // the word in the BADGE. `Not observable` asserts the same thing the note was
   // to stop asserting, once per row, and it was the part a visitor actually

@@ -506,27 +506,72 @@ suite "2 — past the retention horizon, and saying so":
     # existing. `RealChain` is `aztec-testnet`, measured 2026-10-28 as a
     # RESTARTED rollup — tip 9,405 against our captured head of 99,092, and
     # `Unknown block` at every height this corpus covers. So the repair the
-    # sentence promised is no longer available to anyone, and the page says so.
+    # sentence promised was no longer available to anyone, and the page said so.
     #
     # The member is untouched and must stay untouched: `not-attempted` is still
     # `repairable`, because on a chain that still exists it still is. What
     # changed is the PAIR (member, chain) — see `viewutil.absenceKind` and the
     # suite at the foot of this file, which pins both halves including that Sui
     # and Ethereum are unaffected.
-    check "has since been retired" in body
-    check "this is not a permanent answer" notin body
+    #
+    # ── AND THEN THE SLUG WAS REUSED, WHICH MOVES IT A THIRD TIME ───────────
+    #
+    # `aztec` and `aztec-testnet` are no longer in
+    # `tools/chain/retired-networks.json`, and the dead rollups did not come
+    # back: the two SLUGS were handed to the live rollups the tip-follower
+    # tracks, by the operator's decision to publish the first production corpus
+    # under the plain names. `isRetiredNetwork(RealChain)` is therefore false,
+    # so this page is worded for a chain that is up — which is the right answer
+    # for every row production will serve under that slug, and the wrong one for
+    # the frozen capture this suite renders.
+    #
+    # THAT IS A KNOWN LIMIT AND IT IS PINNED AS DATA BELOW, not described in a
+    # sentence that would go stale. The fact belongs to the pair (chain,
+    # DEPLOYMENT) and the render sites are handed a slug and nothing else; see
+    # `chain/retired_networks.nim`'s header for why the removal was still the
+    # correct configuration, and for the two gates that stop the two registries
+    # disagreeing again.
+    check "has since been retired" notin body
+    check "this is not a permanent answer" in body
     # §14.1a cuts both ways, so the OTHER surface is pinned too: the trace-fed
     # section stubs must agree with the hero rather than contradict it two
     # sections below, on the same transaction. They did when the claim was
-    # "not permanently", and they do now that it is the opposite.
-    check "empty for now and not permanently" notin body
-    check "empty permanently" in body
+    # "not permanently", they did when it was the opposite, and they do now that
+    # it is "not permanently" again.
+    check "empty for now and not permanently" in body
+    check "empty permanently" notin body
     # AND THE PERMANENT CASE IS STILL REACHABLE, so neither check above is
     # passing because the wording was simply removed from the product.
     check "permanent answer rather than a failed fetch" in
       availabilityNote(taAbsent, "not-first-in-block", false)
     check "permanent answer rather than a failed fetch" in
       availabilityNote(taAbsent, "", false)
+    # AND SO IS THE STRANDED WORDING. The four flips above are each other's
+    # inverse, so without this the suite would read identically if `akStranded`
+    # had been deleted from the product — which is exactly what happened to the
+    # arms of the feature it words. The branch is driven by the bool rather than
+    # by this chain, so it stays gated with no subject in the registry.
+    check "retired" in availabilityNote(taAbsent, "not-attempted", true)
+    check "this is not a permanent answer" notin
+      availabilityNote(taAbsent, "not-attempted", true)
+    # ── THE LIMIT, AS DATA: THIS CAPTURE IS NOT THE DEPLOYMENT THE SLUG NOW
+    #    NAMES ────────────────────────────────────────────────────────────────
+    #
+    # Read out of the two files rather than asserted in prose, so that plumbing
+    # the deployment through to the render sites FAILS this arm and forces the
+    # wording above to be revisited instead of quietly contradicting itself.
+    # `provenance.rollupVersion` is in the committed snapshot; the live one is
+    # in `tools/chain/chain-identity.json`.
+    let capturedRollup = snap["provenance"]{"rollupVersion"}.getBiggestInt
+    let liveIdentity = parseJson(
+      readFile(repoRoot / "tools" / "chain" / "chain-identity.json"))
+    let liveRollup = liveIdentity["chains"][RealChain]{"rollupVersion"}.getBiggestInt
+    check capturedRollup > 0
+    check liveRollup > 0
+    check capturedRollup != liveRollup
+    # …and the slug is in neither obituary nor nothing: it is live, so the page
+    # above is worded from a registry that genuinely does not list it.
+    check not isRetiredNetwork(RealChain)
 
   test "no trace is offered, and none is named":
     let m = markup(body)
@@ -5292,6 +5337,18 @@ suite "a retired upstream makes a repairable refusal unrepairable":
   ## corpus's traces come from. The page read that as "not a permanent answer".
   ## It no longer is, and promoting the full history would have put that
   ## sentence on ~26,000 pages.
+  ##
+  ## UPDATED 2026-11-26, AND THE MEASUREMENT ABOVE STILL STANDS. Those two
+  ## deployments are gone and stay gone. What changed is that the SLUGS `aztec`
+  ## and `aztec-testnet` were handed to their successors — the live rollups
+  ## `tools/chain/follow-to-tip.mjs` tracks — so the registry can no longer
+  ## carry them: it is keyed on the slug, read at twelve render sites that are
+  ## handed nothing else, and a slug listed here while the follower publishes
+  ## under it words every fresh row "none can be now" on a chain that is up.
+  ## The frozen corpora at the old deployments are discarded rather than
+  ## republished, which is what makes the removal safe; `chain/
+  ## retired_networks.nim`'s header states the limit that remains, and the last
+  ## two arms of this suite gate it.
 
   test "the member's own classification is UNCHANGED, which other chains rely on":
     # The fix must not touch `refusal-reasons.json`. Sui's refused rows are
@@ -5302,8 +5359,17 @@ suite "a retired upstream makes a repairable refusal unrepairable":
     ck refusalReasonDurability("runtime-refused") == "repairable"
     ck refusalReasonDurability("not-first-in-block") == "permanent"
     # And the registry names chains, not members.
-    ck isRetiredNetwork("aztec")
-    ck isRetiredNetwork("aztec-testnet")
+    #
+    # `aztec` AND `aztec-testnet` ARE DELIBERATELY OUT OF IT, and the dead
+    # rollups did not come back. The two slugs now name the LIVE rollups the
+    # tip-follower tracks — the operator's decision for the first production
+    # corpus — and every reader of the registry keys on the slug alone, so a
+    # slug left listed here would word every fresh row `akStranded` on a chain
+    # that is up and replayable. `chain/retired_networks.nim`'s header carries
+    # the reasoning and the two gates; the suite's third arm below is one of
+    # them.
+    ck not isRetiredNetwork("aztec")
+    ck not isRetiredNetwork("aztec-testnet")
     ck isRetiredNetwork("aztec-testnet-frames")
     ck not isRetiredNetwork("sui")
     ck not isRetiredNetwork("ethereum")
@@ -5355,9 +5421,36 @@ suite "a retired upstream makes a repairable refusal unrepairable":
     # is a strong thing to do quietly. `retired_networks.nim` fails the BUILD
     # on an entry with no evidence; this asserts the shipped list is populated
     # rather than merely parseable.
-    ck retiredNetworkChains().len == 3
+    #
+    # ONE, not three, and the number is read off the file rather than predicted:
+    # `aztec` and `aztec-testnet` left when their slugs were reused, and
+    # `aztec-testnet-frames` is the whole list. The loop below is what keeps
+    # this from being a count with nothing behind it.
+    ck retiredNetworkChains().len == 1
+    ck retiredNetworkChains() == @["aztec-testnet-frames"]
     for chain in retiredNetworkChains():
       ck retiredNetworkNote(chain).len > 0
+
+  test "a slug may not be both retired and live, and the build says so":
+    # THE GATE FOR THE MISTAKE THAT WAS ACTUALLY MADE. `retired-networks.json`
+    # says a chain's upstream is gone; `chain-identity.json` records a
+    # deployment under that chain we verified we can DECODE. Both key on the
+    # slug, they make opposite claims, and until now nothing compared them — so
+    # listing `aztec`/`aztec-testnet` as retired and then pointing the follower
+    # at the same two slugs drew no objection anywhere in the tree.
+    #
+    # `registriesAgree` in `chain/retired_networks.nim` raises at COMPILE time
+    # on an overlap, so reaching this line at all is most of the proof; what is
+    # asserted here is that the comparison had two populated lists to compare,
+    # which is the way a registry gate passes vacuously.
+    ck RegistriesAgree
+    ck LiveIdentityChains.len > 0
+    ck retiredNetworkChains().len > 0
+    for chain in retiredNetworkChains():
+      ck chain notin LiveIdentityChains
+    # AND THE LIVE LIST REALLY HOLDS THE REUSED SLUG, so the arm above is
+    # comparing against the thing that collided rather than an empty list.
+    ck "aztec-testnet" in LiveIdentityChains
 
   test "assertion count":
     # Counted off the code rather than predicted: the first write of this block
@@ -5369,5 +5462,11 @@ suite "a retired upstream makes a repairable refusal unrepairable":
     #   8 — the pair: 4 (2 members x live/retired) + 2 permanent + absent + unstated
     #   6 — live/dead differ, the claim present then absent, 3 badge readings
     #   3 — the retired sentence's shape
-    #   4 — the registry is populated: 1 length + 3 notes, one per chain
-    expectCount(9 + 8 + 6 + 3 + 4)
+    #   3 — the registry is populated: length, the list itself, 1 note for the
+    #       one chain left in it (it was 4 when three chains were listed, and
+    #       the loop is expanded here for the reason above: a loop over a set
+    #       that shrank is exactly what this counter is for)
+    #   5 — the two registries do not contradict each other: the compile-time
+    #       verdict, both lists non-empty, 1 non-membership for the one retired
+    #       chain, and the live list holds the reused slug
+    expectCount(9 + 8 + 6 + 3 + 3 + 5)

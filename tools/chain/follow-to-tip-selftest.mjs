@@ -18,13 +18,19 @@
 // everything could not pass them all — the shape
 // `snapshot-from-ingest-selftest.mjs`'s header had to be corrected into.
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { planRange, checkIdentity, highestCovered, CHAIN_ENDPOINTS, EXIT_CAUGHT_UP }
   from './follow-to-tip.mjs';
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 // Reconciled against the arms actually run, not maintained by hand: a short
 // tally is a finding, and editing the expected number to match a short run is
 // how a suite goes quiet.
-const BASE_ARMS = 23;
+const BASE_ARMS = 26;
 
 let ran = 0, failed = 0;
 const ok = (name, cond, detail = '') => {
@@ -112,8 +118,11 @@ console.log('follow-to-tip-selftest');
     c.ok === true && c.record === null, JSON.stringify(c));
 }
 {
-  // The testnet restart, as retired-networks.json measured it: the node moved to
-  // nodeVersion 6.0.0 / rollupVersion 679261766 under the SAME slug.
+  // The testnet restart, as it was measured on 2026-10-28: the node moved to
+  // nodeVersion 6.0.0 / rollupVersion 679261766 under the SAME slug. The
+  // attribution used to name `retired-networks.json`, which no longer carries
+  // the entry — the live deployment is in `chain-identity.json` and the slug
+  // reuse is why; the measurement itself is unchanged.
   const c = checkIdentity({ l1ChainId: 11155111, rollupVersion: 1 },
                           { l1ChainId: 11155111, rollupVersion: 679261766 });
   ok('a changed rollupVersion is REFUSED even when the tip is higher',
@@ -171,6 +180,58 @@ console.log('follow-to-tip-selftest');
 {
   ok('an unknown slug has no endpoint, so the tool must be given one',
     CHAIN_ENDPOINTS['aztec-whatever'] === undefined);
+}
+
+// ── THE TABLE IS COMPARED AGAINST THE OBITUARY, BECAUSE THIS IS THE MISTAKE
+//    THAT WAS ACTUALLY MADE ───────────────────────────────────────────────────
+//
+// `tools/chain/retired-networks.json` says, per CHAIN SLUG, that the network
+// which would serve a repair is gone, and twelve render sites read it through
+// `isRetiredNetwork(chain)` — the slug is all they are handed. `aztec` and
+// `aztec-testnet` were listed there from 2026-10-28, and the same two slugs are
+// the ones this table now points at the LIVE rollups. Nothing in the tree
+// objected, because no check had ever compared the two files.
+//
+// The symptom would not have been a crash. Every row the follower published
+// would have rendered "No trace was recorded for this execution, and none can
+// be now" — `akStranded` — on a chain that was up, inside its replayable
+// window, with the repair one dispatch away. A silent, sitewide, false claim on
+// the whole production corpus.
+//
+// THIS ARM IS THE WIDER OF THE TWO GATES. `retired_networks.nim` fails the
+// BUILD when a retired slug also appears in `chain-identity.json`, which is the
+// stronger refusal but covers only `aztec-testnet` — an entry there is a dated
+// decode measurement and none has been taken against Aztec mainnet. This table
+// names both live chains, so this is where the mainnet half is covered.
+{
+  const retiredPath = join(here, 'retired-networks.json');
+  const retired = JSON.parse(readFileSync(retiredPath, 'utf8'));
+  // NOT VACUOUS: a parse that produced no entries would pass the overlap arm
+  // while measuring nothing, which is the shape a registry gate fails in.
+  const retiredChains = (retired.networks ?? []).map((n) => n.chain);
+  ok('the obituary parses and names at least one chain, so the overlap arm has a subject',
+    retired.format === 'blocktracer/retired-networks@1' && retiredChains.length > 0,
+    `${retired.format} / ${JSON.stringify(retiredChains)}`);
+
+  const followed = Object.keys(CHAIN_ENDPOINTS);
+  const overlap = followed.filter((c) => retiredChains.includes(c));
+  ok('no chain this follower tracks is listed as retired',
+    overlap.length === 0,
+    `overlap=${JSON.stringify(overlap)} followed=${JSON.stringify(followed)} `
+    + `retired=${JSON.stringify(retiredChains)}`);
+
+  // AND THE CONTROL, so the arm above is not passing because the comparison
+  // never finds anything. It must be INDEPENDENT of the real overlap — the
+  // first draft was `retiredChains.concat(followed).filter(...)`, which is a
+  // second copy of the arm above and went red with it under the mutation,
+  // proving nothing. This one feeds the expression a slug taken out of the
+  // obituary itself, so it answers "would an overlap be seen" whatever the
+  // real answer is.
+  const knownRetired = [retiredChains[0]];
+  const control = knownRetired.filter((c) => retiredChains.includes(c));
+  ok('…and the same comparison DOES detect a retired slug when given one',
+    control.length === 1 && control[0] === retiredChains[0],
+    `control=${JSON.stringify(control)} subject=${JSON.stringify(knownRetired)}`);
 }
 
 console.log(`\nfollow-to-tip-selftest: ${ran} arm(s), ${failed} failure(s)`);
