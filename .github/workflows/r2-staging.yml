@@ -183,7 +183,10 @@ jobs:
           tx=/ethereum-mainnet/tx/0xf6998cac9f5d2843729743b866bdc4b09bd119774bbec5e56f69f8819f2b71aa
           # Sepolia's produced transaction (tools/chain/nix/eth.nix), pages only.
           sep=/ethereum-sepolia/tx/0xd1cb815416be0a366e436cfba12bc145610fac1a635d29d85147252ea4fdcc97
-          for p in "$tx/" "$tx/debug/" "$sep/" "$sep/debug/"; do
+          # A Solana transaction traced to `match` in the window tools/chain/nix/sol.nix publishes
+          # (base58 and case-significant, so the route is checked as written), pages only.
+          sol=/solana-mainnet/tx/21oYXApz8CkSt9NCv3LL1o1BBYEZqck34Adgk9sgj6suHm6jfR1FLvWrcpAx2TivZ7unwL7BSjPAHnz5JSSXNGQn
+          for p in "$tx/" "$tx/debug/" "$sep/" "$sep/debug/" "$sol/" "$sol/debug/"; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "https://$STAGING_HOST$p"); echo "$code $p"; [ "$code" = 200 ] || fail=1
           done
           ct=$(curl -s "https://$STAGING_HOST$tx/debug/" | grep -oE '/t/[a-z0-9/]+/trace\.ct' | sed -n 1p)
