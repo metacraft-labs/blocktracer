@@ -348,6 +348,11 @@ const REASON_FOR_RUNTIME_CLASS = Object.freeze({
   // directly. This entry is for the callers that map a class on their own
   // (`capture-chain.mjs`).
   RuntimeCrashed: 'runtime-crashed',
+  // aztec-avm-runtime `replay/src/historical_state.ts` (from abd5aade, #26), kind
+  // 'replay-l1-to-l2-message-read-unanswerable'. The execution read the L1->L2 message
+  // tree, which the runtime cannot seed. Before #26 the same transactions were published
+  // as divergent traces. `decideOutcome` gives the row its own sentence, naming the leaf.
+  L1ToL2MessageReadUnanswerable: 'l1-to-l2-message-unseedable',
 });
 
 /** Which reason a runtime error class produces. Never throws: an unrecognised class is

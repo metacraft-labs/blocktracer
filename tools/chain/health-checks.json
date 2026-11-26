@@ -722,6 +722,12 @@
     },
     {
       "outcome": "refused",
+      "refusalReason": "l1-to-l2-message-unseedable",
+      "statedBy": "tools/chain/lib/refusal.mjs REASON_FOR_RUNTIME_CLASS L1ToL2MessageReadUnanswerable; tools/chain/lib/replay.mjs decideOutcome rule 2b",
+      "justification": "The runtime declined by name because the execution read the L1->L2 message tree, which it cannot seed (aztec-avm-runtime abd5aade, #26). The transaction was declined, so the outcome is `refused`. Before #26 the same transactions reached rule 4 and were published as `divergent`."
+    },
+    {
+      "outcome": "refused",
       "refusalReason": "no-container-written",
       "statedBy": "tools/chain/lib/replay.mjs decideOutcome rule 3",
       "justification": "The driver reported a completed execution and wrote no container, so there is nothing to step. The rule fires on the container's absence from disk and sets this outcome in the same literal."

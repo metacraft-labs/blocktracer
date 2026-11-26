@@ -499,6 +499,41 @@ export function decideOutcome(r, ctPath, containerOnDisk, containerBytes) {
       };
     }
 
+    // ── RULE 2b: A NAMED REFUSAL WHOSE CONDITION THE PAGE MUST STATE ───────────────────
+    //
+    // aztec-avm-runtime abd5aade (#26) declines a transaction whose execution read the
+    // L1->L2 message tree: the runtime cannot hold the message, so the replay would
+    // revert where the chain did not. Before #26 these rows were published as DIVERGENT
+    // TRACES (43 of 276 attempted aztec-testnet transactions on 2026-11-26). The generic
+    // sentence below, "the replay runtime refused with <class>", would make a reader
+    // decode a class name to learn that the transaction consumed a message and that
+    // nothing is wrong with it. So, as rule 2a does for a crash, this row says what
+    // happened, and names the leaf the runtime read.
+    if (why === 'L1ToL2MessageReadUnanswerable') {
+      const leaf = String(r.err ?? '')
+        .match(/^L1ToL2MessageReadUnanswerable: .*?\bat leaf index ([0-9][0-9, ]*[0-9]|[0-9])/m)?.[1];
+      const where = leaf === undefined ? 'the L1→L2 message tree'
+        : `leaf ${leaf} of the L1→L2 message tree`;
+      return {
+        replayed: false,
+        outcome: 'refused',
+        refusal: why,
+        ...classifyRefusal({
+          condition: 'runtime-named-refusal',
+          runtimeClass: why,
+          narrative: `This transaction consumes an L1→L2 message: its execution read `
+            + `${where}. The replay cannot hold that message, so the runtime declined `
+            + `rather than replay against a tree without it, where the message would read `
+            + `as absent and the replay would revert where the chain did not. This is not a `
+            + `statement about the transaction: the chain's execution stands, and what is `
+            + `missing is the message on our side. A runtime that can obtain it would trace `
+            + `this transaction. No trace was recorded for it.`,
+          where: 'lib/replay.mjs decideOutcome rule 2b',
+        }),
+        detail: refusalDetail(r.err, why),
+      };
+    }
+
     // ING-3: the runtime's class name is EVIDENCE and stays in `refusal`; the published
     // reason is a member of the closed set in `lib/refusal.mjs`, chosen from that class.
     // Four classes resolve to one of the milestone's named reasons and the rest to
