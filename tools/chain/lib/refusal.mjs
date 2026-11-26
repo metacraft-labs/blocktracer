@@ -340,6 +340,14 @@ const REASON_FOR_RUNTIME_CLASS = Object.freeze({
   SettledTransactionNotFound: 'body-unavailable',
   MissingContractArtifact: 'artifact-unresolvable',
   SettlingBlockUnavailable: 'prestate-unavailable',
+  // NOT A REFUSAL, AND THE ONE CLASS HERE THAT SAYS SO. aztec-avm-runtime's
+  // `replay/tools/runtime_crash_guard.mjs` (from 6c28eb93, #25) is the driver's first
+  // import. It supervises the driver as a child and prints this class when that child
+  // is killed by a signal, so the name reports a crash, not a decline. `decideOutcome`
+  // routes it through rule 2a, so the row reads the same as a signal death seen
+  // directly. This entry is for the callers that map a class on their own
+  // (`capture-chain.mjs`).
+  RuntimeCrashed: 'runtime-crashed',
 });
 
 /** Which reason a runtime error class produces. Never throws: an unrecognised class is

@@ -464,8 +464,23 @@ export function decideOutcome(r, ctPath, containerOnDisk, containerBytes) {
     // refusal and then exited non-zero is still a named refusal, and that name is the
     // better evidence — so a found name always wins and this rule is the fallback, not an
     // override.
-    if (why === 'unknown' && (r.signal || (Number.isInteger(r.code) && r.code !== 0))) {
-      const named = r.signal ? String(r.signal) : `exit ${r.code}`;
+    //
+    // AND THE RUNTIME'S CRASH GUARD IS THE SAME DEATH, REPORTED BY A SURVIVOR. From
+    // aztec-avm-runtime 6c28eb93 the driver runs as a child of
+    // `replay/tools/runtime_crash_guard.mjs`. When that child dies by a signal, the guard
+    // prints `RuntimeCrashed: the replay driver was killed by SIGSEGV (signal 11) …` and
+    // exits 128 + signo. So this function sees code 139, no signal and a NAME. A found
+    // name would skip this rule and publish `runtime-refused`, which is the very
+    // claim this rule exists to stop. The guard's name is therefore read as what it
+    // reports, and the signal it names is the evidence, exactly as when Node hands
+    // the signal over directly.
+    const guardSignal = why === 'RuntimeCrashed'
+      ? (String(r.err ?? '').match(/^RuntimeCrashed: .*?\bkilled by (SIG[A-Z0-9]+)\b/m)?.[1] ?? null)
+      : null;
+    if (why === 'RuntimeCrashed'
+        || (why === 'unknown' && (r.signal || (Number.isInteger(r.code) && r.code !== 0)))) {
+      const named = guardSignal ?? (r.signal ? String(r.signal)
+        : why === 'RuntimeCrashed' ? `RuntimeCrashed, exit ${r.code}` : `exit ${r.code}`);
       return {
         replayed: false,
         outcome: 'refused',
