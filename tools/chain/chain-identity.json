@@ -37,7 +37,25 @@
         "package": "@aztec/stdlib",
         "version": "5.3.0-nightly.20260819",
         "verifiedOn": null,
-        "evidence": "THE DECODER THE REPLAY RUNTIME ACTUALLY USES, and it does not decode this deployment. Refused block 17494's transaction on 2026-11-04 in the paired run above, and five published @aztec/stdlib versions refuse a live transaction identically -- this pin, 5.3.0 stable, 5.3.0-nightly.20261103, 6.0.0-nightly.20260828 and 6.0.0-nightly.20260823. aztec-avm-runtime's replay/package.json carries this at dev tip 4c727bf and at the revision this repository's flake pins, 238a3a5b. Recorded with verifiedOn null rather than omitted, so the gap is a value and not an absence."
+        "evidence": "THE DECODER THE REPLAY RUNTIME ACTUALLY USES, and it does not decode this deployment. Refused block 17494's transaction on 2026-11-04 in the paired run above, and five published @aztec/stdlib versions refuse a live transaction identically -- this pin, 5.3.0 stable, 5.3.0-nightly.20261103, 6.0.0-nightly.20260828 and 6.0.0-nightly.20260823. aztec-avm-runtime's replay/package.json carries this at dev tip 4c727bf and at the revision this repository's flake pins, 238a3a5b. Recorded with verifiedOn null rather than omitted, so the gap is a value and not an absence. || CORRECTED 2026-11-26, AND THE MEASUREMENT ABOVE IS UNTOUCHED -- what went stale is the REVISION it names. This said \"at the revision this repository's flake pins, 238a3a5b\". 238a3a5b is now `aztec-avm-runtime-historical`, pinned separately and used only to replay the committed v5-era transcripts; the follower's runtime is `aztec-avm-runtime` at 9e9ba381. At 9e9ba381 `replay/package.json` depends on @aztec-labs/stdlib 6.0.0, `@aztec/stdlib` is not installed, and no `@aztec/` specifier is imported anywhere under replay/src or replay/tools. So the gap this field was created to record -- the replay path using a decoder that refuses the live deployment -- IS CLOSED at the pinned revision. It is corrected here rather than deleted because the refusal it documents was real when written and is still the reason the two fields exist at all. NOT CLAIMED: that a full replay succeeds. Deserialization is one of the two walls; address derivation in the pinned avm.wasm is the other, and only a production cycle measures it."
+      }
+    },
+    "aztec": {
+      "l1ChainId": 1,
+      "rollupVersion": 2070860440,
+      "rollupAddress": "0xe37a2663cc9c119ba41572c40fab0bbb23a5402f",
+      "nodeVersion": "6.0.0",
+      "decoder": {
+        "package": "@aztec-labs/stdlib",
+        "version": "6.0.0",
+        "verifiedOn": "2026-11-26",
+        "evidence": "THE DECODE, NOT THE IDENTITY, is what this entry rests on, because the identity half of the run that produced it was tautological: there was no entry for `aztec` to compare against, `check-chain-compat` refuses at `chain-not-declared` BEFORE attempting a decode, and the way past that is `--expect FILE` pointing at a candidate declaration -- which was written from this node's own `node_getNodeInfo`, so of course it matched. 2026-11-26, block 60,170's 0x136ee4cd47f65903c11eb4e0583522e9d72ee88a6dc8044db0476da71d40b4c3 fetched from https://aztec.drpc.org: @aztec-labs/stdlib 6.0.0 decoded it (publicCalls=1, and the decoded txHash equals the key requested). Run with the runtime this repository's flake pins, 9e9ba381, installed in a scratch clone rather than a shared checkout. PAIRED CONTROL on the same invocation: aztec-testnet decoded block 69,264's 0x1c2f1881c636c1e3218b84078de8bd3b0c4df7b380cedbdb3feb6008806e1ccf (publicCalls=4), so a `compatible` verdict here is the decoder working rather than the check passing vacuously."
+      },
+      "replayDecoder": {
+        "package": "@aztec-labs/stdlib",
+        "version": "6.0.0",
+        "verifiedOn": "2026-11-26",
+        "evidence": "THE SAME PACKAGE AS `decoder` ABOVE, AND THAT IS THE POINT: at the pinned runtime 9e9ba381, `replay/package.json` depends on @aztec-labs/foundation, @aztec-labs/protocol-contracts and @aztec-labs/stdlib, all 6.0.0, and `@aztec/stdlib` is NOT INSTALLED at all. `replay/src` and `replay/tools` import only `@aztec-labs/...` specifiers (measured: 6 from @aztec-labs/stdlib/tx/tx-hash, 4 from @aztec-labs/stdlib/tx, 3 from @aztec-labs/stdlib/avm, and no @aztec/ specifier anywhere). So the decoder the replay path actually uses IS the one verified above, and the split between these two fields is closed on mainnet rather than merely unmeasured. See aztec-testnet's `replayDecoder` for the state this corrects and why it was recorded."
       }
     }
   }

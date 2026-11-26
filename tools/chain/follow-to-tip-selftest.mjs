@@ -251,11 +251,20 @@ console.log('follow-to-tip-selftest');
 // window, with the repair one dispatch away. A silent, sitewide, false claim on
 // the whole production corpus.
 //
-// THIS ARM IS THE WIDER OF THE TWO GATES. `retired_networks.nim` fails the
-// BUILD when a retired slug also appears in `chain-identity.json`, which is the
-// stronger refusal but covers only `aztec-testnet` — an entry there is a dated
-// decode measurement and none has been taken against Aztec mainnet. This table
-// names both live chains, so this is where the mainnet half is covered.
+// THE TWO GATES OVERLAP NOW AND THIS ONE IS STILL NOT REDUNDANT.
+// `retired_networks.nim` fails the BUILD when a retired slug also appears in
+// `chain-identity.json` — the stronger refusal. It used to cover only
+// `aztec-testnet`, because an entry in that file is a dated decode MEASUREMENT
+// and none had been taken against Aztec mainnet; mainnet's was taken on
+// 2026-11-26 and the entry followed, so the build gate now binds both live
+// slugs. (That sentence is corrected rather than left standing: a comment
+// overstating a gate's reach is worse than one understating it.)
+//
+// WHAT THIS ARM STILL COVERS ALONE: it compares the obituary against the
+// FOLLOWER'S OWN endpoint table rather than against the decode registry, so it
+// binds a chain the follower tracks BEFORE anyone has measured a decode for it
+// — which is the state every new chain starts in, and the state both Aztec
+// chains were in a day ago.
 {
   const retiredPath = join(here, 'retired-networks.json');
   const retired = JSON.parse(readFileSync(retiredPath, 'utf8'));

@@ -152,13 +152,22 @@ proc registriesAgree(retired: seq[RetiredNetwork], live: seq[string]): bool =
   ## production corpus rendering "no trace can be produced and none can be now"
   ## under a chain that was up and replayable.
   ##
-  ## IT BINDS ONE OF THE TWO SLUGS AND THAT IS STATED RATHER THAN HIDDEN.
-  ## `chain-identity.json` carries `aztec-testnet` and not `aztec`, because an
-  ## entry there is a dated decode MEASUREMENT and no such measurement has been
-  ## taken against Aztec mainnet. The follower's own table covers both, and
-  ## `tools/chain/follow-to-tip-selftest.mjs` compares THAT against this file;
-  ## the two gates are deliberately in different languages, over different
-  ## lists, because a single list is a single thing to forget.
+  ## IT BINDS BOTH LIVE SLUGS SINCE 2026-11-26, and this paragraph used to say it
+  ## bound only one. `chain-identity.json` carried `aztec-testnet` and not
+  ## `aztec`, because an entry there is a dated decode MEASUREMENT and none had
+  ## been taken against Aztec mainnet; mainnet's was taken on 2026-11-26 (block
+  ## 60,170 decoded by @aztec-labs/stdlib 6.0.0 under the pinned runtime
+  ## 9e9ba381, with aztec-testnet as the paired control) and the entry followed
+  ## it. The sentence is corrected here rather than left to be read as current,
+  ## because a comment that overstates a gate's reach is worse than one that
+  ## understates it.
+  ##
+  ## THE SECOND GATE IS STILL NOT REDUNDANT. `tools/chain/follow-to-tip-selftest.mjs`
+  ## compares the obituary against the FOLLOWER'S OWN endpoint table, not against
+  ## this file, so it keeps binding a chain the follower tracks before anyone has
+  ## measured a decode for it — which is the state every new chain starts in. The
+  ## two gates are deliberately in different languages over different lists,
+  ## because a single list is a single thing to forget.
   for n in retired:
     if n.chain in live:
       raise newException(ValueError,
