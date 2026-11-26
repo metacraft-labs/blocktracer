@@ -313,7 +313,7 @@
     # Its trace-format path dependencies are `sol-trace-format`, at exactly the
     # revision this recorder's repro.lock names (afa4dde since recorder 44628b6).
     codetracer-solana-recorder = {
-      url = "github:metacraft-labs/codetracer-solana-recorder/5e09402fd8ffc6783062ab3a049f0b910abcaf29";
+      url = "github:metacraft-labs/codetracer-solana-recorder/ef52f8ed6a77df5d3efb9cdcdd385cf170e34a6e";
       flake = false;
     };
     sol-trace-format = {
