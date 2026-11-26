@@ -29,6 +29,18 @@
     "format": "blocktracer/retired-networks@1",
     "networks": [
         {
+            "chain": "aztec",
+            "observedOn": "2026-10-28",
+            "evidence": "https://aztec.drpc.org answers, and is at tip 3,403 against our captured head of 102,690. node_getBlock at any height inside the captured range returns `Unknown block` (code 26). The capture recorded l1ChainId 1 and nodeVersion 5.2.0.",
+            "note": "Aztec mainnet was restarted after this history was captured. The network that served it no longer exists, so no transaction here can be re-executed, whatever an individual row's published reason says about what that run did or did not try."
+        },
+        {
+            "chain": "aztec-testnet",
+            "observedOn": "2026-10-28",
+            "evidence": "https://aztec-testnet.drpc.org answers, and is at tip 9,405 against our captured head of 99,092. node_getBlock at 45,000, 75,800 and 99,091 — heights this corpus covers, two of them inside ranges that were successfully replayed in September — returns `Unknown block` (code 26). The node now reports nodeVersion 6.0.0, l1ChainId 11155111 and rollupVersion 679261766.",
+            "note": "Aztec testnet was restarted after this history was captured. The network that served it no longer exists, so no transaction here can be re-executed, whatever an individual row's published reason says about what that run did or did not try."
+        },
+        {
             "chain": "aztec-testnet-frames",
             "observedOn": "2026-10-28",
             "evidence": "The same rollup as `aztec-testnet`, captured through the same endpoint for its Noir call frames, and retired with it.",
