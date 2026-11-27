@@ -80,6 +80,43 @@ uploading refusal-only data). 0 files were ever uploaded, so production was neve
 polluted. Re-enable with
 `systemctl start blocktracer-ingest-<chain>-publish.timer` once traces exist.
 
+## Why the deployed service still traces NOTHING — `live` pins the PRE-V6 runtime
+
+**Measured 2026-11-27, and this is the whole explanation for production.** After
+24 hours of the follower running on high-mem-server, `aztec-testnet`:
+
+```
+blocks 4,503   transactions 4,043   refused 3,327   replayed 0   tracesPublished 0
+```
+
+Zero. Not the 45.7% a rehearsal measured — **total**. And the cause is a **pin**,
+not the AVM crash and not an ABI mismatch:
+
+| | |
+|---|---|
+| blocktracer `live` = `80f15c88` pins | `aztec-avm-runtime = 238a3a5b9fe9346868cc7fab84a8aa54513287dd` (`flake.nix:147`) |
+| what that revision is | the **pre-v6** runtime — on `agents` the same SHA is bound to `aztec-avm-runtime-historical`, kept for the committed v5-era transcripts ONLY |
+| and at `live` | there is **no `-historical` sibling**. The v5 runtime *is* the follower's runtime. |
+| `agents` binds for the follower | `9e9ba381`, which decodes v6 |
+
+So the deployed follower runs a v5 decoder against a v6 chain and refuses every
+transaction **by name, before reaching the AVM at all** — the `field modulus`
+family, the same wall
+[`../../AZTEC-NETWORK-GENERATIONS.md`](../../AZTEC-NETWORK-GENERATIONS.md) records
+for every pre-rename `@aztec/stdlib`. Measured by the crash session;
+`~/avm-crash-arch/REPORT.md` §6 on arch.
+
+**Good news for the campaign: the deploy chain is the fix, not more code.** The
+three hops above carry a rehearsal measured at **80.4% replay-and-match, 0
+divergent**, with the 43 L1→L2 transactions becoming named refusals.
+
+**THE TRAP, recorded because I walked past it twice while holding the fact.**
+`238a3a5b` is *correct* as `aztec-avm-runtime-historical` and *catastrophic* as
+`aztec-avm-runtime`. One SHA, two roles, distinguished only by which input name it
+is bound to — so grepping for the SHA finds it legitimately pinned and concludes
+the pin is fine. **Check the input NAME, and check whether `-historical` exists as
+a separate input on the revision in front of you.**
+
 ## The crash, named and fixed; the revert divergence, named and refused
 
 
