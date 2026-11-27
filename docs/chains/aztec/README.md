@@ -187,6 +187,70 @@ Re-measured on arch on 2026-11-26. Every attempted row of the rehearsal's
 Replaying them instead needs a source for the message hash. That is upstream
 work, drafted and not filed.
 
+## What the deploy will deliver — measured twice, denominators stated
+
+**Independent re-measurement 2026-11-27**, arch, blocktracer `agents` `1ce0f2dd`
+(runtime pin `abd5aade`, which *is* PR #26's merge commit, with #25's merge commit
+`6c28eb93` an ancestor), 300 blocks of `aztec-testnet` (73,563–73,862), fetch +
+replay, `--no-publish`. This is the second independent measurement; the first was
+the crash session's.
+
+```
+blocks 300   transactions 291   replayed 213   refused 38
+private-only 18   not-first-in-block 22   pruned 0   divergent 0
+```
+
+**THE HEADLINE IS NOT THE RATE — IT IS THAT EVERY REFUSAL IS NAMED.** Zero
+unnamed, against 104 of 105 before the fixes:
+
+| refusal | member | count |
+|---|---|---|
+| `L1ToL2MessageReadUnanswerable` | `l1-to-l2-message-unseedable` | 24 |
+| `HydrationDidNotConverge` | `runtime-refused` | 10 |
+| `ModuleRefusedReplay` | `runtime-refused` | 4 |
+
+The ten `HydrationDidNotConverge` are the specific proof of
+[#25](https://github.com/metacraft-labs/aztec-avm-runtime/pull/25): the loop now
+**reaches its own error** instead of the process dying before it can raise. The
+cause was a GC inside `node:wasi`'s `fd_write` fast call — not a stall, not a
+round cap, and not an ABI mismatch.
+
+**THE RATE, AND ALWAYS WITH ITS DENOMINATOR**, because the same measurement reads
+as two different promises:
+
+| | |
+|---|---|
+| **73.2%** | 213 / 291 — *all* transactions |
+| **84.9%** | 213 / 251 — *replayable candidates*, excluding 18 `private-only` and 22 `not-first-in-block` |
+
+Quote **84.9% of replayable candidates with the exclusions named**: `private-only`
+is a property of the chain (no public execution published) and
+`not-first-in-block` of the historical-state mechanism (only transaction index 0
+ever saw the parent state, and no node method serves the intermediate view).
+Neither is a shortfall in this pipeline. A bare "80%" with no denominator is how a
+measurement becomes a broken promise.
+
+**STATE THIS EXPECTATION BEFORE GO-LIVE, NOT AFTER:** of those 213 recordings,
+**zero** position any source step. All 213 carry an `artifacts` array — the
+question is asked every time, 0 absent — 17 distinct addresses were interrogated,
+none resolved, and **no protocol contract was entered in that window at all**. So
+it is traffic mix, not a regression: FeeJuice frames were 8 of 119 recordings in
+an earlier window and 0 of 213 here. **Source-level coverage on the site will be
+sparse and intermittent.** Clause two of the campaign goal is satisfied in kind,
+not in volume.
+
+### Not yet verified: source rendering on the published site
+
+The one clause-two claim with no evidence behind it is that a *page* on
+blocktracer.org renders source where an artifact resolved. `aztec-testnet-frames`
+is served (`gen=rframes00001`, head 69,361) and its published summary reports 26
+blocks, 8 transactions and **0 refusals of every member** — so all 8 traced, and
+that corpus is the right subject. What is missing is the last step: pull a real
+transaction id out of the generation's own index (`blocks/0.json` is a list of
+BLOCK hashes, so the transaction ids are elsewhere — try `root.json`) and read the
+rendered page. Do **not** reconstruct a hash from an abbreviation in a note; I
+tried and produced one that does not exist.
+
 ## Source-level coverage — satisfied in kind, limited by the chain
 
 Over the same 300 blocks, **read the published `artifacts` array, never container
