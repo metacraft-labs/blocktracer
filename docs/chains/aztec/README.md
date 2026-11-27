@@ -383,6 +383,51 @@ This matters for the goal because a page's reason line is what a visitor reads.
 "The replay runtime refused with Error" is not a reason; it is the absence of one
 wearing a reason's clothes.
 
+## The PUBLISH half is verified too, and the v5->v6 transition is clean
+
+Every earlier rehearsal used `--no-publish`, so the write half had never run at
+the new pin — the gap my own notes flagged as "the one place a first production
+cycle could still refuse". Tested 2026-11-27 on arch at `agents` `1ce0f2dd`,
+publishing the rehearsed range to a **local** backend, with the store **seeded to
+production's shape** (`d/aztec-testnet/current.json` fetched from blocktracer.org:
+`gen rtestnet0001, head 99092` — the retired v5 pointer, whose head is ABOVE the
+v6 range being written):
+
+```
+resumedFrom          rtestnet0001
+publishedGeneration  rdcae5fbfae57
+contentUploaded 1177 · contentSkipped 0 · pointersWritten 2 · pointerFlipped true
+determinismIncidents 0
+coverage  300 blocks, 73563-73862, 1 contiguous span, 0 gaps
+final pointer  gen rdcae5fbfae57  head 73862        rc=0
+```
+
+**It did not refuse, and the transition is the behaviour we want:** a NEW
+generation covering only the v6 range, the pointer flipped to it, and the v5
+generation's objects left in place. **No `replace-chain-row` was needed** — which
+changes the first-dispatch sequence recorded elsewhere in this file: the step that
+existed to free the canonical slug by dropping a registry row may be unnecessary
+at this revision.
+
+### Two things this does NOT establish — state them before anyone relies on it
+
+1. **The registry guard is untested.** I seeded the POINTER but not
+   `registry/chains.v<N>.json`. Production's store lists four chains, so
+   `assertRegistryKeepsKnownChains` — the guard that refuses a registry which
+   DROPS a chain the store serves — had nothing to compare against here and did
+   not run. That is the last untested refusal on the publish path, and it is the
+   one `--registry-seed` exists for. Seed the registry too before calling the
+   publish path fully rehearsed.
+2. **The generation token is already hash-style, not a counter.**
+   `rdcae5fbfae57`, not `rtestnet0002`. So part of
+   [`generation-keys.md`](generation-keys.md)'s proposal 1 may already be
+   implemented at this revision, and that note must be re-read against this
+   observation rather than taken as describing unbuilt work. What I did **not**
+   establish is what the token is derived FROM — whether rollup identity is an
+   input, which is the whole point of the proposal. `ingest.nim:1035` reads it from
+   config (`cfg.generation`, defaulting to `"1"`), so the minting site is
+   elsewhere; find it before acting on that note.
+
 ## Open work
 
 | | what | owner |
