@@ -290,8 +290,10 @@ export function instructionColumns(c, listings, stepPcs = null) {
       // pc PAST the class's last instruction, stepped on and executing nothing. Measured on
       // block 1,948,151's transaction: 5 steps, each at one past its class's last pc
       // (2571, 25534, 20477). Its pc is stated and its opcode is not, because there is no
-      // instruction there. A pc missing from INSIDE the program is something else and is
-      // still refused.
+      // instruction there. The recorder shows the step on the listing's closing
+      // `// end of program` label (769c722), a hole to this listing's parser, so the
+      // container offers no pc to compare. A pc missing from INSIDE the program is
+      // something else and is still refused.
       if (!ran && !(p > L.last)) {
         throw refuse(SOURCE_REFUSAL, `step ${i}: pc ${p} is not an instruction in class `
           + `${stepPcs.classes[k]}'s listing.`);

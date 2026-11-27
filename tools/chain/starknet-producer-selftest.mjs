@@ -373,7 +373,8 @@ test('§2 the producer end to end, over captures with no container in them');
   ck('step pcs of a different length from the container are REFUSED',
      short !== null && /hold 2 step\(s\) and the container 3/.test(short));
   // The program's end: cairo-vm stops at the pc one past the last instruction after an
-  // entry point returns. The recorder shows that step on the listing's first line.
+  // entry point returns. The recorder shows that step on the listing's closing
+  // `// end of program` label line (recorder 769c722), and line 1 here stands for that label.
   let end = null;
   try {
     end = instructionColumns({ pathId: [0, 0], line: [3, 1] }, listings,
