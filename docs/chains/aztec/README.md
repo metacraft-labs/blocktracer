@@ -305,6 +305,39 @@ FeeJuice resolves because **the protocol pins magic addresses across a
 redeployment**; every third-party address changed, so their artifacts are void.
 Nothing here is a defect in our machinery.
 
+## A defect to fix next: `refusalName` accepts `Error` as a diagnosis
+
+Measured on the DEPLOYED service 2026-11-27 (still the v5 pin, so every
+transaction refuses):
+
+```
+4,738 blocks   4,258 transactions   0 traces
+refused 3,496 · pruned 506 · not-first-in-block 256
+refusal evidence:  "Error" 3,488 | "NodeUnreachable" 7 | "SettledTransactionNotFound" 1
+```
+
+**3,488 rows carry `refusal: "Error"`** — the generic JS class. `refusalName` in
+`tools/chain/lib/replay.mjs` recognises a refusal BY SHAPE: any PascalCase
+`Name: message` line on its own. `Error: …` matches, so a bare
+`throw new Error(...)` is accepted as a *named* refusal and passes every
+"is it named?" check — including the two I added on 2026-11-26.
+
+That is a hole in my own work, and `runtime-crashed` does not cover it: these are
+not crashes, they are plain throws. The shape rule was the right fix for the
+previous bug (an allowlist of six suffixes that returned `unknown` for 49 of the
+runtime's 92 error classes) and it over-corrected in the other direction.
+
+**Fix:** treat the generic built-ins — `Error`, `TypeError`, `RangeError`,
+`SyntaxError` — as NOT names, so they fall to a member that says the runtime threw
+without identifying the condition. Keep every domain class (`AvmTrap`,
+`HydrationDidNotConverge`, `L1ToL2MessageReadUnanswerable`, …) as it is. Add the
+arm that would have caught this: a stderr of `Error: boom` must not produce a
+named refusal.
+
+This matters for the goal because a page's reason line is what a visitor reads.
+"The replay runtime refused with Error" is not a reason; it is the absence of one
+wearing a reason's clothes.
+
 ## Open work
 
 | | what | owner |
