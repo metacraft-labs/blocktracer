@@ -55,6 +55,25 @@ Three consequences we have actually hit:
 3. **The old corpus is discarded rather than kept.** It is still in the bucket and
    still answers; only the pointer forgot it.
 
+## Corroboration: Aztec's own body store is already keyed this way
+
+Observed 2026-11-27 in a running ingest's body-proxy line, which is the strongest
+argument available that this design is not an invention:
+
+```
+bodies from https://aztec-labs-snapshots.com/testnet/txs/
+            aztec-11155111-679261766-0x1f435a7f2da358caf887a470faeee7d5d5f4efba/txs/
+```
+
+That path segment is `<network>-<l1ChainId>-<rollupVersion>-<rollupAddress>`.
+**Upstream addresses per-deployment data by exactly the triple this note proposes
+deriving the generation token from** — and it had to, for the same reason: a
+redeployment restarts heights, so a key that is only a network name collides with
+itself.
+
+So the proposal is not a new convention. It is making our published keys agree
+with how the data's own source already addresses it.
+
 ## Proposal
 
 **Bind the generation to the deployment, and key durability on the generation.**
