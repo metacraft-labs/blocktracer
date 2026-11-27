@@ -166,10 +166,35 @@ const ARMS = [
       " the fix's own comment: 'left activeIndex at 0 — which after the sort is" +
       " whatever path sorts first, typically Nargo.toml — while currentLine kept a" +
       " line number belonging to a different file.' 115 debug-route cases could not" +
-      " see it because their fixture supplied the position they then asserted back.",
-    file: join(CLIENT, "src", "debugger", "demo_session.nim"),
-    find: `    focus(pane, posPath, posLine)`,
-    replace: `    focus(pane, docs[0].path, posLine)`,
+      " see it because their fixture supplied the position they then asserted back." +
+      " RE-AIMED 2026-11-27, from `demo_session.nim`'s `focus(pane, posPath, posLine)`" +
+      " to the rule that decides which document panel is on screen. The old mutation" +
+      " set the pane's ACTIVE document to the manifest. Since a429545f (codetracer-pm" +
+      " #103) only the active document carries rows; every other panel is a" +
+      " `.srclazy` placeholder drawn when it is opened. So the mutation also took" +
+      " every row of the positioned file off the page, the `.fv` value chips with" +
+      " them, and `lib/corpus.mjs`'s `hasRecordedValues` is read off those chips." +
+      " Under the mutation no transaction in the corpus had values, run.mjs's" +
+      " engine arm refused 'recordings with source and values recorded on it: no" +
+      " subject of this kind in the corpus', and journey 02 was never reached." +
+      " Measured on arch, 2026-11-27: NEVER RAN on 28d07e93 (the #117 promotion" +
+      " head), KILLED on origin/dev c48799f9 ('showing Nargo.toml, position is in" +
+      " null'), the same as `journeys-bite (2)` in CI run 45963116577. A refusal is" +
+      " never a kill, so the arm proved nothing on any tree carrying a429545f. The" +
+      " defect a reader sees is unchanged: the pane opens on the first file while" +
+      " the position is in another. The mutation now makes that state with the" +
+      " CSS. The first panel in the pane is shown and the default panel hidden, so" +
+      " the positioned file and its value chips stay in the markup. The assertion" +
+      " and its journey are unchanged. The model-level form, `activeIndex` left at" +
+      " 0, is still asserted directly by `client/tests/test_entry_state.nim`.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `.srcdoc.alt{display:none}
+.srcdoc.alt:target{display:flex}
+`,
+    replace: `.srcdoc.alt{display:none}
+.srcdoc.alt:target,.srcdoc.alt:nth-child(1 of .srcdoc){display:flex}
+.srcdoc.alt:nth-child(1 of .srcdoc) ~ .srcdoc.def{display:none}
+`,
     journey: "served-frame-marks-the-position",
     assertion: "SERVED: the file on screen is the file the position is in",
   },
@@ -2620,7 +2645,63 @@ async function rebuild({ hydration = true } = {}) {
  * reaches this point because the baseline was found and green — so a missing
  * record means the mutated journey did not get as far as recording it.
  */
-function logMissDiagnosis(miss, arm, phase) {
+/**
+ * The red records of a run, as `{ what, detail }` — the detail included.
+ *
+ * Named and exported rather than inlined so `selftest-diagnosis-test.mjs` can
+ * drive it: a `no-record` miss carries these, and whether a THROWN journey's
+ * stack survives into the CI log is the whole difference between a readable
+ * NEVER RAN and an unreadable one.
+ */
+export function redRecords(records) {
+  return (records ?? [])
+    .filter((r) => !r.ok)
+    .map((r) => ({ what: String(r.what ?? ""), detail: String(r.detail ?? "") }));
+}
+
+/** The sentence `run.mjs` prints when its engine arm (Arm II) refuses. */
+export const ENGINE_ARM_REFUSAL = "cannot open part of this corpus";
+
+/**
+ * What an exit 2 from `run.mjs` means, which depends on WHICH TREE it ran over.
+ *
+ * On an UNMUTATED tree (the `before:` reading, and the reading after the
+ * restore) exit 2 is a refusal about the run: no browser, no exported site, an
+ * engine that cannot open the corpus. Nothing in the suite can be judged, so it
+ * is raised as one DID NOT RUN. That is unchanged.
+ *
+ * On a MUTATED tree the engine-arm refusal is NOT evidence about the engine.
+ * Arm II opens one recording of each kind THROUGH THE PRODUCT'S OWN PAGE
+ * (`run.mjs` `engineArm` → `askTheEngine`), so a mutation of that page can stop
+ * a recording opening while the engine is fine. The unmutated run of the same
+ * arm, measured a moment earlier, opened it: that GREEN baseline disproves an
+ * engine cause. Measured on #117 (`0ace4de`): `journeys-bite (2)` arm
+ * `B/opens-on-the-manifest` and `journeys-bite (4)` arm
+ * `PH1/the-playhead-drifts-back-a-tick` each had a GREEN `before:` over the
+ * pinned engine and then raised "the engine … cannot open part of this corpus",
+ * which ended the whole shard as DID NOT RUN and blamed the engine.
+ *
+ * So a mutated engine-arm refusal is returned as a MISS (`why:
+ * "refused-mutated"`), with what Arm II printed, and the existing scoring
+ * decides. A miss scores NEVER RAN, NOT a kill: a mutant is killed only by a
+ * red record from its own journey, and here the journey judged nothing. Any
+ * OTHER exit 2 on a mutated tree (no browser, `--only` matching nothing, …) is
+ * still a fact about the run and is still raised.
+ *
+ * Returns `{ raise: true }` or `{ raise: false, miss }`.
+ */
+export function classifyRefusal(output, phase) {
+  const text = String(output ?? "");
+  if (phase !== "mutated" || !text.includes(ENGINE_ARM_REFUSAL)) return { raise: true };
+  const seen = text
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => /\[(OK|REFUSED)\]/.test(l) || /^\s{19}\S/.test(l))
+    .slice(-12);
+  return { raise: false, miss: { found: false, why: "refused-mutated", tail: seen } };
+}
+
+export function logMissDiagnosis(miss, arm, phase) {
   const mutated = phase === "mutated";
   if (miss.why === "no-report") {
     if (mutated) {
@@ -2639,6 +2720,16 @@ function logMissDiagnosis(miss, arm, phase) {
       log(`               Run \`node tools/journeys/run.mjs --only ${arm.journey}\` and`);
       log(`               read ITS output; the cause is there and not here.`);
     }
+  } else if (miss.why === "refused-mutated") {
+    log(`               THE MUTATED RUN NEVER REACHED ITS JOURNEY. run.mjs's engine arm,`);
+    log(`               which opens one recording of each kind through the product's own`);
+    log(`               page, did not see one open under the MUTATED tree. The unmutated`);
+    log(`               run of this arm opened it, so no engine cause is claimed: the`);
+    log(`               mutation stopped the page opening it. The journey judged nothing,`);
+    log(`               so this is NEVER RAN, not a kill. What the engine arm printed:`);
+    const tail = miss.tail ?? [];
+    if (tail.length) for (const line of tail) log(`                 ${line}`);
+    else log(`                 (nothing — re-run \`node tools/journeys/run.mjs --only ${arm.journey}\` over the mutated tree)`);
   } else if (miss.why === "no-journey") {
     log(`               THE REPORT HOLDS NO JOURNEY '${arm.journey}'. It holds:`);
     log(`               ${(miss.saw ?? []).join(", ") || "(none)"}`);
@@ -2652,18 +2743,63 @@ function logMissDiagnosis(miss, arm, phase) {
       log(`               of the assertion, or a guard above it stopped holding. Run`);
       log(`               \`node tools/journeys/run.mjs --only ${arm.journey}\` over the`);
       log(`               mutated tree and read where it stops.`);
-      const texts = miss.texts ?? [];
-      if (texts.length) {
-        log(`               WHAT IT DID ASSERT, so the two sets can be compared without`);
-        log(`               another run — a subject chosen differently shows up here as`);
-        log(`               several unfamiliar lines, not one missing one:`);
-        for (const w of texts.slice(0, 20)) log(`                 · ${w}`);
-        if (texts.length > 20) log(`                 … and ${texts.length - 20} more`);
-      }
     } else {
-      log(`               THE JOURNEY RAN — ${miss.records} assertion(s) — and none of them`);
-      log(`               contains that text. The assertion was reworded and this arm`);
-      log(`               still names the old wording.`);
+      // TWO CAUSES, OPPOSITE REMEDIES — AND THIS BRANCH USED TO ASSERT ONE OF
+      // THEM OUTRIGHT. It said "The assertion was reworded and this arm still
+      // names the old wording", which is a claim about the ARM. On blocktracer
+      // #108 that claim was false and cost a diagnosis: journey 12 names
+      // "continuing forward stops at least three times" VERBATIM in its source
+      // and records 30 assertions in a full `journeys` run, but only 12 under a
+      // single-journey bite run — so it never reached the assertion and the arm
+      // was correct all along. The count cannot separate the two causes, so
+      // this names both and prints the evidence instead of choosing one.
+      log(`               THE UNMUTATED JOURNEY RAN — ${miss.records} assertion(s) — and none`);
+      log(`               of them contains that text. TWO CAUSES, OPPOSITE REMEDIES, and the`);
+      log(`               count alone does not separate them:`);
+      log(`                 · the assertion was REWORDED — then fix the ARM to name the new`);
+      log(`                   text, and the journey is fine;`);
+      log(`                 · or the journey STOPPED EARLY and never reached it — then fix`);
+      log(`                   the JOURNEY or its subject, and the ARM is already correct.`);
+      log(`               A journey that makes FEWER records here than in a full \`journeys\``);
+      log(`               run is the second, whatever the wording looks like. Run`);
+      log(`               \`node tools/journeys/run.mjs --only ${arm.journey}\` over the`);
+      log(`               UNMUTATED tree: if it reaches the assertion there, the cause is`);
+      log(`               this run's subject or a gesture, not the wording.`);
+    }
+    // THE EVIDENCE, FOR BOTH PHASES. These two lists used to print on the
+    // mutated branch only, so an unmutated miss — the one that fails a whole
+    // SHARD, because every arm behind it reads the same refusal — arrived with
+    // three lines of prose and no data at all. The lists are what separate the
+    // two causes above without another run, and a CI reader cannot re-run
+    // either tree.
+    const texts = miss.texts ?? [];
+    if (texts.length) {
+      log(`               WHAT IT DID ASSERT, so the two sets can be compared without`);
+      log(`               another run — a subject chosen differently shows up here as`);
+      log(`               several unfamiliar lines, not one missing one:`);
+      for (const w of texts.slice(0, 20)) log(`                 · ${w}`);
+      if (texts.length > 20) log(`                 … and ${texts.length - 20} more`);
+    }
+    // AND WHY IT STOPPED THERE. The list above says WHICH assertion is the
+    // last one the journey reached; this says what happened at that point.
+    // The distinction it carries is the whole question a NEVER RAN raises:
+    // a run that reached further than its target leaves a red assertion
+    // ABOUT THE SUBJECT, while a gesture that timed out leaves a stack inside
+    // the harness, in a phase the mutation's own code path never executes.
+    // Those two are the readings an arm's verdict cannot separate, and a
+    // reader who has only the CI log cannot re-run either tree.
+    const failures = miss.failures ?? [];
+    if (failures.length) {
+      log(`               AND WHY IT STOPPED THERE — every red record of this run, with`);
+      log(`               its detail. A stack here, in a phase the mutation cannot reach,`);
+      log(`               is this runner and not this arm:`);
+      for (const f of failures.slice(0, 5)) {
+        log(`                 ✗ ${f.what}`);
+        for (const line of f.detail.split("\n").slice(0, 8)) {
+          if (line.trim()) log(`                     ${line}`);
+        }
+      }
+      if (failures.length > 5) log(`                 … and ${failures.length - 5} more red record(s)`);
     }
   }
   // AND WHICH OF THE TWO WAYS IT MISSED. `verdictFor` matches with
@@ -2680,7 +2816,7 @@ function logMissDiagnosis(miss, arm, phase) {
   }
 }
 
-async function verdictFor(journey, assertion) {
+async function verdictFor(journey, assertion, phase = "unmutated") {
   // THE PREVIOUS READING IS DELETED BEFORE THIS ONE IS TAKEN.
   //
   // `run.mjs --json` writes this file when it produces a verdict and does NOT
@@ -2742,6 +2878,12 @@ async function verdictFor(journey, assertion) {
     // probe went red and stayed red, describing an incident whose mechanism had
     // moved out from under it.
     if (err && err.code === 2) {
+      // Arm II prints its per-recording [OK]/[REFUSED] lines on STDOUT and the
+      // refusal sentence on STDERR, so both are read. See `classifyRefusal`:
+      // on a MUTATED tree an engine-arm refusal is a miss, not a DID NOT RUN.
+      const said = String(err.stdout ?? "") + String(err.stderr ?? "");
+      const refusal = classifyRefusal(said, phase);
+      if (!refusal.raise) return refusal.miss;
       throw new Error(
         `the journeys REFUSED to run '${journey}' — run.mjs exited 2, which is\n` +
           `  "this gate did not run", not a verdict about the product. Nothing below it\n` +
@@ -2808,6 +2950,19 @@ async function verdictFor(journey, assertion) {
       // the corpus is staged differently. These are what make the comparison
       // possible from a CI log alone, without another run.
       texts: j.records.map((r) => String(r.what ?? "")),
+      // AND THE DETAIL OF WHATEVER WENT RED, which is the one datum that says
+      // WHY the journey stopped short. `run.mjs` records a thrown journey as
+      // the assertion "the journey threw" with the STACK as its detail
+      // (`run.mjs`, `j.expect(false, "the journey threw", String(err.stack))`),
+      // and until now `logMissDiagnosis` printed the names and dropped the
+      // details — so a NEVER RAN whose cause was a Playwright click timing out
+      // in a phase the mutation cannot even reach read exactly like a mutation
+      // that was too broad for its target. On #105 that cost a reconstruction
+      // from the journal, the arm's `find`/`replace` text, the enclosing proc's
+      // scope and the journey's statement order to establish something one
+      // stack line would have said. Capped per record where it is printed, not
+      // here, so the report stays complete.
+      failures: redRecords(j.records),
     };
   }
   // `vacuous` is carried through because a red that is only a poisoned
@@ -3168,7 +3323,7 @@ async function main() {
         log(`               ${built.log.split("\n").slice(-3).join(" / ")}`);
         verdict = "never";
       } else {
-        const after = await verdictFor(arm.journey, arm.assertion);
+        const after = await verdictFor(arm.journey, arm.assertion, "mutated");
         if (!after.found) {
           log(`    NEVER RAN — the assertion vanished from the mutated run`);
           logMissDiagnosis(after, arm, "mutated");

@@ -2,6 +2,10 @@
 ## trust strip: "No account. No ads. No tracking. Complete history, no record
 ## caps." + link to the privacy summary.
 ##
+## (§2's "complete history" holds where the tree carries an address's complete
+## history; elsewhere the address page states the blocks it covers. See "Go back as
+## far as you like" below.)
+##
 ## The one page besides the home and the chains index that is class I0
 ## (`index,follow`) in SEO-And-Crawl-Budget §5–§6, with the condition attached:
 ## "documentation must contain substantive unique content".
@@ -178,11 +182,20 @@ proc aboutPage*(chainCount: int): string =
           # distinguishing, so this is a rewrite rather than a deletion — and it
           # belongs HERE because it was never a cost. It is a thing the reader
           # can do.
+          # "ENTIRE HISTORY" WAS TRUE ONLY WHERE THE TREE CARRIES IT. On a chain
+          # whose producer publishes no chain history for an address, the list is
+          # the transactions BlockTracer recorded. The address page says so, with
+          # the blocks it covers (`AddressView.historyComplete`); this sentence
+          # used to promise the opposite about every chain. Starknet, whose nodes
+          # answer no per-address query, is the case that showed it (the
+          # operator's ruling, 2026-11-25).
           dt: text "Go back as far as you like"
           dd(class = "measure"):
-            text "Page through an address's entire history. Nothing is cut "
-            text "off at a row limit, and the oldest page is no slower to "
-            text "load than the newest."
+            text "Page through everything recorded for an address. Nothing is "
+            text "cut off at a row limit, and the oldest page is no slower to "
+            text "load than the newest. Where a chain's full history for an "
+            text "address is not published, its page says so and names the "
+            text "blocks it covers."
 
         # THREE ITEMS, AND THE SECTION NOW MEANS ONE THING.
         #

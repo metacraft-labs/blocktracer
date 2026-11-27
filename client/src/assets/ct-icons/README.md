@@ -35,7 +35,7 @@ that commit (`git cat-file -p aca163924:src/public/resources/<path> | sha256sum`
 
 Copied at CodeTracer commit **`af70456c981ea8e3c8de2534cdee16eca5550efd`** —
 the SAME commit `client/src/debugger/vendor/ct_styles.vendor.json` and
-`ci/embed-sdk-pin.env`'s `CODETRACER_REF` name, so the sheets and the icons they
+the CodeTracer pin (`ci/codetracer-ref.sh`) name, so the sheets and the icons they
 reference cannot be from two different upstreams.
 
 The copy was taken off a working checkout whose `HEAD` was

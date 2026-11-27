@@ -368,6 +368,9 @@ proc debugPage*(s: DebugSessionView): string =
   # page with no script at all, and `hydrate.scrollToCurrentLine` does it again on
   # every stop once the bundle is running.
   let sourceIsland = (if s.hasFrame: encodeSourceIsland(s.editor) else: "")
+  # The island above carries every line; the served pane draws an over-long
+  # landing document as a window around the position (`servedWindow`).
+  s.editor = servedWindow(s.editor)
   let replay =
     if s.hasFrame: renderLayout(blockTracerReplayLayout(), s)
     else: noSession(s)

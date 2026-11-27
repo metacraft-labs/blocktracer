@@ -174,7 +174,7 @@ test-runquota-bridge:
 
 # ── the chain capture tooling's own selftests ──────────────────────────────
 #
-# TWENTY-SIX suites — 105 + 18 + 19 + 24 + 24 + 57 + 246 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 36 + 12 + 36 + 24 + 56 + 25 = 1490 counted assertions —
+# TWENTY-EIGHT suites — 105 + 18 + 19 + 24 + 24 + 57 + 262 + 33 + 162 + 53 + 118 + 221 + 83 + 20 + 30 + 8 + 11 + 10 + 7 + 52 + 47 + 13 + 36 + 24 + 56 + 25 + 15 + 23 = 1556 counted assertions —
 # over the twelve decisions the capture path makes that nothing else can check
 # afterwards:
 # which outcome a driver run is (`replay-selftest`), whether a snapshot may be
@@ -652,6 +652,17 @@ chain-selftest:
     # its prediction classifier, each driven with a control. The measurement it judges is
     # `tools/chain/measurements/sol-depth-yield.json`, taken live by `capture-sol-window.mjs --depth`.
     node tools/chain/sol-depth-yield-selftest.mjs
+    # Offline and toolchain-free: the ingest-to-site join's REFUSALS. Every arm
+    # removes exactly one published member from a complete bucket mirror and
+    # asserts the tool refuses by name, because a bucket missing a member must
+    # not yield a snapshot with a plausible value invented in its place.
+    node tools/chain/snapshot-from-ingest-selftest.mjs
+    # Offline and toolchain-free: the tip-follower's arithmetic and its two
+    # refusals. No node, no ledger on disk and no child process — `planRange` and
+    # `checkIdentity` were separated from the side effects so a restarted chain
+    # can be driven over made-up numbers, which is the one case that must never
+    # publish and the one case a live endpoint cannot be asked to produce.
+    node tools/chain/follow-to-tip-selftest.mjs
 
 # ── RECORD the one container a current reader can open ─────────────────────
 #
@@ -1376,7 +1387,7 @@ sdk-boundary:
 
 # The handoff: compile and run tests/tembedhandoff.nim against the real Embed
 # SDK, so "a TraceSource the Embed SDK accepts" is checked by the Embed SDK.
-# Needs CODETRACER_SRC or a ../codetracer checkout (ci/embed-sdk-pin.env).
+# Needs CODETRACER_SRC or a ../codetracer checkout (ci/codetracer-ref.sh).
 sdk-test-embed: prepare-recordings
     ci/test/embed-handoff-test.sh --require
 
@@ -1412,7 +1423,7 @@ debug-panes: prepare-recordings
 #   * `viewmodel/viewmodels/flow_layout.nim` + `ui/flow_loop_math.nim` — the
 #     Omniscience layout arithmetic.
 #
-# BOTH manifests are pinned to `ci/embed-sdk-pin.env`'s CODETRACER_REF, and both
+# BOTH manifests are pinned to the CodeTracer pin (`ci/codetracer-ref.sh`), and both
 # checks assert it. That is not decoration: part B of each check compares the
 # copy against `$CODETRACER_SRC`, which IS that pin, so a manifest naming any
 # other commit asks a question with no passable answer. The layout model was
@@ -2366,6 +2377,18 @@ journeys-selftest-combine OF:
 # proves the SIGTERM path puts the mutated file back, which a `finally` cannot.
 journeys-selftest-verdict:
     bash tools/journeys/selftest-verdict-test.sh
+
+# Does a NEVER RAN say WHY the journey stopped, and not only WHERE? The verdict
+# has two causes with opposite remedies — a mutation that reached further than
+# its target, or a gesture that timed out in a phase the mutation cannot reach —
+# and `run.mjs` already records a thrown journey's STACK as that assertion's
+# detail. `logMissDiagnosis` printed the assertion NAMES and dropped the
+# details, so the two readings arrived identically and PR #105's shard 4 cost a
+# reconstruction from the journal, the arm's replacement text and the enclosing
+# proc's scope to establish what one stack line says. Pure node: no browser, no
+# build, no corpus.
+journeys-selftest-diagnosis:
+    node tools/journeys/selftest-diagnosis-test.mjs
 
 # All four VD.0 verifications, end to end.
 capture-selftest:

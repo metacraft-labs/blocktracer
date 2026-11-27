@@ -1,0 +1,510 @@
+{
+ "format": "blocktracer/evm-endpoint-probe@1",
+ "chain": "eth-sepolia",
+ "measuredAt": "2026-11-25T09:31:38.339Z",
+ "measuredBy": "tools/chain/evm-endpoint-probe.mjs",
+ "account": "0x2f14582947e292a2ecd20c430b46f2d27cfe213c",
+ "endpoints": [
+  {
+   "url": "https://rpc.sepolia.ethpandaops.io",
+   "chainId": "0xaa36a7",
+   "clientVersion": "Geth/v1.17.8-stable-a5790770/linux-amd64/go1.27.1",
+   "tip": 12208687,
+   "finalized": 12208598,
+   "control": {
+    "method": "thisMethodDoesNotExist",
+    "answer": {
+     "code": -32601,
+     "message": "the method thisMethodDoesNotExist does not exist/is not available"
+    }
+   },
+   "depths": [
+    {
+     "block": 1,
+     "balance": "0x1bc16d674ec80000",
+     "nonce": "0x0",
+     "proofNodes": 3,
+     "proofAgrees": true
+    },
+    {
+     "block": 1000000,
+     "balance": "0x73c05cd598954e1323f2",
+     "nonce": "0x2",
+     "proofNodes": 5,
+     "proofAgrees": true
+    },
+    {
+     "block": 1451146,
+     "balance": "0x5ba83a777470fd3763c2",
+     "nonce": "0x7",
+     "proofNodes": 6,
+     "proofAgrees": true
+    },
+    {
+     "block": 2990716,
+     "balance": "0x5ba83a7774b6d69c1bc2",
+     "nonce": "0x7",
+     "proofNodes": 6,
+     "proofAgrees": true
+    },
+    {
+     "block": 4000000,
+     "refused": {
+      "code": -32603,
+      "message": "failsafe timeout policy exceeded on network-level after 30.000479564s: dynamic timeout exceeded"
+     }
+    },
+    {
+     "block": 5400000,
+     "refused": {
+      "code": -32603,
+      "message": "failsafe timeout policy exceeded on network-level after 30.000549542s: dynamic timeout exceeded"
+     }
+    },
+    {
+     "block": 7840000,
+     "balance": "0x378fd7f6743b113b956a",
+     "nonce": "0x18",
+     "proofNodes": 8,
+     "proofAgrees": true
+    },
+    {
+     "block": 10400000,
+     "balance": "0x3571bec7887587babfd2",
+     "nonce": "0x19",
+     "proofNodes": 9,
+     "proofAgrees": true
+    },
+    {
+     "block": 11200000,
+     "balance": "0x3571bec7887587babfd2",
+     "nonce": "0x19",
+     "proofNodes": 9,
+     "proofAgrees": true
+    },
+    {
+     "block": 12100000,
+     "balance": "0x3571bec7887587babfd2",
+     "nonce": "0x19",
+     "proofNodes": 9,
+     "proofAgrees": true
+    }
+   ],
+   "archive": {
+    "answered": [
+     1,
+     1000000,
+     1451146,
+     2990716,
+     7840000,
+     10400000,
+     11200000,
+     12100000
+    ],
+    "refused": [
+     4000000,
+     5400000
+    ],
+    "proofAgreesAtEveryAnsweredDepth": true,
+    "distinctBalances": 6
+   },
+   "prestateTracer": {
+    "tx": "0x1a26660469a8f4b4ea196389dc9140a95cc4d917a2a362cfa39738e2c285d412",
+    "served": true,
+    "accounts": 4
+   },
+   "traceBlock": {
+    "block": 12100000,
+    "served": true
+   }
+  },
+  {
+   "url": "https://sepolia.rpc.thirdweb.com",
+   "chainId": "0xaa36a7",
+   "clientVersion": "thirdweb/1.0",
+   "tip": 12208693,
+   "finalized": 12208598,
+   "control": {
+    "method": "thisMethodDoesNotExist",
+    "answer": {
+     "code": -32601,
+     "message": "the method thisMethodDoesNotExist does not exist/is not available"
+    }
+   },
+   "depths": [
+    {
+     "block": 1,
+     "balance": "0x1bc16d674ec80000",
+     "nonce": "0x0",
+     "proofNodes": 3,
+     "proofAgrees": true
+    },
+    {
+     "block": 1000000,
+     "balance": "0x73c05cd598954e1323f2",
+     "nonce": "0x2",
+     "proofNodes": 5,
+     "proofAgrees": true
+    },
+    {
+     "block": 1451146,
+     "balance": "0x5ba83a777470fd3763c2",
+     "nonce": "0x7",
+     "proofNodes": 6,
+     "proofAgrees": true
+    },
+    {
+     "block": 2990716,
+     "balance": "0x5ba83a7774b6d69c1bc2",
+     "nonce": "0x7",
+     "proofNodes": 6,
+     "proofAgrees": true
+    },
+    {
+     "block": 4000000,
+     "balance": "0x598a208f3e006d7d2d7a",
+     "nonce": "0x8",
+     "proofNodes": 8,
+     "proofAgrees": true
+    },
+    {
+     "block": 5400000,
+     "balance": "0x4eb7efb58de29683d562",
+     "nonce": "0xc",
+     "proofNodes": 8,
+     "proofAgrees": true
+    },
+    {
+     "block": 7840000,
+     "balance": "0x378fd7f6743b113b956a",
+     "nonce": "0x18",
+     "proofNodes": 8,
+     "proofAgrees": true
+    },
+    {
+     "block": 10400000,
+     "balance": "0x3571bec7887587babfd2",
+     "nonce": "0x19",
+     "proofNodes": 9,
+     "proofAgrees": true
+    },
+    {
+     "block": 11200000,
+     "balance": "0x3571bec7887587babfd2",
+     "nonce": "0x19",
+     "proofNodes": 9,
+     "proofAgrees": true
+    },
+    {
+     "block": 12100000,
+     "balance": "0x3571bec7887587babfd2",
+     "nonce": "0x19",
+     "proofNodes": 9,
+     "proofAgrees": true
+    }
+   ],
+   "archive": {
+    "answered": [
+     1,
+     1000000,
+     1451146,
+     2990716,
+     4000000,
+     5400000,
+     7840000,
+     10400000,
+     11200000,
+     12100000
+    ],
+    "refused": [],
+    "proofAgreesAtEveryAnsweredDepth": true,
+    "distinctBalances": 8
+   },
+   "prestateTracer": {
+    "tx": "0x1a26660469a8f4b4ea196389dc9140a95cc4d917a2a362cfa39738e2c285d412",
+    "served": false,
+    "refused": {
+     "code": -32601,
+     "message": "Invalid method debug_traceTransaction"
+    }
+   },
+   "traceBlock": {
+    "block": 12100000,
+    "served": false,
+    "refused": {
+     "code": -32601,
+     "message": "Invalid method trace_block"
+    }
+   }
+  },
+  {
+   "url": "https://ethereum-sepolia-rpc.publicnode.com",
+   "chainId": "0xaa36a7",
+   "clientVersion": "Geth/v1.17.9-stable-9dffe6e9/linux-amd64/go1.25.14",
+   "tip": 12208695,
+   "finalized": 12208629,
+   "control": {
+    "method": "thisMethodDoesNotExist",
+    "answer": {
+     "code": -32601,
+     "message": "Method not found"
+    }
+   },
+   "depths": [
+    {
+     "block": 1,
+     "refused": {
+      "code": 4444,
+      "message": "pruned history unavailable: requested 1, earliest available 12198620"
+     }
+    },
+    {
+     "block": 1000000,
+     "refused": {
+      "code": 4444,
+      "message": "pruned history unavailable: requested 1000000, earliest available 12198625"
+     }
+    },
+    {
+     "block": 1451146,
+     "refused": {
+      "code": -32602,
+      "message": "Archive requests require a personal token. Get one at: https://www.allnodes.com/publicnode"
+     }
+    },
+    {
+     "block": 2990716,
+     "refused": {
+      "code": 4444,
+      "message": "pruned history unavailable: requested 2990716, earliest available 12198625"
+     }
+    },
+    {
+     "block": 4000000,
+     "refused": {
+      "code": 4444,
+      "message": "pruned history unavailable: requested 4000000, earliest available 12198615"
+     }
+    },
+    {
+     "block": 5400000,
+     "refused": {
+      "code": 4444,
+      "message": "pruned history unavailable: requested 5400000, earliest available 12198625"
+     }
+    },
+    {
+     "block": 7840000,
+     "refused": {
+      "code": 4444,
+      "message": "pruned history unavailable: requested 7840000, earliest available 12198625"
+     }
+    },
+    {
+     "block": 10400000,
+     "refused": {
+      "code": 4444,
+      "message": "pruned history unavailable: requested 10400000, earliest available 12198625"
+     }
+    },
+    {
+     "block": 11200000,
+     "refused": {
+      "code": 4444,
+      "message": "pruned history unavailable: requested 11200000, earliest available 12198620"
+     }
+    },
+    {
+     "block": 12100000,
+     "refused": {
+      "code": 4444,
+      "message": "pruned history unavailable: requested 12100000, earliest available 12198620"
+     }
+    }
+   ],
+   "archive": {
+    "answered": [],
+    "refused": [
+     1,
+     1000000,
+     1451146,
+     2990716,
+     4000000,
+     5400000,
+     7840000,
+     10400000,
+     11200000,
+     12100000
+    ],
+    "proofAgreesAtEveryAnsweredDepth": false,
+    "distinctBalances": 0
+   }
+  },
+  {
+   "url": "https://sepolia.drpc.org",
+   "chainId": {
+    "code": 35,
+    "message": "chain is not available on free plan, please upgrade to paid plan"
+   },
+   "clientVersion": {
+    "code": 35,
+    "message": "chain is not available on free plan, please upgrade to paid plan"
+   },
+   "tip": {
+    "code": 35,
+    "message": "chain is not available on free plan, please upgrade to paid plan"
+   },
+   "finalized": {
+    "code": 35,
+    "message": "chain is not available on free plan, please upgrade to paid plan"
+   },
+   "control": {
+    "method": "thisMethodDoesNotExist",
+    "answer": {
+     "code": -32601,
+     "message": "method is not available"
+    }
+   },
+   "depths": [
+    {
+     "block": 1,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    },
+    {
+     "block": 1000000,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    },
+    {
+     "block": 1451146,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    },
+    {
+     "block": 2990716,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    },
+    {
+     "block": 4000000,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    },
+    {
+     "block": 5400000,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    },
+    {
+     "block": 7840000,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    },
+    {
+     "block": 10400000,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    },
+    {
+     "block": 11200000,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    },
+    {
+     "block": 12100000,
+     "refused": {
+      "code": 35,
+      "message": "chain is not available on free plan, please upgrade to paid plan"
+     }
+    }
+   ],
+   "archive": {
+    "answered": [],
+    "refused": [
+     1,
+     1000000,
+     1451146,
+     2990716,
+     4000000,
+     5400000,
+     7840000,
+     10400000,
+     11200000,
+     12100000
+    ],
+    "proofAgreesAtEveryAnsweredDepth": false,
+    "distinctBalances": 0
+   }
+  }
+ ],
+ "instance": {
+  "floor": "no floor found: every probed depth answered by at least one endpoint",
+  "archiveSources": [
+   "https://sepolia.rpc.thirdweb.com"
+  ],
+  "prestateTraceSources": [
+   "https://rpc.sepolia.ethpandaops.io"
+  ],
+  "perDepth": [
+   {
+    "block": 1,
+    "answeredBy": 2
+   },
+   {
+    "block": 1000000,
+    "answeredBy": 2
+   },
+   {
+    "block": 1451146,
+    "answeredBy": 2
+   },
+   {
+    "block": 2990716,
+    "answeredBy": 2
+   },
+   {
+    "block": 4000000,
+    "answeredBy": 1
+   },
+   {
+    "block": 5400000,
+    "answeredBy": 1
+   },
+   {
+    "block": 7840000,
+    "answeredBy": 2
+   },
+   {
+    "block": 10400000,
+    "answeredBy": 2
+   },
+   {
+    "block": 11200000,
+    "answeredBy": 2
+   },
+   {
+    "block": 12100000,
+    "answeredBy": 2
+   }
+  ]
+ }
+}

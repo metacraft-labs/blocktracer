@@ -74,7 +74,7 @@ search-bundle:
 # Sources resolve exactly as ci/test/debug-panes-test.sh resolves them —
 # $CODETRACER_SRC, else a ../codetracer sibling — because a second convention
 # for locating the same tree is a second thing to keep in step. The pinned
-# commit is in ci/embed-sdk-pin.env.
+# commit is printed by ci/codetracer-ref.sh.
 hydrate:
     ./hydrate/build.sh
 

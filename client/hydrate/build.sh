@@ -10,7 +10,8 @@
 # Sources resolve in the same order and by the same markers as
 # ci/test/debug-panes-test.sh, deliberately: two ways of finding one tree is
 # how the tree the bundle is built against and the tree the suites run against
-# come to differ. The pinned commit is in ci/embed-sdk-pin.env.
+# come to differ. The pinned CodeTracer commit is the organisation's pin
+# (`ci/codetracer-ref.sh` prints it); IsoNim's are in ci/embed-sdk-pin.env.
 #
 # Exit codes:
 #   0  the bundle was built
@@ -81,7 +82,7 @@ warn_if_shadowed() {
 ct="$(find_src CODETRACER_SRC codetracer src/frontend/viewmodel/codetracer_embed.nim)"
 if [ -z "${ct}" ]; then
 	echo "hydrate/build.sh: no CodeTracer Embed SDK found." >&2
-	echo "  The pinned commit CI uses is in ci/embed-sdk-pin.env." >&2
+	echo "  The pinned commit CI uses is printed by ci/codetracer-ref.sh." >&2
 	echo "  Without it there is no hydration bundle, and the site builds and" >&2
 	echo "  serves exactly as it does today (replay_engine.HydrationBundle)." >&2
 	if [ "${require}" -eq 1 ]; then exit 1; fi
@@ -97,7 +98,7 @@ if [ ! -f "${ct}/src/frontend/viewmodel/backend/worker_backend.nim" ]; then
 	echo "hydrate/build.sh: that Embed SDK has no WorkerBackendService." >&2
 	echo "  ${ct}/src/frontend/viewmodel/backend/worker_backend.nim is missing." >&2
 	echo "  Hydration drives the replay worker through it; a checkout without" >&2
-	echo "  it cannot build this bundle. Move CODETRACER_REF forward." >&2
+	echo "  it cannot build this bundle. Move the CodeTracer pin forward." >&2
 	exit 1
 fi
 
@@ -137,18 +138,21 @@ fi
 # `ci/embed-sdk-pin.env` already states the rule this script was breaking, in
 # its own words: "validate against the PIN, not against whatever a sibling
 # `../codetracer` happens to be sitting on", and "a green build here has to be
-# able to name the bytes it was green against". It pins all three. So all three
-# are now READ from it and verified, and a tree that is not the pin is refused.
+# able to name the bytes it was green against". So every source is now READ
+# from its pin and verified -- the Embed SDK's from the organisation's
+# CodeTracer pin (`ci/codetracer-ref.sh`), the other three from that file --
+# and a tree that is not the pin is refused.
 #
 # IDENTITY COMES FROM WHEREVER IT IS ACTUALLY GUARANTEED:
 #
 #   * a NIX STORE PATH — `flake.nix` sets these from flake inputs, and
 #     `packages.default` and every CI job build that way. A store path has no
-#     git metadata, so its revision is the flake's; for the Embed SDK the flake
-#     names it with an explicit `rev=` and that is checked against the pin
-#     below, an equality previously asserted only in a COMMENT in
-#     `.github/workflows/ci.yml` ("required to be equal and are") and enforced
-#     by nothing.
+#     git metadata, so its revision is the flake's. For the Embed SDK the
+#     same evaluation exports that revision as `$CODETRACER_REF`, from the one
+#     pin the tree was fetched by; a store path that arrives WITHOUT it is
+#     refused as unidentifiable rather than labelled with the current pin.
+#     (Until 2026-11-24 the flake named its own `rev=` and this script checked
+#     it against a second copy in `ci/embed-sdk-pin.env`.)
 #   * a GIT CHECKOUT — its revision is `HEAD`, and its `src/` must be clean,
 #     because a revision does not name the bytes if the bytes were edited after
 #     it.
@@ -173,29 +177,23 @@ pin_of() {
 	sed -n "s/^$1=\([0-9a-f]\{40\}\).*/\1/p" "${pin_file}" 2>/dev/null | head -1
 }
 
-pin_ct="$(pin_of CODETRACER_REF)"
+# The Embed SDK's revision is the organisation's CodeTracer pin, which this
+# repository reads and does not store (`ci/codetracer-ref.sh`). Inside the flake
+# `$CODETRACER_REF` and `$CODETRACER_SRC` are set from that ONE pin, so the
+# equality this script used to assert between flake.nix's codetracer rev and
+# `ci/embed-sdk-pin.env`'s CODETRACER_REF -- one fact kept in two files -- now
+# holds by construction.
+pin_ct="$(bash "${repo_root}/ci/codetracer-ref.sh")" || pin_ct=""
 pin_isonim="$(pin_of ISONIM_REF)"
 pin_ne="$(pin_of NIM_EVERYWHERE_REF)"
 pin_tui="$(pin_of ISONIM_TUI_REF)"
 if [ -z "${pin_ct}" ] || [ -z "${pin_isonim}" ] || [ -z "${pin_ne}" ] ||
 	[ -z "${pin_tui}" ]; then
-	echo "hydrate/build.sh: could not read all four refs from ${pin_file}." >&2
-	echo "  That file is the one place naming the bytes this repository is built" >&2
-	echo "  against. Without it this script cannot say what it built, and a" >&2
+	echo "hydrate/build.sh: could not read all four pins: the CodeTracer pin" >&2
+	echo "  (ci/codetracer-ref.sh) and the three refs in ${pin_file}." >&2
+	echo "  Those are the one place naming the bytes this repository is built" >&2
+	echo "  against. Without them this script cannot say what it built, and a" >&2
 	echo "  verdict with no artefact identity beside it is unfalsifiable." >&2
-	exit 1
-fi
-
-# The flake input and the pin are ONE fact in two files. CI's own comment says
-# they "are required to be equal"; nothing made them so until here.
-flake_rev="$(sed -n 's/.*github\.com\/metacraft-labs\/codetracer.*rev=\([0-9a-f]\{40\}\).*/\1/p' \
-	"${repo_root}/flake.nix" 2>/dev/null | head -1)"
-if [ -n "${flake_rev}" ] && [ "${flake_rev}" != "${pin_ct}" ]; then
-	echo "hydrate/build.sh: flake.nix and ci/embed-sdk-pin.env name different Embed SDKs." >&2
-	echo "  flake.nix codetracer rev : ${flake_rev}" >&2
-	echo "  ci/embed-sdk-pin.env     : ${pin_ct}" >&2
-	echo "  The bundle CI ships and the SDK CI's suites run against would be two" >&2
-	echo "  different trees. Move both, or neither." >&2
 	exit 1
 fi
 
@@ -225,8 +223,20 @@ describe_and_check() {
 	dirty=0
 	case "${path}" in
 	/nix/store/*)
-		rev="${pin}"
-		how="${how}, nix store — revision is the flake's pin"
+		# A store path carries no git metadata, so its revision is whatever the
+		# flake evaluation that produced it says. For the Embed SDK that
+		# evaluation exports `$CODETRACER_REF` beside `$CODETRACER_SRC` (every
+		# dev shell and `packages.default`). A store path WITHOUT it was not
+		# handed over with its revision: typically a shell entered before the
+		# pin moved, whose tree `ci/codetracer-ref.sh` would otherwise label
+		# with the CURRENT pin and call `ok`.
+		if [ "${envvar}" = CODETRACER_SRC ] && [ -z "${CODETRACER_REF:-}" ]; then
+			rev=""
+			how="${how}, nix store — but \$CODETRACER_REF is unset, so nothing names its revision (re-enter the dev shell)"
+		else
+			rev="${pin}"
+			how="${how}, nix store — revision is the flake's pin"
+		fi
 		;;
 	*)
 		rev="$(git -C "${path}" rev-parse HEAD 2>/dev/null)"
@@ -272,8 +282,8 @@ if [ -n "${shadow_warnings}" ]; then
 	echo "  are what nim READS. A red below may be about the sibling and not about this"
 	echo "  repository, and a green says nothing about the pinned revision."
 	echo "  The sibling paths are a deliberate local-dev affordance, so this is a warning:"
-	echo "  to build what CI builds, point the siblings at ci/embed-sdk-pin.env's"
-	echo "  revisions or move them out of the way."
+	echo "  to build what CI builds, point the siblings at the pinned revisions"
+	echo "  (ci/codetracer-ref.sh, ci/embed-sdk-pin.env) or move them out of the way."
 fi
 
 if [ -n "${unpinned_reasons}" ]; then
@@ -400,7 +410,7 @@ echo "      bytes:   ${bytes}"
 echo "      sha256:  ${digest}"
 echo "      sources: $([ -n "${unpinned_reasons}" ] \
 	&& echo "UNPINNED — see the banner above; this is not the artefact CI builds" \
-	|| echo "all three at the pins in ci/embed-sdk-pin.env")"
+	|| echo "all at their pins (ci/codetracer-ref.sh, ci/embed-sdk-pin.env)")"
 
 # A bundle that compiled but lost its entry point would install cleanly, run
 # nothing, and look exactly like a browser that cannot hydrate — the one

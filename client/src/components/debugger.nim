@@ -968,7 +968,16 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
         # announced — §13's rule that a reduction is announced rather than silent
         # — and the honest banner is the part this pane always got right. What was
         # wrong was the reduction underneath it, not the sentence about it.
-        if first > 1:
+        if d.totalLines > d.lines.len and d.lines.len > 0:
+          # `servedWindow`: an over-long document on the served page, cut at
+          # either end. Said with the whole length and where the rest is.
+          let last = d.lines[^1].number
+          tdiv(class = "srcfrom"):
+            text (if isListing: "Steps " else: "Lines ") & $first & "–" & $last &
+                 " of " & $d.totalLines &
+                 ", around where the session is stopped. The whole file is " &
+                 "drawn when the session starts."
+        elif first > 1:
           let last = d.lines[^1].number
           tdiv(class = "srcfrom"):
             # THE SENTENCE WAS REWRITTEN TWICE OVER, FOR TWO SEPARATE FAULTS.
@@ -1266,6 +1275,28 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
             if ln.annotations.len > 0:
               raw renderAnnotations(ln.annotations, p.flow.selected)
 
+  # ONLY THE ACTIVE DOCUMENT CARRIES ROWS. Every other panel names its file and
+  # says how long it is, and its rows are drawn when it is opened: hydration
+  # makes the opened file the active one and re-renders (`hydrate.nim`,
+  # `openDocument`). Measured 2026-11-25 over the built sites: an Aptos debug
+  # page was 26,497,056 bytes, 22.5 MB of it the rows of 58 documents of which a
+  # reader sees one at a time, and hydration's first paint rebuilt all of them
+  # from the island regardless. Pre-rendering the unopened ones bought no
+  # speed, and it put two Aptos pages and a Starknet one over Cloudflare Pages'
+  # 25 MiB per-file limit (codetracer-pm #103). The island still carries every
+  # document's text, so nothing a session can open is missing from the page.
+  proc lazyBody(d: SourceDocument): string =
+    let isListing = d.path == ListingPath
+    let unit = (if isListing: " steps" else: " lines")
+    ui:
+      # A listing's panel says it is one (`instr`) whether or not its rows are
+      # drawn yet, so a pane holding both kinds of document still names both.
+      tdiv(class = "src" & (if isListing: " instr" else: "") & " srclazy",
+           `data-lines` = $d.lines.len):
+        p(class = "empty-overlay"):
+          text d.path & ": " & $d.lines.len & unit &
+               ", drawn when this file is opened."
+
   # The ACTIVE document is emitted LAST so that `.srcdoc.alt:target` can reach
   # forward and hide it. CSS has only a forward sibling combinator, and the
   # active document is the one every alternate has to be able to displace.
@@ -1278,7 +1309,7 @@ proc renderSource*(p: EditorPane; pos = DebugControlsPane()): string =
     let alt = ui:
       tdiv(class = "srcdoc alt", id = docAnchor(d.path), `data-path` = d.path):
         raw tabStrip(d.path)
-        raw body(d)
+        raw lazyBody(d)
     panels.addHtml alt
   let def = ui:
     # `data-path` carries the document's REAL path beside the anchor id.
@@ -2149,7 +2180,7 @@ func controlMark(a: DebugAction): string =
   ## The action's mark, drawn by CODETRACER and not by this repository.
   ##
   ## `vendor/frontend/viewmodel/views/debug_control_marks` is CodeTracer's own
-  ## module, vendored byte-verbatim at the pin in `ci/embed-sdk-pin.env` and
+  ## module, vendored byte-verbatim at the CodeTracer pin (`ci/codetracer-ref.sh`) and
   ## checked by `ci/test/control-marks-vendor.sh`. Its `markFor` is keyed by
   ## the SAME eight action strings `toolbarActionId` produces, so the mark and
   ## the request it accompanies are derived from one expression; and its

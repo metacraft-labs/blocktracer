@@ -29,8 +29,8 @@
     "it is corrected here rather than repeated. It said `flake.nix` \"pins isonim,",
     "nim-everywhere and the design system and nothing else, so `nix build",
     ".#default` has no CodeTracer checkout on the Nim path at all\". That is no",
-    "longer true: `flake.nix` has carried a `codetracer` input since hydration",
-    "landed, pinned to `ci/embed-sdk-pin.env`'s CODETRACER_REF, and both",
+    "longer true: `flake.nix` has carried a pinned CodeTracer source since hydration",
+    "landed (since 2026-11-24 read from the organisation's CodeTracer pin), and both",
     "`packages.default` and every devShell set `CODETRACER_SRC` from it. The",
     "TREE is available, and every gate here also falls back to a `../codetracer`",
     "sibling. What is not available is a Nim PATH from `client/src` to it, and",
@@ -53,7 +53,7 @@
     "     upstream fails here rather than leaving BlockTracer placing labels to",
     "     an arithmetic nobody else uses.",
     "",
-    "NOTE ON THE COMMIT. This one IS `ci/embed-sdk-pin.env`'s `CODETRACER_REF`,",
+    "NOTE ON THE COMMIT. This one IS the CodeTracer pin (`ci/codetracer-ref.sh`),",
     "and that is the difference from `layout_model.vendor.json`: these two files",
     "are inside `src/frontend/viewmodel/`, which is the tree the Embed SDK pin",
     "names, so `client/hydrate/` compiles against the very same source. The",
@@ -63,7 +63,7 @@
   ],
   "upstream": "metacraft-labs/codetracer",
   "branch": "dev",
-  "commit": "a3986b0de1c215bcc9bd2bfa5c9619f0fa6bc5f3",
+  "commit": "a7cddd8bce554f5d73a7636e2bad15605b71963c",
   "files": [
     {
       "path": "src/frontend/viewmodel/viewmodels/flow_layout.nim",

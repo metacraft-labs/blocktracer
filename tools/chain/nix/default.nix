@@ -114,7 +114,7 @@
 #     is worth writing down, because the obvious check for it is wrong.
 #     `replay/node_modules` carries 19 native prebuilds and they are
 #     deliberately NOT all Linux: 8 ELF64-x86-64, 3 ELF64-aarch64, 3 ELF32-arm,
-#     3 Mach-O and 2 Windows PE. `@aztec/bb.js` ships four platforms inside one
+#     3 Mach-O and 2 Windows PE. `@aztec-foundation/bb.js` ships four platforms inside one
 #     package and `leveldown` ships nine; a Mach-O sitting beside an ELF is
 #     those packages working as designed, and a gate that refused on its
 #     presence — the first version of this one did, and failed — would be
@@ -177,6 +177,39 @@
   blocktracerSrc,
   avmRuntimeSrc,
   avmRuntimeRev,
+
+  # The npm-deps hash for THIS revision's `replay/` lock pair, supplied by the
+  # caller and deliberately not defaulted.
+  #
+  # Two revisions of this runtime are pinned at once — see `flake.nix`. The v6
+  # rename rewrote the very two files the fetcher below hashes, so the two
+  # revisions have DIFFERENT npm-deps hashes, and a default here would let the
+  # second instantiation inherit the first one's. That failure is quiet in the
+  # worst way: a fixed-output derivation's path is a function of its hash, so a
+  # wrong-but-valid hash does not mismatch, it fetches the OTHER revision's
+  # tarballs and builds a tree whose `node_modules` belongs to a different
+  # protocol version. Making it a required argument means a new pin cannot be
+  # added without stating what it hashes to.
+  avmRuntimeNpmDepsHash,
+
+  # WHICH `replay/node_modules` SCOPES THIS REVISION MUST CONTAIN, supplied by
+  # the caller for the same reason the hash above is: the two pinned revisions
+  # do not agree on the vocabulary. v6 split the packages three ways —
+  # protocol to `@aztec-labs/*`, cryptography and Noir bindings to
+  # `@aztec-foundation/*` — while the historical revision still installs
+  # `@aztec/*`. An assertion hard-coded to either one is a build failure for the
+  # other, which is exactly how it failed: the v6 spelling was asserted against
+  # the v5 tree and `installPhase` stopped on a tree that was perfectly correct
+  # for its own revision.
+  avmRuntimeRequiredPackages,
+
+  # WHERE THIS REVISION'S bb.js KEEPS ITS PREBUILT x86-64 BINARIES, relative to
+  # `replay/node_modules`, supplied by the caller for the same reason as the two
+  # arguments above. The strip below is SAFETY-CRITICAL and scope-dependent: v6
+  # puts bb.js under `@aztec-foundation/`, the historical pin under `@aztec/`,
+  # and a path that names the wrong one fails `test -d` SILENTLY — which is
+  # exactly how it failed when this file served one revision and was handed two.
+  avmRuntimeBbNativeDir,
   traceFormatSrc,
   traceFormatRev,
   traceFormatNimSrc,
@@ -209,6 +242,12 @@ let
       # The module names this exact path; assert it rather than assume the copy.
       test -f "$out/tools/chain/follow-chain.mjs"
       test -f "$out/tools/chain/lib/replay.mjs"
+      # ...and the publish path's two, for the same reason. `follow-to-tip.mjs`
+      # execs `ingest-range.mjs` BY PATH from its own directory, so a copy that
+      # carried one without the other would build, install, deploy, and fail at
+      # the first cycle with ENOENT on a file nothing had looked for.
+      test -f "$out/tools/chain/follow-to-tip.mjs"
+      test -f "$out/tools/chain/ingest-range.mjs"
       runHook postInstall
     '';
 
@@ -221,15 +260,18 @@ let
   #
   # A FIFTH INPUT THE MODULE'S INTERFACE DOES NOT NAME, and it is the one that
   # would have turned "it builds" into "it crashes on first catch":
-  # `replay/tools/replay_settled_transaction.mjs` imports `@aztec/foundation`,
-  # `@aztec/stdlib` and `@aztec/protocol-contracts`, so a bare source export of
+  # `replay/tools/replay_settled_transaction.mjs` imports `@aztec-labs/foundation`,
+  # `@aztec-labs/stdlib`, `@aztec-labs/protocol-contracts` AND
+  # `@aztec-foundation/bb.js` — the v6 rename is a three-way split, with the
+  # cryptography and Noir bindings under `@aztec-foundation/*` — so a bare source
+  # export of
   # `aztec-avm-runtime` cannot replay anything. The live workstation follower has
   # 545 MB of `replay/node_modules` beside it, installed by hand and invisible in
   # the option that points at the checkout.
   #
   # So this derivation IS the checkout plus that install, done offline from the
   # committed `package-lock.json`. `--omit=dev` on purpose: the single devDep is
-  # `@aztec/noir-protocol-circuits-types` (92 MB), which exists for a pin
+  # `@aztec-labs/noir-protocol-circuits-types` (92 MB), which exists for a pin
   # re-derivation check and which nothing the follower runs imports.
   avmRuntime = stdenv.mkDerivation (finalAttrs: {
     pname = "aztec-avm-runtime-replay";
@@ -255,7 +297,18 @@ let
           cp ${avmRuntimeSrc}/replay/package.json ${avmRuntimeSrc}/replay/package-lock.json "$out/"
         '';
       };
-      hash = "sha256-LL2KQXpO0qBLiGK5yeiISoHyLdNJnANHFOYDwUf5I1A=";
+      # MOVES WITH THE RUNTIME PIN, because the v6 rename rewrote the very two
+      # files this fetcher hashes: `replay/package.json` and
+      # `replay/package-lock.json` went from `@aztec/*` to `@aztec-labs/*` and
+      # `@aztec-foundation/*`. CI named it exactly — "ERROR: npmDepsHash is out of
+      # date" building `aztec-avm-runtime-replay-9e9ba381fd.drv`.
+      #
+      # Each value is computed with `prefetch-npm-deps` over the PINNED lock file
+      # rather than taken from a local `npm install`: the hash must describe the
+      # revision the flake pins, and a locally resolved tree can differ from it
+      # without saying so. It comes from the caller because two revisions are
+      # pinned; `flake.nix` holds both values beside the revisions they describe.
+      hash = avmRuntimeNpmDepsHash;
     };
     npmRoot = "replay";
 
@@ -277,7 +330,20 @@ let
       test -f "$out/replay/tools/replay_settled_transaction.mjs"
       test -f "$out/node-host/src/loader.ts"          # preflightToolchain's probe
       test -f "$out/replay/src/artifact_resolution.ts" # resolverPresence's gate
-      test -d "$out/replay/node_modules/@aztec/stdlib"
+      # THE SCOPES THIS REVISION DECLARES, asserted by name. This is what caught
+      # the v6 pin bump installing `@aztec-labs/*` while `ci.yml` still looked
+      # for `@aztec/*`: the build stops here rather than the follower discovering
+      # it hours into a watch, which is what the comment above asks of it.
+      #
+      # BOTH halves of a split are named by the caller on purpose — a rename that
+      # moved only ONE scope would otherwise pass this phase and fail at import.
+      for pkg in ${lib.escapeShellArgs avmRuntimeRequiredPackages}; do
+        if [ ! -d "$out/replay/node_modules/$pkg" ]; then
+          echo "the runtime at ${avmRuntimeRev} installed no replay/node_modules/$pkg;" \
+               "either the pin moved scopes or the caller named the wrong set" >&2
+          exit 1
+        fi
+      done
 
       # ── PROVENANCE WITHOUT A .git ────────────────────────────────────────────
       #
@@ -291,7 +357,7 @@ let
 
       # ── BARRETENBERG RUNS AS WASM, SO THE REPLAY RUNS ON ANY x86-64 ──────────
       #
-      # `@aztec/bb.js` ships three prebuilt x86_64 binaries built with
+      # `@aztec-foundation/bb.js` ships three prebuilt x86_64 binaries built with
       # `-march=skylake` (barretenberg/cpp/cmake/arch.cmake: no cpuid, no IFUNC).
       # On a CPU without BMI2 they die of SIGILL. The addon is dlopen'd while the
       # module initialises, so nothing can catch it and no line is printed first.
@@ -307,10 +373,46 @@ let
       # 0x00689495… exits 0 in 29 s and writes a container byte-identical to the
       # native one in `.#fixture-recordings`, apart from the `meta.dat` version
       # byte that preparation rewrites afterwards.
-      for native in bb nodejs_module.node aztec-wsdb; do
-        rm "$out/replay/node_modules/@aztec/bb.js/build/amd64-linux/$native"
-      done
-      test -z "$(find "$out/replay/node_modules/@aztec/bb.js/build/amd64-linux" -type f)"
+      # THE SCOPE MOVED AND THIS REMOVAL HAD TO MOVE WITH IT. The v6 rename put
+      # bb.js under `@aztec-foundation/`, not `@aztec-labs/` — the split is
+      # three-way, with the cryptography and Noir bindings going to
+      # `@aztec-foundation/*`. A path left on `@aztec/bb.js` is the WORST of the
+      # three outcomes available here: `rm` fails loudly only because of `set -e`,
+      # and anyone "fixing" that by adding `-f` would get a silent no-op that
+      # leaves the skylake binaries in place and returns high-mem-server to the
+      # empty-stderr SIGILL above. The `test -z` below is the guard that makes a
+      # wrong path impossible to paper over, so it moves too.
+      # THE DIRECTORY IS ASSERTED, THEN EMPTIED — rather than three file names
+      # removed by hand. The hardcoded list was `bb nodejs_module.node
+      # aztec-wsdb`, and at `9e9ba381fd` the third one is simply not shipped, so
+      # the build failed on a file whose ABSENCE is harmless. A list of names is
+      # version-fragile in both directions: a binary that disappears breaks the
+      # build, and a binary that is ADDED is silently kept — and a kept skylake
+      # binary is the SIGILL above, with empty stderr, on first catch.
+      #
+      # What actually has to hold is "no native x86-64 object survives in this
+      # package", and that is what is written now. The `test -d` is what stops a
+      # future scope rename turning the whole block into a no-op: without it,
+      # emptying a directory that is not there succeeds.
+      # THE PATH IS THE CALLER'S, AND A MISS IS LOUD NOW. It used to be a literal
+      # on the v6 scope plus a bare `test -d`, which is the worst combination once
+      # two revisions are pinned: against the historical tree the test failed with
+      # NO MESSAGE, and `blocktracer-fixture-recordings` reported only that the
+      # runtime derivation had failed in `installPhase`. Verified against the
+      # published tarballs rather than assumed — `@aztec/bb.js@5.3.0-nightly.20260819`
+      # ships `build/amd64-linux/{bb,nodejs_module.node,aztec-wsdb}` and
+      # `@aztec-foundation/bb.js@6.0.0` ships the first two, which is why this
+      # empties the directory instead of naming files.
+      bbNative="$out/replay/node_modules/${avmRuntimeBbNativeDir}"
+      if [ ! -d "$bbNative" ]; then
+        echo "the runtime at ${avmRuntimeRev} has no replay/node_modules/${avmRuntimeBbNativeDir}," \
+             "so the prebuilt x86-64 barretenberg binaries were NOT stripped. Leaving them is the" \
+             "empty-stderr SIGILL on every x86-64-v2 runner, so this is a build failure rather" \
+             "than a skipped step. Either the pin moved scopes or the caller named the wrong path." >&2
+        exit 1
+      fi
+      find "$bbNative" -type f -delete
+      test -z "$(find "$bbNative" -type f)"
       runHook postInstall
     '';
 

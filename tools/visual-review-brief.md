@@ -198,7 +198,7 @@ transaction. Inherited items are presence requirements exactly like the rest.
 - A search field, visibly the primary input of the page and visibly focused (focus ring rendered — it is focused on load).
 - A chain strip listing supported chains, each with a debug-tier badge (T0–T2). Chain names must be legible; a row of unlabelled logos is not the chain strip.
 - A 'how it works' explanation in three parts — we index the chain · we replay every transaction · you step in both directions — readable as three parallel items, not one run of prose.
-- A trust strip stating: no account, no ads, no tracking, complete history, no record caps; with a link to the privacy summary.
+- A trust strip stating: no account, no ads, no tracking, no record caps; with a link to the privacy summary. It must NOT claim complete history outright: Page-Descriptions §2 claims that only where it holds (§9).
 - A region reserved for the embedded live demo (the pre-baked debugging session), even if the session itself is captured separately as `home--live-demo`.
 
 **Must not show** — present ⇒ P1, rating ≤ 4:

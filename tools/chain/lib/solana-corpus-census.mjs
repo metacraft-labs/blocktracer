@@ -94,7 +94,9 @@ export function factsOf(bundle) {
     lookupTables: ((m.loadedAddresses?.writable?.length ?? 0) + (m.loadedAddresses?.readonly?.length ?? 0)) > 0,
     vote: invoked.has('Vote111111111111111111111111111111111111111'),
     nativeInvoked: [...invoked].some((p) => owners.get(p) === NATIVE_LOADER),
-    precompile: [...invoked].some((p) => PRECOMPILES.has(p)),
+    // A precompile writes no `invoke` log, so the logs never name it. It holds no state
+    // either, so the only reason a transaction's accounts carry one is to run it.
+    precompile: bundle.accounts.some((a) => PRECOMPILES.has(a.pubkey)),
     deploy: logs.some((l) => /^Program log: (Deployed|Upgraded) program/.test(l)),
     upgradeable: [...invoked].some((p) => owners.get(p) === UPGRADEABLE),
     depth,

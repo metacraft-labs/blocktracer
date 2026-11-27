@@ -115,10 +115,43 @@ async function loadAztec(runtime) {
   // synchronous singleton. Not initialising it throws `First call
   // BarretenbergSync.initSingleton()` from inside the decode, which reads like a corrupt body
   // and is not one.
-  const { BarretenbergSync } = await import(at('@aztec/bb.js/dest/node/index.js'));
+  //
+  // BOTH SCOPES, v6 FIRST, because the runtime pin moved and this file did not.
+  // The v6 rename is a three-way split — protocol packages to `@aztec-labs/*`,
+  // cryptography and Noir bindings to `@aztec-foundation/*` — and a v6 runtime
+  // carries NO `@aztec/` directory at all. Measured by running the follower
+  // against live mainnet with the v6 runtime: the proxy refused to start with
+  //
+  //   body-store unavailable: Cannot find module
+  //   '.../node_modules/@aztec/bb.js/dest/node/index.js'
+  //   imported from tools/chain/lib/body-proxy.mjs
+  //
+  // and its own consequence line — "a body pruned at the node is lost for this
+  // run" — is the whole cost: of 21 mainnet transactions seen in that arm, 20
+  // were `pruned`, which is exactly the set this store exists to recover.
+  //
+  // The fallback is kept rather than replaced because `--runtime` may name
+  // EITHER pin: `flake.nix` pins a historical v5 runtime for the committed
+  // transcripts beside the v6 one the follower uses. `check-chain-compat.mjs`
+  // already resolves these same two packages this way; this is that pattern,
+  // not a new one.
+  const load = async (candidates, what) => {
+    let last;
+    for (const c of candidates) {
+      try { return await import(at(c)); } catch (err) { last = err; }
+    }
+    throw new Error(`body-proxy: no ${what} in ${runtime}/replay/node_modules — tried `
+      + `${candidates.join(', ')}. The runtime pin and this loader disagree about the `
+      + `package scope. Last error: ${last?.message ?? last}`);
+  };
+  const { BarretenbergSync } = await load(
+    ['@aztec-foundation/bb.js/dest/node/index.js', '@aztec/bb.js/dest/node/index.js'], 'bb.js');
   await BarretenbergSync.initSingleton();
-  const { Tx } = await import(at('@aztec/stdlib/dest/tx/index.js'));
-  const { jsonStringify } = await import(at('@aztec/foundation/dest/json-rpc/convert.js'));
+  const { Tx } = await load(
+    ['@aztec-labs/stdlib/dest/tx/index.js', '@aztec/stdlib/dest/tx/index.js'], 'stdlib');
+  const { jsonStringify } = await load(
+    ['@aztec-labs/foundation/dest/json-rpc/convert.js',
+     '@aztec/foundation/dest/json-rpc/convert.js'], 'foundation');
   return { Tx, jsonStringify };
 }
 

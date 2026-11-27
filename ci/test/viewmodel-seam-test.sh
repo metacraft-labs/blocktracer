@@ -26,7 +26,8 @@
 #   1. $CODETRACER_SRC / $ISONIM_SRC / $NIM_EVERYWHERE_SRC   (nix develop, CI)
 #   2. sibling checkouts ../codetracer, ../isonim, ../nim-everywhere
 #
-# The pinned commits CI uses are in ci/embed-sdk-pin.env.
+# The pinned commits CI uses: ci/codetracer-ref.sh (CodeTracer) and
+# ci/embed-sdk-pin.env (IsoNim, nim-everywhere, IsoNim-TUI).
 #
 # Exit codes:
 #   0  the seam suite passed
@@ -58,7 +59,7 @@ if [ -z "${ct}" ]; then
 	echo "viewmodel-seam-test.sh: no CodeTracer Embed SDK found." >&2
 	echo "  Looked for src/frontend/viewmodel/codetracer_embed.nim under" >&2
 	echo "  \$CODETRACER_SRC and ${repo_root}/../codetracer" >&2
-	echo "  The pinned commit CI uses is in ci/embed-sdk-pin.env." >&2
+	echo "  The pinned commit CI uses is printed by ci/codetracer-ref.sh." >&2
 	if [ "${require}" -eq 1 ]; then exit 1; fi
 	exit 3
 fi

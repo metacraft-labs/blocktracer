@@ -66,9 +66,12 @@ name: ci
 # dissolves a second defect: the hand-rolled checkout was sparse on
 # `src/frontend` only, and `src/frontend/.../flow_vm.nim` imports
 # `../../../common/flow_mode_wire`, so both cross-repo suites died with `cannot
-# open file` the moment they got far enough to compile. flake.nix's codetracer
-# rev and `ci/embed-sdk-pin.env`'s CODETRACER_REF are required to be equal and
-# are (8d1c84a); the flake is now the only one of the two these jobs read.
+# open file` the moment they got far enough to compile. The CodeTracer
+# revision is the organisation's pin (`pins/codetracer.json` in
+# metacraft-github-actions), read through flake.nix and stored nowhere here, so
+# the flake input and the revision the scripts compare against cannot differ.
+# What is still checked is pin == vendored manifests: part A of
+# `ci/test/{layout-model,flow-layout,ct-styles}-vendor.sh`, below.
 #
 # Why it took 178 commits to see any of it: these three jobs were the only ones
 # taking a toolchain from the network rather than from the flake, and no run of
@@ -77,6 +80,9 @@ on:
   push:
     branches: [dev, staging, live]
   pull_request:
+    # Named bases: an unfiltered trigger also runs on pull requests into `agents`,
+    # which runs no CI (branching policy, "`agents` Has No CI").
+    branches: [dev, staging, live]
   # THE LANE THAT CANNOT BE EVICTED. See the concurrency block below — this
   # trigger exists so that a run can be produced which no push and no PR is
   # able to collapse. `ci-coverage-clock.yml` is what fires it on a clock; it
@@ -652,7 +658,7 @@ jobs:
         run: node tools/chain/backfill-bodies-selftest.mjs
 
       - name: Is every untraced transaction explained, and is the set closed?
-        # ING-3, 246 assertions, and the reason it is offline is the reason it
+        # ING-3, 262 assertions, and the reason it is offline is the reason it
         # exists. A 400-block mainnet backfill exited 0 reporting "0 divergent,
         # 0 refused" and a sample of 61 mainnet transactions were all at index
         # 0 — so the refusal path has NEVER FIRED in a real run and every
@@ -1111,7 +1117,7 @@ jobs:
         run: node tools/chain/sui-producer-selftest.mjs
 
       - name: Does the Starknet producer state its chain's facts and refuse what it cannot publish?
-        # 36 assertions, host-independent: every arm is offline and needs only node.
+        # 47 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Starknet producer's floor cause and verification sentence, its three-dimension cost vector and fee, the roles each
         # transaction type has (none for an L1 handler), the multicall payload, and the
@@ -1125,7 +1131,7 @@ jobs:
         run: node tools/chain/starknet-producer-selftest.mjs
 
       - name: Does the Solana producer state its chain's facts, and do its committed inputs hold?
-        # 12 assertions, host-independent: every arm is offline and needs only node.
+        # 13 assertions, host-independent: every arm is offline and needs only node.
         #
         # The Solana producer's fee / compute-unit / cost-unit vector, the fee payer as
         # sender, the first non-ComputeBudget program as target, and the committed window's
@@ -1138,9 +1144,54 @@ jobs:
         # tree, and the mostly refused window still has a row with a reason for every
         # transaction the chain lists. Two place the pinned bundles in the divergence
         # taxonomy's cells (Blockchain-Recorder-Test-Suites.md §4): the committed census
-        # matches a fresh one, and a cell whose bundles are removed reads uncovered. Traced rows need the recorder and are
+        # matches a fresh one, and a cell whose bundles are removed reads uncovered. A third
+        # places a precompile by the accounts a transaction carries, since a precompile
+        # writes no invoke log. Traced rows need the recorder and are
         # built by `nix build .#sol-capture-tree`.
         run: node tools/chain/solana-producer-selftest.mjs
+
+      - name: Does a NEVER RAN say WHY the journey stopped, not only where?
+        # 23 assertions, host-independent: every arm drives `logMissDiagnosis`
+        # and `redRecords` over a synthetic miss, so it needs neither a browser
+        # nor a build nor a corpus — only node.
+        #
+        # PROBES 6 AND 7 COVER THE UNMUTATED PHASE, which is the one whose
+        # silence costs the most: every arm behind an unmutated miss reads the
+        # same refusal, so it fails a whole SHARD. That branch printed three
+        # lines of prose and no data, and the prose asserted a cause it cannot
+        # know — "The assertion was reworded and this arm still names the old
+        # wording". On #108 that was false: journey 12 names its assertion
+        # verbatim and makes 30 records in a full `journeys` run against 12
+        # under a single-journey bite run, so it never REACHED the assertion
+        # and the arm was right. Probe 7 is the control for the repair: sharing
+        # the evidence between the phases could have flattened them into one
+        # message, and the two headers are what say WHICH tree stopped.
+        #
+        # IT LIVES HERE AND NOT IN `journeys`, AND THAT WAS A MEASURED MISTAKE.
+        # It was first written as a step of the self-hosted `journeys` job, in
+        # the bare-`node` style the suites above use. Those run on
+        # `ubuntu-latest`, where `setup-node` puts node on PATH; the `journeys`
+        # job runs self-hosted in a Nix dev env where it does not, so the step
+        # died with `node: command not found` (exit 127). Two consequences, and
+        # the second is the worse one: the step failed for a reason that had
+        # nothing to do with its subject, AND it sat above
+        # "The journeys, over the deployed artefact", which was SKIPPED as a
+        # result — a new check that silently disabled the gate it was added
+        # beside. A pure-node offline suite belongs with the other pure-node
+        # offline suites.
+        #
+        # WHAT IT PROTECTS. `selftest.mjs` scores an arm NEVER RAN when the
+        # mutated journey ran and never reached the arm's assertion, and that
+        # verdict has two causes with opposite remedies: the mutation reached
+        # further than its target (narrow the arm), or a gesture timed out in a
+        # phase the mutation's code path never executes (the arm is fine, the
+        # run is not). `run.mjs` records a thrown journey as the assertion
+        # "the journey threw" with the STACK as its detail, and
+        # `logMissDiagnosis` printed the names and dropped the details, so the
+        # two readings arrived identically. Probe 3 is the control: the section
+        # must be ABSENT when no record went red, or it would be a heading with
+        # no content on every miss.
+        run: node tools/journeys/selftest-diagnosis-test.mjs
 
       - name: Is every abstraction DEL-7 extracted reached by two chains?
         # 36 assertions, host-independent: every arm is offline and needs only node.
@@ -1198,6 +1249,63 @@ jobs:
         # floor; a flat set, a deeper window beating a shallower one, and a set without its
         # zero windows each fail it, by name.
         run: node tools/chain/sol-depth-yield-selftest.mjs
+
+      - name: Does the ingest-to-site join refuse a bucket that is missing a member?
+        # 15 assertions, host-independent: every arm is offline and needs only node.
+        #
+        # THE SUITE EXISTED AND NOTHING RAN IT. `snapshot-from-ingest-selftest.mjs`
+        # shipped with no entry in `refusal-selftest.mjs`'s suite registry, no step
+        # here and no line in `just chain-selftest`'s body — and that registry is a
+        # hard-coded list rather than a directory sweep, so no gate could notice.
+        #
+        # WHAT IS WORTH TESTING IS THE REFUSALS, not the happy path: the happy path is
+        # assembly, and `blocktracer-chain-ingest` validates every assembled member
+        # against `snapshot-contract.json` immediately afterwards. The refusals are the
+        # opposite — nothing downstream can catch a snapshot with an invented `tip` or a
+        # `prestateStrategy` of "unknown", which ingests, publishes, and is wrong in a
+        # way no reader of the site can detect. So eight arms each remove exactly one
+        # published member from a complete bucket mirror and require the tool to refuse
+        # BY NAME, with three green-path arms first so that a tool which refused
+        # everything could not pass them all.
+        #
+        # Those three used to sit inside `if (r.ok)`, so a bucket that failed to
+        # assemble ran nine arms and said nothing was missing. They are unconditional
+        # now and the suite reconciles its tally against `BASE_ARMS`.
+        run: node tools/chain/snapshot-from-ingest-selftest.mjs
+
+      - name: Does the tip-follower refuse a chain that restarted under its own slug?
+        # 23 arms, host-independent: every arm is pure, so no node, no ledger on disk
+        # and no child process.
+        #
+        # AZTEC HAD NO TIP-FOLLOWING PUBLISHER AND ETHEREUM DID, which is visible in
+        # the file names rather than in anybody's notes:
+        #
+        #   capture-eth-range.mjs -> eth-ingest-range.mjs -> follow-eth-chain.mjs
+        #   follow-chain.mjs         ingest-range.mjs         ** nothing **
+        #
+        # So Aztec's publish path was a thing an operator ran with two block numbers
+        # in it, and a continuous publisher cannot have that shape.
+        # `follow-to-tip.mjs` is the missing caller: it reads the ledger's highest
+        # covered height and the node's own tip, does arithmetic, and execs
+        # `ingest-range.mjs`. Every flag it does not recognise is passed through, so
+        # `--replay`, `--backend` and the rest keep ONE definition.
+        #
+        # WHAT IS WORTH TESTING IS THE TWO REFUSALS, and both are about one measured
+        # hazard: BOTH Aztec networks were restarted after this project captured them
+        # (`tools/chain/retired-networks.json` — mainnet captured head 102,690 against
+        # a live tip of 3,403; testnet 99,092 against 9,405). A follower that reads
+        # "head below the highest covered height" as "nothing to do" would file the new
+        # rollup's blocks into a generation whose height map belongs to the retired one:
+        # every object well-formed, the pointer agreeing with the map, and the map a lie
+        # about which chain it holds. The second refusal covers the case the arithmetic
+        # stops seeing once the new rollup climbs past the old head — the node's own
+        # `l1ChainId`/`rollupVersion` identity, recorded beside the ledger on the first
+        # cycle and compared on every later one.
+        #
+        # Six green-path arms run FIRST and unconditionally, so a tool that refused
+        # everything could not pass them all, and the suite reconciles its tally
+        # against `BASE_ARMS`.
+        run: node tools/chain/follow-to-tip-selftest.mjs
 
       - name: Does the committed `.ct` corpus reading still describe this corpus?
         # The companion of the step above: that one proves the gate decides, this
@@ -2316,8 +2424,28 @@ jobs:
       # CT_PRINT: `test-solana-staging` drives the real Solana producer, which
       # reads its containers with ct-print and finds none on a runner (no sibling
       # trace-format checkout). Same remedy, same derivation, as the contract job.
+      # RAISED 75 -> 120 ON A MEASUREMENT, which is what the paragraph above asks
+      # for: "if this ever fires, measure the suite before raising it". It fired on
+      # #105 (job 133746457682), and the measurement says the suite has NOT doubled
+      # — the spread has.
+      #
+      # Same step, same suite list, two runners on 2026-11-17:
+      #   #108 job 133746032020   26.4 min   (of a 68.3 min job)
+      #   #105 job 133746457682  >75    min  TIMED OUT
+      #
+      # It died inside `nim c -r --mm:orc --hints:off tests/test_instruction_listing.nim`,
+      # still printing compiler warnings — a suite #105 does not touch, so this is
+      # not that branch's regression. The aggregate recompiles Nim per suite and the
+      # runners are ephemeral, so the cost swings with how much of that compile is
+      # already in a cache. 75 was sized as a stall detector for the warm case and
+      # happens to sit inside the cold one.
+      #
+      # It stays a stall detector, not a performance budget: 120 matches the longest
+      # non-journeys job in this file, and a suite that has genuinely doubled is
+      # still a finding. The real fix is caching the Nim compiles rather than paying
+      # for them per job, which is a larger change than this one.
       - name: Every suite in `just test`, including the five that ran nowhere
-        timeout-minutes: 75
+        timeout-minutes: 120
         run: |
           CT_PRINT="$(nix build --no-link --print-out-paths .#sol-ct-print)/bin/ct-print" \
             nix develop .#ci --command bash -c 'cd client && just test'
@@ -3420,7 +3548,23 @@ jobs:
           need_file "${CHAIN_RUNTIME}/replay/tools/replay_settled_transaction.mjs"
           need_file "${CHAIN_RUNTIME}/node-host/src/loader.ts"
           need_file "${CHAIN_RUNTIME}/replay/src/artifact_resolution.ts"
-          need_dir  "${CHAIN_RUNTIME}/replay/node_modules/@aztec/stdlib"
+          # THE v6 RENAME IS A THREE-WAY SCOPE SPLIT, and this line was the last
+          # place still naming the old one. `@aztec/*` became `@aztec-labs/*`
+          # for the protocol packages and `@aztec-foundation/*` for the
+          # cryptography and Noir bindings, so the pre-rename path cannot
+          # exist in a v6 build and this step failed with
+          #   MISSING dir .../replay/node_modules/@aztec/stdlib
+          # while every build step above it passed. `tools/chain/nix/default.nix`
+          # already asserts BOTH of these at build time (grep `@aztec-labs/stdlib`
+          # and `@aztec-foundation/bb.js` there), so they are guaranteed present
+          # in the closure this step receives; naming them here is what makes a
+          # future rename fail on the path rather than later, inside a replay.
+          #
+          # bb.js is named alongside stdlib deliberately: the split is why this
+          # broke, so checking only the half that moved to `@aztec-labs` would
+          # leave the `@aztec-foundation` half unguarded against the same slip.
+          need_dir  "${CHAIN_RUNTIME}/replay/node_modules/@aztec-labs/stdlib"
+          need_dir  "${CHAIN_RUNTIME}/replay/node_modules/@aztec-foundation/bb.js"
           need_file "${CHAIN_RUNTIME}/.runtime-commit"
 
           echo "aztec-ct-writer-wasm — runtime.ctWriterWasm:"
@@ -3467,7 +3611,8 @@ jobs:
         # It refused on the presence of ANY Mach-O anywhere in the tree, and it
         # failed on its first run — 3 Mach-O objects out of 19 `.node` files.
         # That was a false positive and the census is the reason it is now
-        # printed rather than merely counted: `@aztec/bb.js` ships FOUR
+        # printed rather than merely counted: bb.js (`@aztec-foundation/bb.js`
+        # under the v6 pin, `@aztec/bb.js` under the historical one) ships FOUR
         # prebuilds in one package (amd64-linux, amd64-macos, arm64-linux,
         # arm64-macos) and `leveldown` ships NINE, two of them Windows PE. A
         # macOS object sitting beside a Linux one is those packages working as
@@ -3535,17 +3680,31 @@ jobs:
             // (high-mem-server: `mulx` in nodejs_module.node, from _dl_init).
             // tools/chain/nix/default.nix removes all three so bb.js takes its
             // WASM backend everywhere; one coming back is that defect returning.
-            const mustNot = [
-              "@aztec/bb.js/build/amd64-linux/nodejs_module.node",
-              "@aztec/bb.js/build/amd64-linux/bb",
-              "@aztec/bb.js/build/amd64-linux/aztec-wsdb",
-            ];
+            //
+            // The package moved scope in the v5 -> v6 rename (`@aztec/bb.js` ->
+            // `@aztec-foundation/bb.js`), and an absence check spelled for the
+            // scope this runtime does not use is not a check: every path is
+            // missing for the wrong reason and the step passes having measured
+            // nothing. So the package directory is RESOLVED first, and a
+            // runtime where neither spelling exists is a refusal, not a pass.
+            // `root` is already <runtime>/replay/node_modules, so these are
+            // package directories inside it.
+            const bbScopes = ["@aztec-foundation/bb.js", "@aztec/bb.js"];
+            const bbDir = bbScopes.find((d) => fs.existsSync(path.join(root, d)));
             let bad = 0;
-            for (const rel of mustNot) {
-              if (fs.existsSync(path.join(root, rel))) {
-                console.error(`  REFUSED: ${rel} is present; it needs x86-64-v3 and would SIGILL on v2 runners`);
-                bad++;
-              } else console.log(`  absent-on-purpose: ${rel}`);
+            if (!bbDir) {
+              console.error(`  REFUSED: none of ${bbScopes.join(", ")} is installed under replay/node_modules,`);
+              console.error(`           so the "no x86-64-v3 prebuild" check below would pass vacuously`);
+              bad++;
+            } else {
+              console.log(`  bb.js resolves to: replay/node_modules/${bbDir}`);
+              for (const leaf of ["nodejs_module.node", "bb", "aztec-wsdb"]) {
+                const rel = `${bbDir}/build/amd64-linux/${leaf}`;
+                if (fs.existsSync(path.join(root, rel))) {
+                  console.error(`  REFUSED: ${rel} is present; it needs x86-64-v3 and would SIGILL on v2 runners`);
+                  bad++;
+                } else console.log(`  absent-on-purpose: ${rel}`);
+              }
             }
             for (const rel of must) {
               const f = path.join(root, rel);
@@ -3554,49 +3713,151 @@ jobs:
               console.log(`  selected-on-linux-x64: ${kind}  <-  ${rel}`);
               if (kind !== "ELF64-x86-64") { console.error(`  REFUSED: ${rel} is ${kind}, not ELF64-x86-64`); bad++; }
             }
-            if (bad) { console.error(`REFUSED: ${bad} of ${must.length + mustNot.length} linux-x64 prebuild checks failed`); process.exit(1); }
+            if (bad) { console.error(`REFUSED: ${bad} of ${must.length + 3} linux-x64 prebuild checks failed`); process.exit(1); }
             fs.appendFileSync(process.argv[2],
               `native-prebuilds=${found.length}\nnative-prebuilds-by-format=${JSON.stringify(census)}\nnode-modules-dirs=${dirs}\n`);
           ' "${CHAIN_RUNTIME}" "${REPORT_DIR}/platform.txt"
 
-      - name: The replay driver's three @aztec dependencies load under this node, on Linux
+      - name: The replay driver's protocol dependencies load under this node, on Linux
         # THE CHECK THE STATIC CENSUS ABOVE CANNOT MAKE. `tools/chain/nix`'s
         # header records that a bare source export of `aztec-avm-runtime`
         # cannot replay anything — `replay/tools/replay_settled_transaction.mjs`
-        # imports `@aztec/foundation`, `@aztec/stdlib` and
-        # `@aztec/protocol-contracts`, and the live workstation follower had 545
-        # MB of hand-installed `replay/node_modules` beside it. The package
-        # replaces that with an offline `npm ci` from the committed lockfile,
-        # and until this step nothing had ever executed one line of the result
-        # ON LINUX.
+        # imports the Aztec foundation, stdlib and protocol-contracts packages,
+        # and the live workstation follower had 545 MB of hand-installed
+        # `replay/node_modules` beside it. The package replaces that with an
+        # offline `npm ci` from the committed lockfile, and until this step
+        # nothing had ever executed one line of the result ON LINUX.
         #
-        # The two subpaths are the exact specifiers the driver names (its lines
-        # 25-26); `@aztec/protocol-contracts` is its third declared dependency,
-        # reached through `replay/src/index.ts`. An import failure here is the
-        # difference between "the derivation built" and "the unit can replay".
+        # THE SCOPES ARE NOT `@aztec/*` ANY MORE. The v5 -> v6 rename split the
+        # packages three ways — protocol to `@aztec-labs/*`, cryptography and
+        # Noir bindings to `@aztec-foundation/*` — and a v6 runtime ships no
+        # `@aztec/` directory at all, so the v5 spelling of this step failed
+        # every import the moment `chain.avmRuntime` moved to v6. The names
+        # below are READ OFF the pinned driver's own `replay/package.json`
+        # (`@aztec-foundation/bb.js`, `@aztec-labs/foundation`,
+        # `@aztec-labs/protocol-contracts`, `@aztec-labs/stdlib`) and its import
+        # lines 47-51, with the v5 spelling kept as a fallback so this step
+        # still measures the `aztec-avm-runtime-historical` tree. A specifier
+        # that resolves under NEITHER scope is a refusal: an import failure here
+        # is the difference between "the derivation built" and "the unit can
+        # replay", and a step that skipped a missing package would be neither.
         run: |
           set -euo pipefail
           cd "${CHAIN_RUNTIME}/replay"
           "${FOLLOWER_NODE}/bin/node" --input-type=module -e '
+            // [v6, v5] for each of the three subpaths the driver names.
             const specs = [
-              "@aztec/foundation/json-rpc/client",
-              "@aztec/stdlib/tx/tx-hash",
-              "@aztec/protocol-contracts",
+              ["@aztec-labs/foundation/json-rpc/client", "@aztec/foundation/json-rpc/client"],
+              ["@aztec-labs/stdlib/tx/tx-hash", "@aztec/stdlib/tx/tx-hash"],
+              ["@aztec-labs/protocol-contracts", "@aztec/protocol-contracts"],
             ];
             let bad = 0;
-            for (const s of specs) {
+            for (const candidates of specs) {
               const t0 = Date.now();
-              try {
-                const m = await import(s);
-                console.log(`  ok  ${s}  (${Object.keys(m).length} exports, ${Date.now() - t0} ms)`);
-              } catch (e) {
-                console.error(`  FAILED  ${s}: ${e.message}`);
+              let loaded = false;
+              const why = [];
+              for (const s of candidates) {
+                try {
+                  const m = await import(s);
+                  console.log(`  ok  ${s}  (${Object.keys(m).length} exports, ${Date.now() - t0} ms)`);
+                  loaded = true;
+                  break;
+                } catch (e) {
+                  why.push(`${s}: ${e.message}`);
+                }
+              }
+              if (!loaded) {
+                console.error(`  FAILED  neither scope loads ${candidates[0]}`);
+                for (const line of why) console.error(`            ${line}`);
                 bad++;
               }
             }
-            console.log(`loaded ${specs.length - bad} of ${specs.length} (population: the replay driver’s declared @aztec dependencies)`);
+            console.log(`loaded ${specs.length - bad} of ${specs.length} (population: the replay driver’s declared protocol dependencies, either scope)`);
             if (bad) process.exit(1);
           '
+
+      - name: The historic-replay seam's own suite, against the runtime this job built
+        # 32 assertions, offline: the transaction file store and the node are two
+        # `http.Server`s the suite starts itself, and the subject body is built
+        # from the runtime's own committed fixture.
+        #
+        # IT RAN NOWHERE UNTIL NOW, and `Justfile`'s own header for it predicted
+        # exactly that: it is kept out of `chain-selftest` because that recipe is
+        # offline AND TOOLCHAIN-FREE while this suite needs `aztec-avm-runtime`'s
+        # `replay/node_modules` to decode Aztec's wire format — "putting it in the
+        # stock suite would make the stock suite need a checkout, which is how a
+        # suite starts getting skipped". It was kept out, and then nothing else
+        # named it: `just body-proxy-selftest <runtime>` was the only caller and no
+        # workflow invokes that recipe.
+        #
+        # THIS JOB IS THE ONE PLACE THE PREREQUISITE ALREADY EXISTS. It has just
+        # built `chain-runtime` and asserted `replay/node_modules/@aztec-labs/stdlib`
+        # and `@aztec-foundation/bb.js` into it, so the checkout the recipe asks a
+        # human for is `${CHAIN_RUNTIME}` here, for free.
+        #
+        # AND IT IS THE SUITE FOR THE FILE THIS BRANCH CHANGED. `lib/body-proxy.mjs`
+        # loads bb.js, stdlib and foundation v6-first with the v5 spelling as a
+        # fallback, which is this branch's work; the suite over it had never been
+        # exercised by CI in either scope.
+        #
+        # IT RUNS AGAINST THE HISTORICAL RUNTIME, AND THE FIRST VERSION OF THIS
+        # STEP WAS WRONG TO USE `CHAIN_RUNTIME`. The suite builds its subject by
+        # parsing the `aztec_getTxByHash` answer committed INSIDE the runtime at
+        # `replay/fixtures/testnet_replay_tx.json`. That recording is
+        # `nodeVersion 5.2.0` on rollup `0xd73a91bd…`, a retired chain, so v6's
+        # `Tx.schema` reaches `BlockHeader.fromBuffer` and throws
+        # `Value 0x… is greater or equal to field modulus` — the 4-byte header
+        # shift between the eras, not a fault in the seam. Pointing it at v6
+        # therefore could not pass for any state of the code under test.
+        #
+        # SO THE v6 ARM OF THE LOADER IS NOT COVERED HERE, and I am not claiming
+        # it is: covering it needs a v6-era recording, which no pin ships today
+        # (filed separately). What this step does add is that the suite runs in
+        # CI AT ALL — it never had — over the v5 spelling the fallback resolves.
+        # The v6 scopes are proven to resolve by the step above, which imports
+        # all three under `CHAIN_RUNTIME` and refuses if neither scope loads.
+        #
+        # The build is INSIDE this step rather than a step of its own, because a
+        # failing step skips every step below it: as a separate step a broken
+        # historical build would silently disable the .ct-writer and
+        # packaged-follower gates underneath, which is the exact failure this
+        # step already caused once (see below).
+        #
+        # `${FOLLOWER_NODE}/bin/node`, NEVER a bare `node`. This job is
+        # self-hosted and has no node on PATH — every other node invocation in
+        # it names `${FOLLOWER_NODE}/bin/node` for that reason, and the first
+        # version of this step did not, so it died `node: command not found`
+        # (exit 127). The failure mode is worse than a red step: this step sits
+        # ABOVE the .ct-writer and packaged-follower steps, which were SKIPPED
+        # as a result — a new check that disables the checks beneath it.
+        run: |
+          set -euo pipefail
+          histo="$(nix build .#chain-runtime-historical -L --no-link --print-out-paths)"
+          echo "historical runtime: ${histo}"
+          # The fixture this suite parses must be the one the runtime ships, and
+          # it must be the v5-era recording. Assert both rather than discover a
+          # vacuous pass later: no fixture, or a fixture whose recorded
+          # nodeVersion is not 5.x, means this step is measuring something other
+          # than what its comment claims.
+          fx="${histo}/replay/fixtures/testnet_replay_tx.json"
+          test -f "${fx}" \
+            || { echo "REFUSED: ${fx} does not exist, so the suite below would have no subject"; exit 1; }
+          ver="$("${FOLLOWER_NODE}/bin/node" -e '
+            const fs = require("fs");
+            const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const c = (d.calls ?? []).find((c) => /NodeInfo/i.test(String(c.method ?? "")));
+            process.stdout.write(String(c?.result?.nodeVersion ?? ""));
+          ' "${fx}")"
+          echo "fixture nodeVersion: ${ver:-<none>}"
+          case "${ver}" in
+            5.*) ;;
+            *) echo "::error::the historical fixture records nodeVersion '${ver:-<none>}', not 5.x."
+               echo "::error::This step exists because the subject is a v5 transcript; if that"
+               echo "::error::changed, run it against CHAIN_RUNTIME instead and re-read the comment."
+               exit 1 ;;
+          esac
+          "${FOLLOWER_NODE}/bin/node" tools/chain/body-proxy-selftest.mjs \
+            --runtime "${histo}"
 
       - name: The Linux-built .ct writer is a wasm module this node can compile
         # `nix build` succeeding says the linker ran. It does not say the bytes
