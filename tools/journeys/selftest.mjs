@@ -2634,6 +2634,48 @@ export function redRecords(records) {
     .map((r) => ({ what: String(r.what ?? ""), detail: String(r.detail ?? "") }));
 }
 
+/** The sentence `run.mjs` prints when its engine arm (Arm II) refuses. */
+export const ENGINE_ARM_REFUSAL = "cannot open part of this corpus";
+
+/**
+ * What an exit 2 from `run.mjs` means, which depends on WHICH TREE it ran over.
+ *
+ * On an UNMUTATED tree (the `before:` reading, and the reading after the
+ * restore) exit 2 is a refusal about the run: no browser, no exported site, an
+ * engine that cannot open the corpus. Nothing in the suite can be judged, so it
+ * is raised as one DID NOT RUN. That is unchanged.
+ *
+ * On a MUTATED tree the engine-arm refusal is NOT evidence about the engine.
+ * Arm II opens one recording of each kind THROUGH THE PRODUCT'S OWN PAGE
+ * (`run.mjs` `engineArm` → `askTheEngine`), so a mutation of that page can stop
+ * a recording opening while the engine is fine. The unmutated run of the same
+ * arm, measured a moment earlier, opened it: that GREEN baseline disproves an
+ * engine cause. Measured on #117 (`0ace4de`): `journeys-bite (2)` arm
+ * `B/opens-on-the-manifest` and `journeys-bite (4)` arm
+ * `PH1/the-playhead-drifts-back-a-tick` each had a GREEN `before:` over the
+ * pinned engine and then raised "the engine … cannot open part of this corpus",
+ * which ended the whole shard as DID NOT RUN and blamed the engine.
+ *
+ * So a mutated engine-arm refusal is returned as a MISS (`why:
+ * "refused-mutated"`), with what Arm II printed, and the existing scoring
+ * decides. A miss scores NEVER RAN, NOT a kill: a mutant is killed only by a
+ * red record from its own journey, and here the journey judged nothing. Any
+ * OTHER exit 2 on a mutated tree (no browser, `--only` matching nothing, …) is
+ * still a fact about the run and is still raised.
+ *
+ * Returns `{ raise: true }` or `{ raise: false, miss }`.
+ */
+export function classifyRefusal(output, phase) {
+  const text = String(output ?? "");
+  if (phase !== "mutated" || !text.includes(ENGINE_ARM_REFUSAL)) return { raise: true };
+  const seen = text
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => /\[(OK|REFUSED)\]/.test(l) || /^\s{19}\S/.test(l))
+    .slice(-12);
+  return { raise: false, miss: { found: false, why: "refused-mutated", tail: seen } };
+}
+
 export function logMissDiagnosis(miss, arm, phase) {
   const mutated = phase === "mutated";
   if (miss.why === "no-report") {
@@ -2653,6 +2695,16 @@ export function logMissDiagnosis(miss, arm, phase) {
       log(`               Run \`node tools/journeys/run.mjs --only ${arm.journey}\` and`);
       log(`               read ITS output; the cause is there and not here.`);
     }
+  } else if (miss.why === "refused-mutated") {
+    log(`               THE MUTATED RUN NEVER REACHED ITS JOURNEY. run.mjs's engine arm,`);
+    log(`               which opens one recording of each kind through the product's own`);
+    log(`               page, did not see one open under the MUTATED tree. The unmutated`);
+    log(`               run of this arm opened it, so no engine cause is claimed: the`);
+    log(`               mutation stopped the page opening it. The journey judged nothing,`);
+    log(`               so this is NEVER RAN, not a kill. What the engine arm printed:`);
+    const tail = miss.tail ?? [];
+    if (tail.length) for (const line of tail) log(`                 ${line}`);
+    else log(`                 (nothing — re-run \`node tools/journeys/run.mjs --only ${arm.journey}\` over the mutated tree)`);
   } else if (miss.why === "no-journey") {
     log(`               THE REPORT HOLDS NO JOURNEY '${arm.journey}'. It holds:`);
     log(`               ${(miss.saw ?? []).join(", ") || "(none)"}`);
@@ -2739,7 +2791,7 @@ export function logMissDiagnosis(miss, arm, phase) {
   }
 }
 
-async function verdictFor(journey, assertion) {
+async function verdictFor(journey, assertion, phase = "unmutated") {
   // THE PREVIOUS READING IS DELETED BEFORE THIS ONE IS TAKEN.
   //
   // `run.mjs --json` writes this file when it produces a verdict and does NOT
@@ -2801,6 +2853,12 @@ async function verdictFor(journey, assertion) {
     // probe went red and stayed red, describing an incident whose mechanism had
     // moved out from under it.
     if (err && err.code === 2) {
+      // Arm II prints its per-recording [OK]/[REFUSED] lines on STDOUT and the
+      // refusal sentence on STDERR, so both are read. See `classifyRefusal`:
+      // on a MUTATED tree an engine-arm refusal is a miss, not a DID NOT RUN.
+      const said = String(err.stdout ?? "") + String(err.stderr ?? "");
+      const refusal = classifyRefusal(said, phase);
+      if (!refusal.raise) return refusal.miss;
       throw new Error(
         `the journeys REFUSED to run '${journey}' — run.mjs exited 2, which is\n` +
           `  "this gate did not run", not a verdict about the product. Nothing below it\n` +
@@ -3240,7 +3298,7 @@ async function main() {
         log(`               ${built.log.split("\n").slice(-3).join(" / ")}`);
         verdict = "never";
       } else {
-        const after = await verdictFor(arm.journey, arm.assertion);
+        const after = await verdictFor(arm.journey, arm.assertion, "mutated");
         if (!after.found) {
           log(`    NEVER RAN — the assertion vanished from the mutated run`);
           logMissDiagnosis(after, arm, "mutated");

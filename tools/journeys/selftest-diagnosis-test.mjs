@@ -30,7 +30,7 @@
 //
 // THE CONTROL IS THE POINT. A section that printed on every miss would say
 // nothing, so probe 3 asserts it is ABSENT when no record went red.
-import { redRecords, logMissDiagnosis } from "./selftest.mjs";
+import { redRecords, logMissDiagnosis, classifyRefusal, ENGINE_ARM_REFUSAL } from "./selftest.mjs";
 
 let pass = 0;
 let fail = 0;
@@ -222,10 +222,54 @@ console.log("selftest-diagnosis-test — does a NEVER RAN name its cause?\n");
   );
 }
 
+// AN ENGINE-ARM REFUSAL BLAMES THE ENGINE ONLY ON AN UNMUTATED TREE.
+//
+// Regression for blocktracer #117 (`0ace4de`): `journeys-bite (2)` arm
+// `B/opens-on-the-manifest` and `journeys-bite (4)` arm
+// `PH1/the-playhead-drifts-back-a-tick` each had a GREEN `before:` over the
+// pinned engine, and the MUTATED run's engine arm then refused. `verdictFor`
+// raised that as "the engine cannot open part of this corpus", ending the shard
+// as DID NOT RUN. The GREEN baseline disproves an engine cause, so on a mutated
+// tree the refusal must come back as a MISS that scores NEVER RAN — and never as
+// a kill, which only a red record from the journey may produce.
+{
+  const ARM_II = [
+    "Arm II: prove the engine can open this corpus, before judging the product",
+    "         [OK]     recordings with source and values recorded on it: tx-a",
+    "         [REFUSED] recordings that publish no source: tx-b",
+    "                   no replay worker on the page",
+    "",
+    `  The replay engine staged for this run ${ENGINE_ARM_REFUSAL}.`,
+  ].join("\n");
+
+  const unmutated = classifyRefusal(ARM_II, "unmutated");
+  ck("an engine-arm refusal on the UNMUTATED tree is still raised as DID NOT RUN", unmutated.raise === true);
+
+  const mutated = classifyRefusal(ARM_II, "mutated");
+  ck("on a MUTATED tree it is NOT raised", mutated.raise === false);
+  ck(
+    "it comes back as a miss (found: false), which the scoring makes NEVER RAN, never a kill",
+    mutated.miss && mutated.miss.found === false && mutated.miss.why === "refused-mutated" && !("ok" in mutated.miss),
+  );
+  ck(
+    "the miss carries what the engine arm printed, the REFUSED recording and its reason included",
+    (mutated.miss?.tail ?? []).some((l) => l.includes("[REFUSED]")) &&
+      (mutated.miss?.tail ?? []).some((l) => l.includes("no replay worker on the page")),
+  );
+
+  const printed = captured(mutated.miss, { journey: "position-survives-hydration", file: "x.nim" }, "mutated");
+  ck("the diagnosis does not claim an engine cause", /no engine cause is claimed/.test(printed) && !/stage an engine/.test(printed));
+  ck("the diagnosis says it is not a kill", /NEVER RAN, not a kill/.test(printed));
+
+  // CONTROL: any OTHER exit 2 on a mutated tree is still a fact about the run.
+  const other = classifyRefusal("  --only nope matched no journey", "mutated");
+  ck("CONTROL: a mutated exit 2 that is NOT the engine-arm refusal is still raised", other.raise === true);
+}
+
 const total = pass + fail;
 console.log(`\nassertion count: ${total} (as declared)`);
-if (total !== 23) {
-  console.log(`REFUSED: this suite declares 23 assertions and ran ${total}`);
+if (total !== 30) {
+  console.log(`REFUSED: this suite declares 30 assertions and ran ${total}`);
   process.exit(1);
 }
 if (fail) {
