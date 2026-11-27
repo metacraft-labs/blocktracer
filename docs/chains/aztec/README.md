@@ -409,7 +409,54 @@ changes the first-dispatch sequence recorded elsewhere in this file: the step th
 existed to free the canonical slug by dropping a registry row may be unnecessary
 at this revision.
 
-### Two things this does NOT establish — state them before anyone relies on it
+### CORRECTION, and it may mean the deploy is NOT SUFFICIENT
+
+The clean transition above was measured against a store with **no registry**, and
+that is an incompletely seeded target. Re-run 2026-11-27 with production's real
+`registry/chains.v1.json` seeded alongside the pointer — all four chains
+(`aztec`, `aztec-testnet`, `aztec-testnet-frames`, `demo`) — and the publish
+**refuses**, fail-closed:
+
+```
+publish failed: refusing to publish a registry that drops chain(s) aztec,
+aztec-testnet-frames, demo (the object is registry/chains.v1.json): the store
+lists them and this tree does not. The registry is the only object that lists a
+chain, so writing this would leave those chains' objects present in the store
+and invisible to every reader. This happens when each chain is ingested into its
+OWN tree: each tree's registry then holds one chain and the second publish
+overwrites the first.
+```
+
+rc=1, and **the store was left untouched** — registry still four chains, pointer
+still `rtestnet0001` at head 99,092. The guard is correct and it works.
+
+**So `--registry-seed` is still required**, and pubtest1's "no
+`replace-chain-row` needed" conclusion was an artifact of the missing registry.
+That is the third time in one session an incomplete seed or probe gave me an
+over-optimistic reading — see the two instrument failures recorded above and
+`[[rehearse-at-the-shape-of-production-not-a-sample]]`. **An empty store is a
+different store.**
+
+**THE OPEN QUESTION THIS RAISES, which someone must answer before counting the
+deploy as the fix.** The service's publish path appears never to seed the
+registry. Two checks, both negative:
+
+- the module's publish script passes only `--endpoint-url` (no registry flag);
+- neither `tools/chain/follow-chain.mjs` nor `snapshot-from-ingest.mjs`
+  references `registry-seed` / `registrySeed`.
+
+If that holds, then after the deploy the service's **first publish is refused by
+this same guard** and blocktracer.org still does not advance — the deploy would be
+necessary but not sufficient.
+
+**What I did NOT establish, and it matters:** my refusal came through
+`ingest-range.mjs --publish-bin`, which is *not* the service's invocation. The
+service drives the publisher from its own generated script. So the same refusal is
+*likely* and is not *reproduced* through the service's exact path. Reproduce it
+that way — or find where the service supplies the registry — before the deploy is
+assumed to finish the job.
+
+### Two things the earlier local-backend run did NOT establish
 
 1. **The registry guard is untested.** I seeded the POINTER but not
    `registry/chains.v<N>.json`. Production's store lists four chains, so
