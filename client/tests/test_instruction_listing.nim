@@ -25,7 +25,7 @@
 ## that shows the assertion has something to look at, and a mutation of the real
 ## product value that is asserted to flip it.
 
-import std/[unittest, os, json, strutils, algorithm, tables]
+import std/[unittest, os, json, strutils, algorithm, tables, sequtils]
 
 import ../src/ssr
 import ../src/reader
@@ -1720,3 +1720,65 @@ suite "8 — a transaction's every bundle is on the page, and a Move stream is r
     # disassembly) + 10 (the unplaced source-level pane) + 3 (attribution) + 5
     # (the island) + 4 (the shortened label) = 62.
     expectCount(62)
+
+suite "9 — Starknet's stream is read: a pc on every step, the kind by name":
+  # Data-Contract §5.4, amended 2026-11-25: a listing states the executed pc on
+  # every step. Starknet's producer writes `cairo-casm-instructions/1`, with one
+  # CASM listing per class (`paths` / `pathId`), a pc per step (null only where no
+  # instruction ran: the writer's start, a program's end) and the instruction kind
+  # by name. Literals shaped as `produce-starknet-snapshot.mjs` writes them.
+  asserted = 0
+  let cairo = %*{
+    "schema": "cairo-casm-instructions/1", "isa": "cairo",
+    "paths": ["0xaaa.casm", "0xbbb.casm", "cairo/erc20.cairo"],
+    "steps": 4, "counters": 3,
+    "pathId": [0, 0, 0, 1],
+    "pc": [nil, 2, 4, 0],
+    "op": [nil, "call", "ret", "assert"]}
+
+  test "the stream decodes: the pc of every executed step, the kind as published":
+    let l = decodeInstructionListing(cairo)
+    ck l.stepCount == 4
+    ck l.steps[0].pc == NoProgramCounter and l.steps[1].pc == 2 and l.steps[3].pc == 0
+    ck l.steps[1].mnemonic == "call" and l.steps[0].mnemonic == ""
+    ck l.byName and not l.named
+    # A class is a context; the Cairo file is not an object the counters index.
+    ck l.steps[3].context == 1 and l.steps[2].context == 0
+    ck l.objectPath == "0xaaa.casm, 0xbbb.casm"
+
+  test "rows show the kind by name and never invent an opcode number":
+    let l = decodeInstructionListing(cairo)
+    let doc = listingDocument(l, 1)
+    ck doc.lines.len == 4
+    ck doc.lines[1].text.startsWith("0x") and doc.lines[1].text.split("  ")[1].startsWith("call")
+    ck doc.lines[0].text.startsWith(ListingNoPcCell)
+    ck not doc.lines.anyIt("opcode " in it.text)
+    # Moving between classes is a move between programs, stated as one.
+    ck " → context 1 " in doc.lines[2].text
+
+  test "the caption says why a row has no counter, for THIS stream":
+    let cap = listingCaption(decodeInstructionListing(cairo))
+    ck "program counter on 3 of them (" & ListingNoPcCell & " where no instruction ran)" in cap
+    ck "· instruction" in cap and "opcode number" notin cap
+    ck "source line instead" notin cap
+
+  test "CONTROL: an AVM stream keeps its own reason and its numbers":
+    let avm = %*{"schema": "avm-instructions/2", "pc": [-1, 3], "op": [1, 2]}
+    let l = decodeInstructionListing(avm)
+    ck l.stepCount == 2 and not l.byName
+    ck "where the step resolves to a source line instead" in listingCaption(l)
+
+  test "CONTROL: a version not taught, or a short column, yields no listing":
+    var later = cairo.copy
+    later["schema"] = %"cairo-casm-instructions/2"
+    ck not decodeInstructionListing(later).hasListing
+    var short = cairo.copy
+    short["op"] = %*[nil, "call", "ret"]
+    ck not decodeInstructionListing(short).hasListing
+    var bad = cairo.copy
+    bad["pc"] = %*[nil, "0x2", 4, 0]
+    ck not decodeInstructionListing(bad).hasListing
+
+  test "assertion count":
+    # 6 (decode) + 5 (rows) + 3 (caption) + 2 (AVM control) + 3 (refusals) = 19.
+    expectCount(19)

@@ -135,6 +135,14 @@ type
                       ## bytecode, or `NoProgramCounter` on a step whose
                       ## coordinate is a source position instead
     opcode*: int      ## the opcode NUMBER the recorder wrote; never a name
+    mnemonic*: string
+      ## The instruction KIND the producer stated, where its stream states one
+      ## by name rather than by number (`cairo-casm-instructions/1`: `call`,
+      ## `ret`, …, taken from the CASM text the recorder compiled). Shown as
+      ## published; never looked up, so `named` is not involved. Empty for a
+      ## numbered stream (`avm-instructions/*`), and on a step whose producer
+      ## stated no kind, for example a step at a program's end, where no
+      ## instruction ran.
     l2Gas*: int       ## the L2 gas meter's reading at this step
     context*: int     ## which execution context this step ran in
 
@@ -159,6 +167,17 @@ type
       ## arrows, no names.
     hasGas*: bool
     check*: OpcodeTableCheck
+    noPcReason*: string
+      ## Why a row of THIS stream carries no counter, said in the caption. The
+      ## two streams that can leave one out mean different things by it. An AVM
+      ## step that resolves to a source line has spent its coordinate there.
+      ## Under Data-Contract §5.4 as amended (2026-11-25) a Starknet stream
+      ## states the executed pc on every step, so its only uncounted row is one
+      ## where no instruction ran.
+    byName*: bool
+      ## Whether the stream states each instruction's kind by NAME
+      ## (`cairo-casm-instructions/1`) rather than by number. A row then shows the
+      ## producer's kind, or nothing where none ran, and is never `opcode N`.
     named*: bool
       ## Whether mnemonics may be shown for this recording. `check.explains`, and
       ## a listing may be `false` here and still render every program counter —
@@ -205,6 +224,58 @@ func intColumn(node: JsonNode; name: string; want: int): seq[int] =
     if v.kind != JInt: return @[]
     result.add v.getInt
 
+const CairoInstructionsSchema* = "cairo-casm-instructions/1"
+  ## Starknet's stream (`tools/chain/produce-starknet-snapshot.mjs`). Per step:
+  ## `pathId` into `paths` (one CASM listing per class), `pc` (an offset into
+  ## THAT listing, or null where no instruction ran) and `op` (the instruction
+  ## kind by name, or null).
+
+proc decodeCairoListing(node: JsonNode): InstructionListing =
+  ## `cairo-casm-instructions/1`, back into a listing, under the same all-or-
+  ## nothing rule as the numbered streams: a column of the wrong length or type
+  ## yields an EMPTY listing.
+  ##
+  ## A CLASS IS A CONTEXT. Each class's CASM is its own address space, so
+  ## `pathId` is carried as `context`. `destinationSuffix` then states a move
+  ## between classes as one, instead of differencing two offsets into two
+  ## different programs and drawing an arrow between them.
+  ##
+  ## THE MNEMONIC IS THE PRODUCER'S, carried as `mnemonic` and shown as
+  ## published. No table is selected for `cairo` and `named` stays false, so
+  ## nothing here claims to have checked a name; the opcode NUMBER stays 0,
+  ## which nothing renders while a mnemonic is present.
+  let pcs = node{"pc"}
+  let ops = node{"op"}
+  let ids = node{"pathId"}
+  let paths = node{"paths"}
+  if pcs == nil or pcs.kind != JArray or pcs.len == 0: return
+  let n = pcs.len
+  if ops == nil or ops.kind != JArray or ops.len != n: return
+  if ids == nil or ids.kind != JArray or ids.len != n: return
+  var steps: seq[InstructionStep]
+  for i in 0 ..< n:
+    let p = pcs[i]
+    let o = ops[i]
+    let k = ids[i]
+    if not (p.kind == JInt or p.kind == JNull): return
+    if not (o.kind == JString or o.kind == JNull): return
+    if k.kind != JInt: return
+    steps.add InstructionStep(
+      pc: (if p.kind == JInt: p.getInt else: NoProgramCounter),
+      mnemonic: (if o.kind == JString: o.getStr else: ""),
+      context: k.getInt)
+  result.steps = steps
+  result.isa = node{"isa"}.getStr("")
+  result.table = opcodeTableFor(result.isa)
+  result.named = false
+  result.byName = true
+  result.noPcReason = "where no instruction ran"
+  if paths != nil and paths.kind == JArray:
+    var names: seq[string]
+    for v in paths:
+      if v.kind == JString and v.getStr.endsWith(".casm"): names.add v.getStr
+    result.objectPath = names.join(", ")
+
 proc decodeInstructionListing*(node: JsonNode): InstructionListing =
   ## The published `instructions.json`, back into a listing.
   ##
@@ -227,7 +298,11 @@ proc decodeInstructionListing*(node: JsonNode): InstructionListing =
   # something else.
   let schema = node{"schema"}
   if schema != nil and schema.kind == JString and
-     schema.getStr notin ["avm-instructions/1", "avm-instructions/2"]: return
+     schema.getStr notin ["avm-instructions/1", "avm-instructions/2",
+                          CairoInstructionsSchema]: return
+  if schema != nil and schema.kind == JString and
+     schema.getStr == CairoInstructionsSchema:
+    return decodeCairoListing(node)
   let pcs = node{"pc"}
   if pcs == nil or pcs.kind != JArray or pcs.len == 0: return
   let n = pcs.len
@@ -261,6 +336,7 @@ proc decodeInstructionListing*(node: JsonNode): InstructionListing =
   # rather than asserting — and is why identity was made a lookup rather than a
   # licence.
   result.named = result.table.known and result.check.explains
+  result.noPcReason = "where the step resolves to a source line instead"
 
 # ---------------------------------------------------------------------------
 # the rows
@@ -326,6 +402,14 @@ func opcodeText*(l: InstructionListing; op: int): string =
     let name = l.table.opcodeName(op)
     if name.len > 0: return name
   "opcode " & $op
+
+func stepText*(l: InstructionListing; s: InstructionStep): string =
+  ## A row's instruction cell. A stream that states the kind by name gives it here
+  ## as published. A numbered stream goes through `opcodeText`, and only there can
+  ## a name be earned. A row of a named stream with no kind (no instruction ran)
+  ## is empty, not `opcode 0`.
+  if l.byName: return s.mnemonic
+  opcodeText(l, s.opcode)
 
 func destinationSuffix*(l: InstructionListing; i, pcw: int): string =
   ## ` → 0x0041`, when this step transferred control somewhere other than the
@@ -413,7 +497,7 @@ proc listingDocument*(l: InstructionListing; currentStep: int): SourceDocument =
   var opWidth = 0
   var gasWidth = 0
   for i, s in l.steps:
-    let w = cells(opcodeText(l, s.opcode) & destinationSuffix(l, i, pcw))
+    let w = cells(stepText(l, s) & destinationSuffix(l, i, pcw))
     if w > opWidth: opWidth = w
     if l.hasGas and i > 0:
       let d = ($(s.l2Gas - l.steps[i - 1].l2Gas)).len
@@ -421,7 +505,7 @@ proc listingDocument*(l: InstructionListing; currentStep: int): SourceDocument =
 
   for i, s in l.steps:
     var text = pcText(s.pc, pcw) & "  "
-    let instr = opcodeText(l, s.opcode) & destinationSuffix(l, i, pcw)
+    let instr = stepText(l, s) & destinationSuffix(l, i, pcw)
     text.add instr
     if l.hasGas:
       text.add spaces(max(1, opWidth - cells(instr)) + 1)
@@ -464,10 +548,10 @@ proc listingCaption*(l: InstructionListing): string =
     # together they read as `of them — — where`, which looks like a typo in the
     # one line that explains what the dashes below mean.
     parts.add "program counter on " & $l.counterSteps & " of them (" &
-              ListingNoPcCell & " where the step resolves to a source line instead)"
+              ListingNoPcCell & " " & l.noPcReason & ")"
   else:
     parts.add "program counter"
-  parts.add (if l.named: "opcode" else: "opcode number")
+  parts.add (if l.byName: "instruction" elif l.named: "opcode" else: "opcode number")
   if l.hasGas: parts.add "L2 gas since the previous step"
   result = parts.join(" · ")
   if l.objectPath.len > 0:
