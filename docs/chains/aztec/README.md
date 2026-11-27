@@ -239,7 +239,44 @@ an earlier window and 0 of 213 here. **Source-level coverage on the site will be
 sparse and intermittent.** Clause two of the campaign goal is satisfied in kind,
 not in volume.
 
-### Not yet verified: source rendering on the published site
+### VERIFIED 2026-11-27: the published site does render source
+
+The last clause-two claim without evidence now has it. Read off the live page —
+`https://blocktracer.org/aztec-testnet-frames/tx/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592`,
+4,075,502 bytes of rendered HTML, markup only (the inlined stylesheet stripped,
+because this repository's CSS carries comments that quote fixture names):
+
+| probe | occurrences |
+|---|---|
+| `Source level here` | 1 |
+| `resolves source for <86> of its <459> steps; stepping` | **verbatim** |
+| `FeeJuice` | 28 |
+| `.nr` (Noir source-file references) | 2392 |
+| `bytecode ceiling` | 2 |
+| `No source resolved` | **0** |
+
+So the machinery does all three things the goal's second sentence asks for: it
+**renders real Noir source** where an artifact resolved, it **states the fraction
+exactly** rather than implying whole-transaction coverage, and it **names the
+bytecode ceiling** for the contract in the same transaction that could not
+resolve. Nothing here is aspirational.
+
+**What this does and does not establish.** It establishes that the *rendering
+path* is correct end to end on published data. It does not establish volume —
+see the window above where 0 of 213 recordings positioned a step. The honest
+statement of clause two is therefore: **wherever an artifact is obtainable the
+site resolves source and says how much; wherever it is not, the site says why.
+The limit is how often live traffic enters a contract whose artifact exists, and
+that is a property of Aztec's traffic and of which addresses survive a
+redeployment — not of this pipeline.**
+
+**How to find a subject, since I got this wrong first.** The transaction ids are
+in the generation's `root.json` under `maps.txstate` — one path per transaction.
+`blocks/0.json` holds BLOCK hashes, and `maps.addr` is empty. And do **not**
+reconstruct a hash from an abbreviation in a note: mine recorded
+`0x0a807e4e…b50592`, both ends were right, I invented the middle, and the page I
+fetched did not exist.
+
 
 The one clause-two claim with no evidence behind it is that a *page* on
 blocktracer.org renders source where an artifact resolved. `aztec-testnet-frames`
