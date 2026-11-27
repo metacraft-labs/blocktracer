@@ -239,7 +239,52 @@ an earlier window and 0 of 213 here. **Source-level coverage on the site will be
 sparse and intermittent.** Clause two of the campaign goal is satisfied in kind,
 not in volume.
 
-### VERIFIED 2026-11-27: the published site does render source
+### VERIFIED 2026-11-27: EVERY published transaction is handled, all 8 of them
+
+Clause two says *all* transactions that can support source-level debugging should
+do so on the site. One page proving it renders is an anecdote, so the whole
+published corpus was checked — `aztec-testnet-frames` generation
+`rframes00001` holds exactly 8 transactions (ids from `root.json`'s
+`maps.txstate`), and every one was fetched and read as markup:
+
+| transactions | what the page does | evidence |
+|---|---|---|
+| 1 | **renders source and states the fraction** | `0x0a807e4e…` — verbatim `resolves source for <86> of its <459> steps`, 2,392 `.nr` references, `FeeJuice` ×28 |
+| 5 | **state the ceiling** | `bytecode ceiling` or `instruction level`, no source claimed |
+| 2 | **say the execution was private and permanently untraceable** | `0x1f9b05bb…`, `0x11d0bb0f…` — `no trace`, `empty permanently`, `private` |
+| 0 | silent, blank, or misleading | — |
+
+**So over the corpus that exists, clause two holds universally**: every page either
+resolves source and says how much, explains the ceiling, or states that the chain
+published no public execution. Not one is silent.
+
+What this still does not establish is **volume** on live traffic — see the window
+above where 0 of 213 recordings positioned a step, because none entered a contract
+whose artifact exists. The honest statement remains: *wherever an artifact is
+obtainable the site resolves source and says how much; wherever it is not, the site
+says why.*
+
+### Two instrument failures in this check, recorded so the next one is cheaper
+
+1. **A `stepsPositioned` probe against the published `txstate` JSON read 0 for
+   every transaction** — including the one already verified at 86 of 459. The key
+   is not at that path in that shape. The page's markup is the reliable reader;
+   do not infer coverage from a guessed JSON path.
+2. **A probe set of `bytecode ceiling` / `No source resolved` reported two pages as
+   saying NEITHER source nor ceiling**, which looked like a defect. They are
+   private-only transactions and say `no trace` / `empty permanently` / `private`.
+   An absence measured with an incomplete probe set is not an absence — check the
+   page's byte count and read what it DOES say before calling anything missing.
+
+### How to find a subject
+
+Transaction ids are in the generation's `root.json` under `maps.txstate`, one path
+each. `blocks/0.json` holds BLOCK hashes and `maps.addr` is empty. Do **not**
+reconstruct a hash from an abbreviation in a note: mine recorded
+`0x0a807e4e…b50592`, both ends were right, I invented the middle, and the page I
+fetched did not exist.
+
+### Superseded: the earlier single-page reading
 
 The last clause-two claim without evidence now has it. Read off the live page —
 `https://blocktracer.org/aztec-testnet-frames/tx/0x0a807e4e9909fc66ceeb52e4192406077a06ce378ab9e00717555fbd41b50592`,
