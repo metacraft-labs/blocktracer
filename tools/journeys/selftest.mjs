@@ -166,10 +166,35 @@ const ARMS = [
       " the fix's own comment: 'left activeIndex at 0 — which after the sort is" +
       " whatever path sorts first, typically Nargo.toml — while currentLine kept a" +
       " line number belonging to a different file.' 115 debug-route cases could not" +
-      " see it because their fixture supplied the position they then asserted back.",
-    file: join(CLIENT, "src", "debugger", "demo_session.nim"),
-    find: `    focus(pane, posPath, posLine)`,
-    replace: `    focus(pane, docs[0].path, posLine)`,
+      " see it because their fixture supplied the position they then asserted back." +
+      " RE-AIMED 2026-11-27, from `demo_session.nim`'s `focus(pane, posPath, posLine)`" +
+      " to the rule that decides which document panel is on screen. The old mutation" +
+      " set the pane's ACTIVE document to the manifest. Since a429545f (codetracer-pm" +
+      " #103) only the active document carries rows; every other panel is a" +
+      " `.srclazy` placeholder drawn when it is opened. So the mutation also took" +
+      " every row of the positioned file off the page, the `.fv` value chips with" +
+      " them, and `lib/corpus.mjs`'s `hasRecordedValues` is read off those chips." +
+      " Under the mutation no transaction in the corpus had values, run.mjs's" +
+      " engine arm refused 'recordings with source and values recorded on it: no" +
+      " subject of this kind in the corpus', and journey 02 was never reached." +
+      " Measured on arch, 2026-11-27: NEVER RAN on 28d07e93 (the #117 promotion" +
+      " head), KILLED on origin/dev c48799f9 ('showing Nargo.toml, position is in" +
+      " null'), the same as `journeys-bite (2)` in CI run 45963116577. A refusal is" +
+      " never a kill, so the arm proved nothing on any tree carrying a429545f. The" +
+      " defect a reader sees is unchanged: the pane opens on the first file while" +
+      " the position is in another. The mutation now makes that state with the" +
+      " CSS. The first panel in the pane is shown and the default panel hidden, so" +
+      " the positioned file and its value chips stay in the markup. The assertion" +
+      " and its journey are unchanged. The model-level form, `activeIndex` left at" +
+      " 0, is still asserted directly by `client/tests/test_entry_state.nim`.",
+    file: join(CLIENT, "src", "components", "debugger_css.nim"),
+    find: `.srcdoc.alt{display:none}
+.srcdoc.alt:target{display:flex}
+`,
+    replace: `.srcdoc.alt{display:none}
+.srcdoc.alt:target,.srcdoc.alt:nth-child(1 of .srcdoc){display:flex}
+.srcdoc.alt:nth-child(1 of .srcdoc) ~ .srcdoc.def{display:none}
+`,
     journey: "served-frame-marks-the-position",
     assertion: "SERVED: the file on screen is the file the position is in",
   },
